@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./mvnw test *)",
+      "Bash(jar tf *)",
+      "Bash(grep -v \".class$\")"
+    ]
+  }
+}
