@@ -18,15 +18,25 @@ class SaloonController {
         this.service = service;
     }
 
-    record CreateSaloonRequest(String name, String ownerName, String ownerEmail, String ownerPhone,
+    record CreateSaloonRequest(String name,
+                               String ownerName, String ownerEmail, String ownerPhone,
+                               Saloon.Location location,
+                               Saloon.ContactInfo contact,
+                               List<Saloon.OperatingHours> operatingHours,
                                List<SaloonFeature> features) {}
+
+    record UpdateSaloonRequest(String name,
+                               Saloon.Location location,
+                               Saloon.ContactInfo contact,
+                               List<Saloon.OperatingHours> operatingHours) {}
 
     record UpdateFeaturesRequest(List<SaloonFeature> features) {}
 
     @PostMapping
     ResponseEntity<Saloon> create(@RequestBody CreateSaloonRequest request) {
         var owner = new Saloon.Owner(request.ownerName(), request.ownerEmail(), request.ownerPhone());
-        var saloon = service.create(request.name(), owner, request.features());
+        var saloon = service.create(request.name(), owner, request.location(), request.contact(),
+                request.operatingHours(), request.features());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(saloon.id())
@@ -42,6 +52,13 @@ class SaloonController {
     @GetMapping("/{id}")
     ResponseEntity<Saloon> findById(@PathVariable String id) {
         return service.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}")
+    ResponseEntity<Saloon> update(@PathVariable String id, @RequestBody UpdateSaloonRequest request) {
+        return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

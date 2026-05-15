@@ -1,0 +1,31 @@
+# multi-tenant-saloon checklist
+- [] Create Saloon: 
+  - [] Enable a saloon owner to create a new saloon with details such as name, location, contact information, and operating hours and can select what are the features they want to enable for their saloon.
+  - [] Create/ Manage Saloon Staff (beautician), Services and Pricing.
+- [] Calendar service: 
+  - [] Beautician can create their availability in the calendar.
+  - [] Customer or a staff or owner from saloon can book an appointment with a beautician based on their availability.
+  - [] Customer can view their appointments and cancel them if needed.
+- [] Payment service:
+  - [] Customer can make payment for the appointment through the app.
+  - [] Saloon owner can view the payment history and manage refunds if needed.
+- [] Notification service:
+  - [] Send notifications to customers for appointment reminders, cancellations, and promotions.
+  - [] Send notifications to beauticians for new appointments, cancellations, and schedule changes.
+- [] Review and Rating service:
+  - [] Customers can leave reviews and ratings for the services they received.
+  - [] Saloon owner can view and manage reviews and ratings.
+- [] Webshop
+
+- [] Reporting and Analytics service:
+  - [] Saloon owner can view reports on appointments, revenue, and customer feedback.
+  - [] Saloon owner can analyze the data to make informed decisions about their business.
+- [] User Management service:
+  - [] Saloon owner can manage user accounts for staff and customers.
+  - [] Customers can create and manage their accounts, view their appointment history, and update their personal information.
+- [] Integration with third-party services:
+  - [] Integrate with payment gateways for secure transactions.
+  - [] Integrate with calendar services for better scheduling and availability management.
+- [] Implement security measures to protect user data and ensure secure transactions.
+- [] Test the application thoroughly to ensure all features are working as expected and there are no bugs or issues.
+- [] Deploy the application to a production environment and monitor its performance and user feedback for continuous improvement.

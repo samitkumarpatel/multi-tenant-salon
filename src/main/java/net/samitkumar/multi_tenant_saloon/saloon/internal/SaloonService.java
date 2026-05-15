@@ -21,8 +21,9 @@ class SaloonService {
         this.eventPublisher = eventPublisher;
     }
 
-    Saloon create(String name, Saloon.Owner owner, List<SaloonFeature> features) {
-        var saloon = new Saloon(null, name, owner, features, Instant.now());
+    Saloon create(String name, Saloon.Owner owner, Saloon.Location location, Saloon.ContactInfo contact,
+                  List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features) {
+        var saloon = new Saloon(null, name, owner, location, contact, operatingHours, features, Instant.now());
         var saved = repository.save(saloon);
         eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.features()));
         return saved;
@@ -36,9 +37,19 @@ class SaloonService {
         return repository.findById(id);
     }
 
+    Optional<Saloon> update(String id, String name, Saloon.Location location, Saloon.ContactInfo contact,
+                            List<Saloon.OperatingHours> operatingHours) {
+        return repository.findById(id).map(existing -> {
+            var updated = new Saloon(existing.id(), name, existing.owner(), location, contact,
+                    operatingHours, existing.features(), existing.createdAt());
+            return repository.save(updated);
+        });
+    }
+
     Optional<Saloon> updateFeatures(String id, List<SaloonFeature> features) {
         return repository.findById(id).map(existing -> {
-            var updated = new Saloon(existing.id(), existing.name(), existing.owner(), features, existing.createdAt());
+            var updated = new Saloon(existing.id(), existing.name(), existing.owner(), existing.location(),
+                    existing.contact(), existing.operatingHours(), features, existing.createdAt());
             return repository.save(updated);
         });
     }

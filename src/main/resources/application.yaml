@@ -1,3 +1,11 @@
 spring:
   application:
-    name: multi-tenant-saloon
+    name: @project.artifactId@
+  mongodb:
+    #uri: mongodb://root:example@localhost:27017/saloon?authSource=admin
+    host: localhost
+    port: 27017
+    database: saloon
+    username: root
+    password: example
+    authentication-database: admin
