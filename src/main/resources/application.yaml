@@ -1,11 +1,15 @@
 spring:
   application:
     name: @project.artifactId@
+  web:
+    resources:
+      static-locations: file:ui/, classpath:/static/
   mongodb:
-    #uri: mongodb://root:example@localhost:27017/saloon?authSource=admin
     host: localhost
     port: 27017
     database: saloon
     username: root
     password: example
     authentication-database: admin
+    representation:
+      uuid: standard

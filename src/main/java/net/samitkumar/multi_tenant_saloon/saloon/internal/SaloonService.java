@@ -25,7 +25,7 @@ class SaloonService {
                   List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features) {
         var saloon = new Saloon(null, name, owner, location, contact, operatingHours, features, Instant.now());
         var saved = repository.save(saloon);
-        eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.features()));
+        eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.features()));
         return saved;
     }
 

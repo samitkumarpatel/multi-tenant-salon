@@ -5,7 +5,8 @@
       "Bash(jar tf *)",
       "Bash(grep -v \".class$\")",
       "Bash(./mvnw compile *)",
-      "Bash(xargs ls -1)"
+      "Bash(xargs ls -1)",
+      "Bash(chmod +x *)"
     ]
   }
 }

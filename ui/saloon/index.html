@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saloon Manager</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js"></script>
+  <link rel="stylesheet" href="/saloon/styles.css" />
+</head>
+<body>
+<div id="app"></div>
+<script src="/saloon/shared.js"></script>
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+const { createRouter, createWebHistory, useRoute, useRouter } = VueRouter;
+
+// ══════════════════════════════════════════════════════════════════════
+//  SaloonListView  —  /saloon/   (platform admin, all saloons)
+// ══════════════════════════════════════════════════════════════════════
+const SaloonListView = {
+  setup() {
+    const router    = useRouter();
+    const saloons   = ref([]);
+    const loading   = ref(true);
+    const pageError = ref(null);
+    const busy      = ref(false);
+    const toast     = ref(null);
+    const target    = ref(null);
+
+    const modal = reactive({ create: false, editSaloon: false, features: false, del: false });
+
+    const cf = reactive({
+      name:'', ownerName:'', ownerEmail:'', ownerPhone:'',
+      location: { address:'', city:'', state:'', country:'', zipCode:'' },
+      contact:  { phone:'', email:'', website:'' },
+      operatingHours: defaultHours(), features: [],
+    });
+    const cfTouched = reactive({ name:false, ownerName:false, ownerEmail:false });
+
+    const ef = reactive({
+      name:'',
+      location: { address:'', city:'', state:'', country:'', zipCode:'' },
+      contact:  { phone:'', email:'', website:'' },
+      operatingHours: defaultHours(),
+    });
+
+    const ff = reactive({ features: [] });
+
+    function notify(msg, type = 'success') {
+      toast.value = { msg, type };
+      setTimeout(() => (toast.value = null), 3000);
+    }
+
+    async function loadSaloons() {
+      loading.value = true; pageError.value = null;
+      try { saloons.value = await apiFetch(API); }
+      catch (e) { pageError.value = e.message; }
+      finally { loading.value = false; }
+    }
+
+    function openCreate() {
+      Object.assign(cf, { name:'', ownerName:'', ownerEmail:'', ownerPhone:'', features:[] });
+      cf.location = { address:'', city:'', state:'', country:'', zipCode:'' };
+      cf.contact  = { phone:'', email:'', website:'' };
+      cf.operatingHours = defaultHours();
+      Object.assign(cfTouched, { name:false, ownerName:false, ownerEmail:false });
+      modal.create = true;
+    }
+
+    async function submitCreate() {
+      cfTouched.name = cfTouched.ownerName = cfTouched.ownerEmail = true;
+      if (!cf.name || !cf.ownerName || !cf.ownerEmail) return;
+      busy.value = true;
+      try {
+        const created = await apiFetch(API, { method:'POST', body: JSON.stringify({
+          name:cf.name, ownerName:cf.ownerName, ownerEmail:cf.ownerEmail, ownerPhone:cf.ownerPhone,
+          location:cf.location, contact:cf.contact, operatingHours:cf.operatingHours, features:cf.features,
+        })});
+        saloons.value.unshift(created);
+        modal.create = false;
+        notify(`"${created.name}" created!`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openEditSaloon(s) {
+      ef.name = s.name;
+      ef.location = s.location ? { ...s.location } : { address:'', city:'', state:'', country:'', zipCode:'' };
+      ef.contact  = s.contact  ? { ...s.contact  } : { phone:'', email:'', website:'' };
+      ef.operatingHours = cloneHours(s.operatingHours);
+      target.value = s; modal.editSaloon = true;
+    }
+
+    async function submitEditSaloon() {
+      if (!ef.name) return;
+      busy.value = true;
+      try {
+        const updated = await apiFetch(`${API}/${target.value.id}`, { method:'PUT', body: JSON.stringify({
+          name:ef.name, location:ef.location, contact:ef.contact, operatingHours:ef.operatingHours,
+        })});
+        const idx = saloons.value.findIndex(s => s.id === updated.id);
+        if (idx !== -1) saloons.value[idx] = updated;
+        modal.editSaloon = false;
+        notify(`"${updated.name}" updated!`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openFeatures(s) { target.value = s; ff.features = [...(s.features||[])]; modal.features = true; }
+
+    async function submitFeatures() {
+      busy.value = true;
+      try {
+        const updated = await apiFetch(`${API}/${target.value.id}/features`, { method:'PUT', body: JSON.stringify({ features:ff.features }) });
+        const idx = saloons.value.findIndex(s => s.id === updated.id);
+        if (idx !== -1) saloons.value[idx] = updated;
+        modal.features = false; notify('Features updated!');
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openDelete(s) { target.value = s; modal.del = true; }
+
+    async function submitDelete() {
+      busy.value = true;
+      try {
+        await apiFetch(`${API}/${target.value.id}`, { method:'DELETE' });
+        const name = target.value.name;
+        saloons.value = saloons.value.filter(s => s.id !== target.value.id);
+        modal.del = false; notify(`"${name}" deleted.`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    onMounted(loadSaloons);
+
+    return {
+      saloons, loading, pageError, busy, toast, target, modal,
+      cf, cfTouched, ef, ff,
+      FEATURES, FEATURE_LABEL, DAYS, DAY_SHORT,
+      formatDate, toggle, openDays,
+      loadSaloons, openCreate, submitCreate,
+      openEditSaloon, submitEditSaloon,
+      openFeatures, submitFeatures,
+      openDelete, submitDelete,
+    };
+  },
+
+  template: `
+  <div>
+    <header class="header">
+      <div class="header-inner">
+        <div class="header-brand">
+          <h1>&#9986; Saloon Manager</h1>
+          <div class="subtitle">Platform Admin — All Saloons</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="toolbar">
+        <span class="toolbar-count">
+          <template v-if="loading">Loading&hellip;</template>
+          <template v-else>{{ saloons.length }} saloon{{ saloons.length !== 1 ? 's' : '' }}</template>
+        </span>
+        <div class="btn-row">
+          <button class="btn btn-ghost" @click="loadSaloons" :disabled="loading">&#8635; Refresh</button>
+          <button class="btn btn-primary" @click="openCreate">+ New Saloon</button>
+        </div>
+      </div>
+
+      <div class="error-bar" v-if="pageError">&#9888; {{ pageError }} <button @click="loadSaloons">Retry</button></div>
+      <div class="loading-state" v-if="loading"><div class="spinner"></div><p>Loading saloons&hellip;</p></div>
+
+      <div class="empty-state" v-else-if="!saloons.length && !pageError">
+        <div class="empty-icon">&#9986;</div>
+        <h3>No saloons yet</h3><p>Create your first saloon to get started.</p>
+        <button class="btn btn-primary" style="margin-top:1.25rem" @click="openCreate">+ New Saloon</button>
+      </div>
+
+      <div class="cards-grid" v-else>
+        <div class="card" v-for="s in saloons" :key="s.id">
+          <div class="card-title">{{ s.name }}</div>
+          <div class="card-id">{{ s.id }}</div>
+          <div class="manage-url-row">
+            <span class="manage-url-icon">&#127760;</span>
+            <a :href="'/saloon/' + s.id + '/manage'" class="manage-url-link">/saloon/{{ s.id }}/manage</a>
+          </div>
+
+          <div class="info-block">
+            <div class="block-label">Owner</div>
+            <div class="block-name">{{ s.owner?.name }}</div>
+            <div class="block-meta">{{ s.owner?.email }}<template v-if="s.owner?.phone"> &middot; {{ s.owner.phone }}</template></div>
+          </div>
+
+          <div class="info-block" v-if="s.location?.city || s.location?.address">
+            <div class="block-label">Location</div>
+            <div class="block-meta">
+              <template v-if="s.location.address">{{ s.location.address }}<br/></template>
+              {{ [s.location.city, s.location.state, s.location.country].filter(Boolean).join(', ') }}
+            </div>
+          </div>
+
+          <div class="info-block" v-if="s.contact?.phone || s.contact?.email">
+            <div class="block-label">Contact</div>
+            <div class="block-meta">
+              <template v-if="s.contact.phone">{{ s.contact.phone }}<br/></template>
+              <template v-if="s.contact.email">{{ s.contact.email }}<br/></template>
+              <template v-if="s.contact.website">{{ s.contact.website }}</template>
+            </div>
+          </div>
+
+          <div v-if="openDays(s)" style="font-size:0.75rem;color:#475569;margin-bottom:0.5rem">
+            <span style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.6px;color:#94a3b8;font-weight:700">Open: </span>{{ openDays(s) }}
+          </div>
+
+          <div style="margin-bottom:0.75rem">
+            <div class="block-label">Features</div>
+            <div class="features-wrap" v-if="s.features?.length" style="margin-top:0.3rem">
+              <span v-for="f in s.features" :key="f" class="badge">{{ FEATURE_LABEL[f] || f }}</span>
+            </div>
+            <span class="no-text" v-else>No features enabled</span>
+          </div>
+
+          <div class="card-timestamp" v-if="s.createdAt">Created {{ formatDate(s.createdAt) }}</div>
+          <div class="card-actions">
+            <router-link :to="'/' + s.id + '/manage'" class="btn btn-primary btn-sm">Manage &rarr;</router-link>
+            <button class="btn btn-ghost btn-sm" @click="openEditSaloon(s)">Edit</button>
+            <button class="btn btn-ghost btn-sm" @click="openFeatures(s)">Features</button>
+            <button class="btn btn-danger btn-sm" style="margin-left:auto" @click="openDelete(s)">Delete</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL: Create Saloon -->
+    <div class="overlay" v-if="modal.create" @click.self="modal.create = false">
+      <div class="modal modal-lg">
+        <div class="modal-head"><span class="modal-title">New Saloon</span><button class="modal-x" @click="modal.create = false">&times;</button></div>
+        <div class="section-divider">Saloon Info</div>
+        <div class="field"><label>Saloon Name *</label><input class="input" :class="{ invalid: cfTouched.name && !cf.name }" v-model="cf.name" placeholder="e.g. Luxe Hair Studio" @blur="cfTouched.name = true" /></div>
+        <div class="section-divider">Owner Details</div>
+        <p class="section-hint">Account holder — used for internal management, not shown to customers.</p>
+        <div class="col2">
+          <div class="field"><label>Name *</label><input class="input" :class="{ invalid: cfTouched.ownerName && !cf.ownerName }" v-model="cf.ownerName" placeholder="Full name" @blur="cfTouched.ownerName = true" /></div>
+          <div class="field"><label>Email *</label><input class="input" :class="{ invalid: cfTouched.ownerEmail && !cf.ownerEmail }" type="email" v-model="cf.ownerEmail" placeholder="owner@saloon.com" @blur="cfTouched.ownerEmail = true" /></div>
+        </div>
+        <div class="field"><label>Phone</label><input class="input" v-model="cf.ownerPhone" placeholder="+1 234 567 8900" /></div>
+        <div class="section-divider">Location</div>
+        <p class="section-hint">Physical address of the saloon.</p>
+        <div class="field"><label>Address</label><input class="input" v-model="cf.location.address" placeholder="123 Main St" /></div>
+        <div class="col3">
+          <div class="field"><label>City</label><input class="input" v-model="cf.location.city" placeholder="City" /></div>
+          <div class="field"><label>State</label><input class="input" v-model="cf.location.state" placeholder="State" /></div>
+          <div class="field"><label>Zip</label><input class="input" v-model="cf.location.zipCode" placeholder="00000" /></div>
+        </div>
+        <div class="field"><label>Country</label><input class="input" v-model="cf.location.country" placeholder="Country" /></div>
+        <div class="section-divider">Saloon Contact Info</div>
+        <p class="section-hint">Public-facing details displayed to customers.</p>
+        <div class="col3">
+          <div class="field"><label>Phone</label><input class="input" v-model="cf.contact.phone" placeholder="+1 234 567 8900" /></div>
+          <div class="field"><label>Email</label><input class="input" type="email" v-model="cf.contact.email" placeholder="info@saloon.com" /></div>
+          <div class="field"><label>Website</label><input class="input" v-model="cf.contact.website" placeholder="www.saloon.com" /></div>
+        </div>
+        <div class="section-divider">Operating Hours</div>
+        <p class="section-hint">Set opening and closing times for each day.</p>
+        <table class="hours-table">
+          <thead><tr><th>Day</th><th>Open</th><th>Close</th><th>Closed</th></tr></thead>
+          <tbody>
+            <tr v-for="h in cf.operatingHours" :key="h.day">
+              <td>{{ DAY_SHORT[h.day] }}</td>
+              <td><input class="hours-input" type="time" v-model="h.openTime" :disabled="h.closed" /></td>
+              <td><input class="hours-input" type="time" v-model="h.closeTime" :disabled="h.closed" /></td>
+              <td><label class="closed-label"><input type="checkbox" v-model="h.closed" /> Closed</label></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="section-divider">Features</div>
+        <div class="tile-grid">
+          <div v-for="f in FEATURES" :key="f" class="tile" :class="{ on: cf.features.includes(f) }" @click="toggle(cf.features, f)">
+            <div class="tile-check">{{ cf.features.includes(f) ? '&#10003;' : '' }}</div>
+            <span class="tile-label">{{ FEATURE_LABEL[f] }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.create = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy || !cf.name || !cf.ownerName || !cf.ownerEmail" @click="submitCreate">{{ busy ? 'Creating&hellip;' : 'Create Saloon' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Edit Saloon -->
+    <div class="overlay" v-if="modal.editSaloon" @click.self="modal.editSaloon = false">
+      <div class="modal modal-lg">
+        <div class="modal-head"><span class="modal-title">Edit Saloon</span><button class="modal-x" @click="modal.editSaloon = false">&times;</button></div>
+        <div class="section-divider">Saloon Info</div>
+        <div class="field"><label>Saloon Name</label><input class="input" v-model="ef.name" /></div>
+        <div class="section-divider">Location</div>
+        <div class="field"><label>Address</label><input class="input" v-model="ef.location.address" /></div>
+        <div class="col3">
+          <div class="field"><label>City</label><input class="input" v-model="ef.location.city" /></div>
+          <div class="field"><label>State</label><input class="input" v-model="ef.location.state" /></div>
+          <div class="field"><label>Zip</label><input class="input" v-model="ef.location.zipCode" /></div>
+        </div>
+        <div class="field"><label>Country</label><input class="input" v-model="ef.location.country" /></div>
+        <div class="section-divider">Saloon Contact Info</div>
+        <div class="col3">
+          <div class="field"><label>Phone</label><input class="input" v-model="ef.contact.phone" /></div>
+          <div class="field"><label>Email</label><input class="input" type="email" v-model="ef.contact.email" /></div>
+          <div class="field"><label>Website</label><input class="input" v-model="ef.contact.website" /></div>
+        </div>
+        <div class="section-divider">Operating Hours</div>
+        <table class="hours-table">
+          <thead><tr><th>Day</th><th>Open</th><th>Close</th><th>Closed</th></tr></thead>
+          <tbody>
+            <tr v-for="h in ef.operatingHours" :key="h.day">
+              <td>{{ DAY_SHORT[h.day] }}</td>
+              <td><input class="hours-input" type="time" v-model="h.openTime" :disabled="h.closed" /></td>
+              <td><input class="hours-input" type="time" v-model="h.closeTime" :disabled="h.closed" /></td>
+              <td><label class="closed-label"><input type="checkbox" v-model="h.closed" /> Closed</label></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.editSaloon = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy || !ef.name" @click="submitEditSaloon">{{ busy ? 'Saving&hellip;' : 'Save Changes' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Edit Features -->
+    <div class="overlay" v-if="modal.features" @click.self="modal.features = false">
+      <div class="modal">
+        <div class="modal-head"><span class="modal-title">Edit Features</span><button class="modal-x" @click="modal.features = false">&times;</button></div>
+        <p style="font-size:0.83rem;color:#64748b;margin-bottom:1rem">{{ target?.name }}</p>
+        <div class="tile-grid">
+          <div v-for="f in FEATURES" :key="f" class="tile" :class="{ on: ff.features.includes(f) }" @click="toggle(ff.features, f)">
+            <div class="tile-check">{{ ff.features.includes(f) ? '&#10003;' : '' }}</div>
+            <span class="tile-label">{{ FEATURE_LABEL[f] }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.features = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy" @click="submitFeatures">{{ busy ? 'Saving&hellip;' : 'Save Features' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Delete Saloon -->
+    <div class="overlay" v-if="modal.del" @click.self="modal.del = false">
+      <div class="modal modal-sm">
+        <div class="modal-head"><span class="modal-title">Delete Saloon</span><button class="modal-x" @click="modal.del = false">&times;</button></div>
+        <p class="confirm-text">Are you sure you want to delete <strong>{{ target?.name }}</strong>? This cannot be undone.</p>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.del = false">Cancel</button>
+          <button class="btn btn-danger" :disabled="busy" @click="submitDelete">{{ busy ? 'Deleting&hellip;' : 'Delete' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="toast" class="toast" :class="'toast-' + toast.type">{{ toast.msg }}</div>
+  </div>
+  `,
+};
+
+// ══════════════════════════════════════════════════════════════════════
+//  SaloonManageView  —  /saloon/:saloonId/manage   (owner view)
+// ══════════════════════════════════════════════════════════════════════
+const SaloonManageView = {
+  setup() {
+    const route     = useRoute();
+    const router    = useRouter();
+    const sid       = route.params.saloonId;
+
+    const saloon    = ref(null);
+    const staff     = ref([]);
+    const services  = ref([]);
+    const loading   = ref(true);
+    const pageError = ref(null);
+    const busy      = ref(false);
+    const toast     = ref(null);
+    const activeTab = ref('services');
+
+    const staffTarget   = ref(null);
+    const serviceTarget = ref(null);
+
+    const modal = reactive({
+      editSaloon: false, features: false,
+      onboard: false, editStaff: false, delStaff: false,
+      addService: false, editService: false, delService: false,
+    });
+
+    const ef  = reactive({ name:'', location:{ address:'', city:'', state:'', country:'', zipCode:'' }, contact:{ phone:'', email:'', website:'' }, operatingHours: defaultHours() });
+    const ff  = reactive({ features: [] });
+    const sf  = reactive({ name:'', email:'', phone:'', role:'STYLIST', specializations:[] });
+    const sef = reactive({ name:'', email:'', phone:'', role:'STYLIST', status:'ACTIVE', specializations:[] });
+    const svf  = reactive({ name:'', description:'', price:'', currency:'USD', durationMinutes:30, category:'HAIR', assignedStaffIds:[] });
+    const svef = reactive({ name:'', description:'', price:'', currency:'USD', durationMinutes:30, category:'HAIR', active:true, assignedStaffIds:[] });
+
+    function notify(msg, type = 'success') {
+      toast.value = { msg, type };
+      setTimeout(() => (toast.value = null), 3000);
+    }
+
+    async function loadAll() {
+      loading.value = true; pageError.value = null;
+      try {
+        const [s, st, sv] = await Promise.all([
+          apiFetch(`${API}/${sid}`),
+          apiFetch(`${API}/${sid}/staff`),
+          apiFetch(`${API}/${sid}/services`),
+        ]);
+        saloon.value = s; staff.value = st; services.value = sv;
+        document.title = `${s.name} — Manage`;
+      } catch (e) { pageError.value = e.message; }
+      finally { loading.value = false; }
+    }
+
+    function openEditSaloon() {
+      const s = saloon.value;
+      ef.name = s.name;
+      ef.location = s.location ? { ...s.location } : { address:'', city:'', state:'', country:'', zipCode:'' };
+      ef.contact  = s.contact  ? { ...s.contact  } : { phone:'', email:'', website:'' };
+      ef.operatingHours = cloneHours(s.operatingHours);
+      modal.editSaloon = true;
+    }
+
+    async function submitEditSaloon() {
+      if (!ef.name) return;
+      busy.value = true;
+      try {
+        saloon.value = await apiFetch(`${API}/${sid}`, { method:'PUT', body: JSON.stringify({
+          name:ef.name, location:ef.location, contact:ef.contact, operatingHours:ef.operatingHours,
+        })});
+        modal.editSaloon = false;
+        document.title = `${saloon.value.name} — Manage`;
+        notify('Saloon updated!');
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openFeatures() { ff.features = [...(saloon.value.features||[])]; modal.features = true; }
+
+    async function submitFeatures() {
+      busy.value = true;
+      try {
+        saloon.value = await apiFetch(`${API}/${sid}/features`, { method:'PUT', body: JSON.stringify({ features:ff.features }) });
+        modal.features = false; notify('Features updated!');
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openOnboard() { Object.assign(sf, { name:'', email:'', phone:'', role:'STYLIST', specializations:[] }); modal.onboard = true; }
+
+    async function submitOnboard() {
+      if (!sf.name || !sf.email) return;
+      busy.value = true;
+      try {
+        const m = await apiFetch(`${API}/${sid}/staff`, { method:'POST', body: JSON.stringify({ name:sf.name, email:sf.email, phone:sf.phone, role:sf.role, specializations:sf.specializations }) });
+        staff.value.unshift(m); modal.onboard = false; notify(`${m.name} onboarded!`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openEditStaff(m) {
+      staffTarget.value = m;
+      Object.assign(sef, { name:m.name, email:m.email, phone:m.phone||'', role:m.role, status:m.status, specializations:[...(m.specializations||[])] });
+      modal.editStaff = true;
+    }
+
+    async function submitEditStaff() {
+      busy.value = true;
+      try {
+        const updated = await apiFetch(`${API}/${sid}/staff/${staffTarget.value.id}`, { method:'PUT', body: JSON.stringify({ name:sef.name, email:sef.email, phone:sef.phone, role:sef.role, status:sef.status, specializations:sef.specializations }) });
+        const idx = staff.value.findIndex(m => m.id === updated.id);
+        if (idx !== -1) staff.value[idx] = updated;
+        modal.editStaff = false; notify(`${updated.name} updated!`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openDelStaff(m) { staffTarget.value = m; modal.delStaff = true; }
+
+    async function submitDelStaff() {
+      busy.value = true;
+      try {
+        await apiFetch(`${API}/${sid}/staff/${staffTarget.value.id}`, { method:'DELETE' });
+        const name = staffTarget.value.name;
+        staff.value = staff.value.filter(m => m.id !== staffTarget.value.id);
+        modal.delStaff = false; notify(`${name} removed.`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openAddService() { Object.assign(svf, { name:'', description:'', price:'', currency:'USD', durationMinutes:30, category:'HAIR', assignedStaffIds:[] }); modal.addService = true; }
+
+    async function submitAddService() {
+      if (!svf.name || !svf.price) return;
+      busy.value = true;
+      try {
+        const item = await apiFetch(`${API}/${sid}/services`, { method:'POST', body: JSON.stringify({ name:svf.name, description:svf.description, price:parseFloat(svf.price), currency:svf.currency, durationMinutes:parseInt(svf.durationMinutes), category:svf.category, assignedStaffIds:svf.assignedStaffIds }) });
+        services.value.unshift(item); modal.addService = false; notify(`"${item.name}" added!`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openEditService(item) {
+      serviceTarget.value = item;
+      Object.assign(svef, { name:item.name, description:item.description||'', price:item.price, currency:item.currency||'USD', durationMinutes:item.durationMinutes, category:item.category, active:item.active, assignedStaffIds:[...(item.assignedStaffIds||[])] });
+      modal.editService = true;
+    }
+
+    async function submitEditService() {
+      busy.value = true;
+      try {
+        const updated = await apiFetch(`${API}/${sid}/services/${serviceTarget.value.id}`, { method:'PUT', body: JSON.stringify({ name:svef.name, description:svef.description, price:parseFloat(svef.price), currency:svef.currency, durationMinutes:parseInt(svef.durationMinutes), category:svef.category, active:svef.active, assignedStaffIds:svef.assignedStaffIds }) });
+        const idx = services.value.findIndex(s => s.id === updated.id);
+        if (idx !== -1) services.value[idx] = updated;
+        modal.editService = false; notify(`"${updated.name}" updated!`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function openDelService(item) { serviceTarget.value = item; modal.delService = true; }
+
+    async function submitDelService() {
+      busy.value = true;
+      try {
+        await apiFetch(`${API}/${sid}/services/${serviceTarget.value.id}`, { method:'DELETE' });
+        const name = serviceTarget.value.name;
+        services.value = services.value.filter(s => s.id !== serviceTarget.value.id);
+        modal.delService = false; notify(`"${name}" removed.`);
+      } catch (e) { notify(e.message, 'error'); }
+      finally { busy.value = false; }
+    }
+
+    function staffName(id) { return staff.value.find(m => m.id === id)?.name || id; }
+
+    onMounted(loadAll);
+
+    return {
+      saloon, staff, services, loading, pageError, busy, toast, activeTab,
+      staffTarget, serviceTarget, modal,
+      ef, ff, sf, sef, svf, svef,
+      FEATURES, FEATURE_LABEL, DAYS, DAY_SHORT,
+      STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
+      SERVICE_CATEGORIES, CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
+      formatPrice, toggle, staffName,
+      openEditSaloon, submitEditSaloon,
+      openFeatures, submitFeatures,
+      openOnboard, submitOnboard, openEditStaff, submitEditStaff, openDelStaff, submitDelStaff,
+      openAddService, submitAddService, openEditService, submitEditService, openDelService, submitDelService,
+    };
+  },
+
+  template: `
+  <div>
+    <header class="header">
+      <div class="header-inner">
+        <div class="header-brand">
+          <h1>&#9986; {{ saloon?.name || 'Loading&hellip;' }}</h1>
+          <div class="subtitle" v-if="saloon">
+            {{ saloon.owner?.name }}
+            <template v-if="saloon.location?.city"> &middot; {{ saloon.location.city }}</template>
+          </div>
+        </div>
+        <div class="header-nav">
+          <router-link to="/" class="btn btn-ghost btn-sm">&larr; All Saloons</router-link>
+          <button class="btn btn-ghost btn-sm" @click="openEditSaloon" :disabled="!saloon">Edit Saloon</button>
+          <button class="btn btn-ghost btn-sm" @click="openFeatures" :disabled="!saloon">&#9881; Features</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="loading-state" v-if="loading"><div class="spinner"></div><p>Loading&hellip;</p></div>
+      <div class="error-bar" v-else-if="pageError">&#9888; {{ pageError }}</div>
+
+      <template v-else>
+        <div class="tabs">
+          <button class="tab-btn" :class="{ active: activeTab === 'services' }" @click="activeTab = 'services'">Services ({{ services.length }})</button>
+          <button class="tab-btn" :class="{ active: activeTab === 'staff' }" @click="activeTab = 'staff'">Staff ({{ staff.length }})</button>
+        </div>
+
+        <!-- Services tab -->
+        <div v-if="activeTab === 'services'">
+          <div class="toolbar">
+            <span class="toolbar-count">{{ services.length }} service{{ services.length !== 1 ? 's' : '' }}</span>
+            <button class="btn btn-primary" @click="openAddService">+ Add Service</button>
+          </div>
+          <div class="empty-state" v-if="!services.length">
+            <div class="empty-icon">&#9986;</div><h3>No services yet</h3><p>Add services like haircut, makeup, and more.</p>
+          </div>
+          <div class="item-grid" v-else>
+            <div class="item-card" v-for="sv in services" :key="sv.id">
+              <div class="service-name">{{ sv.name }}<span class="inactive-tag" v-if="!sv.active">Inactive</span></div>
+              <span class="cat-badge">{{ CATEGORY_LABEL[sv.category] || sv.category }}</span>
+              <div class="service-price">{{ formatPrice(sv.price, sv.currency) }}</div>
+              <div class="service-duration">{{ sv.durationMinutes }} min</div>
+              <div class="service-desc" v-if="sv.description">{{ sv.description }}</div>
+              <div class="assigned-staff" v-if="sv.assignedStaffIds?.length">
+                &#128101; {{ sv.assignedStaffIds.map(id => staffName(id)).join(', ') }}
+              </div>
+              <div class="item-actions">
+                <button class="btn btn-ghost btn-sm" @click="openEditService(sv)">Edit</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" @click="openDelService(sv)">Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Staff tab -->
+        <div v-if="activeTab === 'staff'">
+          <div class="toolbar">
+            <span class="toolbar-count">{{ staff.length }} staff member{{ staff.length !== 1 ? 's' : '' }}</span>
+            <button class="btn btn-primary" @click="openOnboard">+ Onboard Staff</button>
+          </div>
+          <div class="empty-state" v-if="!staff.length">
+            <div class="empty-icon">&#9675;</div><h3>No staff yet</h3><p>Onboard the first staff member.</p>
+          </div>
+          <div class="item-grid" v-else>
+            <div class="item-card" v-for="m in staff" :key="m.id">
+              <div class="staff-name">{{ m.name }}</div>
+              <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.35rem;flex-wrap:wrap">
+                <span class="role-badge">{{ STAFF_ROLE_LABEL[m.role] || m.role }}</span>
+                <span class="status-pill">
+                  <span class="status-dot" :class="'dot-' + m.status"></span>{{ STAFF_STATUS_LABEL[m.status] || m.status }}
+                </span>
+              </div>
+              <div class="staff-contact">
+                {{ m.email }}<template v-if="m.phone"><br/>{{ m.phone }}</template>
+              </div>
+              <div class="spec-list" v-if="m.specializations?.length">
+                <span class="spec-chip" v-for="s in m.specializations" :key="s">{{ CATEGORY_LABEL[s] || s }}</span>
+              </div>
+              <div class="item-actions">
+                <button class="btn btn-ghost btn-sm" @click="openEditStaff(m)">Edit</button>
+                <button class="btn btn-danger btn-sm" style="margin-left:auto" @click="openDelStaff(m)">Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </main>
+
+    <!-- MODAL: Edit Saloon -->
+    <div class="overlay" v-if="modal.editSaloon" @click.self="modal.editSaloon = false">
+      <div class="modal modal-lg">
+        <div class="modal-head"><span class="modal-title">Edit Saloon</span><button class="modal-x" @click="modal.editSaloon = false">&times;</button></div>
+        <div class="section-divider">Saloon Info</div>
+        <div class="field"><label>Saloon Name</label><input class="input" v-model="ef.name" /></div>
+        <div class="section-divider">Location</div>
+        <div class="field"><label>Address</label><input class="input" v-model="ef.location.address" /></div>
+        <div class="col3">
+          <div class="field"><label>City</label><input class="input" v-model="ef.location.city" /></div>
+          <div class="field"><label>State</label><input class="input" v-model="ef.location.state" /></div>
+          <div class="field"><label>Zip</label><input class="input" v-model="ef.location.zipCode" /></div>
+        </div>
+        <div class="field"><label>Country</label><input class="input" v-model="ef.location.country" /></div>
+        <div class="section-divider">Saloon Contact Info</div>
+        <div class="col3">
+          <div class="field"><label>Phone</label><input class="input" v-model="ef.contact.phone" /></div>
+          <div class="field"><label>Email</label><input class="input" type="email" v-model="ef.contact.email" /></div>
+          <div class="field"><label>Website</label><input class="input" v-model="ef.contact.website" /></div>
+        </div>
+        <div class="section-divider">Operating Hours</div>
+        <table class="hours-table">
+          <thead><tr><th>Day</th><th>Open</th><th>Close</th><th>Closed</th></tr></thead>
+          <tbody>
+            <tr v-for="h in ef.operatingHours" :key="h.day">
+              <td>{{ DAY_SHORT[h.day] }}</td>
+              <td><input class="hours-input" type="time" v-model="h.openTime" :disabled="h.closed" /></td>
+              <td><input class="hours-input" type="time" v-model="h.closeTime" :disabled="h.closed" /></td>
+              <td><label class="closed-label"><input type="checkbox" v-model="h.closed" /> Closed</label></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.editSaloon = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy || !ef.name" @click="submitEditSaloon">{{ busy ? 'Saving&hellip;' : 'Save Changes' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Edit Features -->
+    <div class="overlay" v-if="modal.features" @click.self="modal.features = false">
+      <div class="modal">
+        <div class="modal-head"><span class="modal-title">Edit Features</span><button class="modal-x" @click="modal.features = false">&times;</button></div>
+        <p style="font-size:0.83rem;color:#64748b;margin-bottom:1rem">{{ saloon?.name }}</p>
+        <div class="tile-grid">
+          <div v-for="f in FEATURES" :key="f" class="tile" :class="{ on: ff.features.includes(f) }" @click="toggle(ff.features, f)">
+            <div class="tile-check">{{ ff.features.includes(f) ? '&#10003;' : '' }}</div>
+            <span class="tile-label">{{ FEATURE_LABEL[f] }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.features = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy" @click="submitFeatures">{{ busy ? 'Saving&hellip;' : 'Save Features' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Onboard Staff -->
+    <div class="overlay" v-if="modal.onboard" @click.self="modal.onboard = false">
+      <div class="modal">
+        <div class="modal-head"><span class="modal-title">Onboard Staff</span><button class="modal-x" @click="modal.onboard = false">&times;</button></div>
+        <div class="field"><label>Name *</label><input class="input" v-model="sf.name" placeholder="Full name" /></div>
+        <div class="field"><label>Email *</label><input class="input" type="email" v-model="sf.email" placeholder="staff@saloon.com" /></div>
+        <div class="col2">
+          <div class="field"><label>Phone</label><input class="input" v-model="sf.phone" placeholder="+1 234 567 8900" /></div>
+          <div class="field"><label>Role</label><select class="input" v-model="sf.role"><option v-for="r in STAFF_ROLES" :key="r" :value="r">{{ STAFF_ROLE_LABEL[r] }}</option></select></div>
+        </div>
+        <div class="section-divider">Specializations</div>
+        <div class="tile-grid">
+          <div v-for="s in SPECIALIZATION_OPTIONS" :key="s" class="tile" :class="{ on: sf.specializations.includes(s) }" @click="toggle(sf.specializations, s)">
+            <div class="tile-check">{{ sf.specializations.includes(s) ? '&#10003;' : '' }}</div>
+            <span class="tile-label">{{ CATEGORY_LABEL[s] }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.onboard = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy || !sf.name || !sf.email" @click="submitOnboard">{{ busy ? 'Saving&hellip;' : 'Onboard' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Edit Staff -->
+    <div class="overlay" v-if="modal.editStaff" @click.self="modal.editStaff = false">
+      <div class="modal">
+        <div class="modal-head"><span class="modal-title">Edit Staff</span><button class="modal-x" @click="modal.editStaff = false">&times;</button></div>
+        <div class="field"><label>Name</label><input class="input" v-model="sef.name" /></div>
+        <div class="field"><label>Email</label><input class="input" type="email" v-model="sef.email" /></div>
+        <div class="col3">
+          <div class="field"><label>Phone</label><input class="input" v-model="sef.phone" /></div>
+          <div class="field"><label>Role</label><select class="input" v-model="sef.role"><option v-for="r in STAFF_ROLES" :key="r" :value="r">{{ STAFF_ROLE_LABEL[r] }}</option></select></div>
+          <div class="field"><label>Status</label><select class="input" v-model="sef.status"><option v-for="s in STAFF_STATUSES" :key="s" :value="s">{{ STAFF_STATUS_LABEL[s] }}</option></select></div>
+        </div>
+        <div class="section-divider">Specializations</div>
+        <div class="tile-grid">
+          <div v-for="s in SPECIALIZATION_OPTIONS" :key="s" class="tile" :class="{ on: sef.specializations.includes(s) }" @click="toggle(sef.specializations, s)">
+            <div class="tile-check">{{ sef.specializations.includes(s) ? '&#10003;' : '' }}</div>
+            <span class="tile-label">{{ CATEGORY_LABEL[s] }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.editStaff = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy" @click="submitEditStaff">{{ busy ? 'Saving&hellip;' : 'Save' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Remove Staff -->
+    <div class="overlay" v-if="modal.delStaff" @click.self="modal.delStaff = false">
+      <div class="modal modal-sm">
+        <div class="modal-head"><span class="modal-title">Remove Staff</span><button class="modal-x" @click="modal.delStaff = false">&times;</button></div>
+        <p class="confirm-text">Remove <strong>{{ staffTarget?.name }}</strong> from this saloon?</p>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.delStaff = false">Cancel</button>
+          <button class="btn btn-danger" :disabled="busy" @click="submitDelStaff">{{ busy ? 'Removing&hellip;' : 'Remove' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Add Service -->
+    <div class="overlay" v-if="modal.addService" @click.self="modal.addService = false">
+      <div class="modal">
+        <div class="modal-head"><span class="modal-title">Add Service</span><button class="modal-x" @click="modal.addService = false">&times;</button></div>
+        <div class="field"><label>Service Name *</label><input class="input" v-model="svf.name" placeholder="e.g. Haircut &amp; Blowdry" /></div>
+        <div class="field"><label>Description</label><input class="input" v-model="svf.description" placeholder="Short description" /></div>
+        <div class="field"><label>Category</label><select class="input" v-model="svf.category"><option v-for="c in SERVICE_CATEGORIES" :key="c" :value="c">{{ CATEGORY_LABEL[c] }}</option></select></div>
+        <div class="col3">
+          <div class="field"><label>Price *</label><input class="input" type="number" min="0" step="0.01" v-model="svf.price" placeholder="0.00" /></div>
+          <div class="field"><label>Currency</label><input class="input" v-model="svf.currency" maxlength="3" /></div>
+          <div class="field"><label>Duration (min)</label><input class="input" type="number" min="5" step="5" v-model="svf.durationMinutes" /></div>
+        </div>
+        <div class="section-divider" v-if="staff.length">Assign Staff</div>
+        <div class="staff-assign-grid" v-if="staff.length">
+          <div v-for="m in staff" :key="m.id" class="staff-tile" :class="{ on: svf.assignedStaffIds.includes(m.id) }" @click="toggle(svf.assignedStaffIds, m.id)">
+            <div class="staff-tile-check">{{ svf.assignedStaffIds.includes(m.id) ? '&#10003;' : '' }}</div>
+            <span class="staff-tile-name">{{ m.name }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.addService = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy || !svf.name || !svf.price" @click="submitAddService">{{ busy ? 'Saving&hellip;' : 'Add Service' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Edit Service -->
+    <div class="overlay" v-if="modal.editService" @click.self="modal.editService = false">
+      <div class="modal">
+        <div class="modal-head"><span class="modal-title">Edit Service</span><button class="modal-x" @click="modal.editService = false">&times;</button></div>
+        <div class="field"><label>Service Name</label><input class="input" v-model="svef.name" /></div>
+        <div class="field"><label>Description</label><input class="input" v-model="svef.description" /></div>
+        <div class="field"><label>Category</label><select class="input" v-model="svef.category"><option v-for="c in SERVICE_CATEGORIES" :key="c" :value="c">{{ CATEGORY_LABEL[c] }}</option></select></div>
+        <div class="col3">
+          <div class="field"><label>Price</label><input class="input" type="number" min="0" step="0.01" v-model="svef.price" /></div>
+          <div class="field"><label>Currency</label><input class="input" v-model="svef.currency" maxlength="3" /></div>
+          <div class="field"><label>Duration (min)</label><input class="input" type="number" min="5" step="5" v-model="svef.durationMinutes" /></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.9rem">
+          <input type="checkbox" id="svcActive" v-model="svef.active" style="width:15px;height:15px;accent-color:#4f46e5;cursor:pointer" />
+          <label for="svcActive" style="font-size:0.875rem;font-weight:500;cursor:pointer;color:#334155">Active</label>
+        </div>
+        <div class="section-divider" v-if="staff.length">Assign Staff</div>
+        <div class="staff-assign-grid" v-if="staff.length">
+          <div v-for="m in staff" :key="m.id" class="staff-tile" :class="{ on: svef.assignedStaffIds.includes(m.id) }" @click="toggle(svef.assignedStaffIds, m.id)">
+            <div class="staff-tile-check">{{ svef.assignedStaffIds.includes(m.id) ? '&#10003;' : '' }}</div>
+            <span class="staff-tile-name">{{ m.name }}</span>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.editService = false">Cancel</button>
+          <button class="btn btn-primary" :disabled="busy" @click="submitEditService">{{ busy ? 'Saving&hellip;' : 'Save' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Remove Service -->
+    <div class="overlay" v-if="modal.delService" @click.self="modal.delService = false">
+      <div class="modal modal-sm">
+        <div class="modal-head"><span class="modal-title">Remove Service</span><button class="modal-x" @click="modal.delService = false">&times;</button></div>
+        <p class="confirm-text">Remove <strong>{{ serviceTarget?.name }}</strong> from the catalog?</p>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="modal.delService = false">Cancel</button>
+          <button class="btn btn-danger" :disabled="busy" @click="submitDelService">{{ busy ? 'Removing&hellip;' : 'Remove' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="toast" class="toast" :class="'toast-' + toast.type">{{ toast.msg }}</div>
+  </div>
+  `,
+};
+
+// ══════════════════════════════════════════════════════════════════════
+//  Router
+// ══════════════════════════════════════════════════════════════════════
+const router = createRouter({
+  history: createWebHistory('/saloon/'),
+  routes: [
+    { path: '/',                   component: SaloonListView },
+    { path: '/:saloonId/manage',   component: SaloonManageView },
+    { path: '/:pathMatch(.*)*',    redirect: '/' },
+  ],
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  App
+// ══════════════════════════════════════════════════════════════════════
+const app = createApp({ template: '<router-view />' });
+app.use(router);
+app.mount('#app');
+</script>
+</body>
+</html>
