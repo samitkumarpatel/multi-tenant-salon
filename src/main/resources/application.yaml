@@ -4,12 +4,11 @@ spring:
   web:
     resources:
       static-locations: file:ui/, classpath:/static/
+  modulith:
+    events:
+      mongodb:
+        transaction-management:
+          enabled: true
   mongodb:
-    host: localhost
-    port: 27017
-    database: saloon
-    username: root
-    password: example
-    authentication-database: admin
     representation:
       uuid: standard

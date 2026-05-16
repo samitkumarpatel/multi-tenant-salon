@@ -5,6 +5,7 @@ import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,6 +22,7 @@ class SaloonService {
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     Saloon create(String name, Saloon.Owner owner, Saloon.Location location, Saloon.ContactInfo contact,
                   List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features) {
         var saloon = new Saloon(null, name, owner, location, contact, operatingHours, features, Instant.now());
