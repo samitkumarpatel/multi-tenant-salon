@@ -50,28 +50,28 @@ class SaloonController {
     }
 
     @GetMapping("/{id}")
-    ResponseEntity<Saloon> findById(@PathVariable String id) {
+    ResponseEntity<Saloon> findById(@PathVariable Long id) {
         return service.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<Saloon> update(@PathVariable String id, @RequestBody UpdateSaloonRequest request) {
+    ResponseEntity<Saloon> update(@PathVariable Long id, @RequestBody UpdateSaloonRequest request) {
         return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}/features")
-    ResponseEntity<Saloon> updateFeatures(@PathVariable String id, @RequestBody UpdateFeaturesRequest request) {
+    ResponseEntity<Saloon> updateFeatures(@PathVariable Long id, @RequestBody UpdateFeaturesRequest request) {
         return service.updateFeatures(id, request.features())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    ResponseEntity<Void> delete(@PathVariable String id) {
+    ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

@@ -25,9 +25,13 @@ class SaloonService {
     @Transactional
     Saloon create(String name, Saloon.Owner owner, Saloon.Location location, Saloon.ContactInfo contact,
                   List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features) {
-        var saloon = new Saloon(null, name, owner, location, contact, operatingHours, features, Instant.now());
+        var featureRefs = features != null
+                ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
+                : List.<Saloon.SaloonFeatureRef>of();
+        var saloon = new Saloon(null, name, owner, location, contact, operatingHours, featureRefs, Instant.now());
         var saved = repository.save(saloon);
-        eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.features()));
+        var eventFeatures = saved.features().stream().map(Saloon.SaloonFeatureRef::feature).toList();
+        eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), eventFeatures));
         return saved;
     }
 
@@ -35,11 +39,11 @@ class SaloonService {
         return repository.findAll();
     }
 
-    Optional<Saloon> findById(String id) {
+    Optional<Saloon> findById(Long id) {
         return repository.findById(id);
     }
 
-    Optional<Saloon> update(String id, String name, Saloon.Location location, Saloon.ContactInfo contact,
+    Optional<Saloon> update(Long id, String name, Saloon.Location location, Saloon.ContactInfo contact,
                             List<Saloon.OperatingHours> operatingHours) {
         return repository.findById(id).map(existing -> {
             var updated = new Saloon(existing.id(), name, existing.owner(), location, contact,
@@ -48,15 +52,18 @@ class SaloonService {
         });
     }
 
-    Optional<Saloon> updateFeatures(String id, List<SaloonFeature> features) {
+    Optional<Saloon> updateFeatures(Long id, List<SaloonFeature> features) {
         return repository.findById(id).map(existing -> {
+            var featureRefs = features != null
+                    ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
+                    : List.<Saloon.SaloonFeatureRef>of();
             var updated = new Saloon(existing.id(), existing.name(), existing.owner(), existing.location(),
-                    existing.contact(), existing.operatingHours(), features, existing.createdAt());
+                    existing.contact(), existing.operatingHours(), featureRefs, existing.createdAt());
             return repository.save(updated);
         });
     }
 
-    void delete(String id) {
+    void delete(Long id) {
         repository.deleteById(id);
     }
 }

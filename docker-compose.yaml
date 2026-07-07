@@ -1,15 +1,14 @@
 services:
-  mongodb:
-    image: mongo:latest
+  postgres:
+    image: postgres:latest
     ports:
-      - "27017:27017"
-    command: ["--replSet", "rs0", "--bind_ip_all"]
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: saloon
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     healthcheck:
-      test: >
-        mongosh --quiet --eval "
-          try { rs.status().ok } catch(e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }
-        "
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 10s
+      timeout: 5s
       retries: 5
-      start_period: 10s

@@ -18,33 +18,39 @@ class StaffService {
         this.repository = repository;
     }
 
-    List<StaffMember> findBySaloonId(String saloonId) {
+    List<StaffMember> findBySaloonId(Long saloonId) {
         return repository.findBySaloonId(saloonId);
     }
 
-    Optional<StaffMember> findById(String saloonId, String staffId) {
+    Optional<StaffMember> findById(Long saloonId, Long staffId) {
         return repository.findById(staffId).filter(m -> m.saloonId().equals(saloonId));
     }
 
-    StaffMember onboard(String saloonId, String name, String email, String phone, StaffRole role,
+    StaffMember onboard(Long saloonId, String name, String email, String phone, StaffRole role,
                         List<String> specializations) {
+        var specs = specializations != null
+                ? specializations.stream().map(StaffMember.Specialization::new).toList()
+                : List.<StaffMember.Specialization>of();
         var member = new StaffMember(null, saloonId, name, email, phone, role, StaffStatus.ACTIVE,
-                specializations, Instant.now());
+                specs, Instant.now());
         return repository.save(member);
     }
 
-    Optional<StaffMember> update(String saloonId, String staffId, String name, String email, String phone,
+    Optional<StaffMember> update(Long saloonId, Long staffId, String name, String email, String phone,
                                  StaffRole role, StaffStatus status, List<String> specializations) {
+        var specs = specializations != null
+                ? specializations.stream().map(StaffMember.Specialization::new).toList()
+                : List.<StaffMember.Specialization>of();
         return repository.findById(staffId)
                 .filter(m -> m.saloonId().equals(saloonId))
                 .map(existing -> {
                     var updated = new StaffMember(existing.id(), existing.saloonId(), name, email, phone,
-                            role, status, specializations, existing.createdAt());
+                            role, status, specs, existing.createdAt());
                     return repository.save(updated);
                 });
     }
 
-    void remove(String saloonId, String staffId) {
+    void remove(Long saloonId, Long staffId) {
         repository.findById(staffId)
                 .filter(m -> m.saloonId().equals(saloonId))
                 .ifPresent(m -> repository.deleteById(staffId));

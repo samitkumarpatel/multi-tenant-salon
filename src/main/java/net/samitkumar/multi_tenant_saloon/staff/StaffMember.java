@@ -1,24 +1,29 @@
 package net.samitkumar.multi_tenant_saloon.staff;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.relational.core.mapping.MappedCollection;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.Instant;
 import java.util.List;
 
-@Document(collection = "staff_members")
+@Table("staff_member")
 public record StaffMember(
-        @Id String id,
-        String saloonId,
+        @Id Long id,
+        Long saloonId,
         String name,
         String email,
         String phone,
         StaffRole role,
         StaffStatus status,
-        List<String> specializations,
+        @MappedCollection(idColumn = "staff_member_id") List<Specialization> specializations,
         Instant createdAt
 ) {
     public StaffMember {
         specializations = specializations != null ? List.copyOf(specializations) : List.of();
     }
+
+    @Table("staff_member_specialization")
+    public record Specialization(@JsonValue String value) {}
 }
