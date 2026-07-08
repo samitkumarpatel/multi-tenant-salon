@@ -8,6 +8,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/saloons/{saloonId}/services")
@@ -27,12 +28,12 @@ class SaloonServiceController {
                                 List<String> assignedStaffIds) {}
 
     @GetMapping
-    List<ServiceItem> findAll(@PathVariable Long saloonId) {
+    List<ServiceItem> findAll(@PathVariable UUID saloonId) {
         return service.findBySaloonId(saloonId);
     }
 
     @PostMapping
-    ResponseEntity<ServiceItem> add(@PathVariable Long saloonId, @RequestBody AddServiceRequest request) {
+    ResponseEntity<ServiceItem> add(@PathVariable UUID saloonId, @RequestBody AddServiceRequest request) {
         var item = service.add(saloonId, request.name(), request.description(), request.price(),
                 request.currency(), request.durationMinutes(), request.category(), request.assignedStaffIds());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -43,14 +44,14 @@ class SaloonServiceController {
     }
 
     @GetMapping("/{serviceId}")
-    ResponseEntity<ServiceItem> findById(@PathVariable Long saloonId, @PathVariable Long serviceId) {
+    ResponseEntity<ServiceItem> findById(@PathVariable UUID saloonId, @PathVariable Long serviceId) {
         return service.findById(saloonId, serviceId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{serviceId}")
-    ResponseEntity<ServiceItem> update(@PathVariable Long saloonId, @PathVariable Long serviceId,
+    ResponseEntity<ServiceItem> update(@PathVariable UUID saloonId, @PathVariable Long serviceId,
                                        @RequestBody UpdateServiceRequest request) {
         return service.update(saloonId, serviceId, request.name(), request.description(), request.price(),
                         request.currency(), request.durationMinutes(), request.category(), request.active(),
@@ -60,7 +61,7 @@ class SaloonServiceController {
     }
 
     @DeleteMapping("/{serviceId}")
-    ResponseEntity<Void> remove(@PathVariable Long saloonId, @PathVariable Long serviceId) {
+    ResponseEntity<Void> remove(@PathVariable UUID saloonId, @PathVariable Long serviceId) {
         service.remove(saloonId, serviceId);
         return ResponseEntity.noContent().build();
     }

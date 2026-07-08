@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 class SaloonServiceManager {
@@ -18,15 +19,15 @@ class SaloonServiceManager {
         this.repository = repository;
     }
 
-    List<ServiceItem> findBySaloonId(Long saloonId) {
+    List<ServiceItem> findBySaloonId(UUID saloonId) {
         return repository.findBySaloonId(saloonId);
     }
 
-    Optional<ServiceItem> findById(Long saloonId, Long serviceId) {
+    Optional<ServiceItem> findById(UUID saloonId, Long serviceId) {
         return repository.findById(serviceId).filter(s -> s.saloonId().equals(saloonId));
     }
 
-    ServiceItem add(Long saloonId, String name, String description, BigDecimal price, String currency,
+    ServiceItem add(UUID saloonId, String name, String description, BigDecimal price, String currency,
                     int durationMinutes, ServiceCategory category, List<String> assignedStaffIds) {
         var staffList = assignedStaffIds != null
                 ? assignedStaffIds.stream().map(ServiceItem.AssignedStaff::new).toList()
@@ -36,7 +37,7 @@ class SaloonServiceManager {
         return repository.save(item);
     }
 
-    Optional<ServiceItem> update(Long saloonId, Long serviceId, String name, String description,
+    Optional<ServiceItem> update(UUID saloonId, Long serviceId, String name, String description,
                                  BigDecimal price, String currency, int durationMinutes,
                                  ServiceCategory category, boolean active, List<String> assignedStaffIds) {
         var staffList = assignedStaffIds != null
@@ -52,7 +53,7 @@ class SaloonServiceManager {
                 });
     }
 
-    void remove(Long saloonId, Long serviceId) {
+    void remove(UUID saloonId, Long serviceId) {
         repository.findById(serviceId)
                 .filter(s -> s.saloonId().equals(saloonId))
                 .ifPresent(s -> repository.deleteById(serviceId));

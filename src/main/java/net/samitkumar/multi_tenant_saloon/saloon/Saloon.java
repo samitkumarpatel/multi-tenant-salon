@@ -10,11 +10,13 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Table("saloon")
 public record Saloon(
-        @Id Long id,
+        @Id UUID id,
         String name,
+        String handler,
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) Owner owner,
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) Location location,
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) ContactInfo contact,

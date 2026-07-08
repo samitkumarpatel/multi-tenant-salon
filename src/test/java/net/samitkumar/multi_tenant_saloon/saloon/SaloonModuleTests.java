@@ -39,9 +39,21 @@ class SaloonModuleTests {
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.name").isEqualTo("Glam Saloon")
-                .jsonPath("$.owner.name").isEqualTo("Jane Doe")
-                .jsonPath("$.features").isArray();
+                .jsonPath("$.handler").isEqualTo("glamsaloon");
+    }
+
+    @Test
+    void createSaloonValidation() {
+        client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "ownerPhone": "+1234567890"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
@@ -57,7 +69,7 @@ class SaloonModuleTests {
     @Test
     void saloonNotFound() {
         client.get()
-                .uri("/api/saloons/99999")
+                .uri("/api/saloons/00000000-0000-0000-0000-000000000000")
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -88,9 +100,7 @@ class SaloonModuleTests {
                 .uri("/api/saloons/" + id + "/features")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
-                        {
-                            "features": ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
-                        }
+                        ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
                         """)
                 .exchange()
                 .expectStatus().isOk()

@@ -31,3 +31,27 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Frontend (React Router / Vite) ###
+frontend/**/node_modules/
+frontend/**/.react-router/
+frontend/**/build/
+frontend/**/*.local
+frontend/**/.env
+frontend/**/.env.local
+frontend/**/.env.*.local
+
+### Terraform ###
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log
+crash.*.log

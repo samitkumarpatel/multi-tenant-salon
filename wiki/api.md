@@ -2,7 +2,7 @@
 
 Base path: `/api`
 
-All request and response bodies are `application/json`. IDs are `Long` integers.
+All request and response bodies are `application/json`. Saloon IDs are `UUID` strings. Service and staff IDs remain `Long` integers.
 
 ---
 
@@ -43,8 +43,8 @@ All request and response bodies are `application/json`. IDs are `Long` integers.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `name` | string | yes | |
-| `ownerName` | string | no | |
-| `ownerEmail` | string | no | |
+| `ownerName` | string | yes | |
+| `ownerEmail` | string | yes | |
 | `ownerPhone` | string | no | |
 | `location` | object | no | See [Location](#location) |
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
@@ -53,74 +53,25 @@ All request and response bodies are `application/json`. IDs are `Long` integers.
 
 **Response** `201 Created`
 
-`Location` header points to the new resource, e.g. `/api/saloons/1`.
+`Location` header points to the new resource, e.g. `/api/saloons/a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
 
 ```json
 {
-  "id": 1,
-  "name": "Glam Saloon",
-  "owner": {
-    "name": "Jane Doe",
-    "email": "jane@glamsaloon.com",
-    "phone": "+1234567890"
-  },
-  "location": {
-    "address": "123 Main St",
-    "city": "New York",
-    "state": "NY",
-    "country": "USA",
-    "zipCode": "10001"
-  },
-  "contact": {
-    "phone": "+1234567890",
-    "email": "info@glamsaloon.com",
-    "website": "https://glamsaloon.com"
-  },
-  "operatingHours": [
-    { "day": "MONDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
-    { "day": "SUNDAY", "openTime": null, "closeTime": null, "closed": true }
-  ],
-  "features": ["BOOKING", "STATIC_WEBSITE"],
-  "createdAt": "2026-07-08T10:00:00Z"
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "handler": "glamsaloon"
 }
 ```
 
+The `handler` is derived from the saloon name: lowercased and stripped of spaces and special characters (e.g. `"Glam Saloon!"` → `"glamsaloon"`). It is unique and can be used as a human-readable identifier in URLs.
+
 **Flow**
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant SaloonController
-    participant SaloonService
-    participant SaloonRepository
-    participant DB as PostgreSQL
-    participant EventPublisher
-    participant NotificationListener
-
-    Client->>SaloonController: POST /api/saloons
-    SaloonController->>SaloonService: create(name, owner, location, contact, hours, features)
-    SaloonService->>SaloonService: convert List<SaloonFeature> → List<SaloonFeatureRef>
-    SaloonService->>SaloonRepository: save(saloon)
-    SaloonRepository->>DB: INSERT INTO saloon (...)\nINSERT INTO saloon_operating_hours (...)\nINSERT INTO saloon_feature (...)
-    DB-->>SaloonRepository: saloon with generated id
-    SaloonRepository-->>SaloonService: Saloon
-    SaloonService->>EventPublisher: publishEvent(SaloonCreatedEvent)
-    Note over EventPublisher,DB: Event written to event_publication table (Spring Modulith)
-    SaloonService-->>SaloonController: Saloon
-    SaloonController-->>Client: 201 Created (Location: /api/saloons/{id})
-    EventPublisher-->>NotificationListener: onSaloonCreated(event) [async]
-    Note over NotificationListener: Logs owner notification queued
-```
-
-**Plain text flow**
-
-1. `SaloonController` (`saloon.internal`) receives the request and deserializes it into `CreateSaloonRequest` — an inner record defined inside `SaloonController` with flat owner fields (`ownerName`, `ownerEmail`, `ownerPhone`) alongside `Saloon.Location`, `Saloon.ContactInfo`, `List<Saloon.OperatingHours>`, and `List<SaloonFeature>`. `SaloonController.create()` constructs a `Saloon.Owner` record from those flat fields, then calls `SaloonService.create()`.
-2. `SaloonService.create()` is annotated `@Transactional`. It converts `List<SaloonFeature>` → `List<Saloon.SaloonFeatureRef>` via a stream map. `SaloonFeatureRef` is a single-field wrapper record required by Spring Data JDBC for `@MappedCollection` persistence; its `@JsonValue` annotation makes it serialize back to a plain JSON string.
-3. A new `Saloon` aggregate record is built with `id = null` and `createdAt = Instant.now()`, then passed to `SaloonRepository.save()`.
-4. `SaloonRepository` (extends `ListCrudRepository<Saloon, Long>`) issues `INSERT INTO saloon`, followed by inserts into `saloon_operating_hours` (one row per `Saloon.OperatingHours`, with an auto-managed `saloon_key` ordering column) and `saloon_feature` (one row per `Saloon.SaloonFeatureRef`). All three inserts happen in the same aggregate write.
-5. Still within the same `@Transactional` boundary, `SaloonService` calls `ApplicationEventPublisher.publishEvent()` with a `SaloonCreatedEvent` record (public API of the `saloon` module). Spring Modulith intercepts this call and persists the event to the `event_publication` table before the transaction commits — guaranteeing at-least-once delivery even on crash.
-6. `SaloonController` receives the saved `Saloon`, builds the `Location` URI using `ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(saloon.id())`, and returns `201 Created` with the full saloon body.
-7. After the transaction commits, Spring Modulith delivers `SaloonCreatedEvent` asynchronously to `SaloonNotificationListener.onSaloonCreated()` (`notification.internal`). This listener is annotated `@ApplicationModuleListener`, which enforces module boundary isolation — the `notification` module depends only on the shared `SaloonCreatedEvent` record, never on any internal `saloon` class.
+1. `SaloonController.create()` validates `@NotBlank` on `name`, `ownerName`, `ownerEmail` — returns `400` before reaching the service if any are blank.
+2. `SaloonService.create()` derives `handler` from the name, converts `List<SaloonFeature>` → `List<SaloonFeatureRef>`, and builds a `Saloon` with `id = null`.
+3. `SaloonRepository.save(Saloon)` → **DB**: `INSERT INTO saloon`, `INSERT INTO saloon_operating_hours`, `INSERT INTO saloon_feature` — all in one transaction. The database assigns the UUID via `DEFAULT gen_random_uuid()`.
+4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` → **DB**: Spring Modulith writes the event to the `event_publication` table before the transaction commits, guaranteeing delivery.
+5. `SaloonController.create()` returns `201 Created` with `CreateSaloonResponse(id, handler)` and a `Location` header.
+6. After commit → **Event**: `SaloonNotificationListener.onSaloonCreated(SaloonCreatedEvent)` is invoked asynchronously by Spring Modulith.
 
 ---
 
@@ -133,8 +84,9 @@ sequenceDiagram
 ```json
 [
   {
-    "id": 1,
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Glam Saloon",
+    "handler": "glamsaloon",
     "owner": { "name": "Jane Doe", "email": "jane@glamsaloon.com", "phone": "+1234567890" },
     "location": { "address": "123 Main St", "city": "New York", "state": "NY", "country": "USA", "zipCode": "10001" },
     "contact": { "phone": "+1234567890", "email": "info@glamsaloon.com", "website": "https://glamsaloon.com" },
@@ -147,9 +99,9 @@ sequenceDiagram
 
 **Flow**
 
-1. `SaloonController.findAll()` delegates to `SaloonService.findAll()`.
-2. `SaloonService.findAll()` calls `SaloonRepository.findAll()`, which issues `SELECT * FROM saloon` and for each row fetches the related child rows from `saloon_operating_hours` (mapped to `List<Saloon.OperatingHours>`) and `saloon_feature` (mapped to `List<Saloon.SaloonFeatureRef>`). The `@Embedded` columns (`owner_name`, `owner_email`, `owner_phone`, `address`, `city`, etc.) are hydrated directly into the nested `Saloon.Owner`, `Saloon.Location`, and `Saloon.ContactInfo` records.
-3. `SaloonController` returns the resulting `List<Saloon>` as a JSON array. Returns an empty array (`[]`) when no saloons exist.
+1. `SaloonController.findAll()` → `SaloonService.findAll()` → `SaloonRepository.findAll()`
+2. **DB**: `SELECT * FROM saloon` + child rows from `saloon_operating_hours` and `saloon_feature` per aggregate. `@Embedded` columns are hydrated into `Owner`, `Location`, and `ContactInfo`.
+3. Returns `List<Saloon>` — empty array if no saloons exist.
 
 ---
 
@@ -157,15 +109,15 @@ sequenceDiagram
 
 `GET /api/saloons/{id}`
 
-**Response** `200 OK` — saloon object (same shape as create response)
+**Response** `200 OK` — full saloon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `createdAt`)
 
-**Response** `404 Not Found` — if the ID does not exist
+**Response** `404 Not Found` — if the UUID does not exist
 
 **Flow**
 
-1. `SaloonController.findById()` receives the `{id}` path variable as a `Long` and delegates to `SaloonService.findById(id)`.
-2. `SaloonService.findById()` calls `SaloonRepository.findById(id)`, which queries `SELECT * FROM saloon WHERE id = ?` and fetches the aggregate's child collections.
-3. The repository returns an `Optional<Saloon>`. `SaloonController` maps a present value to `200 OK` with the saloon body, or returns `ResponseEntity.notFound().build()` (`404`) if the `Optional` is empty.
+1. `SaloonController.findById(UUID)` → `SaloonService.findById(UUID)` → `SaloonRepository.findById(UUID)`
+2. **DB**: `SELECT * FROM saloon WHERE id = ?` + child collections.
+3. `SaloonController` maps `Optional<Saloon>` → `200 OK` or `404 Not Found`.
 
 ---
 
@@ -173,7 +125,7 @@ sequenceDiagram
 
 `PUT /api/saloons/{id}`
 
-Updates name, location, contact, and operating hours. Owner and features are preserved from the existing record.
+Updates name, location, contact, and operating hours. Owner, handler, and features are preserved from the existing record.
 
 **Request**
 
@@ -204,43 +156,11 @@ Updates name, location, contact, and operating hours. Owner and features are pre
 
 **Flow**
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant SaloonController
-    participant SaloonService
-    participant SaloonRepository
-    participant DB as PostgreSQL
-
-    Client->>SaloonController: PUT /api/saloons/{id}
-    SaloonController->>SaloonService: update(id, name, location, contact, hours)
-    SaloonService->>SaloonRepository: findById(id)
-    SaloonRepository->>DB: SELECT ... WHERE id = ?
-    alt not found
-        DB-->>SaloonRepository: empty
-        SaloonRepository-->>SaloonService: Optional.empty()
-        SaloonService-->>SaloonController: Optional.empty()
-        SaloonController-->>Client: 404 Not Found
-    else found
-        DB-->>SaloonRepository: existing Saloon
-        SaloonRepository-->>SaloonService: Optional<Saloon>
-        SaloonService->>SaloonService: build new Saloon record\n(preserving existing.owner, existing.features, existing.createdAt)
-        SaloonService->>SaloonRepository: save(updated)
-        SaloonRepository->>DB: UPDATE saloon SET ...\nDELETE + re-INSERT saloon_operating_hours
-        DB-->>SaloonRepository: updated Saloon
-        SaloonRepository-->>SaloonService: Saloon
-        SaloonService-->>SaloonController: Optional<Saloon>
-        SaloonController-->>Client: 200 OK
-    end
-```
-
-**Plain text flow**
-
-1. `SaloonController.update()` deserializes the body into `UpdateSaloonRequest` — an inner record inside `SaloonController` carrying `name` (String), `location` (`Saloon.Location`), `contact` (`Saloon.ContactInfo`), and `operatingHours` (`List<Saloon.OperatingHours>`). It calls `SaloonService.update(id, name, location, contact, operatingHours)`.
-2. `SaloonService.update()` calls `SaloonRepository.findById(id)`. If the returned `Optional<Saloon>` is empty, the method returns `Optional.empty()` immediately; `SaloonController` maps this to `404 Not Found`.
-3. When the saloon is found, `SaloonService` constructs a new `Saloon` record (all fields are final — Java record) preserving immutable fields: `existing.id()`, `existing.owner()`, `existing.features()`, and `existing.createdAt()`. Only `name`, `location`, `contact`, and `operatingHours` are replaced with the request values.
-4. `SaloonRepository.save(updated)` issues `UPDATE saloon SET name = ?, address = ?, ...` for the root row, then executes `DELETE FROM saloon_operating_hours WHERE saloon_id = ?` followed by fresh inserts for the new hours. The `saloon_feature` table is not touched because the feature list is copied from the existing record. Spring Data JDBC performs this full aggregate replacement automatically.
-5. `SaloonController` maps the `Optional<Saloon>` to `ResponseEntity.ok(saloon)` (`200`) or `ResponseEntity.notFound().build()` (`404`).
+1. `SaloonController.update(UUID, UpdateSaloonRequest)` → `SaloonService.update(UUID, ...)`
+2. `SaloonRepository.findById(UUID)` → **DB**: `SELECT * FROM saloon WHERE id = ?` — returns `404` if empty.
+3. `SaloonService` builds a new `Saloon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`.
+4. `SaloonRepository.save(Saloon)` → **DB**: `UPDATE saloon SET ...` + `DELETE FROM saloon_operating_hours WHERE saloon_id = ?` + re-`INSERT`.
+5. Returns `200 OK` with the updated saloon.
 
 ---
 
@@ -253,9 +173,7 @@ Replaces the full feature list for a saloon.
 **Request**
 
 ```json
-{
-  "features": ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
-}
+["BOOKING", "MEMBERSHIP", "WEBSHOP"]
 ```
 
 **Response** `200 OK` — updated saloon object
@@ -264,12 +182,11 @@ Replaces the full feature list for a saloon.
 
 **Flow**
 
-1. `SaloonController.updateFeatures()` deserializes the body into `UpdateFeaturesRequest` — an inner record inside `SaloonController` holding `List<SaloonFeature>`. It calls `SaloonService.updateFeatures(id, features)`.
-2. `SaloonService.updateFeatures()` calls `SaloonRepository.findById(id)`. If the `Optional<Saloon>` is empty, returns `Optional.empty()` and the controller responds with `404`.
-3. The incoming `List<SaloonFeature>` (enum values) is stream-mapped to `List<Saloon.SaloonFeatureRef>` — each `SaloonFeatureRef` is a single-field wrapper record annotated `@Table("saloon_feature")`. Its `@JsonValue` on the `feature()` accessor makes the list serialize as a plain `["BOOKING", "MEMBERSHIP"]` array rather than `[{"feature":"BOOKING"}]`.
-4. A new `Saloon` record is constructed preserving `existing.id()`, `existing.name()`, `existing.owner()`, `existing.location()`, `existing.contact()`, `existing.operatingHours()`, and `existing.createdAt()` — only `features` is replaced.
-5. `SaloonRepository.save(updated)` issues `DELETE FROM saloon_feature WHERE saloon_id = ?` then re-inserts the new feature rows. No other tables are modified.
-6. `SaloonController` returns `200 OK` with the updated saloon body.
+1. `SaloonController.updateFeatures(UUID, List<SaloonFeature>)` → `SaloonService.updateFeatures(UUID, ...)`
+2. `SaloonRepository.findById(UUID)` → **DB**: `SELECT * FROM saloon WHERE id = ?` — returns `404` if empty.
+3. `SaloonService` builds a new `Saloon` record preserving all fields except `features`.
+4. `SaloonRepository.save(Saloon)` → **DB**: `DELETE FROM saloon_feature WHERE saloon_id = ?` + re-`INSERT`.
+5. Returns `200 OK` with the updated saloon.
 
 ---
 
@@ -281,10 +198,9 @@ Replaces the full feature list for a saloon.
 
 **Flow**
 
-1. `SaloonController.delete()` receives the `{id}` path variable as a `Long` and calls `SaloonService.delete(id)`.
-2. `SaloonService.delete()` calls `SaloonRepository.deleteById(id)`, which issues `DELETE FROM saloon WHERE id = ?`.
-3. The `ON DELETE CASCADE` constraints on `saloon_operating_hours.saloon_id`, `saloon_feature.saloon_id`, `service_item.saloon_id`, and `staff_member.saloon_id` cause the database to automatically remove all child rows for that saloon.
-4. `SaloonController` always returns `ResponseEntity.noContent().build()` (`204`), even if the ID did not exist — `deleteById` is a no-op on a missing record.
+1. `SaloonController.delete(UUID)` → `SaloonService.delete(UUID)` → `SaloonRepository.deleteById(UUID)`
+2. **DB**: `DELETE FROM saloon WHERE id = ?` — `ON DELETE CASCADE` removes rows in `saloon_operating_hours`, `saloon_feature`, `service_item`, and `staff_member` automatically.
+3. Always returns `204` — no-op if the UUID does not exist.
 
 ---
 
@@ -302,7 +218,7 @@ Services are scoped to a saloon via the path. A service can only be retrieved, u
 [
   {
     "id": 1,
-    "saloonId": 1,
+    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Classic Haircut",
     "description": "Shampoo, cut, and blow-dry",
     "price": 35.00,
@@ -318,9 +234,9 @@ Services are scoped to a saloon via the path. A service can only be retrieved, u
 
 **Flow**
 
-1. `SaloonServiceController.findAll()` receives `{saloonId}` as a `Long` path variable and calls `SaloonServiceManager.findBySaloonId(saloonId)`.
-2. `SaloonServiceManager.findBySaloonId()` delegates to `SaloonServiceRepository.findBySaloonId(saloonId)` — a derived query method on `ListCrudRepository<ServiceItem, Long>` that issues `SELECT * FROM service_item WHERE saloon_id = ?`. For each `ServiceItem`, Spring Data JDBC also fetches its assigned staff from `service_item_assigned_staff` into `List<ServiceItem.AssignedStaff>`. The `@JsonValue` on `AssignedStaff.staffId()` causes the list to serialize as `["1", "2"]`.
-3. Returns the list directly; empty array if the saloon has no services.
+1. `SaloonServiceController.findAll(UUID)` → `SaloonServiceManager.findBySaloonId(UUID)` → `SaloonServiceRepository.findBySaloonId(UUID)`
+2. **DB**: `SELECT * FROM service_item WHERE saloon_id = ?` + `service_item_assigned_staff` rows per item.
+3. Returns `List<ServiceItem>` — empty array if none.
 
 ---
 
@@ -354,12 +270,12 @@ Services are scoped to a saloon via the path. A service can only be retrieved, u
 
 **Response** `201 Created`
 
-`Location` header points to the new resource, e.g. `/api/saloons/1/services/1`.
+`Location` header points to the new resource, e.g. `/api/saloons/a1b2c3d4-e5f6-7890-abcd-ef1234567890/services/1`.
 
 ```json
 {
   "id": 1,
-  "saloonId": 1,
+  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "name": "Classic Haircut",
   "description": "Shampoo, cut, and blow-dry",
   "price": 35.00,
@@ -374,11 +290,10 @@ Services are scoped to a saloon via the path. A service can only be retrieved, u
 
 **Flow**
 
-1. `SaloonServiceController.add()` deserializes the body into `AddServiceRequest` — an inner record inside `SaloonServiceController` — and calls `SaloonServiceManager.add(saloonId, name, description, price, currency, durationMinutes, category, assignedStaffIds)`.
-2. `SaloonServiceManager.add()` converts `List<String> assignedStaffIds` → `List<ServiceItem.AssignedStaff>` via a stream map. `AssignedStaff` is a single-field wrapper record annotated `@Table("service_item_assigned_staff")` with `@JsonValue` on its `staffId()` accessor so it round-trips as plain strings.
-3. A `ServiceItem` record is built with `id = null`, `active = true`, and `createdAt = Instant.now()`, then passed to `SaloonServiceRepository.save()`.
-4. `SaloonServiceRepository.save()` issues `INSERT INTO service_item` followed by inserts into `service_item_assigned_staff` (one row per `AssignedStaff`, with an auto-managed `service_item_key` ordering column).
-5. `SaloonServiceController` builds the `Location` URI via `ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(item.id())` and returns `201 Created`.
+1. `SaloonServiceController.add(UUID, AddServiceRequest)` → `SaloonServiceManager.add(UUID, ...)`
+2. `SaloonServiceManager` builds a `ServiceItem` with `id = null`, `active = true`, `createdAt = Instant.now()`.
+3. `SaloonServiceRepository.save(ServiceItem)` → **DB**: `INSERT INTO service_item` + `INSERT INTO service_item_assigned_staff`.
+4. Returns `201 Created` with the saved `ServiceItem` and a `Location` header.
 
 ---
 
@@ -392,9 +307,9 @@ Services are scoped to a saloon via the path. A service can only be retrieved, u
 
 **Flow**
 
-1. `SaloonServiceController.findById()` calls `SaloonServiceManager.findById(saloonId, serviceId)`.
-2. `SaloonServiceManager.findById()` calls `SaloonServiceRepository.findById(serviceId)` then chains `.filter(s -> s.saloonId().equals(saloonId))` on the resulting `Optional<ServiceItem>`. This ensures a service can only be fetched through its owning saloon — the filter short-circuits to `Optional.empty()` if the `saloonId` doesn't match.
-3. `SaloonServiceController` maps a present value to `200 OK`, or returns `404` if the `Optional` is empty (service not found or wrong saloon).
+1. `SaloonServiceController.findById(UUID, Long)` → `SaloonServiceManager.findById(UUID, Long)`
+2. `SaloonServiceRepository.findById(Long)` → **DB**: `SELECT * FROM service_item WHERE id = ?`
+3. Result is filtered by `saloonId` — returns `404` if not found or saloon mismatch.
 
 ---
 
@@ -425,40 +340,11 @@ All fields are required. Set `active` to `false` to deactivate the service witho
 
 **Flow**
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant SaloonServiceController
-    participant SaloonServiceManager
-    participant SaloonServiceRepository
-    participant DB as PostgreSQL
-
-    Client->>SaloonServiceController: PUT /api/saloons/{saloonId}/services/{serviceId}
-    SaloonServiceController->>SaloonServiceManager: update(saloonId, serviceId, ...)
-    SaloonServiceManager->>SaloonServiceRepository: findById(serviceId)
-    SaloonServiceRepository->>DB: SELECT ... WHERE id = ?
-    alt not found or wrong saloon
-        DB-->>SaloonServiceManager: empty / mismatch
-        SaloonServiceManager-->>SaloonServiceController: Optional.empty()
-        SaloonServiceController-->>Client: 404 Not Found
-    else found and saloon matches
-        SaloonServiceManager->>SaloonServiceManager: convert assignedStaffIds → List<AssignedStaff>\nbuild updated ServiceItem (preserving id, saloonId, createdAt)
-        SaloonServiceManager->>SaloonServiceRepository: save(updated)
-        SaloonServiceRepository->>DB: UPDATE service_item SET ...\nDELETE + re-INSERT service_item_assigned_staff
-        DB-->>SaloonServiceRepository: updated ServiceItem
-        SaloonServiceRepository-->>SaloonServiceManager: ServiceItem
-        SaloonServiceManager-->>SaloonServiceController: Optional<ServiceItem>
-        SaloonServiceController-->>Client: 200 OK
-    end
-```
-
-**Plain text flow**
-
-1. `SaloonServiceController.update()` deserializes the body into `UpdateServiceRequest` — an inner record inside `SaloonServiceController` — and calls `SaloonServiceManager.update(saloonId, serviceId, name, description, price, currency, durationMinutes, category, active, assignedStaffIds)`.
-2. `SaloonServiceManager.update()` calls `SaloonServiceRepository.findById(serviceId)` and chains `.filter(s -> s.saloonId().equals(saloonId))`. If the resulting `Optional<ServiceItem>` is empty (service not found or saloon mismatch), the method returns `Optional.empty()` and `SaloonServiceController` responds with `404`.
-3. When found and ownership confirmed, `SaloonServiceManager` converts `List<String> assignedStaffIds` → `List<ServiceItem.AssignedStaff>` via a stream map, then builds a new `ServiceItem` record preserving `existing.id()`, `existing.saloonId()`, and `existing.createdAt()`. All other fields (`name`, `description`, `price`, `currency`, `durationMinutes`, `category`, `active`, `assignedStaffIds`) are replaced with request values.
-4. `SaloonServiceRepository.save(updated)` issues `UPDATE service_item SET ...` for the root row, then `DELETE FROM service_item_assigned_staff WHERE service_item_id = ?` followed by re-inserts for the new staff list. Spring Data JDBC manages this aggregate replacement automatically.
-5. `SaloonServiceController` maps the result to `200 OK` with the updated service body.
+1. `SaloonServiceController.update(UUID, Long, UpdateServiceRequest)` → `SaloonServiceManager.update(UUID, Long, ...)`
+2. `SaloonServiceRepository.findById(Long)` → **DB**: `SELECT * FROM service_item WHERE id = ?` — filtered by `saloonId`, returns `404` on mismatch.
+3. `SaloonServiceManager` builds a new `ServiceItem` preserving `id`, `saloonId`, `createdAt`.
+4. `SaloonServiceRepository.save(ServiceItem)` → **DB**: `UPDATE service_item SET ...` + `DELETE FROM service_item_assigned_staff WHERE service_item_id = ?` + re-`INSERT`.
+5. Returns `200 OK` with the updated `ServiceItem`.
 
 ---
 
@@ -470,10 +356,10 @@ sequenceDiagram
 
 **Flow**
 
-1. `SaloonServiceController.remove()` calls `SaloonServiceManager.remove(saloonId, serviceId)`.
-2. `SaloonServiceManager.remove()` calls `SaloonServiceRepository.findById(serviceId)` and chains `.filter(s -> s.saloonId().equals(saloonId))` to verify ownership. Only if the `Optional<ServiceItem>` is present (found and owned by `saloonId`) does it call `SaloonServiceRepository.deleteById(serviceId)`.
-3. `deleteById` issues `DELETE FROM service_item WHERE id = ?`; the `ON DELETE CASCADE` on `service_item_assigned_staff.service_item_id` removes all assigned-staff rows automatically.
-4. `SaloonServiceController` always returns `ResponseEntity.noContent().build()` (`204`). If the service was not found or belonged to a different saloon, the delete is silently skipped but `204` is still returned.
+1. `SaloonServiceController.remove(UUID, Long)` → `SaloonServiceManager.remove(UUID, Long)`
+2. `SaloonServiceRepository.findById(Long)` → **DB**: `SELECT * FROM service_item WHERE id = ?` — filtered by `saloonId`. Skips delete silently if not found or wrong saloon.
+3. `SaloonServiceRepository.deleteById(Long)` → **DB**: `DELETE FROM service_item WHERE id = ?` — `ON DELETE CASCADE` removes `service_item_assigned_staff` rows.
+4. Always returns `204`.
 
 ---
 
@@ -491,7 +377,7 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
 [
   {
     "id": 1,
-    "saloonId": 1,
+    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Alice Smith",
     "email": "alice@glamsaloon.com",
     "phone": "+1234567890",
@@ -505,9 +391,9 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
 
 **Flow**
 
-1. `StaffController.findAll()` receives `{saloonId}` as a `Long` path variable and calls `StaffService.findBySaloonId(saloonId)`.
-2. `StaffService.findBySaloonId()` delegates to `StaffRepository.findBySaloonId(saloonId)` — a derived query method on `ListCrudRepository<StaffMember, Long>` that issues `SELECT * FROM staff_member WHERE saloon_id = ?`. For each `StaffMember`, Spring Data JDBC fetches its specializations from `staff_member_specialization` into `List<StaffMember.Specialization>`. The `@JsonValue` on `Specialization.value()` serializes the list as plain strings.
-3. Returns the list directly; empty array if the saloon has no staff.
+1. `StaffController.findAll(UUID)` → `StaffService.findBySaloonId(UUID)` → `StaffRepository.findBySaloonId(UUID)`
+2. **DB**: `SELECT * FROM staff_member WHERE saloon_id = ?` + `staff_member_specialization` rows per member.
+3. Returns `List<StaffMember>` — empty array if none.
 
 ---
 
@@ -539,12 +425,12 @@ New staff members are set to status `ACTIVE` automatically.
 
 **Response** `201 Created`
 
-`Location` header points to the new resource, e.g. `/api/saloons/1/staff/1`.
+`Location` header points to the new resource, e.g. `/api/saloons/a1b2c3d4-e5f6-7890-abcd-ef1234567890/staff/1`.
 
 ```json
 {
   "id": 1,
-  "saloonId": 1,
+  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "name": "Alice Smith",
   "email": "alice@glamsaloon.com",
   "phone": "+1234567890",
@@ -557,11 +443,10 @@ New staff members are set to status `ACTIVE` automatically.
 
 **Flow**
 
-1. `StaffController.onboard()` deserializes the body into `OnboardRequest` — an inner record inside `StaffController` — and calls `StaffService.onboard(saloonId, name, email, phone, role, specializations)`.
-2. `StaffService.onboard()` converts `List<String> specializations` → `List<StaffMember.Specialization>` via a stream map. `Specialization` is a single-field wrapper record annotated `@Table("staff_member_specialization")` with `@JsonValue` on its `value()` accessor so it serializes back as plain strings.
-3. A `StaffMember` record is built with `id = null`, `status = StaffStatus.ACTIVE` (always), and `createdAt = Instant.now()`, then passed to `StaffRepository.save()`.
-4. `StaffRepository.save()` issues `INSERT INTO staff_member` followed by inserts into `staff_member_specialization` (one row per `Specialization`, with an auto-managed `staff_member_key` ordering column).
-5. `StaffController` builds the `Location` URI via `ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(member.id())` and returns `201 Created`.
+1. `StaffController.onboard(UUID, OnboardRequest)` → `StaffService.onboard(UUID, ...)`
+2. `StaffService` builds a `StaffMember` with `id = null`, `status = ACTIVE`, `createdAt = Instant.now()`.
+3. `StaffRepository.save(StaffMember)` → **DB**: `INSERT INTO staff_member` + `INSERT INTO staff_member_specialization`.
+4. Returns `201 Created` with the saved `StaffMember` and a `Location` header.
 
 ---
 
@@ -575,9 +460,9 @@ New staff members are set to status `ACTIVE` automatically.
 
 **Flow**
 
-1. `StaffController.findById()` calls `StaffService.findById(saloonId, staffId)`.
-2. `StaffService.findById()` calls `StaffRepository.findById(staffId)` then chains `.filter(m -> m.saloonId().equals(saloonId))` on the resulting `Optional<StaffMember>`. This ensures a member can only be fetched through their owning saloon — the filter short-circuits to `Optional.empty()` if the `saloonId` doesn't match.
-3. `StaffController` maps a present value to `200 OK`, or returns `404` if the `Optional` is empty.
+1. `StaffController.findById(UUID, Long)` → `StaffService.findById(UUID, Long)`
+2. `StaffRepository.findById(Long)` → **DB**: `SELECT * FROM staff_member WHERE id = ?`
+3. Result is filtered by `saloonId` — returns `404` if not found or saloon mismatch.
 
 ---
 
@@ -606,40 +491,11 @@ All fields are required. `status` can be changed here (e.g. to `INACTIVE` or `ON
 
 **Flow**
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant StaffController
-    participant StaffService
-    participant StaffRepository
-    participant DB as PostgreSQL
-
-    Client->>StaffController: PUT /api/saloons/{saloonId}/staff/{staffId}
-    StaffController->>StaffService: update(saloonId, staffId, ...)
-    StaffService->>StaffRepository: findById(staffId)
-    StaffRepository->>DB: SELECT ... WHERE id = ?
-    alt not found or wrong saloon
-        DB-->>StaffService: empty / mismatch
-        StaffService-->>StaffController: Optional.empty()
-        StaffController-->>Client: 404 Not Found
-    else found and saloon matches
-        StaffService->>StaffService: convert specializations → List<Specialization>\nbuild updated StaffMember (preserving id, saloonId, createdAt)
-        StaffService->>StaffRepository: save(updated)
-        StaffRepository->>DB: UPDATE staff_member SET ...\nDELETE + re-INSERT staff_member_specialization
-        DB-->>StaffRepository: updated StaffMember
-        StaffRepository-->>StaffService: StaffMember
-        StaffService-->>StaffController: Optional<StaffMember>
-        StaffController-->>Client: 200 OK
-    end
-```
-
-**Plain text flow**
-
-1. `StaffController.update()` deserializes the body into `UpdateRequest` — an inner record inside `StaffController` carrying `name`, `email`, `phone`, `role` (`StaffRole` enum), `status` (`StaffStatus` enum), and `specializations` (`List<String>`). It calls `StaffService.update(saloonId, staffId, name, email, phone, role, status, specializations)`.
-2. `StaffService.update()` calls `StaffRepository.findById(staffId)` and chains `.filter(m -> m.saloonId().equals(saloonId))`. If the `Optional<StaffMember>` is empty (member not found or saloon mismatch), the method returns `Optional.empty()` and `StaffController` responds with `404`.
-3. When found and ownership confirmed, `StaffService` converts `List<String> specializations` → `List<StaffMember.Specialization>` via a stream map, then builds a new `StaffMember` record preserving `existing.id()`, `existing.saloonId()`, and `existing.createdAt()`. The mutable fields `name`, `email`, `phone`, `role`, `status`, and `specializations` are all replaced with request values — notably, `status` can be changed here (unlike onboarding, which always forces `ACTIVE`).
-4. `StaffRepository.save(updated)` issues `UPDATE staff_member SET ...` for the root row, then `DELETE FROM staff_member_specialization WHERE staff_member_id = ?` followed by re-inserts for the new specialization list. Spring Data JDBC manages this aggregate replacement automatically.
-5. `StaffController` maps the result to `ResponseEntity.ok(member)` (`200`) or `ResponseEntity.notFound().build()` (`404`).
+1. `StaffController.update(UUID, Long, UpdateRequest)` → `StaffService.update(UUID, Long, ...)`
+2. `StaffRepository.findById(Long)` → **DB**: `SELECT * FROM staff_member WHERE id = ?` — filtered by `saloonId`, returns `404` on mismatch.
+3. `StaffService` builds a new `StaffMember` preserving `id`, `saloonId`, `createdAt` — all other fields including `status` are replaced.
+4. `StaffRepository.save(StaffMember)` → **DB**: `UPDATE staff_member SET ...` + `DELETE FROM staff_member_specialization WHERE staff_member_id = ?` + re-`INSERT`.
+5. Returns `200 OK` with the updated `StaffMember`.
 
 ---
 
@@ -651,10 +507,10 @@ sequenceDiagram
 
 **Flow**
 
-1. `StaffController.remove()` calls `StaffService.remove(saloonId, staffId)`.
-2. `StaffService.remove()` calls `StaffRepository.findById(staffId)` and chains `.filter(m -> m.saloonId().equals(saloonId))` to verify ownership. Only if the `Optional<StaffMember>` is present does it call `StaffRepository.deleteById(staffId)`.
-3. `deleteById` issues `DELETE FROM staff_member WHERE id = ?`; the `ON DELETE CASCADE` on `staff_member_specialization.staff_member_id` removes all specialization rows automatically.
-4. `StaffController` always returns `ResponseEntity.noContent().build()` (`204`). If the member was not found or belonged to a different saloon, the delete is silently skipped but `204` is still returned.
+1. `StaffController.remove(UUID, Long)` → `StaffService.remove(UUID, Long)`
+2. `StaffRepository.findById(Long)` → **DB**: `SELECT * FROM staff_member WHERE id = ?` — filtered by `saloonId`. Skips delete silently if not found or wrong saloon.
+3. `StaffRepository.deleteById(Long)` → **DB**: `DELETE FROM staff_member WHERE id = ?` — `ON DELETE CASCADE` removes `staff_member_specialization` rows.
+4. Always returns `204`.
 
 ---
 

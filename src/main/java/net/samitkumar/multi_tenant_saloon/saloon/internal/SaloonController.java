@@ -1,5 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.saloon.internal;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
 import org.springframework.http.ResponseEntity;
@@ -7,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/saloons")
@@ -18,22 +21,25 @@ class SaloonController {
         this.service = service;
     }
 
-    record CreateSaloonRequest(String name,
-                               String ownerName, String ownerEmail, String ownerPhone,
-                               Saloon.Location location,
-                               Saloon.ContactInfo contact,
-                               List<Saloon.OperatingHours> operatingHours,
-                               List<SaloonFeature> features) {}
+    record CreateSaloonRequest(
+            @NotBlank String name,
+            @NotBlank String ownerName,
+            @NotBlank String ownerEmail,
+            String ownerPhone,
+            Saloon.Location location,
+            Saloon.ContactInfo contact,
+            List<Saloon.OperatingHours> operatingHours,
+            List<SaloonFeature> features) {}
+
+    record CreateSaloonResponse(UUID id, String handler) {}
 
     record UpdateSaloonRequest(String name,
                                Saloon.Location location,
                                Saloon.ContactInfo contact,
                                List<Saloon.OperatingHours> operatingHours) {}
 
-    record UpdateFeaturesRequest(List<SaloonFeature> features) {}
-
     @PostMapping
-    ResponseEntity<Saloon> create(@RequestBody CreateSaloonRequest request) {
+    ResponseEntity<CreateSaloonResponse> create(@Valid @RequestBody CreateSaloonRequest request) {
         var owner = new Saloon.Owner(request.ownerName(), request.ownerEmail(), request.ownerPhone());
         var saloon = service.create(request.name(), owner, request.location(), request.contact(),
                 request.operatingHours(), request.features());
@@ -41,7 +47,7 @@ class SaloonController {
                 .path("/{id}")
                 .buildAndExpand(saloon.id())
                 .toUri();
-        return ResponseEntity.created(location).body(saloon);
+        return ResponseEntity.created(location).body(new CreateSaloonResponse(saloon.id(), saloon.handler()));
     }
 
     @GetMapping
@@ -50,28 +56,28 @@ class SaloonController {
     }
 
     @GetMapping("/{id}")
-    ResponseEntity<Saloon> findById(@PathVariable Long id) {
+    ResponseEntity<Saloon> findById(@PathVariable UUID id) {
         return service.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<Saloon> update(@PathVariable Long id, @RequestBody UpdateSaloonRequest request) {
+    ResponseEntity<Saloon> update(@PathVariable UUID id, @RequestBody UpdateSaloonRequest request) {
         return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}/features")
-    ResponseEntity<Saloon> updateFeatures(@PathVariable Long id, @RequestBody UpdateFeaturesRequest request) {
-        return service.updateFeatures(id, request.features())
+    ResponseEntity<Saloon> updateFeatures(@PathVariable UUID id, @RequestBody List<SaloonFeature> features) {
+        return service.updateFeatures(id, features)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    ResponseEntity<Void> delete(@PathVariable Long id) {
+    ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

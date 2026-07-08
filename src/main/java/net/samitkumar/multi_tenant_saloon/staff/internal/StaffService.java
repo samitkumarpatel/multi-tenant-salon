@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 class StaffService {
@@ -18,15 +19,15 @@ class StaffService {
         this.repository = repository;
     }
 
-    List<StaffMember> findBySaloonId(Long saloonId) {
+    List<StaffMember> findBySaloonId(UUID saloonId) {
         return repository.findBySaloonId(saloonId);
     }
 
-    Optional<StaffMember> findById(Long saloonId, Long staffId) {
+    Optional<StaffMember> findById(UUID saloonId, Long staffId) {
         return repository.findById(staffId).filter(m -> m.saloonId().equals(saloonId));
     }
 
-    StaffMember onboard(Long saloonId, String name, String email, String phone, StaffRole role,
+    StaffMember onboard(UUID saloonId, String name, String email, String phone, StaffRole role,
                         List<String> specializations) {
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
@@ -36,7 +37,7 @@ class StaffService {
         return repository.save(member);
     }
 
-    Optional<StaffMember> update(Long saloonId, Long staffId, String name, String email, String phone,
+    Optional<StaffMember> update(UUID saloonId, Long staffId, String name, String email, String phone,
                                  StaffRole role, StaffStatus status, List<String> specializations) {
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
@@ -50,7 +51,7 @@ class StaffService {
                 });
     }
 
-    void remove(Long saloonId, Long staffId) {
+    void remove(UUID saloonId, Long staffId) {
         repository.findById(staffId)
                 .filter(m -> m.saloonId().equals(saloonId))
                 .ifPresent(m -> repository.deleteById(staffId));

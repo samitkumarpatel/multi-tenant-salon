@@ -8,11 +8,12 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Table("service_item")
 public record ServiceItem(
         @Id Long id,
-        Long saloonId,
+        UUID saloonId,
         String name,
         String description,
         BigDecimal price,

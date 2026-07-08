@@ -7,11 +7,12 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Table("staff_member")
 public record StaffMember(
         @Id Long id,
-        Long saloonId,
+        UUID saloonId,
         String name,
         String email,
         String phone,

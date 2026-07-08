@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS saloon (
-  id              BIGSERIAL    PRIMARY KEY,
+  id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(255) NOT NULL,
+  handler         VARCHAR(255) NOT NULL UNIQUE,
   owner_name      VARCHAR(255),
   owner_email     VARCHAR(255),
   owner_phone     VARCHAR(50),
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS saloon (
 );
 
 CREATE TABLE IF NOT EXISTS saloon_operating_hours (
-  saloon_id  BIGINT      NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  saloon_id  UUID        NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
   saloon_key INTEGER,
   day        VARCHAR(20) NOT NULL,
   open_time  VARCHAR(10),
@@ -25,14 +26,14 @@ CREATE TABLE IF NOT EXISTS saloon_operating_hours (
 );
 
 CREATE TABLE IF NOT EXISTS saloon_feature (
-  saloon_id  BIGINT      NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  saloon_id  UUID        NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
   saloon_key INTEGER,
   feature    VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS service_item (
   id               BIGSERIAL    PRIMARY KEY,
-  saloon_id        BIGINT       NOT NULL REFERENCES saloon(id),
+  saloon_id        UUID         NOT NULL REFERENCES saloon(id),
   name             VARCHAR(255) NOT NULL,
   description      TEXT,
   price            NUMERIC(10, 2),
@@ -51,7 +52,7 @@ CREATE TABLE IF NOT EXISTS service_item_assigned_staff (
 
 CREATE TABLE IF NOT EXISTS staff_member (
   id         BIGSERIAL    PRIMARY KEY,
-  saloon_id  BIGINT       NOT NULL REFERENCES saloon(id),
+  saloon_id  UUID         NOT NULL REFERENCES saloon(id),
   name       VARCHAR(255) NOT NULL,
   email      VARCHAR(255),
   phone      VARCHAR(50),
