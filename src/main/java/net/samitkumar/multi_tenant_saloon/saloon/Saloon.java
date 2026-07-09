@@ -20,8 +20,8 @@ public record Saloon(
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) Owner owner,
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) Location location,
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) ContactInfo contact,
-        @MappedCollection(idColumn = "saloon_id") List<OperatingHours> operatingHours,
-        @MappedCollection(idColumn = "saloon_id") List<SaloonFeatureRef> features,
+        @MappedCollection(idColumn = "saloon_id", keyColumn = "saloon_key") List<OperatingHours> operatingHours,
+        @MappedCollection(idColumn = "saloon_id", keyColumn = "saloon_key") List<SaloonFeatureRef> features,
         Instant createdAt
 ) {
     public Saloon {

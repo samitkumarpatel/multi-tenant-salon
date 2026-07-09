@@ -1,6 +1,8 @@
 spring:
   application:
     name: @project.artifactId@
+    utility:
+      static-geo-data: classpath:data/countries.json
   datasource:
     url: jdbc:postgresql://localhost:5432/saloon
     username: postgres

@@ -1,0 +1,574 @@
+import { useState } from "react";
+import { Link, useLoaderData } from "react-router";
+import { Check, Copy } from "lucide-react";
+import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
+import { SALOON_DOMAIN } from "~/lib/config";
+import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
+import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
+import HoursTable from "~/components/HoursTable";
+import TileGrid from "~/components/TileGrid";
+import CountrySelect from "~/components/CountrySelect";
+import PhoneInput from "~/components/PhoneInput";
+
+export async function clientLoader() {
+  const countries = await apiFetch<Country[]>(COUNTRIES_API).catch(() => [] as Country[]);
+  return { countries };
+}
+
+function previewUrl(name: string) {
+  const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  return slug ? `${slug}.${SALOON_DOMAIN}` : null;
+}
+
+const STEPS = [
+  { title: "Saloon name",     hint: "Choose a name that represents your brand." },
+  { title: "Owner details",   hint: "Who is the account holder?" },
+  { title: "Location",        hint: "Where is your saloon? All fields optional." },
+  { title: "Contact",         hint: "How can customers reach you? All optional." },
+  { title: "Features",        hint: "Select everything your saloon offers." },
+  { title: "Opening hours",   hint: "Set your weekly schedule." },
+  { title: "Review & launch", hint: "Everything look right? Go live!" },
+] as const;
+
+const TOTAL = STEPS.length;
+
+interface FormState {
+  name: string;
+  owner: Owner;
+  location: Location;
+  contact: ContactInfo;
+  hours: OperatingHours[];
+  features: string[];
+}
+
+function emptyForm(): FormState {
+  return {
+    name: "",
+    owner:    { name: "", email: "", phone: "" },
+    location: { address: "", city: "", state: "", country: "", zipCode: "" },
+    contact:  { phone: "", email: "", website: "" },
+    hours:    defaultHours(),
+    features: [],
+  };
+}
+
+const inputCls = "w-full px-4 py-3 border border-stone-200 rounded-xl text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-stone-900 transition-all placeholder:text-stone-300";
+const labelCls = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide";
+const fieldCls = "mb-4";
+
+// ── Review step ─────────────────────────────────────────────────────────────
+function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: React.ReactNode }) {
+  return (
+    <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{title}</span>
+        <button
+          onClick={onEdit}
+          className="text-xs text-matcha-600 hover:text-matcha-700 cursor-pointer font-medium px-2 py-0.5 rounded-lg hover:bg-matcha-50 transition-colors"
+        >
+          Edit
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => void }) {
+  const url      = previewUrl(form.name);
+  const openDays = form.hours.filter((h) => !h.closed).map((h) => DAY_SHORT[h.day] ?? h.day).join(", ");
+  const hasLoc   = form.location.address || form.location.city || form.location.country;
+  const hasCon   = form.contact.phone   || form.contact.email  || form.contact.website;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ReviewSection title="Saloon" onEdit={() => onEdit(0)}>
+        <p className="font-semibold text-stone-900">{form.name}</p>
+        {url && <p className="text-matcha-600 text-xs mt-0.5">{url}</p>}
+      </ReviewSection>
+
+      <ReviewSection title="Owner" onEdit={() => onEdit(1)}>
+        <p className="font-medium text-stone-900 text-sm">{form.owner.name}</p>
+        <p className="text-stone-500 text-xs">{form.owner.email}</p>
+        {form.owner.phone && <p className="text-stone-500 text-xs">{form.owner.phone}</p>}
+      </ReviewSection>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <ReviewSection title="Location" onEdit={() => onEdit(2)}>
+          {hasLoc ? (
+            <div className="text-sm text-stone-600 space-y-0.5">
+              {form.location.address && <p>{form.location.address}</p>}
+              <p>{[form.location.city, form.location.state, form.location.zipCode].filter(Boolean).join(", ")}</p>
+              {form.location.country && <p>{form.location.country}</p>}
+            </div>
+          ) : (
+            <p className="text-stone-400 text-sm">Not specified</p>
+          )}
+        </ReviewSection>
+
+        <ReviewSection title="Contact" onEdit={() => onEdit(3)}>
+          {hasCon ? (
+            <div className="text-sm text-stone-600 space-y-0.5">
+              {form.contact.phone   && <p>{form.contact.phone}</p>}
+              {form.contact.email   && <p>{form.contact.email}</p>}
+              {form.contact.website && <p className="truncate">{form.contact.website}</p>}
+            </div>
+          ) : (
+            <p className="text-stone-400 text-sm">Not specified</p>
+          )}
+        </ReviewSection>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <ReviewSection title="Features" onEdit={() => onEdit(4)}>
+          {form.features.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {form.features.map((f) => (
+                <span key={f} className="text-xs px-2.5 py-0.5 rounded-full bg-stone-200 text-stone-700">
+                  {FEATURE_LABEL[f] ?? f}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-stone-400 text-sm">None selected</p>
+          )}
+        </ReviewSection>
+
+        <ReviewSection title="Hours" onEdit={() => onEdit(5)}>
+          {openDays ? (
+            <>
+              <p className="text-stone-700 text-sm font-medium">{form.hours.filter((h) => !h.closed).length} days / week</p>
+              <p className="text-stone-400 text-xs mt-0.5">{openDays}</p>
+            </>
+          ) : (
+            <p className="text-stone-400 text-sm">All days closed</p>
+          )}
+        </ReviewSection>
+      </div>
+    </div>
+  );
+}
+
+// ── Success screen ───────────────────────────────────────────────────────────
+function SuccessScreen({ id, ownerEmail, saloonName }: { id: number; ownerEmail: string; saloonName: string }) {
+  const adminPath   = `/${id}`;
+  const adminUrl    = `${window.location.origin}${adminPath}`;
+  const customerUrl = previewUrl(saloonName) ? `https://${previewUrl(saloonName)}` : adminUrl;
+  const [copiedAdmin, setCopiedAdmin]       = useState(false);
+  const [copiedCustomer, setCopiedCustomer] = useState(false);
+
+  function copy(text: string, which: "admin" | "customer") {
+    navigator.clipboard.writeText(text).then(() => {
+      if (which === "admin") {
+        setCopiedAdmin(true);
+        setTimeout(() => setCopiedAdmin(false), 2000);
+      } else {
+        setCopiedCustomer(true);
+        setTimeout(() => setCopiedCustomer(false), 2000);
+      }
+    });
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-cream flex flex-col items-center justify-center px-5 py-12">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-8 animate-[fade-in_0.4s_ease_both]">
+          <div className="w-14 h-14 rounded-full bg-matcha-100 border-2 border-matcha-400 flex items-center justify-center mb-4">
+            <Check className="w-7 h-7 text-matcha-600" />
+          </div>
+          <h1 className="text-xl font-bold text-stone-900 text-center">You're live!</h1>
+          <p className="text-stone-500 text-sm text-center mt-1">
+            <strong className="text-stone-700">{saloonName}</strong> has been registered.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="bg-white border border-stone-200 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Customer URL</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-stone-700 flex-1 truncate font-mono">{customerUrl}</span>
+              <button
+                onClick={() => copy(customerUrl, "customer")}
+                className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
+              >
+                {copiedCustomer ? <Check className="w-4 h-4 text-matcha-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Admin panel</p>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminUrl}</span>
+              <button
+                onClick={() => copy(adminUrl, "admin")}
+                className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
+              >
+                {copiedAdmin ? <Check className="w-4 h-4 text-matcha-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-stone-400">
+              Log in with <span className="font-mono text-stone-600">{ownerEmail}</span>
+            </p>
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Next steps</p>
+            <div className="flex flex-col gap-3">
+              {[
+                "Open your admin panel",
+                "Add your services and pricing",
+                "Onboard your staff members",
+                "Share your customer URL",
+              ].map((text, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-600 text-xs flex items-center justify-center shrink-0 font-semibold">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm text-stone-600">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 mt-1">
+            <Link
+              to={adminPath}
+              className="flex-1 text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
+            >
+              Go to admin panel
+            </Link>
+            <Link
+              to="/customer"
+              className="flex-1 text-center py-3 rounded-xl border border-stone-200 bg-white text-stone-700 text-sm font-medium hover:border-stone-400 active:scale-[0.97] transition-all no-underline"
+            >
+              View as customer
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main wizard ──────────────────────────────────────────────────────────────
+export default function NewSaloon() {
+  const { countries } = useLoaderData<typeof clientLoader>();
+  const [step,      setStep]      = useState(0);
+  const [form,      setForm]      = useState<FormState>(emptyForm);
+  const [errors,    setErrors]    = useState<Record<string, string>>({});
+  const [saving,             setSaving]             = useState(false);
+  const [saveError,          setSaveError]          = useState<string | null>(null);
+  const [created,            setCreated]            = useState<{ id: number } | null>(null);
+  const [reuseOwnerContact,  setReuseOwnerContact]  = useState<boolean | null>(null);
+
+  function setOwner(patch: Partial<Owner>)         { setForm((f) => ({ ...f, owner:    { ...f.owner,    ...patch } })); }
+  function setLocation(patch: Partial<Location>)   { setForm((f) => ({ ...f, location: { ...f.location, ...patch } })); }
+  function setContact(patch: Partial<ContactInfo>) { setForm((f) => ({ ...f, contact:  { ...f.contact,  ...patch } })); }
+
+  function handleReuseToggle(reuse: boolean) {
+    setReuseOwnerContact(reuse);
+    setContact(reuse
+      ? { phone: form.owner.phone ?? "", email: form.owner.email }
+      : { phone: "", email: "" }
+    );
+  }
+
+  function validate(s: number): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (s === 0 && !form.name.trim()) e.name = "Saloon name is required.";
+    if (s === 1) {
+      if (!form.owner.name.trim())  e.ownerName  = "Owner name is required.";
+      if (!form.owner.email.trim()) e.ownerEmail = "Owner email is required.";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.owner.email))
+        e.ownerEmail = "Enter a valid email address.";
+    }
+    return e;
+  }
+
+  function goNext() {
+    const e = validate(step);
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    if (step === 2 && !form.contact.website) {
+      const url = previewUrl(form.name);
+      if (url) setContact({ website: `https://${url}` });
+    }
+    setStep((s) => s + 1);
+  }
+
+  function goBack() { setErrors({}); setStep((s) => s - 1); }
+  function goTo(s: number) { if (s < step) { setErrors({}); setStep(s); } }
+
+  async function handleCreate() {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const result = await apiFetch<{ id: number; handler: string }>(API, {
+        method: "POST",
+        body: JSON.stringify({
+          name:       form.name.trim(),
+          ownerName:  form.owner.name.trim(),
+          ownerEmail: form.owner.email.trim(),
+          ownerPhone: form.owner.phone?.trim() || null,
+          location: {
+            address: form.location.address?.trim() || null,
+            city:    form.location.city?.trim()    || null,
+            state:   form.location.state?.trim()   || null,
+            country: form.location.country?.trim() || null,
+            zipCode: form.location.zipCode?.trim() || null,
+          },
+          contact: {
+            phone:   form.contact.phone?.trim()   || null,
+            email:   form.contact.email?.trim()   || null,
+            website: form.contact.website?.trim() || null,
+          },
+          operatingHours: form.hours,
+          features:       form.features,
+        }),
+      });
+      setCreated({ id: result.id });
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "Failed to create saloon");
+      setSaving(false);
+    }
+  }
+
+  if (created) {
+    return <SuccessScreen id={created.id} ownerEmail={form.owner.email} saloonName={form.name} />;
+  }
+
+  function renderStep() {
+    switch (step) {
+      case 0:
+        return (
+          <div>
+            <input
+              autoFocus
+              className={`${inputCls} text-lg font-semibold py-4 ${errors.name ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. The Modern Cut"
+              onKeyDown={(e) => e.key === "Enter" && goNext()}
+            />
+            {errors.name
+              ? <p className="text-red-500 text-xs mt-2">{errors.name}</p>
+              : form.name && (
+                <p className="text-stone-400 text-xs mt-2">
+                  Your URL: <span className="text-matcha-600 font-medium">{previewUrl(form.name) ?? "…"}</span>
+                </p>
+              )
+            }
+          </div>
+        );
+
+      case 1:
+        return (
+          <div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Full name <span className="text-red-400">*</span></label>
+              <input autoFocus className={`${inputCls} ${errors.ownerName ? "border-red-400 focus:border-red-400" : ""}`} value={form.owner.name} onChange={(e) => setOwner({ name: e.target.value })} placeholder="Jane Doe" />
+              {errors.ownerName && <p className="text-red-500 text-xs mt-1">{errors.ownerName}</p>}
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Email <span className="text-red-400">*</span></label>
+              <input type="email" className={`${inputCls} ${errors.ownerEmail ? "border-red-400 focus:border-red-400" : ""}`} value={form.owner.email} onChange={(e) => setOwner({ email: e.target.value })} placeholder="jane@example.com" />
+              {errors.ownerEmail && <p className="text-red-500 text-xs mt-1">{errors.ownerEmail}</p>}
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Phone <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span></label>
+              <PhoneInput value={form.owner.phone ?? ""} onChange={(v) => setOwner({ phone: v })} countries={countries} />
+            </div>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Street address</label>
+              <input autoFocus className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder="123 Main St" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className={fieldCls}>
+                <label className={labelCls}>City</label>
+                <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
+              </div>
+              <div className={fieldCls}>
+                <label className={labelCls}>State</label>
+                <input className={inputCls} value={form.location.state ?? ""} onChange={(e) => setLocation({ state: e.target.value })} placeholder="CA" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className={fieldCls}>
+                <label className={labelCls}>ZIP code</label>
+                <input className={inputCls} value={form.location.zipCode ?? ""} onChange={(e) => setLocation({ zipCode: e.target.value })} placeholder="94105" />
+              </div>
+              <div className={fieldCls}>
+                <label className={labelCls}>Country</label>
+                <CountrySelect value={form.location.country ?? ""} onChange={(v) => setLocation({ country: v })} countries={countries} />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
+          <div>
+            {/* Reuse owner details prompt */}
+            <div className="mb-5 p-4 bg-stone-50 border border-stone-100 rounded-xl">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
+                Same phone & email as the owner?
+              </p>
+              <div className="flex gap-2">
+                {([true, false] as const).map((opt) => (
+                  <button
+                    key={String(opt)}
+                    type="button"
+                    onClick={() => handleReuseToggle(opt)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all cursor-pointer ${
+                      reuseOwnerContact === opt
+                        ? "bg-matcha-600 text-white border-matcha-600"
+                        : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"
+                    }`}
+                  >
+                    {opt ? "Yes, use owner's" : "No, enter new"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={fieldCls}>
+              <label className={labelCls}>Phone</label>
+              <PhoneInput key={`contact-phone-${reuseOwnerContact}`} autoFocus value={form.contact.phone ?? ""} onChange={(v) => setContact({ phone: v })} countries={countries} />
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Email</label>
+              <input type="email" className={inputCls} value={form.contact.email ?? ""} onChange={(e) => setContact({ email: e.target.value })} placeholder="hello@yoursaloon.com" />
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Website</label>
+              <input className={inputCls} value={form.contact.website ?? ""} onChange={(e) => setContact({ website: e.target.value })} placeholder="https://yoursaloon.com" />
+            </div>
+          </div>
+        );
+
+      case 4:
+        return (
+          <TileGrid
+            options={FEATURES}
+            labels={FEATURE_LABEL}
+            selected={form.features}
+            onChange={(features) => setForm((f) => ({ ...f, features }))}
+          />
+        );
+
+      case 5:
+        return (
+          <HoursTable
+            hours={form.hours}
+            onChange={(hours) => setForm((f) => ({ ...f, hours }))}
+          />
+        );
+
+      case 6:
+        return <ReviewStep form={form} onEdit={goTo} />;
+    }
+  }
+
+  const progress = Math.round((step / (TOTAL - 1)) * 100);
+
+  return (
+    <div className="min-h-[100dvh] bg-cream flex flex-col">
+      {/* Sticky header */}
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+          {step > 0 ? (
+            <button onClick={goBack} className="text-stone-400 hover:text-stone-700 cursor-pointer text-sm shrink-0 transition-colors">←</button>
+          ) : (
+            <Link to="/" className="text-stone-400 hover:text-stone-700 no-underline text-sm shrink-0 transition-colors">←</Link>
+          )}
+          <span className="text-sm font-semibold text-stone-800 flex-1">{STEPS[step].title}</span>
+          <span className="text-xs text-stone-400 shrink-0 tabular-nums">{step + 1} / {TOTAL}</span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-0.5 bg-stone-100">
+          <div
+            className="h-0.5 bg-matcha-500 transition-all duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Step dots */}
+        <div className="flex items-center justify-center gap-1.5 py-2.5">
+          {STEPS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              disabled={i >= step}
+              aria-label={`Go to step ${i + 1}`}
+              className={`rounded-full transition-all duration-300 disabled:cursor-default ${
+                i === step ? "w-6 h-2 bg-matcha-600" :
+                i < step   ? "w-2 h-2 bg-matcha-400 hover:bg-matcha-600 cursor-pointer" :
+                             "w-2 h-2 bg-stone-200"
+              }`}
+            />
+          ))}
+        </div>
+      </header>
+
+      {/* Content area — pt-12 controls gap from header to card; adjust as needed */}
+      <main className="flex-1 flex items-start justify-center px-4 pt-12 pb-8">
+        <div className="w-full max-w-lg">
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+
+            {/* Hint strip */}
+            <div className="px-6 pt-5 pb-4 border-b border-stone-100">
+              <p className="text-xs text-stone-400">{STEPS[step].hint}</p>
+            </div>
+
+            {/* Step content — keyed so it fades in on each transition */}
+            <div key={step} className="px-6 py-5 animate-[fade-in_0.18s_ease]">
+              {saveError && (
+                <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  {saveError}
+                </div>
+              )}
+              {renderStep()}
+            </div>
+
+            {/* Navigation footer */}
+            <div className="px-6 py-4 border-t border-stone-100 flex justify-between items-center bg-stone-50/60">
+              {step > 0 ? (
+                <button
+                  onClick={goBack}
+                  className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-sm text-stone-600 hover:border-stone-400 hover:bg-stone-50 active:scale-[0.97] transition-all cursor-pointer"
+                >
+                  ← Back
+                </button>
+              ) : <span />}
+
+              {step < TOTAL - 1 ? (
+                <button
+                  onClick={goNext}
+                  className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
+                >
+                  Next →
+                </button>
+              ) : (
+                <button
+                  onClick={handleCreate}
+                  disabled={saving}
+                  className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? "Launching…" : "Launch saloon"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

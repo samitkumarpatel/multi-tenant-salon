@@ -62,6 +62,13 @@ class SaloonController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/handler/{handler}")
+    ResponseEntity<Saloon> findByHandler(@PathVariable String handler) {
+        return service.findByHandler(handler)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PutMapping("/{id}")
     ResponseEntity<Saloon> update(@PathVariable UUID id, @RequestBody UpdateSaloonRequest request) {
         return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours())

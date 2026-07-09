@@ -26,7 +26,7 @@ class SaloonService {
     @Transactional
     Saloon create(String name, Saloon.Owner owner, Saloon.Location location, Saloon.ContactInfo contact,
                   List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features) {
-        var handler = name.toLowerCase().replaceAll("[^a-z0-9]", "");
+        var handler = name.toLowerCase().replaceAll("\\s+", "-").replaceAll("[^a-z0-9-]", "");
         var featureRefs = features != null
                 ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
                 : List.<Saloon.SaloonFeatureRef>of();
@@ -43,6 +43,10 @@ class SaloonService {
 
     Optional<Saloon> findById(UUID id) {
         return repository.findById(id);
+    }
+
+    Optional<Saloon> findByHandler(String handler) {
+        return repository.findByHandler(handler);
     }
 
     Optional<Saloon> update(UUID id, String name, Saloon.Location location, Saloon.ContactInfo contact,

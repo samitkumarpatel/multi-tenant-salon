@@ -7,7 +7,6 @@
       "Bash(./mvnw compile *)",
       "Bash(xargs ls -1)",
       "Bash(chmod +x *)",
-      "Bash(xargs -I{} bash -c 'jar -tf {} 2>/dev/null | grep -l \"RestTestClient\\\\|MockMvcTester\" {}')",
       "Bash(npm --version)",
       "Bash(xargs ls)",
       "Bash(npm install *)",
@@ -16,11 +15,7 @@
       "Bash(xargs cat)",
       "Bash(npx react-router *)",
       "Bash(npx tsc *)",
-      "Bash(find /home/samit/workspace/multi-tenant-saloon/frontend/saloon/app /home/samit/workspace/multi-tenant-saloon/frontend/saloon-onboarding/app -name *.tsx)",
-      "Bash(xargs sed -i -e s/indigo-950/matcha-950/g -e s/indigo-900/matcha-900/g -e s/indigo-800/matcha-800/g -e s/indigo-700/matcha-700/g -e s/indigo-600/matcha-600/g -e s/indigo-500/matcha-500/g -e s/indigo-400/matcha-400/g -e s/indigo-300/matcha-300/g -e s/indigo-200/matcha-200/g -e s/indigo-100/matcha-100/g -e s/indigo-50/matcha-50/g)",
-      "Bash(sed -i s/bg-slate-50/bg-matcha-50/g /home/samit/workspace/multi-tenant-saloon/frontend/saloon/app/root.tsx /home/samit/workspace/multi-tenant-saloon/frontend/saloon-onboarding/app/root.tsx)",
-      "Bash(sed -i 's/from-slate-900 via-matcha-950 to-slate-900/from-matcha-950 via-matcha-900 to-matcha-950/g' /home/samit/workspace/multi-tenant-saloon/frontend/saloon-onboarding/app/routes/home.tsx /home/samit/workspace/multi-tenant-saloon/frontend/saloon-onboarding/app/routes/new.tsx)",
-      "Bash(sed -i 's/from-matcha-300 to-purple-300/from-matcha-200 to-matcha-400/g' /home/samit/workspace/multi-tenant-saloon/frontend/saloon-onboarding/app/routes/home.tsx)"
+      "Bash(./mvnw dependency:tree)"
     ]
   }
 }
