@@ -6,7 +6,17 @@
       "Bash(grep -v \".class$\")",
       "Bash(./mvnw compile *)",
       "Bash(xargs ls -1)",
-      "Bash(chmod +x *)"
+      "Bash(chmod +x *)",
+      "Bash(npm --version)",
+      "Bash(xargs ls)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npm list *)",
+      "Bash(xargs cat)",
+      "Bash(npx react-router *)",
+      "Bash(npx tsc *)",
+      "Bash(./mvnw dependency:tree)",
+      "Bash(git -C /home/samit/workspace/multi-tenant-saloon diff frontend/app/routes/saloon-page.tsx)"
     ]
   }
 }
