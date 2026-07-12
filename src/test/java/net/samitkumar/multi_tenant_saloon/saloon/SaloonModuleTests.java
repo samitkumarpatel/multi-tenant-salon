@@ -1,111 +1,143 @@
 package net.samitkumar.multi_tenant_saloon.saloon;
 
 import net.samitkumar.multi_tenant_saloon.TestcontainersConfiguration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.modulith.test.ApplicationModuleTest;
-import org.springframework.test.web.servlet.MockMvc;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.web.context.WebApplicationContext;
 
 @ApplicationModuleTest
-@AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class SaloonModuleTests {
 
-    @Autowired
-    MockMvc mockMvc;
+    RestTestClient client;
 
-    @Test
-    void createSaloon() throws Exception {
-        mockMvc.perform(post("/api/saloons")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                    "name": "Glam Saloon",
-                                    "ownerName": "Jane Doe",
-                                    "ownerEmail": "jane@glamsaloon.com",
-                                    "ownerPhone": "+1234567890",
-                                    "features": ["BOOKING", "STATIC_WEBSITE"]
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").isNotEmpty())
-                .andExpect(jsonPath("$.name").value("Glam Saloon"))
-                .andExpect(jsonPath("$.owner.name").value("Jane Doe"))
-                .andExpect(jsonPath("$.features").isArray());
+    @BeforeEach
+    void setUp(@Autowired WebApplicationContext context) {
+        client = RestTestClient.bindToApplicationContext(context).build();
     }
 
     @Test
-    void listSaloons() throws Exception {
-        mockMvc.perform(get("/api/saloons"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+    void createSaloon() {
+        client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Glam Saloon",
+                            "ownerName": "Jane Doe",
+                            "ownerEmail": "jane@glamsaloon.com",
+                            "ownerPhone": "+1234567890",
+                            "features": ["BOOKING", "STATIC_WEBSITE"]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.id").isNotEmpty()
+                .jsonPath("$.handler").isEqualTo("glamsaloon");
     }
 
     @Test
-    void saloonNotFound() throws Exception {
-        mockMvc.perform(get("/api/saloons/nonexistent-id"))
-                .andExpect(status().isNotFound());
+    void createSaloonValidation() {
+        client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "ownerPhone": "+1234567890"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
-    void updateFeatures() throws Exception {
-        var result = mockMvc.perform(post("/api/saloons")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                    "name": "Style Hub",
-                                    "ownerName": "John Smith",
-                                    "ownerEmail": "john@stylehub.com",
-                                    "ownerPhone": "+9876543210",
-                                    "features": ["BOOKING"]
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn();
+    void listSaloons() {
+        client.get()
+                .uri("/api/saloons")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$").isArray();
+    }
 
-        String location = result.getResponse().getHeader("Location");
+    @Test
+    void saloonNotFound() {
+        client.get()
+                .uri("/api/saloons/00000000-0000-0000-0000-000000000000")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    void updateFeatures() {
+        var created = client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Style Hub",
+                            "ownerName": "John Smith",
+                            "ownerEmail": "john@stylehub.com",
+                            "ownerPhone": "+9876543210",
+                            "features": ["BOOKING"]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Void.class)
+                .returnResult();
+
+        String location = created.getResponseHeaders().getLocation().getPath();
         String id = location.substring(location.lastIndexOf('/') + 1);
 
-        mockMvc.perform(put("/api/saloons/" + id + "/features")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                    "features": ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.features.length()").value(3));
+        client.put()
+                .uri("/api/saloons/" + id + "/features")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.features.length()").isEqualTo(3);
     }
 
     @Test
-    void deleteSaloon() throws Exception {
-        var result = mockMvc.perform(post("/api/saloons")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                    "name": "Temp Saloon",
-                                    "ownerName": "Alice",
-                                    "ownerEmail": "alice@temp.com",
-                                    "ownerPhone": "+1111111111",
-                                    "features": []
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn();
+    void deleteSaloon() {
+        var created = client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Temp Saloon",
+                            "ownerName": "Alice",
+                            "ownerEmail": "alice@temp.com",
+                            "ownerPhone": "+1111111111",
+                            "features": []
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Void.class)
+                .returnResult();
 
-        String location = result.getResponse().getHeader("Location");
+        String location = created.getResponseHeaders().getLocation().getPath();
         String id = location.substring(location.lastIndexOf('/') + 1);
 
-        mockMvc.perform(delete("/api/saloons/" + id))
-                .andExpect(status().isNoContent());
+        client.delete()
+                .uri("/api/saloons/" + id)
+                .exchange()
+                .expectStatus().isNoContent();
 
-        mockMvc.perform(get("/api/saloons/" + id))
-                .andExpect(status().isNotFound());
+        client.get()
+                .uri("/api/saloons/" + id)
+                .exchange()
+                .expectStatus().isNotFound();
     }
 }

@@ -1,14 +1,18 @@
 spring:
   application:
     name: @project.artifactId@
-  web:
-    resources:
-      static-locations: file:ui/, classpath:/static/
+    utility:
+      static-geo-data: classpath:data/countries.json
+  datasource:
+    url: jdbc:postgresql://localhost:5432/saloon
+    username: postgres
+    password: postgres
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
   modulith:
     events:
-      mongodb:
-        transaction-management:
+      jdbc:
+        schema-initialization:
           enabled: true
-  mongodb:
-    representation:
-      uuid: standard
