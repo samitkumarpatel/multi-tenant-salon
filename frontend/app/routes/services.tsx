@@ -8,6 +8,7 @@ import {
 } from "~/lib/constants";
 import type { LayoutContext, StaffMember, ServiceItem } from "~/lib/types";
 import TileGrid from "~/components/TileGrid";
+import InfoBar from "~/components/InfoBar";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = params.saloonId!;
@@ -127,7 +128,14 @@ export default function Services() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 space-y-2">
+        <h1 className="text-xl font-bold text-slate-900">Services</h1>
+        <InfoBar>
+          Define everything your saloon offers — set the name, price, duration, category, and which staff member performs each service. Customers see these on your public website.
+        </InfoBar>
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-slate-500 font-medium">
           {services.length} service{services.length !== 1 ? "s" : ""}
         </span>
@@ -203,7 +211,7 @@ export default function Services() {
                 {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
               </select>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="mb-4"><label className={fieldLabel}>Price <span className="text-red-500">*</span></label><input className={inputCls} type="number" min="0" step="0.01" value={af.price} onChange={(e) => setAf((p) => ({ ...p, price: e.target.value }))} /></div>
               <div className="mb-4"><label className={fieldLabel}>Currency</label><input className={inputCls} value={af.currency} maxLength={3} onChange={(e) => setAf((p) => ({ ...p, currency: e.target.value }))} /></div>
               <div className="mb-4"><label className={fieldLabel}>Duration (min)</label><input className={inputCls} type="number" min="5" step="5" value={af.durationMinutes} onChange={(e) => setAf((p) => ({ ...p, durationMinutes: parseInt(e.target.value) || 30 }))} /></div>

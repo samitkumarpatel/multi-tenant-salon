@@ -8,6 +8,7 @@ import {
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
 } from "~/lib/constants";
 import type { LayoutContext, StaffMember } from "~/lib/types";
+import InfoBar from "~/components/InfoBar";
 import TileGrid from "~/components/TileGrid";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
@@ -101,7 +102,14 @@ export default function Staff() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 space-y-2">
+        <h1 className="text-xl font-bold text-slate-900">Staff</h1>
+        <InfoBar>
+          Add and manage the people working at your saloon — their roles, contact details, and service specializations. Staff members can be assigned to specific services.
+        </InfoBar>
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-slate-500 font-medium">
           {staff.length} staff member{staff.length !== 1 ? "s" : ""}
         </span>
@@ -176,7 +184,7 @@ export default function Staff() {
             </div>
             <div className="mb-4"><label className={fieldLabel}>Name <span className="text-red-500">*</span></label><input className={inputCls} value={af.name} placeholder="Full name" onChange={(e) => setAf((p) => ({ ...p, name: e.target.value }))} /></div>
             <div className="mb-4"><label className={fieldLabel}>Email <span className="text-red-500">*</span></label><input className={inputCls} type="email" value={af.email} placeholder="staff@saloon.com" onChange={(e) => setAf((p) => ({ ...p, email: e.target.value }))} /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="mb-4"><label className={fieldLabel}>Phone</label><input className={inputCls} value={af.phone} onChange={(e) => setAf((p) => ({ ...p, phone: e.target.value }))} /></div>
               <div className="mb-4"><label className={fieldLabel}>Role</label>
                 <select className={inputCls} value={af.role} onChange={(e) => setAf((p) => ({ ...p, role: e.target.value }))}>
@@ -206,7 +214,7 @@ export default function Staff() {
             </div>
             <div className="mb-4"><label className={fieldLabel}>Name</label><input className={inputCls} value={ef.name} onChange={(e) => setEf((p) => ({ ...p, name: e.target.value }))} /></div>
             <div className="mb-4"><label className={fieldLabel}>Email</label><input className={inputCls} type="email" value={ef.email} onChange={(e) => setEf((p) => ({ ...p, email: e.target.value }))} /></div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="mb-4"><label className={fieldLabel}>Phone</label><input className={inputCls} value={ef.phone} onChange={(e) => setEf((p) => ({ ...p, phone: e.target.value }))} /></div>
               <div className="mb-4"><label className={fieldLabel}>Role</label>
                 <select className={inputCls} value={ef.role} onChange={(e) => setEf((p) => ({ ...p, role: e.target.value }))}>

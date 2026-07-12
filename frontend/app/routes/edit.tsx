@@ -1,146 +1,283 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router";
-import { Save } from "lucide-react";
-import { API, apiFetch } from "~/lib/api";
+import { useOutletContext, useLoaderData } from "react-router";
+import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
-import type { LayoutContext, Saloon, Location, ContactInfo } from "~/lib/types";
+import type { LayoutContext, Saloon, Location, ContactInfo, Country } from "~/lib/types";
 import HoursTable from "~/components/HoursTable";
 import TileGrid from "~/components/TileGrid";
+import CountrySelect from "~/components/CountrySelect";
+import PhoneInput from "~/components/PhoneInput";
+import InfoBar from "~/components/InfoBar";
 
-const blankLocation = (): Location => ({ address: "", city: "", state: "", country: "", zipCode: "" });
-const blankContact  = (): ContactInfo => ({ phone: "", email: "", website: "" });
+export async function clientLoader() {
+  const countries = await apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []);
+  return { countries };
+}
 
-const inputCls = "w-full px-3 py-2 border border-slate-200 rounded-md text-sm outline-none transition-[border-color,box-shadow] focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-slate-900 font-sans";
-const sectionCard = "bg-white rounded-xl p-5 border border-slate-200 shadow-sm mb-4";
-const sectionTitle = "text-[0.65rem] font-bold uppercase tracking-widest text-slate-400 mb-4 pb-2.5 border-b border-slate-100";
-const fieldLabel = "block text-sm font-medium text-slate-700 mb-1";
+const STEPS = [
+  { title: "Saloon name",    hint: "Update your saloon's display name." },
+  { title: "Location",       hint: "Where is your saloon located?" },
+  { title: "Contact",        hint: "How can customers reach you?" },
+  { title: "Features",       hint: "Enable or disable what your saloon offers." },
+  { title: "Opening hours",  hint: "Set your weekly schedule." },
+] as const;
+
+const TOTAL = STEPS.length;
+
+const inputCls = "w-full px-4 py-3 border border-stone-200 rounded-xl text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-stone-900 transition-all placeholder:text-stone-300";
+const labelCls = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide";
+const fieldCls = "mb-4";
 
 export default function Edit() {
   const { saloon, setSaloon } = useOutletContext<LayoutContext>();
+  const { countries }         = useLoaderData<typeof clientLoader>();
+
+  const [step, setStep] = useState(0);
 
   const [name,     setName]     = useState(saloon.name);
-  const [location, setLocation] = useState<Location>(saloon.location ? { ...saloon.location } : blankLocation());
-  const [contact,  setContact]  = useState<ContactInfo>(saloon.contact ? { ...saloon.contact } : blankContact());
+  const [location, setLoc]      = useState<Location>(saloon.location  ? { ...saloon.location }  : {});
+  const [contact,  setContact]  = useState<ContactInfo>(saloon.contact ? { ...saloon.contact }  : {});
   const [hours,    setHours]    = useState(cloneHours(saloon.operatingHours));
   const [features, setFeatures] = useState<string[]>([...(saloon.features ?? [])]);
 
-  const [busy,  setBusy]  = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+  const [errors,    setErrors]    = useState<Record<string, string>>({});
+  const [saving,    setSaving]    = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved,     setSaved]     = useState(false);
 
-  function notify(msg: string, type = "success") {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+  function patchLoc(patch: Partial<Location>)     { setLoc((l) => ({ ...l, ...patch })); }
+  function patchCon(patch: Partial<ContactInfo>)  { setContact((c) => ({ ...c, ...patch })); }
+
+  function validate(s: number): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (s === 0 && !name.trim()) e.name = "Saloon name is required.";
+    return e;
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name) return;
-    setBusy(true);
+  function goNext() {
+    const e = validate(step);
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setStep((s) => s + 1);
+  }
+
+  function goBack() { setErrors({}); setStep((s) => s - 1); }
+
+  async function handleSave() {
+    setSaveError(null);
+    setSaving(true);
     try {
       const updated = await apiFetch<Saloon>(`${API}/${saloon.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name, location, contact, operatingHours: hours }),
+        body: JSON.stringify({
+          name: name.trim(),
+          location: {
+            address: location.address?.trim() || null,
+            city:    location.city?.trim()    || null,
+            state:   location.state?.trim()   || null,
+            country: location.country?.trim() || null,
+            zipCode: location.zipCode?.trim() || null,
+          },
+          contact: {
+            phone:   contact.phone?.trim()   || null,
+            email:   contact.email?.trim()   || null,
+            website: contact.website?.trim() || null,
+          },
+          operatingHours: hours,
+        }),
       });
       const withFeatures = await apiFetch<Saloon>(`${API}/${saloon.id}/features`, {
         method: "PUT",
         body: JSON.stringify(features),
       });
       setSaloon({ ...updated, features: withFeatures.features ?? features });
-      notify("Saloon updated!");
-    } catch (e) {
-      notify(e instanceof Error ? e.message : "Error", "error");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   }
 
+  function renderStep() {
+    switch (step) {
+      case 0:
+        return (
+          <div>
+            <input
+              autoFocus
+              className={`${inputCls} text-lg font-semibold py-4 ${errors.name ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. The Modern Cut"
+              onKeyDown={(e) => e.key === "Enter" && goNext()}
+            />
+            {errors.name && <p className="text-red-500 text-xs mt-2">{errors.name}</p>}
+          </div>
+        );
+
+      case 1:
+        return (
+          <div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Country / Region</label>
+              <CountrySelect value={location.country ?? ""} onChange={(v) => patchLoc({ country: v })} countries={countries} />
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Address</label>
+              <input className={inputCls} value={location.address ?? ""} onChange={(e) => patchLoc({ address: e.target.value })} placeholder="123 Main St" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className={fieldCls}>
+                <label className={labelCls}>Postal code</label>
+                <input className={inputCls} value={location.zipCode ?? ""} onChange={(e) => patchLoc({ zipCode: e.target.value })} placeholder="94105" />
+              </div>
+              <div className={fieldCls}>
+                <label className={labelCls}>Town</label>
+                <input className={inputCls} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder="San Francisco" />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Phone</label>
+              <PhoneInput value={contact.phone ?? ""} onChange={(v) => patchCon({ phone: v })} countries={countries} />
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Email</label>
+              <input type="email" className={inputCls} value={contact.email ?? ""} onChange={(e) => patchCon({ email: e.target.value })} placeholder="hello@yoursaloon.com" />
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Website</label>
+              <input className={inputCls} value={contact.website ?? ""} onChange={(e) => patchCon({ website: e.target.value })} placeholder="https://yoursaloon.com" />
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
+          <TileGrid
+            options={FEATURES}
+            labels={FEATURE_LABEL}
+            selected={features}
+            onChange={setFeatures}
+          />
+        );
+
+      case 4:
+        return (
+          <HoursTable
+            hours={hours}
+            onChange={setHours}
+          />
+        );
+    }
+  }
+
+  const progress = Math.round((step / (TOTAL - 1)) * 100);
+  const isLast   = step === TOTAL - 1;
+
   return (
-    <>
-      <form onSubmit={handleSave}>
-        {/* Basic */}
-        <div className={sectionCard}>
-          <div className={sectionTitle}>Basic Info</div>
-          <div className="mb-4">
-            <label className={fieldLabel}>Saloon Name <span className="text-red-500">*</span></label>
-            <input className={inputCls} required value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+    <div className="max-w-lg mx-auto">
+      {/* Page intro */}
+      <div className="mb-6 space-y-2">
+        <h1 className="text-xl font-bold text-stone-900">Edit Saloon</h1>
+        <InfoBar>
+          Update your saloon's name, location, contact info, opening hours, and which features are active.
+          Enabling a feature here unlocks its dedicated section in the sidebar.
+        </InfoBar>
+      </div>
+
+      {/* Step header */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-stone-800">{STEPS[step].title}</span>
+          <span className="text-xs text-stone-400 tabular-nums">{step + 1} / {TOTAL}</span>
         </div>
 
-        {/* Location */}
-        <div className={sectionCard}>
-          <div className={sectionTitle}>Location</div>
-          <div className="mb-4">
-            <label className={fieldLabel}>Address</label>
-            <input className={inputCls} value={location.address ?? ""} onChange={(e) => setLocation((l) => ({ ...l, address: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="mb-4">
-              <label className={fieldLabel}>City</label>
-              <input className={inputCls} value={location.city ?? ""} onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))} />
-            </div>
-            <div className="mb-4">
-              <label className={fieldLabel}>State</label>
-              <input className={inputCls} value={location.state ?? ""} onChange={(e) => setLocation((l) => ({ ...l, state: e.target.value }))} />
-            </div>
-            <div className="mb-4">
-              <label className={fieldLabel}>ZIP</label>
-              <input className={inputCls} value={location.zipCode ?? ""} onChange={(e) => setLocation((l) => ({ ...l, zipCode: e.target.value }))} />
-            </div>
-          </div>
-          <div className="mb-4">
-            <label className={fieldLabel}>Country</label>
-            <input className={inputCls} value={location.country ?? ""} onChange={(e) => setLocation((l) => ({ ...l, country: e.target.value }))} />
-          </div>
+        {/* Progress bar */}
+        <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
+          <div
+            className="h-1 bg-matcha-500 rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
 
-        {/* Contact */}
-        <div className={sectionCard}>
-          <div className={sectionTitle}>Contact</div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="mb-4">
-              <label className={fieldLabel}>Phone</label>
-              <input className={inputCls} value={contact.phone ?? ""} onChange={(e) => setContact((c) => ({ ...c, phone: e.target.value }))} />
+        {/* Step dots */}
+        <div className="flex items-center justify-center gap-1.5 mt-2.5">
+          {STEPS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { if (i < step) { setErrors({}); setStep(i); } }}
+              disabled={i >= step}
+              aria-label={`Go to step ${i + 1}`}
+              className={`rounded-full transition-all duration-300 disabled:cursor-default ${
+                i === step ? "w-6 h-2 bg-matcha-600" :
+                i < step   ? "w-2 h-2 bg-matcha-400 hover:bg-matcha-600 cursor-pointer" :
+                             "w-2 h-2 bg-stone-200"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Card */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+
+        {/* Hint strip */}
+        <div className="px-6 pt-5 pb-4 border-b border-stone-100">
+          <p className="text-xs text-stone-400">{STEPS[step].hint}</p>
+        </div>
+
+        {/* Step content */}
+        <div key={step} className="px-6 py-5 animate-[fade-in_0.18s_ease]">
+          {saveError && (
+            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+              {saveError}
             </div>
-            <div className="mb-4">
-              <label className={fieldLabel}>Email</label>
-              <input className={inputCls} type="email" value={contact.email ?? ""} onChange={(e) => setContact((c) => ({ ...c, email: e.target.value }))} />
+          )}
+          {saved && (
+            <div className="mb-4 px-4 py-3 bg-matcha-50 border border-matcha-200 rounded-xl text-sm text-matcha-700 font-medium">
+              Changes saved!
             </div>
-            <div className="mb-4">
-              <label className={fieldLabel}>Website</label>
-              <input className={inputCls} value={contact.website ?? ""} onChange={(e) => setContact((c) => ({ ...c, website: e.target.value }))} />
-            </div>
-          </div>
+          )}
+          {renderStep()}
         </div>
 
-        {/* Features */}
-        <div className={sectionCard}>
-          <div className={sectionTitle}>Features</div>
-          <TileGrid options={FEATURES} labels={FEATURE_LABEL} selected={features} onChange={setFeatures} />
-        </div>
+        {/* Navigation footer */}
+        <div className="px-6 py-4 border-t border-stone-100 flex justify-between items-center bg-stone-50/60">
+          {step > 0 ? (
+            <button
+              onClick={goBack}
+              className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-sm text-stone-600 hover:border-stone-400 hover:bg-stone-50 active:scale-[0.97] transition-all cursor-pointer"
+            >
+              ← Back
+            </button>
+          ) : <span />}
 
-        {/* Hours */}
-        <div className={sectionCard}>
-          <div className={sectionTitle}>Operating Hours</div>
-          <HoursTable hours={hours} onChange={setHours} />
+          {isLast ? (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          ) : (
+            <button
+              onClick={goNext}
+              className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
+            >
+              Next →
+            </button>
+          )}
         </div>
-
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={busy || !name}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-          >
-            <Save className="w-4 h-4" />
-            {busy ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
-      </form>
-
-      {toast && (
-        <div className={`fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }

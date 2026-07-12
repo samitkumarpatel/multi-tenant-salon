@@ -1,14 +1,35 @@
 import { useOutletContext } from "react-router";
-import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap } from "lucide-react";
+import { Link } from "react-router";
+import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight } from "lucide-react";
 import type { LayoutContext } from "~/lib/types";
-import { FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
+import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
+import InfoBar from "~/components/InfoBar";
+
+const FEATURE_HINTS: Record<string, string> = {
+  BOOKING:         "Let customers book appointments online, anytime.",
+  WEBSHOP:         "Sell products, gift cards, and top-ups from your website.",
+  MEMBERSHIP:      "Offer subscription plans and recurring revenue from loyal customers.",
+  ANALYTICS:       "See visit trends, revenue reports, and busiest time slots.",
+  LOYALTY_PROGRAM: "Reward repeat customers with points, perks, and exclusive offers.",
+  STATIC_WEBSITE:  "Get a public website your customers can browse and share.",
+};
 
 export default function Manage() {
   const { saloon } = useOutletContext<LayoutContext>();
 
-  const openHours = saloon.operatingHours?.filter((h) => !h.closed) ?? [];
+  const openHours     = saloon.operatingHours?.filter((h) => !h.closed) ?? [];
+  const enabledKeys   = new Set(saloon.features ?? []);
+  const lockedFeatures = FEATURES.filter((f) => !enabledKeys.has(f));
 
   return (
+    <div className="space-y-6">
+
+    {/* Page header */}
+    <div className="space-y-2">
+      <h1 className="text-xl font-bold text-slate-900">Overview</h1>
+      <InfoBar>A read-only snapshot of your saloon's current setup. Use the sidebar to edit details or manage staff and services.</InfoBar>
+    </div>
+
     <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
       {/* Owner */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
@@ -125,6 +146,44 @@ export default function Manage() {
           <span className="text-sm text-slate-700">{formatDate(saloon.createdAt)}</span>
         </div>
       )}
+    </div>
+
+    {/* Unlock more features callout */}
+    {lockedFeatures.length > 0 && (
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-slate-700">More features available</p>
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+              These capabilities aren't active yet. Enable them via{" "}
+              <Link to="edit" className="text-matcha-600 hover:underline font-medium">
+                Edit Saloon → Features
+              </Link>{" "}
+              to unlock the corresponding admin sections.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {lockedFeatures.map((key) => (
+            <div key={key} className="flex items-start gap-2.5 bg-white border border-slate-200 rounded-lg px-3 py-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mt-1.5" />
+              <div>
+                <p className="text-xs font-semibold text-slate-600">{FEATURE_LABEL[key] ?? key}</p>
+                <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{FEATURE_HINTS[key]}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Link
+          to="edit"
+          className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold text-matcha-600 hover:text-matcha-700 no-underline hover:underline"
+        >
+          Go to Edit Saloon <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+    )}
+
     </div>
   );
 }

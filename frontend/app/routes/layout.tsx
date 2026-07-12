@@ -1,10 +1,10 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useMatch } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Eye, Mail, KeyRound, LogOut, ChevronRight } from "lucide-react";
+import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Eye, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift } from "lucide-react";
 import { API, HANDLER_API, apiFetch } from "~/lib/api";
-import type { Saloon, LayoutContext } from "~/lib/types";
+import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -16,32 +16,60 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
 
 // ── Login gate ────────────────────────────────────────────────────────────────
 
+const STATIC_OTP = "123456";
+
 const inputCls =
   "w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-white text-slate-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-slate-400";
 
+type LoginStep = "email" | "sending" | "otp";
+
 function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => void }) {
-  const [step, setStep]         = useState<"email" | "token">("email");
-  const [email, setEmail]       = useState("");
-  const [token, setToken]       = useState("");
+  const [step, setStep]       = useState<LoginStep>("email");
+  const [email, setEmail]     = useState("");
+  const [otp, setOtp]         = useState("");
   const [emailErr, setEmailErr] = useState("");
-  const [busy, setBusy]         = useState(false);
+  const [otpErr, setOtpErr]   = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const trimmed = email.trim().toLowerCase();
+
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailErr("Enter a valid email address.");
       return;
     }
+    if (trimmed !== saloon.owner?.email?.toLowerCase()) {
+      setEmailErr("This email is not registered as the owner of this saloon.");
+      return;
+    }
+
     setEmailErr("");
-    setBusy(true);
-    setTimeout(() => { setBusy(false); setStep("token"); }, 1000);
+    setStep("sending");
+    // Mock: simulate email delivery delay then show OTP entry
+    setTimeout(() => setStep("otp"), 1500);
   }
 
   function handleVerify(e: React.FormEvent) {
     e.preventDefault();
-    if (!token.trim()) return;
-    setBusy(true);
-    setTimeout(() => { setBusy(false); onSuccess(); }, 700);
+    if (otp.length !== 6) return;
+
+    setVerifying(true);
+    setTimeout(() => {
+      if (otp === STATIC_OTP) {
+        onSuccess();
+      } else {
+        setOtpErr("Incorrect code. Please try again.");
+        setOtp("");
+        setVerifying(false);
+      }
+    }, 800);
+  }
+
+  function handleOtpChange(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 6);
+    setOtp(digits);
+    setOtpErr("");
   }
 
   return (
@@ -64,27 +92,34 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
 
       {/* Center content */}
       <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
-        <div className="w-full max-w-[340px]">
+        <div className="w-full max-w-[360px]">
 
           {/* Card */}
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
 
             {/* Card header */}
             <div className="px-6 py-5 border-b border-slate-100">
-              <h1 className="text-sm font-semibold text-slate-900">Sign in to admin panel</h1>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                {step === "email"
-                  ? "Enter your owner email to receive a sign-in code."
-                  : `Check your inbox — code sent to ${email}.`}
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                  <KeyRound className="w-3.5 h-3.5 text-matcha-600" />
+                </div>
+                <h1 className="text-sm font-semibold text-slate-900">Sign in to admin panel</h1>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed pl-9">
+                {step === "email" && "Enter your owner email — we'll send you a one-time code."}
+                {step === "sending" && "Sending your code…"}
+                {step === "otp"  && <>Code sent to <span className="font-medium text-slate-700">{email}</span>. Check your inbox.</>}
               </p>
             </div>
 
-            <div className="px-6 py-5">
-              {step === "email" ? (
+            <div className="px-6 py-5 space-y-4">
+
+              {/* ── Step 1: Email ── */}
+              {step === "email" && (
                 <form onSubmit={handleSend} className="flex flex-col gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                      Email address
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Owner email address
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -93,54 +128,79 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
                         autoFocus
                         value={email}
                         onChange={(e) => { setEmail(e.target.value); setEmailErr(""); }}
+                        onKeyDown={(e) => e.key === "Enter" && handleSend(e as unknown as React.FormEvent)}
                         placeholder="owner@example.com"
                         className={`${inputCls} pl-8 ${emailErr ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
                       />
                     </div>
-                    {emailErr && <p className="text-red-500 text-[11px] mt-1">{emailErr}</p>}
+                    {emailErr && <p className="text-red-500 text-[11px] mt-1.5 leading-snug">{emailErr}</p>}
                   </div>
                   <button
                     type="submit"
-                    disabled={busy}
-                    className="w-full py-2 rounded-md bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer mt-1"
+                    className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 transition cursor-pointer"
                   >
-                    {busy ? "Sending…" : "Send sign-in code"}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerify} className="flex flex-col gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                      Verification code
-                    </label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        autoFocus
-                        value={token}
-                        onChange={(e) => setToken(e.target.value)}
-                        placeholder="Paste code from email"
-                        className={`${inputCls} pl-8 font-mono tracking-widest`}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={busy || !token.trim()}
-                    className="w-full py-2 rounded-md bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer mt-1"
-                  >
-                    {busy ? "Verifying…" : "Continue →"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setStep("email"); setToken(""); }}
-                    className="text-[11px] text-slate-400 hover:text-slate-600 transition cursor-pointer text-center"
-                  >
-                    Use a different email
+                    Send one-time code →
                   </button>
                 </form>
               )}
+
+              {/* ── Step 1.5: Sending ── */}
+              {step === "sending" && (
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <div className="w-10 h-10 rounded-full border-2 border-matcha-200 border-t-matcha-600 animate-spin" />
+                  <p className="text-xs text-slate-500">Delivering your code to <span className="font-medium text-slate-700">{email}</span>…</p>
+                </div>
+              )}
+
+              {/* ── Step 2: OTP ── */}
+              {step === "otp" && (
+                <form onSubmit={handleVerify} className="flex flex-col gap-3">
+                  {/* Dev hint */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                      Dev
+                    </span>
+                    <p className="text-[11px] text-amber-700">
+                      Static OTP in use — enter <span className="font-mono font-bold tracking-widest">{STATIC_OTP}</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      6-digit verification code
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d{6}"
+                      maxLength={6}
+                      autoFocus
+                      value={otp}
+                      onChange={(e) => handleOtpChange(e.target.value)}
+                      placeholder="000000"
+                      className={`${inputCls} text-center font-mono text-2xl tracking-[0.4em] py-3 ${otpErr ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
+                    />
+                    {otpErr && <p className="text-red-500 text-[11px] mt-1.5">{otpErr}</p>}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={otp.length !== 6 || verifying}
+                    className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer"
+                  >
+                    {verifying ? "Verifying…" : "Verify & sign in →"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setStep("email"); setOtp(""); setOtpErr(""); }}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 transition cursor-pointer text-center"
+                  >
+                    ← Use a different email
+                  </button>
+                </form>
+              )}
+
             </div>
           </div>
 
@@ -165,6 +225,17 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
   );
 }
 
+// ── Feature nav map ───────────────────────────────────────────────────────────
+
+const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.ElementType; route?: string }[] = [
+  { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
+  { key: "BOOKING",         label: "Booking",         hint: "Online appointment scheduling",           icon: CalendarCheck,  route: undefined },
+  { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: undefined },
+  { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: undefined },
+  { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: undefined },
+  { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: undefined },
+];
+
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
@@ -177,12 +248,38 @@ export default function Layout() {
   const [authed, setAuthed]             = useState(() =>
     Boolean(sessionStorage.getItem(`saloon-auth:${initial.id}`))
   );
+  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(() => {
+    const stored = localStorage.getItem(`saloon-website-mode:${initial.id}`);
+    return stored === "static" || stored === "ai" ? stored : null;
+  });
 
-  const ctx: LayoutContext = { saloon, setSaloon };
+  function setWebsiteMode(m: WebsiteMode | null) {
+    setWebsiteModeState(m);
+    if (m) localStorage.setItem(`saloon-website-mode:${initial.id}`, m);
+    else localStorage.removeItem(`saloon-website-mode:${initial.id}`);
+  }
+
+  const ctx: LayoutContext = { saloon, setSaloon, websiteMode, setWebsiteMode };
   const isPreview = Boolean(useMatch("/:saloonId/c"));
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Customer preview — no auth required
-  if (isPreview) return <Outlet context={ctx} />;
+  // Customer preview — only accessible when STATIC_WEBSITE feature is enabled
+  if (isPreview) {
+    if (!saloon.features?.includes("STATIC_WEBSITE")) {
+      return (
+        <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center px-5 text-center">
+          <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-5">
+            <Scissors className="w-6 h-6 text-slate-400" />
+          </div>
+          <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon.name}</h1>
+          <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
+            This saloon hasn't published a public website yet.
+          </p>
+        </div>
+      );
+    }
+    return <Outlet context={ctx} />;
+  }
 
   // Not yet authenticated — show login gate
   if (!authed) {
@@ -225,42 +322,81 @@ export default function Layout() {
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <header className="h-12 bg-white border-b border-slate-200 flex items-center px-4 gap-3 shrink-0 z-40">
+      <header className="h-12 bg-white border-b border-slate-200 flex items-center px-3 gap-2 shrink-0 z-40">
+        {/* Hamburger — mobile only */}
+        <button
+          className="md:hidden p-1.5 rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer"
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-label="Toggle navigation"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         {/* Brand */}
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 pr-4 border-r border-slate-200">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 pr-3 border-r border-slate-200">
           <Scissors className="w-4 h-4 text-matcha-600" />
-          my-saloon
+          <span className="hidden sm:inline">my-saloon</span>
         </div>
         {/* Breadcrumb */}
-        <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-        <span className="text-sm text-slate-500 truncate">{saloon.name}</span>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:block" />
+        <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{saloon.name}</span>
 
         {/* Right actions */}
         <div className="ml-auto flex items-center gap-2">
-          {saloon.handler && (
+          {saloon.handler && saloon.features?.includes("STATIC_WEBSITE") && websiteMode !== "ai" && (
             <Link
               to={`/${saloon.handler}/c`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors no-underline"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors no-underline"
             >
               <Eye className="w-3 h-3" />
-              Preview site
+              <span className="hidden md:inline">Preview site</span>
             </Link>
+          )}
+          {saloon.handler && saloon.features?.includes("STATIC_WEBSITE") && websiteMode === "ai" && (
+            <NavLink
+              to="website"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-violet-200 text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors no-underline"
+            >
+              <Eye className="w-3 h-3" />
+              <span className="hidden md:inline">MCP Preview</span>
+            </NavLink>
           )}
           <button
             onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
-            Sign out
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </header>
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+
+        {/* Mobile backdrop */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
-        <aside className="w-52 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto">
+        <aside className={`
+          absolute inset-y-0 left-0 z-50 w-52 bg-white border-r border-slate-200
+          flex flex-col shrink-0 overflow-y-auto transition-transform duration-200
+          md:relative md:translate-x-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}>
+
+          {/* Close button — mobile only */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 md:hidden">
+            <span className="text-xs font-semibold text-slate-500">Navigation</span>
+            <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+              <XIcon className="w-4 h-4" />
+            </button>
+          </div>
 
           {/* Saloon identity */}
           <div className="px-4 py-4 border-b border-slate-100">
@@ -276,24 +412,49 @@ export default function Layout() {
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5">
               Manage
             </p>
-            <NavLink to="" end className={sideNavClass}>
+
+            <NavLink to="" end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <LayoutDashboard className="w-4 h-4 shrink-0" /> Overview
             </NavLink>
-            <NavLink to="edit" className={sideNavClass}>
+
+            <NavLink to="edit" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <Pencil className="w-4 h-4 shrink-0" /> Edit Saloon
             </NavLink>
-            <NavLink to="services" className={sideNavClass}>
-              <Briefcase className="w-4 h-4 shrink-0" /> Saloon Service
+
+            <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+              <Briefcase className="w-4 h-4 shrink-0" /> Services
             </NavLink>
-            <NavLink to="staff" className={sideNavClass}>
+
+            <NavLink to="staff" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <Users className="w-4 h-4 shrink-0" /> Staff
             </NavLink>
+
+            {FEATURE_NAV.some((f) => saloon.features?.includes(f.key)) && (
+              <>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5 mt-2">
+                  Features
+                </p>
+                {FEATURE_NAV.filter((f) => saloon.features?.includes(f.key)).map((f) =>
+                  f.route ? (
+                    <NavLink key={f.key} to={f.route} className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                      <f.icon className="w-4 h-4 shrink-0" /> {f.label}
+                    </NavLink>
+                  ) : (
+                    <span key={f.key} className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-300 cursor-default select-none">
+                      <f.icon className="w-4 h-4 shrink-0" />
+                      <span className="text-sm font-medium">{f.label}</span>
+                      <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">Soon</span>
+                    </span>
+                  )
+                )}
+              </>
+            )}
           </nav>
 
           {/* Sidebar footer */}
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
             <button
-              onClick={() => setShowDeleteModal(true)}
+              onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
               className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
             >
               <Trash2 className="w-4 h-4 shrink-0" /> Delete saloon
@@ -303,7 +464,7 @@ export default function Layout() {
 
         {/* ── Main content ──────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-8 py-8">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
             <Outlet context={ctx} />
           </div>
         </main>

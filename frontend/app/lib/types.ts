@@ -43,9 +43,13 @@ export interface Saloon {
   createdAt?: string;
 }
 
+export type WebsiteMode = "static" | "ai";
+
 export interface LayoutContext {
   saloon: Saloon;
   setSaloon: (s: Saloon) => void;
+  websiteMode: WebsiteMode | null;
+  setWebsiteMode: (m: WebsiteMode | null) => void;
 }
 
 export interface StaffMember {
@@ -58,6 +62,16 @@ export interface StaffMember {
   status: string;
   specializations?: string[];
   createdAt?: string;
+}
+
+export interface WebsiteTheme {
+  saloonId?: string;
+  heroBg: string;
+  heroTextColor: string;
+  accentColor: string;
+  fontFamily: string;
+  logoBgColor: string;
+  updatedAt?: string;
 }
 
 export interface ServiceItem {

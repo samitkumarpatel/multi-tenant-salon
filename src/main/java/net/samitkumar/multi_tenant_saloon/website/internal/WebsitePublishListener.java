@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
-class WebsitePublishListener {
+class   WebsitePublishListener {
 
     @ApplicationModuleListener
     void onWebsitePublishRequested(WebsitePublishRequestedEvent event) {

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Scissors, Loader2 } from "lucide-react";
 import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { SALOON_DOMAIN } from "~/lib/config";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
@@ -97,9 +97,9 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
         <ReviewSection title="Location" onEdit={() => onEdit(2)}>
           {hasLoc ? (
             <div className="text-sm text-stone-600 space-y-0.5">
-              {form.location.address && <p>{form.location.address}</p>}
-              <p>{[form.location.city, form.location.state, form.location.zipCode].filter(Boolean).join(", ")}</p>
               {form.location.country && <p>{form.location.country}</p>}
+              {form.location.address && <p>{form.location.address}</p>}
+              <p>{[form.location.zipCode, form.location.city].filter(Boolean).join(" ")}</p>
             </div>
           ) : (
             <p className="text-stone-400 text-sm">Not specified</p>
@@ -150,15 +150,30 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
 }
 
 // ── Success screen ───────────────────────────────────────────────────────────
-type CopyKey = "adminId" | "adminHandler" | "customer";
 
-function SuccessScreen({ id, handler, ownerEmail, saloonName, features }: { id: string; handler: string; ownerEmail: string; saloonName: string; features: string[] }) {
-  const origin           = window.location.origin;
-  const adminIdUrl       = `${origin}/${id}`;
-  const adminHandlerUrl  = `${origin}/${handler}`;
-  const customerUrl      = `${origin}/${handler}/c`;
-  const hasWebsite       = features.includes("STATIC_WEBSITE");
-  const [copied, setCopied] = useState<CopyKey | null>(null);
+const PROCESSING_STEPS = [
+  "Creating your saloon profile",
+  "Registering account with identity provider",
+  "Configuring your workspace",
+  "Sending welcome email",
+];
+
+const STEP_DURATION = 900; // ms per step
+
+type CopyKey = "adminId" | "adminHandler";
+
+function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; handler: string; ownerEmail: string; saloonName: string }) {
+  const [completedSteps, setCompletedSteps] = useState(0);
+  const [ready, setReady]                   = useState(false);
+  const [copied, setCopied]                 = useState<CopyKey | null>(null);
+
+  useEffect(() => {
+    const timers = PROCESSING_STEPS.map((_, i) =>
+      setTimeout(() => setCompletedSteps(i + 1), (i + 1) * STEP_DURATION)
+    );
+    const done = setTimeout(() => setReady(true), PROCESSING_STEPS.length * STEP_DURATION + 400);
+    return () => { timers.forEach(clearTimeout); clearTimeout(done); };
+  }, []);
 
   function copy(text: string, key: CopyKey) {
     navigator.clipboard.writeText(text).then(() => {
@@ -172,30 +187,97 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName, features }: { id: 
       <button
         onClick={() => copy(text, copyKey)}
         className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
+        title="Copy"
       >
-        {copied === copyKey ? <Check className="w-4 h-4 text-matcha-600" /> : <Copy className="w-4 h-4" />}
+        {copied === copyKey
+          ? <Check className="w-4 h-4 text-matcha-600" />
+          : <Copy className="w-4 h-4" />}
       </button>
     );
   }
 
+  const origin          = window.location.origin;
+  const adminHandlerUrl = `${origin}/${handler}`;
+  const adminIdUrl      = `${origin}/${id}`;
+  const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
+
+  // ── Processing phase ────────────────────────────────────────────────────────
+  if (!ready) {
+    return (
+      <div className="min-h-[100dvh] bg-cream flex flex-col items-center justify-center px-5 py-12">
+        <div className="w-full max-w-sm">
+          <div className="flex justify-center mb-7">
+            <div className="w-16 h-16 rounded-full bg-matcha-100 border-2 border-matcha-300 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-matcha-600 animate-spin" />
+            </div>
+          </div>
+
+          <h1 className="text-lg font-bold text-stone-900 text-center mb-1">
+            Setting up <span className="text-matcha-700">{saloonName}</span>
+          </h1>
+          <p className="text-stone-400 text-sm text-center mb-7">This will only take a moment…</p>
+
+          {/* Progress bar */}
+          <div className="mb-6">
+            <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+              <div
+                className="h-1.5 bg-matcha-500 rounded-full transition-all duration-700 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-right text-[10px] text-stone-400 mt-1 tabular-nums">{progress}%</p>
+          </div>
+
+          {/* Step list */}
+          <div className="flex flex-col gap-3">
+            {PROCESSING_STEPS.map((label, i) => {
+              const done    = i < completedSteps;
+              const active  = i === completedSteps;
+              return (
+                <div
+                  key={label}
+                  className={`flex items-center gap-3 transition-opacity duration-300 ${done || active ? "opacity-100" : "opacity-25"}`}
+                >
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors duration-500 ${done ? "bg-matcha-500" : "bg-stone-200"}`}>
+                    {done
+                      ? <Check className="w-3 h-3 text-white" />
+                      : active
+                        ? <Loader2 className="w-3 h-3 text-stone-400 animate-spin" />
+                        : <span className="w-1.5 h-1.5 rounded-full bg-stone-300 block" />}
+                  </div>
+                  <span className={`text-sm transition-colors duration-300 ${done ? "text-stone-700" : active ? "text-stone-500" : "text-stone-300"}`}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Done phase ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-[100dvh] bg-cream flex flex-col items-center justify-center px-5 py-12">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8 animate-[fade-in_0.4s_ease_both]">
+      <div className="w-full max-w-sm animate-[fade-in_0.4s_ease_both]">
+
+        <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-full bg-matcha-100 border-2 border-matcha-400 flex items-center justify-center mb-4">
             <Check className="w-7 h-7 text-matcha-600" />
           </div>
-          <h1 className="text-xl font-bold text-stone-900 text-center">You're live!</h1>
-          <p className="text-stone-500 text-sm text-center mt-1">
-            <strong className="text-stone-700">{saloonName}</strong> has been registered.
+          <h1 className="text-xl font-bold text-stone-900 text-center">You're all set!</h1>
+          <p className="text-stone-500 text-sm text-center mt-1.5 leading-relaxed">
+            <strong className="text-stone-700">{saloonName}</strong> is ready.<br />
+            Sign in to your admin panel to start managing it.
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
-          {/* Admin panel — two access URLs */}
+          {/* Admin URLs */}
           <div className="bg-white border border-stone-200 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Admin panel</p>
-            <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Your admin panel</p>
+            <div className="flex flex-col gap-3">
               <div>
                 <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By name</p>
                 <div className="flex items-center gap-2">
@@ -212,66 +294,21 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName, features }: { id: 
               </div>
             </div>
             <p className="text-xs text-stone-400 mt-3 pt-2 border-t border-stone-100">
-              Log in with <span className="font-mono text-stone-600">{ownerEmail}</span>
+              Sign in with <span className="font-mono text-stone-600">{ownerEmail}</span>
             </p>
           </div>
 
-          {/* Website — conditional on STATIC_WEBSITE feature */}
-          {hasWebsite ? (
-            <div className="bg-white border border-stone-200 rounded-2xl p-4">
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Your website</p>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-stone-700 flex-1 truncate font-mono">{customerUrl}</span>
-                <CopyBtn text={customerUrl} copyKey="customer" />
-              </div>
-              <p className="text-xs text-stone-400 mt-2">
-                Review it before sharing — you can customise it from the admin panel.
-              </p>
-            </div>
-          ) : (
-            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">No website yet</p>
-              <p className="text-sm text-stone-500 leading-relaxed">
-                Want a public page for your customers? Go to your admin panel and enable <strong className="text-stone-700">Website</strong> under Features.
-              </p>
-            </div>
-          )}
+          {/* CTA */}
+          <Link
+            to={`/${id}`}
+            className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
+          >
+            Go to admin panel &amp; sign in →
+          </Link>
 
-          <div className="bg-white border border-stone-200 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Next steps</p>
-            <div className="flex flex-col gap-3">
-              {[
-                "Open your admin panel",
-                "Add your services and pricing",
-                "Onboard your staff members",
-                ...(hasWebsite ? ["Review and launch your website"] : []),
-              ].map((text, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-600 text-xs flex items-center justify-center shrink-0 font-semibold">
-                    {i + 1}
-                  </span>
-                  <p className="text-sm text-stone-600">{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 mt-1">
-            <Link
-              to={`/${id}`}
-              className="flex-1 text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
-            >
-              Go to admin panel
-            </Link>
-            {hasWebsite && (
-              <Link
-                to={`/${handler}/c`}
-                className="flex-1 text-center py-3 rounded-xl border border-stone-200 bg-white text-stone-700 text-sm font-medium hover:border-stone-400 active:scale-[0.97] transition-all no-underline"
-              >
-                Review website
-              </Link>
-            )}
-          </div>
+          <p className="text-center text-xs text-stone-400">
+            Bookmark both URLs — either one takes you to your dashboard.
+          </p>
         </div>
       </div>
     </div>
@@ -362,7 +399,7 @@ export default function NewSaloon() {
   }
 
   if (created) {
-    return <SuccessScreen id={created.id} handler={created.handler} ownerEmail={form.owner.email} saloonName={form.name} features={form.features} />;
+    return <SuccessScreen id={created.id} handler={created.handler} ownerEmail={form.owner.email} saloonName={form.name} />;
   }
 
   function renderStep() {
@@ -413,27 +450,21 @@ export default function NewSaloon() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Street address</label>
-              <input autoFocus className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder="123 Main St" />
+              <label className={labelCls}>Country / Region</label>
+              <CountrySelect value={form.location.country ?? ""} onChange={(v) => setLocation({ country: v })} countries={countries} />
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Address</label>
+              <input className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder="123 Main St" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className={fieldCls}>
-                <label className={labelCls}>City</label>
-                <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
-              </div>
-              <div className={fieldCls}>
-                <label className={labelCls}>State</label>
-                <input className={inputCls} value={form.location.state ?? ""} onChange={(e) => setLocation({ state: e.target.value })} placeholder="CA" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className={fieldCls}>
-                <label className={labelCls}>ZIP code</label>
+                <label className={labelCls}>Postal code</label>
                 <input className={inputCls} value={form.location.zipCode ?? ""} onChange={(e) => setLocation({ zipCode: e.target.value })} placeholder="94105" />
               </div>
               <div className={fieldCls}>
-                <label className={labelCls}>Country</label>
-                <CountrySelect value={form.location.country ?? ""} onChange={(v) => setLocation({ country: v })} countries={countries} />
+                <label className={labelCls}>City</label>
+                <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
               </div>
             </div>
           </div>

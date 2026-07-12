@@ -15,7 +15,8 @@
       "Bash(xargs cat)",
       "Bash(npx react-router *)",
       "Bash(npx tsc *)",
-      "Bash(./mvnw dependency:tree)"
+      "Bash(./mvnw dependency:tree)",
+      "Bash(git -C /home/samit/workspace/multi-tenant-saloon diff frontend/app/routes/saloon-page.tsx)"
     ]
   }
 }

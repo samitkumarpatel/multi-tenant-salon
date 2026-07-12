@@ -66,3 +66,13 @@ CREATE TABLE IF NOT EXISTS staff_member_specialization (
   staff_member_key INTEGER,
   value            VARCHAR(255) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS saloon_website_theme (
+  saloon_id       UUID         PRIMARY KEY REFERENCES saloon(id) ON DELETE CASCADE,
+  hero_bg         VARCHAR(50)  NOT NULL DEFAULT '#0F172A',
+  hero_text_color VARCHAR(50)  NOT NULL DEFAULT '#FFFFFF',
+  accent_color    VARCHAR(50)  NOT NULL DEFAULT '#F59E0B',
+  font_family     VARCHAR(100) NOT NULL DEFAULT 'inter',
+  logo_bg_color   VARCHAR(50)  NOT NULL DEFAULT '#F59E0B',
+  updated_at      TIMESTAMPTZ
+);
