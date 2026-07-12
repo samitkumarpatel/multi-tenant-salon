@@ -62,12 +62,12 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 }
 ```
 
-The `handler` is derived from the saloon name: lowercased and stripped of spaces and special characters (e.g. `"Glam Saloon!"` → `"glamsaloon"`). It is unique and can be used as a human-readable identifier in URLs.
+The `handler` is derived from the saloon name: lowercased, spaces replaced with `-`, and special characters stripped (e.g. `"Glam Saloon!"` → `"glam-saloon"`). It is unique across all saloons. Duplicate saloon names are allowed; when the base handler already exists, a numeric suffix is appended until it is unique (e.g. `"glam-saloon"` → `"glam-saloon-2"` → `"glam-saloon-3"`, etc.).
 
 **Flow**
 
 1. `SaloonController.create()` validates `@NotBlank` on `name`, `ownerName`, `ownerEmail` — returns `400` before reaching the service if any are blank.
-2. `SaloonService.create()` derives `handler` from the name, converts `List<SaloonFeature>` → `List<SaloonFeatureRef>`, and builds a `Saloon` with `id = null`.
+2. `SaloonService.create()` calls `deriveUniqueHandler(name)`: strips the name to a base slug, then checks `SaloonRepository.existsByHandler(base)`. If taken, it increments a numeric suffix (`-2`, `-3`, …) until a free handler is found. Converts `List<SaloonFeature>` → `List<SaloonFeatureRef>` and builds a `Saloon` with `id = null`.
 3. `SaloonRepository.save(Saloon)` → **DB**: `INSERT INTO saloon`, `INSERT INTO saloon_operating_hours`, `INSERT INTO saloon_feature` — all in one transaction. The database assigns the UUID via `DEFAULT gen_random_uuid()`.
 4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` → **DB**: Spring Modulith writes the event to the `event_publication` table before the transaction commits, guaranteeing delivery.
 5. `SaloonController.create()` returns `201 Created` with `CreateSaloonResponse(id, handler)` and a `Location` header.
@@ -201,6 +201,29 @@ Replaces the full feature list for a saloon.
 1. `SaloonController.delete(UUID)` → `SaloonService.delete(UUID)` → `SaloonRepository.deleteById(UUID)`
 2. **DB**: `DELETE FROM saloon WHERE id = ?` — `ON DELETE CASCADE` removes rows in `saloon_operating_hours`, `saloon_feature`, `service_item`, and `staff_member` automatically.
 3. Always returns `204` — no-op if the UUID does not exist.
+
+---
+
+### Publish website
+
+`POST /api/saloons/{id}/publish`
+
+Triggers an asynchronous website deployment pipeline for the saloon. The saloon must have the `STATIC_WEBSITE` feature enabled — this reflects the owner's opt-in to the website product. The request returns immediately; actual AWS work (S3 deploy, subdomain creation, DNS wiring) is handled out-of-band by the `website` module.
+
+**Response** `202 Accepted` — publish event enqueued
+
+**Response** `404 Not Found` — saloon does not exist
+
+**Response** `422 Unprocessable Entity` — saloon does not have the `STATIC_WEBSITE` feature enabled
+
+**Flow**
+
+1. `SaloonController.publishWebsite(UUID)` → `SaloonService.publishWebsite(UUID)`
+2. `SaloonRepository.findById(UUID)` — returns `NOT_FOUND` (→ `404`) if not found.
+3. `SaloonService` checks `saloon.features()` for `STATIC_WEBSITE` — returns `FEATURE_NOT_ENABLED` (→ `422`) if absent.
+4. `ApplicationEventPublisher.publishEvent(WebsitePublishRequestedEvent)` → **DB**: Spring Modulith writes the event to `event_publication` before the transaction commits.
+5. Returns `202 Accepted` (no response body).
+6. After commit → **Event**: `WebsitePublishListener.onWebsitePublishRequested(WebsitePublishRequestedEvent)` is invoked asynchronously by the `website` module. Currently logs the intent; AWS pipeline integration is pending.
 
 ---
 

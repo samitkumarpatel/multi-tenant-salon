@@ -1,5 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 export const API = `${API_BASE}/api/saloons`;
+export const HANDLER_API = `${API_BASE}/api/saloons/handler`;
 export const COUNTRIES_API = `${API_BASE}/api/utility/countries`;
 
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {

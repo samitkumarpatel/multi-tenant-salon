@@ -150,23 +150,32 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
 }
 
 // ── Success screen ───────────────────────────────────────────────────────────
-function SuccessScreen({ id, ownerEmail, saloonName }: { id: number; ownerEmail: string; saloonName: string }) {
-  const adminPath   = `/${id}`;
-  const adminUrl    = `${window.location.origin}${adminPath}`;
-  const customerUrl = previewUrl(saloonName) ? `https://${previewUrl(saloonName)}` : adminUrl;
-  const [copiedAdmin, setCopiedAdmin]       = useState(false);
-  const [copiedCustomer, setCopiedCustomer] = useState(false);
+type CopyKey = "adminId" | "adminHandler" | "customer";
 
-  function copy(text: string, which: "admin" | "customer") {
+function SuccessScreen({ id, handler, ownerEmail, saloonName, features }: { id: string; handler: string; ownerEmail: string; saloonName: string; features: string[] }) {
+  const origin           = window.location.origin;
+  const adminIdUrl       = `${origin}/${id}`;
+  const adminHandlerUrl  = `${origin}/${handler}`;
+  const customerUrl      = `${origin}/${handler}/c`;
+  const hasWebsite       = features.includes("STATIC_WEBSITE");
+  const [copied, setCopied] = useState<CopyKey | null>(null);
+
+  function copy(text: string, key: CopyKey) {
     navigator.clipboard.writeText(text).then(() => {
-      if (which === "admin") {
-        setCopiedAdmin(true);
-        setTimeout(() => setCopiedAdmin(false), 2000);
-      } else {
-        setCopiedCustomer(true);
-        setTimeout(() => setCopiedCustomer(false), 2000);
-      }
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
     });
+  }
+
+  function CopyBtn({ text, copyKey }: { text: string; copyKey: CopyKey }) {
+    return (
+      <button
+        onClick={() => copy(text, copyKey)}
+        className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
+      >
+        {copied === copyKey ? <Check className="w-4 h-4 text-matcha-600" /> : <Copy className="w-4 h-4" />}
+      </button>
+    );
   }
 
   return (
@@ -183,34 +192,50 @@ function SuccessScreen({ id, ownerEmail, saloonName }: { id: number; ownerEmail:
         </div>
 
         <div className="flex flex-col gap-3">
+          {/* Admin panel — two access URLs */}
           <div className="bg-white border border-stone-200 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Customer URL</p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-stone-700 flex-1 truncate font-mono">{customerUrl}</span>
-              <button
-                onClick={() => copy(customerUrl, "customer")}
-                className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
-              >
-                {copiedCustomer ? <Check className="w-4 h-4 text-matcha-600" /> : <Copy className="w-4 h-4" />}
-              </button>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Admin panel</p>
+            <div className="flex flex-col gap-2">
+              <div>
+                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By name</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminHandlerUrl}</span>
+                  <CopyBtn text={adminHandlerUrl} copyKey="adminHandler" />
+                </div>
+              </div>
+              <div className="border-t border-stone-100 pt-2">
+                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By ID</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminIdUrl}</span>
+                  <CopyBtn text={adminIdUrl} copyKey="adminId" />
+                </div>
+              </div>
             </div>
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Admin panel</p>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminUrl}</span>
-              <button
-                onClick={() => copy(adminUrl, "admin")}
-                className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
-              >
-                {copiedAdmin ? <Check className="w-4 h-4 text-matcha-600" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-stone-400 mt-3 pt-2 border-t border-stone-100">
               Log in with <span className="font-mono text-stone-600">{ownerEmail}</span>
             </p>
           </div>
+
+          {/* Website — conditional on STATIC_WEBSITE feature */}
+          {hasWebsite ? (
+            <div className="bg-white border border-stone-200 rounded-2xl p-4">
+              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Your website</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-stone-700 flex-1 truncate font-mono">{customerUrl}</span>
+                <CopyBtn text={customerUrl} copyKey="customer" />
+              </div>
+              <p className="text-xs text-stone-400 mt-2">
+                Review it before sharing — you can customise it from the admin panel.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">No website yet</p>
+              <p className="text-sm text-stone-500 leading-relaxed">
+                Want a public page for your customers? Go to your admin panel and enable <strong className="text-stone-700">Website</strong> under Features.
+              </p>
+            </div>
+          )}
 
           <div className="bg-white border border-stone-200 rounded-2xl p-4">
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Next steps</p>
@@ -219,7 +244,7 @@ function SuccessScreen({ id, ownerEmail, saloonName }: { id: number; ownerEmail:
                 "Open your admin panel",
                 "Add your services and pricing",
                 "Onboard your staff members",
-                "Share your customer URL",
+                ...(hasWebsite ? ["Review and launch your website"] : []),
               ].map((text, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-600 text-xs flex items-center justify-center shrink-0 font-semibold">
@@ -233,17 +258,19 @@ function SuccessScreen({ id, ownerEmail, saloonName }: { id: number; ownerEmail:
 
           <div className="flex flex-col sm:flex-row gap-2 mt-1">
             <Link
-              to={adminPath}
+              to={`/${id}`}
               className="flex-1 text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
             >
               Go to admin panel
             </Link>
-            <Link
-              to="/customer"
-              className="flex-1 text-center py-3 rounded-xl border border-stone-200 bg-white text-stone-700 text-sm font-medium hover:border-stone-400 active:scale-[0.97] transition-all no-underline"
-            >
-              View as customer
-            </Link>
+            {hasWebsite && (
+              <Link
+                to={`/${handler}/c`}
+                className="flex-1 text-center py-3 rounded-xl border border-stone-200 bg-white text-stone-700 text-sm font-medium hover:border-stone-400 active:scale-[0.97] transition-all no-underline"
+              >
+                Review website
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -259,7 +286,7 @@ export default function NewSaloon() {
   const [errors,    setErrors]    = useState<Record<string, string>>({});
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState<string | null>(null);
-  const [created,            setCreated]            = useState<{ id: number } | null>(null);
+  const [created,            setCreated]            = useState<{ id: string; handler: string } | null>(null);
   const [reuseOwnerContact,  setReuseOwnerContact]  = useState<boolean | null>(null);
 
   function setOwner(patch: Partial<Owner>)         { setForm((f) => ({ ...f, owner:    { ...f.owner,    ...patch } })); }
@@ -304,7 +331,7 @@ export default function NewSaloon() {
     setSaveError(null);
     setSaving(true);
     try {
-      const result = await apiFetch<{ id: number; handler: string }>(API, {
+      const result = await apiFetch<{ id: string; handler: string }>(API, {
         method: "POST",
         body: JSON.stringify({
           name:       form.name.trim(),
@@ -327,7 +354,7 @@ export default function NewSaloon() {
           features:       form.features,
         }),
       });
-      setCreated({ id: result.id });
+      setCreated({ id: result.id, handler: result.handler });
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : "Failed to create saloon");
       setSaving(false);
@@ -335,7 +362,7 @@ export default function NewSaloon() {
   }
 
   if (created) {
-    return <SuccessScreen id={created.id} ownerEmail={form.owner.email} saloonName={form.name} />;
+    return <SuccessScreen id={created.id} handler={created.handler} ownerEmail={form.owner.email} saloonName={form.name} features={form.features} />;
   }
 
   function renderStep() {

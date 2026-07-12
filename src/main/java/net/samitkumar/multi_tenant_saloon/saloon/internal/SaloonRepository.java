@@ -8,4 +8,5 @@ import java.util.UUID;
 
 interface SaloonRepository extends ListCrudRepository<Saloon, UUID> {
     Optional<Saloon> findByHandler(String handler);
+    boolean existsByHandler(String handler);
 }

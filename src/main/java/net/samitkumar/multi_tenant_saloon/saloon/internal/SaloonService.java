@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_saloon.saloon.internal;
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
+import net.samitkumar.multi_tenant_saloon.saloon.WebsitePublishRequestedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +24,22 @@ class SaloonService {
         this.eventPublisher = eventPublisher;
     }
 
+    private String deriveUniqueHandler(String name) {
+        var base = name.toLowerCase().replaceAll("\\s+", "-").replaceAll("[^a-z0-9-]", "");
+        if (!repository.existsByHandler(base)) {
+            return base;
+        }
+        int suffix = 2;
+        while (repository.existsByHandler(base + "-" + suffix)) {
+            suffix++;
+        }
+        return base + "-" + suffix;
+    }
+
     @Transactional
     Saloon create(String name, Saloon.Owner owner, Saloon.Location location, Saloon.ContactInfo contact,
                   List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features) {
-        var handler = name.toLowerCase().replaceAll("\\s+", "-").replaceAll("[^a-z0-9-]", "");
+        var handler = deriveUniqueHandler(name);
         var featureRefs = features != null
                 ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
                 : List.<Saloon.SaloonFeatureRef>of();
@@ -71,5 +84,21 @@ class SaloonService {
 
     void delete(UUID id) {
         repository.deleteById(id);
+    }
+
+    enum PublishWebsiteResult { OK, NOT_FOUND, FEATURE_NOT_ENABLED }
+
+    @Transactional
+    PublishWebsiteResult publishWebsite(UUID id) {
+        var saloon = repository.findById(id).orElse(null);
+        if (saloon == null) return PublishWebsiteResult.NOT_FOUND;
+
+        boolean hasWebsiteFeature = saloon.features().stream()
+                .anyMatch(ref -> ref.feature() == SaloonFeature.STATIC_WEBSITE);
+        if (!hasWebsiteFeature) return PublishWebsiteResult.FEATURE_NOT_ENABLED;
+
+        eventPublisher.publishEvent(
+                new WebsitePublishRequestedEvent(saloon.id(), saloon.name(), saloon.handler(), saloon.owner().email()));
+        return PublishWebsiteResult.OK;
     }
 }

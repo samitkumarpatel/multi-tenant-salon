@@ -88,4 +88,13 @@ class SaloonController {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/publish")
+    ResponseEntity<Void> publishWebsite(@PathVariable UUID id) {
+        return switch (service.publishWebsite(id)) {
+            case OK -> ResponseEntity.accepted().build();
+            case NOT_FOUND -> ResponseEntity.notFound().build();
+            case FEATURE_NOT_ENABLED -> ResponseEntity.unprocessableEntity().build();
+        };
+    }
 }
