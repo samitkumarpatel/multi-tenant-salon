@@ -78,17 +78,12 @@ function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
-const PALETTES = [
-  "bg-violet-100 text-violet-700 ring-violet-200",
-  "bg-sky-100 text-sky-700 ring-sky-200",
-  "bg-amber-100 text-amber-800 ring-amber-200",
-  "bg-rose-100 text-rose-700 ring-rose-200",
-  "bg-emerald-100 text-emerald-700 ring-emerald-200",
-  "bg-orange-100 text-orange-700 ring-orange-200",
-  "bg-indigo-100 text-indigo-700 ring-indigo-200",
+const CARD_COLORS = [
+  "#7C3AED", "#0284C7", "#D97706",
+  "#DC2626", "#059669", "#EA580C", "#4F46E5",
 ];
-function avatarColor(name: string) {
-  return PALETTES[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTES.length];
+function cardColor(name: string) {
+  return CARD_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % CARD_COLORS.length];
 }
 
 function groupByCategory(list: ServiceItem[]): [string, ServiceItem[]][] {
@@ -676,30 +671,30 @@ export default function SaloonPage() {
 
       {/* ── Services ────────────────────────────────────────────────────── */}
       {activeServices.length > 0 && (
-        <section id="services" className="max-w-5xl mx-auto px-6 py-16 sm:py-20 w-full">
-          <div className="mb-10">
+        <section id="services" className="max-w-5xl mx-auto px-6 py-6 sm:py-10 w-full">
+          <div className="mb-7">
             <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>What we offer</p>
             <h2 className="text-3xl font-bold text-slate-900">Services &amp; pricing</h2>
           </div>
-          <div className="space-y-10">
+          <div className="space-y-8">
             {grouped.map(([cat, items]) => (
               <div key={cat}>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 pb-3 border-b border-slate-100 mb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 pb-2.5 border-b border-slate-200 mb-0">
                   {CATEGORY_LABEL[cat] ?? cat}
                 </h3>
                 {items.map((s) => (
-                  <div key={s.id} className="flex items-start gap-4 py-4 border-b border-slate-50 last:border-0">
+                  <div key={s.id} className="flex items-center gap-4 py-3.5 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 -mx-3 px-3 rounded-lg transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                       {s.description && (
                         <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-5 shrink-0 pt-0.5">
-                      <span className="flex items-center gap-1 text-xs text-slate-400">
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
                         <Timer className="w-3 h-3" /> {s.durationMinutes} min
                       </span>
-                      <span className="text-sm font-bold text-slate-900 min-w-[56px] text-right tabular-nums">
+                      <span className="text-sm font-bold text-slate-900 min-w-[60px] text-right tabular-nums">
                         {formatPrice(s.price, s.currency)}
                       </span>
                     </div>
@@ -714,33 +709,42 @@ export default function SaloonPage() {
       {/* ── Team ────────────────────────────────────────────────────────── */}
       {activeStaff.length > 0 && (
         <section id="team" className="bg-slate-50 border-y border-slate-100">
-          <div className="max-w-5xl mx-auto px-6 py-16 sm:py-20">
-            <div className="mb-10">
+          <div className="max-w-5xl mx-auto px-6 py-6 sm:py-10">
+            <div className="mb-7">
               <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
               <h2 className="text-3xl font-bold text-slate-900">Meet our team</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {activeStaff.map((m, i) => (
-                <div key={m.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200 flex flex-col items-center text-center hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                >
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold mb-3 ring-4 ${avatarColor(m.name)}`}>
-                    {initials(m.name)}
-                  </div>
-                  <p className="text-sm font-bold text-slate-900 leading-tight">{m.name}</p>
-                  <p className="text-[11px] text-slate-400 mt-1 font-medium uppercase tracking-wide">
-                    {STAFF_ROLE_LABEL[m.role] ?? m.role}
-                  </p>
-                  {m.specializations && m.specializations.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-1 mt-2.5">
-                      {m.specializations.slice(0, 3).map((s) => (
-                        <span key={s} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                          {CATEGORY_LABEL[s] ?? s}
-                        </span>
-                      ))}
+              {activeStaff.map((m) => (
+                <div key={m.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all group">
+                  {/* Photo banner */}
+                  <div
+                    className="h-36 flex items-center justify-center relative"
+                    style={{ backgroundColor: cardColor(m.name) }}
+                  >
+                    <span className="text-5xl font-black text-white/25 absolute select-none tracking-tight">
+                      {initials(m.name)}
+                    </span>
+                    <div className="relative z-10 w-16 h-16 rounded-full border-4 border-white/30 flex items-center justify-center">
+                      <span className="text-xl font-black text-white">{initials(m.name)}</span>
                     </div>
-                  )}
+                  </div>
+                  {/* Info */}
+                  <div className="p-4">
+                    <p className="text-sm font-bold text-slate-900 leading-tight">{m.name}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">
+                      {STAFF_ROLE_LABEL[m.role] ?? m.role}
+                    </p>
+                    {m.specializations && m.specializations.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {m.specializations.slice(0, 3).map((s) => (
+                          <span key={s} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            {CATEGORY_LABEL[s] ?? s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -749,8 +753,8 @@ export default function SaloonPage() {
       )}
 
       {/* ── Contact / Hours / Location ───────────────────────────────────── */}
-      <section id="contact" className="max-w-5xl mx-auto px-6 py-16 sm:py-20 w-full">
-        <div className="mb-10">
+      <section id="contact" className="max-w-5xl mx-auto px-6 py-6 sm:py-10 w-full">
+        <div className="mb-7">
           <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>Get in touch</p>
           <h2 className="text-3xl font-bold text-slate-900">Find us</h2>
         </div>

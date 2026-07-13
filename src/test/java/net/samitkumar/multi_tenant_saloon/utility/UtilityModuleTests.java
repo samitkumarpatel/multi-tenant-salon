@@ -32,4 +32,17 @@ class UtilityModuleTests {
                 .jsonPath("$[0].code").isNotEmpty()
                 .jsonPath("$[0].dialCode").isNotEmpty();
     }
+
+    @Test
+    void listCurrencies() {
+        client.get()
+                .uri("/api/utility/currencies")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$").isArray()
+                .jsonPath("$[0].code").isNotEmpty()
+                .jsonPath("$[0].name").isNotEmpty()
+                .jsonPath("$[0].symbol").isNotEmpty();
+    }
 }

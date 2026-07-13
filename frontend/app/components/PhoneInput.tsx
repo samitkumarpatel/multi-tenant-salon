@@ -88,12 +88,17 @@ export default function PhoneInput({ value, onChange, countries, autoFocus }: Pr
           </svg>
         </button>
 
-        {/* Local number input */}
+        {/* Local number input — digits, spaces, hyphens and parens only */}
         <input
           autoFocus={autoFocus}
           type="tel"
+          inputMode="numeric"
           value={local}
-          onChange={(e) => { setLocal(e.target.value); emit(dialCode, e.target.value); }}
+          onChange={(e) => {
+            const cleaned = e.target.value.replace(/[^\d\s\-()+]/g, "");
+            setLocal(cleaned);
+            emit(dialCode, cleaned);
+          }}
           placeholder="555 000 0000"
           className="flex-1 min-w-0 px-4 py-3 text-sm outline-none text-stone-900 placeholder:text-stone-300 bg-white rounded-r-xl"
         />
