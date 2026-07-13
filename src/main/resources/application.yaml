@@ -3,6 +3,7 @@ spring:
     name: @project.artifactId@
     utility:
       static-geo-data: classpath:data/countries.json
+      static-currency-data: classpath:data/currencies.json
   datasource:
     url: jdbc:postgresql://localhost:5432/saloon
     username: postgres

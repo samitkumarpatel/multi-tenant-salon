@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.Types;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -33,7 +34,7 @@ class WebsiteThemeService {
                 .addValue("accentColor", accentColor)
                 .addValue("fontFamily", fontFamily)
                 .addValue("logoBgColor", logoBgColor)
-                .addValue("updatedAt", Instant.now());
+                .addValue("updatedAt", Instant.now(), Types.TIMESTAMP_WITH_TIMEZONE);
 
         jdbc.update("""
                 INSERT INTO saloon_website_theme

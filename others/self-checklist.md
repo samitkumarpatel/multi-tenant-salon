@@ -1,7 +1,7 @@
 # multi-tenant-saloon checklist
 - [] Create Saloon: 
-  - [] Enable a saloon owner to create a new saloon with details such as name, location, contact information, and operating hours and can select what are the features they want to enable for their saloon.
-  - [] Create/ Manage Saloon Staff (beautician), Services and Pricing.
+  - [x] Enable a saloon owner to create a new saloon with details such as name, location, contact information, and operating hours and can select what are the features they want to enable for their saloon.
+  - [x] Create/ Manage Saloon Staff (beautician), Services and Pricing.
 - [] Calendar service: 
   - [] Beautician can create their availability in the calendar.
   - [] Customer or a staff or owner from saloon can book an appointment with a beautician based on their availability.

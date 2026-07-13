@@ -121,6 +121,22 @@ The `handler` is derived from the saloon name: lowercased, spaces replaced with 
 
 ---
 
+### Get a saloon by handler
+
+`GET /api/saloons/handler/{handler}`
+
+**Response** `200 OK` — full saloon object (same shape as [Get a saloon](#get-a-saloon))
+
+**Response** `404 Not Found` — if no saloon with that handler exists
+
+**Flow**
+
+1. `SaloonController.findByHandler(String)` → `SaloonService.findByHandler(String)` → `SaloonRepository.findByHandler(String)`
+2. **DB**: `SELECT * FROM saloon WHERE handler = ?` + child collections.
+3. `SaloonController` maps `Optional<Saloon>` → `200 OK` or `404 Not Found`.
+
+---
+
 ### Update a saloon
 
 `PUT /api/saloons/{id}`
@@ -534,6 +550,147 @@ All fields are required. `status` can be changed here (e.g. to `INACTIVE` or `ON
 2. `StaffRepository.findById(Long)` → **DB**: `SELECT * FROM staff_member WHERE id = ?` — filtered by `saloonId`. Skips delete silently if not found or wrong saloon.
 3. `StaffRepository.deleteById(Long)` → **DB**: `DELETE FROM staff_member WHERE id = ?` — `ON DELETE CASCADE` removes `staff_member_specialization` rows.
 4. Always returns `204`.
+
+---
+
+## Website Theme
+
+Theme settings are scoped to a saloon and control the visual appearance of its public-facing website. A theme is automatically initialised with sensible defaults on first read — no explicit creation step is required.
+
+### Get theme
+
+`GET /api/saloons/{id}/theme`
+
+**Response** `200 OK`
+
+```json
+{
+  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "heroBg": "#0F172A",
+  "heroTextColor": "#FFFFFF",
+  "accentColor": "#F59E0B",
+  "fontFamily": "inter",
+  "logoBgColor": "#F59E0B",
+  "updatedAt": null
+}
+```
+
+`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory).
+
+**Flow**
+
+1. `WebsiteController.getTheme(UUID)` → `WebsiteThemeService.getTheme(UUID)` → `WebsiteThemeRepository.findById(UUID)`
+2. **DB**: `SELECT * FROM saloon_website_theme WHERE saloon_id = ?`
+3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write) — `heroBg="#0F172A"`, `heroTextColor="#FFFFFF"`, `accentColor="#F59E0B"`, `fontFamily="inter"`, `logoBgColor="#F59E0B"`, `updatedAt=null`.
+
+---
+
+### Save theme
+
+`PUT /api/saloons/{id}/theme`
+
+Creates or fully replaces the theme for a saloon (`ON CONFLICT DO UPDATE`).
+
+**Request**
+
+```json
+{
+  "heroBg": "#1E293B",
+  "heroTextColor": "#F8FAFC",
+  "accentColor": "#6366F1",
+  "fontFamily": "poppins",
+  "logoBgColor": "#6366F1"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `heroBg` | string | CSS color for the hero section background |
+| `heroTextColor` | string | CSS color for hero text |
+| `accentColor` | string | Primary accent / CTA color |
+| `fontFamily` | string | Font family slug (e.g. `"inter"`, `"poppins"`) |
+| `logoBgColor` | string | Background color behind the saloon logo |
+
+**Response** `200 OK`
+
+```json
+{
+  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "heroBg": "#1E293B",
+  "heroTextColor": "#F8FAFC",
+  "accentColor": "#6366F1",
+  "fontFamily": "poppins",
+  "logoBgColor": "#6366F1",
+  "updatedAt": "2026-07-08T12:00:00Z"
+}
+```
+
+**Flow**
+
+1. `WebsiteController.saveTheme(UUID, SaveThemeRequest)` → `WebsiteThemeService.saveTheme(UUID, ...)`
+2. **DB**: `INSERT INTO saloon_website_theme (...) VALUES (...) ON CONFLICT (saloon_id) DO UPDATE SET ...` with `updated_at = NOW()`.
+3. `WebsiteThemeRepository.findById(UUID)` re-fetches the persisted row and returns `200 OK`.
+
+---
+
+## Utility
+
+### List countries
+
+`GET /api/utility/countries`
+
+Returns the full list of countries with their ISO codes and dial codes. The data is loaded from a static classpath resource at startup — no database access occurs on this endpoint.
+
+**Response** `200 OK`
+
+```json
+[
+  { "name": "United States", "code": "US", "dialCode": "+1" },
+  { "name": "India",         "code": "IN", "dialCode": "+91" }
+]
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Full country name |
+| `code` | string | ISO 3166-1 alpha-2 code |
+| `dialCode` | string | International dialling prefix (e.g. `"+1"`) |
+
+**Flow**
+
+1. `UtilityController.countries()` → `CountryService.findAll()`
+2. `CountryService` loads data from `${spring.application.utility.static-geo-data}` (a JSON classpath resource) at startup via Jackson; subsequent calls read from the in-memory list.
+3. Returns `List<Country>` — always non-null; empty if the resource contained no entries.
+
+---
+
+### List currencies
+
+`GET /api/utility/currencies`
+
+Returns the full list of ISO 4217 currencies with their codes, names, and symbols. The data is loaded from a static classpath resource at startup — no database access occurs on this endpoint.
+
+**Response** `200 OK`
+
+```json
+[
+  { "code": "USD", "name": "United States Dollar", "symbol": "$"  },
+  { "code": "EUR", "name": "Euro",                 "symbol": "€" },
+  { "code": "INR", "name": "Indian Rupee",         "symbol": "₹" }
+]
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `code` | string | ISO 4217 currency code (e.g. `"USD"`) |
+| `name` | string | Full currency name |
+| `symbol` | string | Currency symbol (e.g. `"$"`, `"€"`) |
+
+**Flow**
+
+1. `UtilityController.currencies()` → `CurrencyService.findAll()`
+2. `CurrencyService` loads data from `${spring.application.utility.static-currency-data}` (a JSON classpath resource) at startup via Jackson; subsequent calls read from the in-memory list.
+3. Returns `List<Currency>` — always non-null; empty if the resource contained no entries.
 
 ---
 
