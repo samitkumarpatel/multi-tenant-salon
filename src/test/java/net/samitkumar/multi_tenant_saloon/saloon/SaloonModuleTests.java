@@ -39,7 +39,7 @@ class SaloonModuleTests {
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.handler").isEqualTo("glamsaloon");
+                .jsonPath("$.handler").isEqualTo("glam-saloon");
     }
 
     @Test
@@ -106,6 +106,119 @@ class SaloonModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.features.length()").isEqualTo(3);
+    }
+
+    @Test
+    void getSaloonByHandler() {
+        var created = client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Handler Test",
+                            "ownerName": "Bob",
+                            "ownerEmail": "bob@test.com"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.handler").value(handler -> {
+                    client.get()
+                            .uri("/api/saloons/handler/" + handler)
+                            .exchange()
+                            .expectStatus().isOk()
+                            .expectBody()
+                            .jsonPath("$.name").isEqualTo("Handler Test");
+                });
+    }
+
+    @Test
+    void updateSaloon() {
+        var created = client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Old Name",
+                            "ownerName": "Carol",
+                            "ownerEmail": "carol@test.com"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Void.class)
+                .returnResult();
+
+        String location = created.getResponseHeaders().getLocation().getPath();
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        client.put()
+                .uri("/api/saloons/" + id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "New Name"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.name").isEqualTo("New Name");
+    }
+
+    @Test
+    void publishSaloon() {
+        var created = client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Publish Me",
+                            "ownerName": "Dave",
+                            "ownerEmail": "dave@test.com",
+                            "features": ["STATIC_WEBSITE"]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Void.class)
+                .returnResult();
+
+        String location = created.getResponseHeaders().getLocation().getPath();
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        client.post()
+                .uri("/api/saloons/" + id + "/publish")
+                .exchange()
+                .expectStatus().isAccepted();
+    }
+
+    @Test
+    void publishSaloonWithoutWebsiteFeatureReturns422() {
+        var created = client.post()
+                .uri("/api/saloons")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "No Website",
+                            "ownerName": "Eve",
+                            "ownerEmail": "eve@test.com",
+                            "features": ["BOOKING"]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Void.class)
+                .returnResult();
+
+        String location = created.getResponseHeaders().getLocation().getPath();
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        client.post()
+                .uri("/api/saloons/" + id + "/publish")
+                .exchange()
+                .expectStatus().isEqualTo(422);
     }
 
     @Test

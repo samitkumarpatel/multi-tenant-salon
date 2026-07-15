@@ -43,7 +43,7 @@ class StaffController {
 
     @GetMapping("/{staffId}")
     ResponseEntity<StaffMember> findById(@PathVariable UUID saloonId, @PathVariable Long staffId) {
-        return service.findById(saloonId, staffId)
+        return service.findByIdAndSaloonId(staffId, saloonId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

@@ -229,7 +229,7 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
 
 const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.ElementType; route?: string }[] = [
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
-  { key: "BOOKING",         label: "Booking",         hint: "Online appointment scheduling",           icon: CalendarCheck,  route: undefined },
+  { key: "BOOKING",         label: "Booking",         hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
   { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: undefined },
   { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: undefined },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: undefined },

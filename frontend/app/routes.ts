@@ -10,6 +10,8 @@ export default [
     route("services", "routes/services.tsx"),
     route("staff", "routes/staff.tsx"),
     route("website", "routes/website.tsx"),
+    route("booking", "routes/booking.tsx"),
     route("c", "routes/saloon-page.tsx"),
   ]),
+  route(":saloonId/book", "routes/book.tsx"),
 ] satisfies RouteConfig;

@@ -87,3 +87,48 @@ export interface ServiceItem {
   assignedStaffIds?: string[];
   createdAt?: string;
 }
+
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
+
+export interface Booking {
+  id: number;
+  saloonId: string;
+  serviceId: number;
+  staffId: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  status: BookingStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface AvailableSlot {
+  staffId: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface StaffAvailability {
+  id: number;
+  saloonId: string;
+  staffId: number;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  available: boolean;
+}
+
+export interface StaffAvailabilityOverride {
+  id: number;
+  saloonId: string;
+  staffId: number;
+  overrideDate: string;
+  startTime?: string;
+  endTime?: string;
+  available: boolean;
+  reason?: string;
+}

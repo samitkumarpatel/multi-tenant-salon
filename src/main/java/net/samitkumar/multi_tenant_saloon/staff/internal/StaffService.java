@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_saloon.staff.internal;
 
+import net.samitkumar.multi_tenant_saloon.staff.StaffApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
 import net.samitkumar.multi_tenant_saloon.staff.StaffRole;
 import net.samitkumar.multi_tenant_saloon.staff.StaffStatus;
@@ -11,7 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-class StaffService {
+public class StaffService implements StaffApi {
 
     private final StaffRepository repository;
 
@@ -19,11 +20,13 @@ class StaffService {
         this.repository = repository;
     }
 
-    List<StaffMember> findBySaloonId(UUID saloonId) {
+    @Override
+    public List<StaffMember> findBySaloonId(UUID saloonId) {
         return repository.findBySaloonId(saloonId);
     }
 
-    Optional<StaffMember> findById(UUID saloonId, Long staffId) {
+    @Override
+    public Optional<StaffMember> findByIdAndSaloonId(Long staffId, UUID saloonId) {
         return repository.findById(staffId).filter(m -> m.saloonId().equals(saloonId));
     }
 
