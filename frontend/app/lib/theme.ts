@@ -3,11 +3,13 @@ import type { WebsiteTheme } from "~/lib/types";
 // ── Default theme ─────────────────────────────────────────────────────────────
 
 export const DEFAULT_THEME: WebsiteTheme = {
-  heroBg: "#0F172A",
-  heroTextColor: "#FFFFFF",
-  accentColor: "#F59E0B",
-  fontFamily: "inter",
-  logoBgColor: "#F59E0B",
+  heroBg: "#F8FAFC",
+  heroTextColor: "#0F172A",
+  accentColor: "#059669",
+  fontFamily: "nunito",
+  logoBgColor: "#7C3AED",
+  headerBg: "#FFFFFF",
+  footerBg: "#1E293B",
 };
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────

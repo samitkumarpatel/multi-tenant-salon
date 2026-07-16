@@ -69,9 +69,11 @@ The `handler` is derived from the saloon name: lowercased, spaces replaced with 
 1. `SaloonController.create()` validates `@NotBlank` on `name`, `ownerName`, `ownerEmail` — returns `400` before reaching the service if any are blank.
 2. `SaloonService.create()` calls `deriveUniqueHandler(name)`: strips the name to a base slug, then checks `SaloonRepository.existsByHandler(base)`. If taken, it increments a numeric suffix (`-2`, `-3`, …) until a free handler is found. Converts `List<SaloonFeature>` → `List<SaloonFeatureRef>` and builds a `Saloon` with `id = null`.
 3. `SaloonRepository.save(Saloon)` → **DB**: `INSERT INTO saloon`, `INSERT INTO saloon_operating_hours`, `INSERT INTO saloon_feature` — all in one transaction. The database assigns the UUID via `DEFAULT gen_random_uuid()`.
-4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` → **DB**: Spring Modulith writes the event to the `event_publication` table before the transaction commits, guaranteeing delivery.
+4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` → **DB**: Spring Modulith writes the event to the `event_publication` table before the transaction commits, guaranteeing delivery. The event now includes `ownerPhone` so downstream listeners (e.g. the staff auto-enrolment listener) have the full owner contact.
 5. `SaloonController.create()` returns `201 Created` with `CreateSaloonResponse(id, handler)` and a `Location` header.
-6. After commit → **Event**: `SaloonNotificationListener.onSaloonCreated(SaloonCreatedEvent)` is invoked asynchronously by Spring Modulith.
+6. After commit → **Event** (async):
+   - `SaloonNotificationListener.onSaloonCreated(SaloonCreatedEvent)` logs the registration notice.
+   - `OwnerStaffListener.onSaloonCreated(SaloonCreatedEvent)` automatically creates a `StaffMember` for the owner (`isOwner = true`, `role = MANAGER`, `status = ACTIVE`, `availableForBooking = true`).
 
 ---
 
@@ -422,6 +424,8 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
     "phone": "+1234567890",
     "role": "STYLIST",
     "status": "ACTIVE",
+    "isOwner": false,
+    "availableForBooking": true,
     "specializations": ["coloring", "balayage"],
     "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-2.jpg"],
     "bio": "Alice has 10 years of experience in color and balayage.",
@@ -429,6 +433,8 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
   }
 ]
 ```
+
+> **Note**: When a saloon is first created, the owner is automatically enrolled as a staff member with `isOwner = true` and `availableForBooking = true`. The owner-staff entry cannot be deleted via the admin UI; the owner may toggle `availableForBooking` to opt out of the booking calendar without being removed from the roster.
 
 **Flow**
 
@@ -526,13 +532,14 @@ New staff members are set to status `ACTIVE` automatically.
   "phone": "+1234567890",
   "role": "COLORIST",
   "status": "ON_LEAVE",
+  "availableForBooking": false,
   "specializations": ["coloring", "balayage", "highlights"],
   "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-2.jpg"],
   "bio": "Alice has 10 years of experience in color and balayage."
 }
 ```
 
-All fields are required except `photoUrls` and `bio` *(planned — not yet implemented)*. `status` can be changed here (e.g. to `INACTIVE` or `ON_LEAVE`).
+All fields are required except `photoUrls` and `bio` *(planned — not yet implemented)*. `status` can be changed here (e.g. to `INACTIVE` or `ON_LEAVE`). Setting `availableForBooking` to `false` removes the staff member from slot discovery — customers will not be able to book appointments with them.
 
 **Response** `200 OK` — updated staff member object
 

@@ -111,7 +111,7 @@ class BookingService {
                     .map(s -> Long.parseLong(s.staffId()))
                     .collect(java.util.stream.Collectors.toList());
             if (staffCandidates.isEmpty()) {
-                staffCandidates = staffApi.findBySaloonId(saloonId).stream()
+                staffCandidates = staffApi.findAvailableForBookingBySaloonId(saloonId).stream()
                         .map(m -> m.id())
                         .toList();
             }

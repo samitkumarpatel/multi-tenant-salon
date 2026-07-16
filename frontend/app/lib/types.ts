@@ -2,6 +2,13 @@ export interface Country {
   name: string;
   code: string;
   dialCode: string;
+  currencyCode: string;
+}
+
+export interface Currency {
+  code: string;
+  name: string;
+  symbol: string;
 }
 
 export interface Owner {
@@ -43,7 +50,7 @@ export interface Saloon {
   createdAt?: string;
 }
 
-export type WebsiteMode = "static" | "ai";
+export type WebsiteMode = "static" | "ai" | "contact";
 
 export interface LayoutContext {
   saloon: Saloon;
@@ -60,6 +67,8 @@ export interface StaffMember {
   phone?: string;
   role: string;
   status: string;
+  isOwner?: boolean;
+  availableForBooking?: boolean;
   specializations?: string[];
   /** Single photo (legacy) — prefer photoUrls going forward */
   photoUrl?: string;
@@ -77,6 +86,10 @@ export interface WebsiteTheme {
   accentColor: string;
   fontFamily: string;
   logoBgColor: string;
+  headerBg: string;
+  footerBg: string;
+  mapsUrl?: string;
+  websiteMode?: string;
   updatedAt?: string;
 }
 

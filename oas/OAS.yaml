@@ -35,7 +35,12 @@ tags:
   - name: Services
     description: Service catalog per saloon
   - name: Staff
-    description: Staff roster per saloon
+    description: |
+      Staff roster per saloon.
+      When a saloon is created the owner is automatically enrolled as a staff member
+      (`isOwner = true`, `role = MANAGER`, `availableForBooking = true`).
+      Owner-staff entries cannot be deleted; owners may set `availableForBooking = false`
+      to opt out of the booking calendar.
   - name: Availability
     description: |
       Staff availability calendar and overrides.
@@ -1130,6 +1135,19 @@ components:
           $ref: "#/components/schemas/StaffRole"
         status:
           $ref: "#/components/schemas/StaffStatus"
+        isOwner:
+          type: boolean
+          description: >
+            True when this staff member was auto-created from the saloon owner's profile.
+            Owner-staff entries cannot be deleted; the owner may opt out of the booking
+            calendar by setting availableForBooking to false.
+          default: false
+        availableForBooking:
+          type: boolean
+          description: >
+            When false, this staff member is excluded from slot discovery and will not
+            be offered to customers during booking. Defaults to true.
+          default: true
         specializations:
           type: array
           items:
@@ -1186,6 +1204,10 @@ components:
           $ref: "#/components/schemas/StaffRole"
         status:
           $ref: "#/components/schemas/StaffStatus"
+        availableForBooking:
+          type: boolean
+          description: Set to false to remove this staff member from slot discovery
+          default: true
         specializations:
           type: array
           items:

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOutletContext, useLoaderData } from "react-router";
+import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
 import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Saloon, Location, ContactInfo, Country } from "~/lib/types";
@@ -31,8 +31,10 @@ const fieldCls = "mb-4";
 export default function Edit() {
   const { saloon, setSaloon } = useOutletContext<LayoutContext>();
   const { countries }         = useLoaderData<typeof clientLoader>();
+  const [searchParams]        = useSearchParams();
 
-  const [step, setStep] = useState(0);
+  const initialStep = Math.min(Math.max(0, Number(searchParams.get("step") ?? 0)), TOTAL - 1);
+  const [step, setStep] = useState(initialStep);
 
   const [name,     setName]     = useState(saloon.name);
   const [location, setLoc]      = useState<Location>(saloon.location  ? { ...saloon.location }  : {});
@@ -260,22 +262,27 @@ export default function Edit() {
             </button>
           ) : <span />}
 
-          {isLast ? (
+          <div className="flex items-center gap-2">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`px-4 py-2 rounded-xl text-sm font-medium active:scale-[0.97] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                isLast
+                  ? "bg-matcha-600 text-white hover:bg-matcha-700 shadow-sm px-6"
+                  : "border border-stone-200 bg-white text-stone-600 hover:border-matcha-400 hover:text-matcha-700"
+              }`}
             >
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? "Saving…" : "Save"}
             </button>
-          ) : (
-            <button
-              onClick={goNext}
-              className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
-            >
-              Next →
-            </button>
-          )}
+            {!isLast && (
+              <button
+                onClick={goNext}
+                className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
+              >
+                Next →
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

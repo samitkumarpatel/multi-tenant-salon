@@ -11,13 +11,10 @@ import { DEFAULT_THEME } from "~/lib/theme";
 import { BookingWizard } from "~/components/BookingWizard";
 import type { Saloon, ServiceItem, StaffMember, WebsiteTheme } from "~/lib/types";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.saloonId!;
-  // Resolve handler → saloon first, then use the real UUID for the rest
   const saloon = await apiFetch<Saloon>(
-    UUID_RE.test(id) ? `${API}/${id}` : `${HANDLER_API}/${id}`
+    /^\d+$/.test(id) ? `${API}/${id}` : `${HANDLER_API}/${id}`
   );
   const [services, staff, theme] = await Promise.all([
     apiFetch<ServiceItem[]>(`${API}/${saloon.id}/services`).catch((): ServiceItem[] => []),
@@ -33,7 +30,8 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
 }
 
 export default function BookRoute() {
-  const { saloon, services, staff, theme } = useLoaderData<typeof clientLoader>();
+  const { saloon, services, staff, theme: loaderTheme } = useLoaderData<typeof clientLoader>();
+  const theme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
   const params = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

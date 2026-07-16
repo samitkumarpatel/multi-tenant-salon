@@ -2,6 +2,7 @@ package net.samitkumar.multi_tenant_saloon.staff;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.MappedCollection;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -18,6 +19,8 @@ public record StaffMember(
         String phone,
         StaffRole role,
         StaffStatus status,
+        @Column("is_owner") boolean isOwner,
+        @Column("available_for_booking") boolean availableForBooking,
         @MappedCollection(idColumn = "staff_member_id") List<Specialization> specializations,
         Instant createdAt
 ) {

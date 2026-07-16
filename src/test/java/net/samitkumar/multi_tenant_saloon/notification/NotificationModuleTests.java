@@ -35,7 +35,7 @@ class NotificationModuleTests {
     @Test
     void handlesSaloonCreatedEventWithoutError() {
         var event = new SaloonCreatedEvent(
-                UUID.randomUUID(), "Test Saloon", "Jane Doe", "jane@test.com",
+                UUID.randomUUID(), "Test Saloon", "Jane Doe", "jane@test.com", "+1234567890",
                 List.of(SaloonFeature.BOOKING, SaloonFeature.STATIC_WEBSITE));
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
@@ -45,7 +45,7 @@ class NotificationModuleTests {
     @Test
     void handlesSaloonCreatedEventWithNoFeatures() {
         var event = new SaloonCreatedEvent(
-                UUID.randomUUID(), "Minimal Saloon", "Bob", "bob@min.com", List.of());
+                UUID.randomUUID(), "Minimal Saloon", "Bob", "bob@min.com", null, List.of());
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();

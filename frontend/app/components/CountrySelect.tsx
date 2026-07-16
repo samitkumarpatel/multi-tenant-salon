@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Country } from "~/lib/types";
+import { detectCountry } from "~/lib/locale";
 
 interface Props {
   value: string;
@@ -13,6 +14,12 @@ export default function CountrySelect({ value, onChange, countries, className = 
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (value || !countries.length) return;
+    const detected = detectCountry(countries);
+    if (detected) onChange(detected.name);
+  }, [countries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (open) searchRef.current?.focus();

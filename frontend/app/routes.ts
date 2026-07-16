@@ -11,6 +11,7 @@ export default [
     route("staff", "routes/staff.tsx"),
     route("website", "routes/website.tsx"),
     route("booking", "routes/booking.tsx"),
+    route("help", "routes/help.tsx"),
     route("c", "routes/saloon-page.tsx"),
   ]),
   route(":saloonId/book", "routes/book.tsx"),

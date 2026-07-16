@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useLoaderData, useLocation, useSearchParams } from "react-router";
+import { useLoaderData, useLocation, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   MapPin, Phone, Mail, Globe, Clock, Timer,
@@ -17,12 +17,11 @@ import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme } f
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.saloonId!;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const saloon = await apiFetch<Saloon>(
-    UUID_RE.test(id) ? `${API}/${id}` : `${HANDLER_API}/${id}`
+    (isUUID || /^\d+$/.test(id)) ? `${API}/${id}` : `${HANDLER_API}/${id}`
   );
   const [staff, services, theme] = await Promise.all([
     apiFetch<StaffMember[]>(`${API}/${saloon.id}/staff`).catch((): StaffMember[] => []),
@@ -331,6 +330,9 @@ function ThemePanel({
           accentColor: theme.accentColor,
           fontFamily: theme.fontFamily,
           logoBgColor: theme.logoBgColor,
+          headerBg: theme.headerBg,
+          footerBg: theme.footerBg,
+          mapsUrl: theme.mapsUrl ?? null,
         }),
       });
       setSaveState("saved");
@@ -405,6 +407,28 @@ function ThemePanel({
             onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
         </section>
 
+        {/* Header & Footer */}
+        <section>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Header &amp; Footer</p>
+          <div className="space-y-4">
+            <ColorPicker label="Header Background" value={theme.headerBg}
+              onChange={(v) => onChange({ ...theme, headerBg: v })} />
+            <ColorPicker label="Footer Background" value={theme.footerBg}
+              onChange={(v) => onChange({ ...theme, footerBg: v })} />
+            <div>
+              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1.5">Maps link URL</p>
+              <input
+                type="url"
+                className="w-full font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/20"
+                placeholder="https://maps.google.com/…"
+                value={theme.mapsUrl ?? ""}
+                onChange={(e) => onChange({ ...theme, mapsUrl: e.target.value || undefined })}
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Leave empty to use auto-generated Google Maps link.</p>
+            </div>
+          </div>
+        </section>
+
         {/* Typography */}
         <section>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
@@ -462,6 +486,94 @@ function ThemePanel({
           Save then use "Publish" in the top bar to go live.
         </p>
       </div>
+    </div>
+  );
+}
+
+// ── Shared salon error page ───────────────────────────────────────────────────
+
+export function SalonErrorPage({ is404 }: { is404: boolean }) {
+  return (
+    <div
+      className="min-h-[100dvh] relative flex flex-col items-center justify-center px-6 text-center overflow-hidden select-none"
+      style={{ backgroundColor: "#0F172A", fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <style>{`
+        @keyframes snip {
+          0%,100% { transform: rotate(-12deg) scale(1); }
+          50%      { transform: rotate(12deg)  scale(1.1); }
+        }
+        @keyframes float {
+          0%,100% { transform: translateY(0px); }
+          50%      { transform: translateY(-10px); }
+        }
+        .scissors-snip { animation: snip 2.6s ease-in-out infinite; }
+        .scissors-float { animation: float 4s ease-in-out infinite; }
+      `}</style>
+
+      {/* Diagonal stripe texture */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          opacity: 0.035,
+          backgroundImage:
+            "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+
+      {/* Scissors icon */}
+      <div className="scissors-float mb-8">
+        <div className="scissors-snip text-6xl leading-none">✂️</div>
+      </div>
+
+      {/* Large outlined number */}
+      <p
+        className="font-black leading-none mb-3 pointer-events-none"
+        style={{
+          fontSize: "clamp(88px,22vw,172px)",
+          color: "transparent",
+          WebkitTextStroke: "2px #1E293B",
+          letterSpacing: "-6px",
+        }}
+      >
+        {is404 ? "404" : "500"}
+      </p>
+
+      {/* Headline */}
+      <h1 className="text-xl sm:text-2xl font-bold text-white mb-3 leading-snug">
+        {is404 ? "This chair's vacant." : "Something snapped."}
+      </h1>
+
+      {/* Description */}
+      <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
+        {is404
+          ? "We couldn't find the salon you're looking for. The link might be wrong, or the salon may have moved."
+          : "An unexpected error occurred while loading this page. Refresh or try again in a moment."}
+      </p>
+
+      {/* Actions */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white text-slate-900 text-sm font-semibold no-underline hover:opacity-90 transition-opacity"
+        >
+          ← Go home
+        </a>
+        {!is404 && (
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-slate-700 text-slate-300 text-sm font-semibold hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            ↻ Try again
+          </button>
+        )}
+      </div>
+
+      {/* Bottom tagline */}
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">
+        my-saloon.dk
+      </p>
     </div>
   );
 }
@@ -593,13 +705,16 @@ function PreviewBanner({
   handler,
   saloonId,
   onDesign,
+  hasChanges,
+  onPublished,
 }: {
   handler: string;
   saloonId: string;
   onDesign: () => void;
+  hasChanges: boolean;
+  onPublished: () => void;
 }) {
-  const [dismissed, setDismissed] = useState(false);
-  const [publish, setPublish]     = useState<PublishState>("idle");
+  const [publish, setPublish] = useState<PublishState>("idle");
 
   async function handlePublish() {
     setPublish("loading");
@@ -607,13 +722,13 @@ function PreviewBanner({
       const res = await fetch(`${API}/${saloonId}/publish`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPublish("done");
+      onPublished();
+      setTimeout(() => setPublish("idle"), 2500);
     } catch {
       setPublish("error");
       setTimeout(() => setPublish("idle"), 3000);
     }
   }
-
-  if (dismissed) return null;
 
   return (
     <div className="bg-slate-950 text-white px-4 py-2.5 flex items-center justify-between gap-4 text-xs" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -634,11 +749,12 @@ function PreviewBanner({
           <Palette className="w-3 h-3" /> Design
         </button>
 
-{/* Publish */}
+        {/* Publish — enabled only when there are changes since the last publish */}
         <button
           onClick={handlePublish}
-          disabled={publish === "loading" || publish === "done"}
-          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer disabled:cursor-default ${
+          disabled={!hasChanges || publish === "loading"}
+          title={!hasChanges ? "No changes to publish" : undefined}
+          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
             publish === "done"
               ? "bg-emerald-600 text-white"
               : publish === "error"
@@ -656,13 +772,22 @@ function PreviewBanner({
             <><Rocket className="w-3 h-3" /> Publish</>
           )}
         </button>
-
-        <button onClick={() => setDismissed(true)} className="text-slate-500 hover:text-slate-300 cursor-pointer ml-1">
-          <X className="w-3.5 h-3.5" />
-        </button>
       </div>
     </div>
   );
+}
+
+// ── Error boundary ────────────────────────────────────────────────────────────
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const is404 =
+    isRouteErrorResponse(error)
+      ? error.status === 404
+      : error instanceof Error
+      ? /HTTP 404|not found/i.test(error.message)
+      : false;
+  return <SalonErrorPage is404={is404} />;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -676,7 +801,12 @@ export default function SaloonPage() {
   const bookUrl      = "#book";
 
   const [showDesign, setShowDesign] = useState(() => isPreview && searchParams.get("design") === "1");
-  const [theme, setTheme]           = useState<WebsiteTheme>(loaderTheme ?? DEFAULT_THEME);
+  // Merge loaded theme over defaults so new fields (headerBg, footerBg, etc.) always have a value
+  const initialTheme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
+  const [theme, setTheme]           = useState<WebsiteTheme>(initialTheme);
+  // Tracks the last published/loaded state so Publish is only enabled when something changed
+  const [baseTheme, setBaseTheme]   = useState<WebsiteTheme>(initialTheme);
+  const hasChanges = JSON.stringify(theme) !== JSON.stringify(baseTheme);
 
   // Interactive state
   const [selectedCat, setSelectedCat]   = useState<string | null>(null);
@@ -740,6 +870,20 @@ export default function SaloonPage() {
   // Smart contrast — derived from hero background & accent (admin still controls base colors)
   const heroLight  = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
+
+  // Header tones
+  const headerBg     = theme.headerBg ?? "#FFFFFF";
+  const headerIsLight = isLightColor(headerBg);
+  const headerText   = headerIsLight ? "#0F172A" : "#FFFFFF";
+  const headerBorder = headerIsLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)";
+
+  // Footer tones
+  const footerBg     = theme.footerBg ?? "#1E293B";
+  const footerIsLight = isLightColor(footerBg);
+  const footerText   = footerIsLight ? "#374151" : "#CBD5E1";
+  const footerBright = footerIsLight ? "#111827" : "#FFFFFF";
+  const footerDim    = footerIsLight ? "#9CA3AF" : "#64748B";
+  const footerBorder = footerIsLight ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.08)";
   const hero = {
     sub:        heroLight ? "#475569" : "#94A3B8",
     subMuted:   heroLight ? "#64748B" : "#64748B",
@@ -767,6 +911,8 @@ export default function SaloonPage() {
             handler={saloon.handler ?? saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}
             saloonId={String(saloon.id)}
             onDesign={() => setShowDesign((v) => !v)}
+            hasChanges={hasChanges}
+            onPublished={() => setBaseTheme(theme)}
           />
         )}
         {isPreview && showDesign && (
@@ -802,6 +948,8 @@ export default function SaloonPage() {
             handler={saloon.handler ?? saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}
             saloonId={String(saloon.id)}
             onDesign={() => setShowDesign((v) => !v)}
+            hasChanges={hasChanges}
+            onPublished={() => setBaseTheme(theme)}
           />
         )}
         {isPreview && showDesign && (
@@ -830,6 +978,8 @@ export default function SaloonPage() {
           handler={saloon.handler ?? saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}
           saloonId={String(saloon.id)}
           onDesign={() => setShowDesign((v) => !v)}
+          hasChanges={hasChanges}
+          onPublished={() => setBaseTheme(theme)}
         />
       )}
       {isPreview && showDesign && (
@@ -842,7 +992,7 @@ export default function SaloonPage() {
       )}
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100">
+      <header className="sticky top-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
           <div className="flex items-center gap-8 min-w-0">
             <a href="#top" className="flex items-center gap-2 no-underline group shrink-0">
@@ -852,7 +1002,7 @@ export default function SaloonPage() {
               >
                 <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(saloon.name)}</span>
               </div>
-              <span className="text-sm font-bold text-slate-900">{saloon.name}</span>
+              <span className="text-sm font-bold" style={{ color: headerText }}>{saloon.name}</span>
             </a>
 
             {featurePages.length > 0 && (
@@ -1348,7 +1498,7 @@ export default function SaloonPage() {
       </div>
 
       {/* ── Footer (contact / hours / address) ──────────────────────────── */}
-      <footer id="contact" className="mt-auto bg-slate-900 text-slate-300 scroll-mt-16">
+      <footer id="contact" className="mt-auto scroll-mt-16" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
         <div className="max-w-5xl mx-auto px-6 py-10 sm:py-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
@@ -1363,9 +1513,9 @@ export default function SaloonPage() {
                     {initials(saloon.name)}
                   </span>
                 </div>
-                <span className="text-sm font-bold text-white">{saloon.name}</span>
+                <span className="text-sm font-bold" style={{ color: footerBright }}>{saloon.name}</span>
               </div>
-              {city && <p className="text-xs text-slate-400 leading-relaxed">{city}</p>}
+              {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
               {hasBooking && (
                 <a
                   href={bookUrl}
@@ -1380,7 +1530,7 @@ export default function SaloonPage() {
             {/* Opening hours */}
             {openHours.length > 0 && (
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
                   <Clock className="w-3.5 h-3.5" /> Opening hours
                 </h3>
                 <div className="space-y-1">
@@ -1389,8 +1539,8 @@ export default function SaloonPage() {
                     return (
                       <div
                         key={h.day}
-                        className={`flex items-center gap-3 text-xs ${isToday ? "font-semibold" : "text-slate-400"}`}
-                        style={isToday ? { color: theme.accentColor } : {}}
+                        className={`flex items-center gap-3 text-xs ${isToday ? "font-semibold" : ""}`}
+                        style={isToday ? { color: theme.accentColor } : { color: footerDim }}
                       >
                         <span className="w-8 shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
                         <span className="font-mono">{h.openTime}–{h.closeTime}</span>
@@ -1405,23 +1555,23 @@ export default function SaloonPage() {
             {/* Contact */}
             {saloon.contact && (saloon.contact.phone || saloon.contact.email || saloon.contact.website) && (
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
                   <Phone className="w-3.5 h-3.5" /> Contact
                 </h3>
                 <div className="flex flex-col gap-2.5">
                   {saloon.contact.phone && (
-                    <a href={`tel:${saloon.contact.phone}`} className="flex items-center gap-2.5 no-underline text-xs text-slate-300 hover:text-white transition-colors">
-                      <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" /> {saloon.contact.phone}
+                    <a href={`tel:${saloon.contact.phone}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
+                      <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> {saloon.contact.phone}
                     </a>
                   )}
                   {saloon.contact.email && (
-                    <a href={`mailto:${saloon.contact.email}`} className="flex items-center gap-2.5 no-underline text-xs text-slate-300 hover:text-white transition-colors">
-                      <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" /> <span className="truncate">{saloon.contact.email}</span>
+                    <a href={`mailto:${saloon.contact.email}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
+                      <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{saloon.contact.email}</span>
                     </a>
                   )}
                   {saloon.contact.website && (
-                    <a href={saloon.contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 no-underline text-xs text-slate-300 hover:text-white transition-colors">
-                      <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" /> <span className="truncate">{saloon.contact.website}</span>
+                    <a href={saloon.contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
+                      <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{saloon.contact.website}</span>
                     </a>
                   )}
                 </div>
@@ -1431,22 +1581,22 @@ export default function SaloonPage() {
             {/* Address */}
             {saloon.location && (saloon.location.address || saloon.location.city) && (
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
                   <MapPin className="w-3.5 h-3.5" /> Find us
                 </h3>
                 <address className="not-italic flex flex-col gap-0.5 text-xs">
-                  {saloon.location.address && <p className="font-semibold text-slate-200">{saloon.location.address}</p>}
+                  {saloon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{saloon.location.address}</p>}
                   {(saloon.location.zipCode || saloon.location.city) && (
-                    <p className="text-slate-400">
+                    <p style={{ color: footerDim }}>
                       {[saloon.location.zipCode, saloon.location.city].filter(Boolean).join(" ")}
                       {saloon.location.state ? `, ${saloon.location.state}` : ""}
                     </p>
                   )}
-                  {saloon.location.country && <p className="text-slate-500">{saloon.location.country}</p>}
+                  {saloon.location.country && <p style={{ color: footerDim }}>{saloon.location.country}</p>}
                 </address>
                 {saloon.location.address && (
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    href={theme.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
                       [saloon.location.address, saloon.location.zipCode, saloon.location.city, saloon.location.country].filter(Boolean).join(", ")
                     )}`}
                     target="_blank" rel="noopener noreferrer"
@@ -1460,13 +1610,14 @@ export default function SaloonPage() {
             )}
           </div>
 
-          <div className="mt-10 pt-5 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[11px] text-slate-500">
+          <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
+            <p className="text-[11px]" style={{ color: footerDim }}>
               © {new Date().getFullYear()} {saloon.name} · All rights reserved.
             </p>
             <button
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer inline-flex items-center gap-1"
+              className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1"
+              style={{ color: footerDim }}
             >
               Back to top <ArrowUp className="w-3 h-3" />
             </button>

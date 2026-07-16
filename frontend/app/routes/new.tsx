@@ -54,7 +54,7 @@ function emptyForm(): FormState {
     location: { address: "", city: "", state: "", country: "", zipCode: "" },
     contact:  { phone: "", email: "", website: "" },
     hours:    defaultHours(),
-    features: [],
+    features: ["STATIC_WEBSITE"],
   };
 }
 

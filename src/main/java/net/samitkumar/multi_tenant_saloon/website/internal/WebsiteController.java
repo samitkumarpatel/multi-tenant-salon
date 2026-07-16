@@ -21,8 +21,13 @@ class WebsiteController {
             String heroTextColor,
             String accentColor,
             String fontFamily,
-            String logoBgColor
+            String logoBgColor,
+            String headerBg,
+            String footerBg,
+            String mapsUrl
     ) {}
+
+    record WebsiteModeRequest(String websiteMode) {}
 
     @GetMapping("/{id}/theme")
     WebsiteTheme getTheme(@PathVariable UUID id) {
@@ -32,7 +37,13 @@ class WebsiteController {
     @PutMapping("/{id}/theme")
     ResponseEntity<WebsiteTheme> saveTheme(@PathVariable UUID id, @RequestBody SaveThemeRequest req) {
         var theme = service.saveTheme(id, req.heroBg(), req.heroTextColor(),
-                req.accentColor(), req.fontFamily(), req.logoBgColor());
+                req.accentColor(), req.fontFamily(), req.logoBgColor(),
+                req.headerBg(), req.footerBg(), req.mapsUrl());
         return ResponseEntity.ok(theme);
+    }
+
+    @PatchMapping("/{id}/website-mode")
+    ResponseEntity<WebsiteTheme> updateWebsiteMode(@PathVariable UUID id, @RequestBody WebsiteModeRequest req) {
+        return ResponseEntity.ok(service.updateWebsiteMode(id, req.websiteMode()));
     }
 }

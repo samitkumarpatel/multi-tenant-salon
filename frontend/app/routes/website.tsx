@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useOutletContext } from "react-router";
 import {
-  Monitor, Wand2, Check, Zap, ExternalLink,
+  Monitor, Wand2, Zap, ExternalLink, Eye,
   Sparkles, User, ChevronRight, Loader, RefreshCw,
+  Handshake, Mail,
 } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
 
@@ -143,62 +144,101 @@ function McpMockPanel({ saloonName }: { saloonName: string }) {
 
 // ── Selectable card shell ─────────────────────────────────────────────────────
 
+type Accent = "amber" | "violet" | "matcha";
+
+const ACCENT: Record<Accent, {
+  border: string; bg: string; iconBg: string; iconBgSelected: string;
+  iconBorder: string; badge: string; divider: string; check: string;
+}> = {
+  amber: {
+    border: "border-amber-400", bg: "bg-amber-50/50",
+    iconBg: "bg-amber-50", iconBgSelected: "bg-amber-100", iconBorder: "border-amber-100",
+    badge: "bg-amber-100 text-amber-700 border-amber-200",
+    divider: "border-amber-100", check: "text-amber-500",
+  },
+  violet: {
+    border: "border-violet-400", bg: "bg-violet-50/50",
+    iconBg: "bg-violet-50", iconBgSelected: "bg-violet-100", iconBorder: "border-violet-100",
+    badge: "bg-violet-100 text-violet-700 border-violet-200",
+    divider: "border-violet-100", check: "text-violet-400",
+  },
+  matcha: {
+    border: "border-matcha-400", bg: "bg-matcha-50/50",
+    iconBg: "bg-matcha-50", iconBgSelected: "bg-matcha-100", iconBorder: "border-matcha-100",
+    badge: "bg-matcha-100 text-matcha-700 border-matcha-200",
+    divider: "border-matcha-100", check: "text-matcha-600",
+  },
+};
+
 interface ModeCardProps {
   id: Mode;
   active: Mode | null;
   onSelect: (m: Mode) => void;
-  accent: "amber" | "violet";
+  accent: Accent;
   icon: React.ReactNode;
   title: string;
   badge: string;
   description: string;
   features: string[];
-  checkColor: string;
+  disabled?: boolean;
   children: React.ReactNode;
 }
 
-function ModeCard({ id, active, onSelect, accent, icon, title, badge, description, features, checkColor, children }: ModeCardProps) {
+function ModeCard({ id, active, onSelect, accent, icon, title, badge, description, features, disabled, children }: ModeCardProps) {
   const selected = active === id;
-  const borderClass = selected
-    ? accent === "amber" ? "border-amber-400" : "border-violet-400"
-    : "border-slate-200";
-  const bgClass = selected
-    ? accent === "amber" ? "bg-amber-50/50" : "bg-violet-50/50"
-    : "bg-white";
-  const iconBgClass = selected
-    ? accent === "amber" ? "bg-amber-100" : "bg-violet-100"
-    : accent === "amber" ? "bg-amber-50" : "bg-violet-50";
-  const badgeClass = accent === "amber"
-    ? "bg-amber-100 text-amber-700 border-amber-200"
-    : "bg-violet-100 text-violet-700 border-violet-200";
+  const a = ACCENT[accent];
+
+  if (disabled) {
+    return (
+      <div className="rounded-2xl border-2 border-slate-200 bg-white opacity-50 cursor-not-allowed select-none">
+        <div className="p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${a.iconBg} ${a.iconBorder}`}>
+              {icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <h2 className="text-base font-bold text-slate-900">{title}</h2>
+                <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-slate-100 text-slate-400 border-slate-200">
+                  Coming Soon
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+              <ul className="mt-3 space-y-1">
+                {features.map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-xs text-slate-400">
+                    <span className="w-3 h-3 shrink-0">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`rounded-2xl border-2 transition-all duration-200 overflow-hidden ${borderClass} ${bgClass}`}>
-      {/* Header — always visible, clickable */}
-      <button
-        onClick={() => onSelect(id)}
-        className="w-full text-left p-5 sm:p-6 cursor-pointer"
-      >
+    <div className={`rounded-2xl border-2 transition-all duration-200 overflow-hidden ${selected ? a.border : "border-slate-200"} ${selected ? a.bg : "bg-white"}`}>
+      <button onClick={() => onSelect(id)} className="w-full text-left p-5 sm:p-6 cursor-pointer">
         <div className="flex items-start gap-4">
-          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${iconBgClass} ${accent === "amber" ? "border-amber-100" : "border-violet-100"}`}>
+          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${selected ? a.iconBgSelected : a.iconBg} ${a.iconBorder}`}>
             {icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <h2 className="text-base font-bold text-slate-900">{title}</h2>
-              <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${badgeClass}`}>
+              <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${a.badge}`}>
                 {badge}
               </span>
-              {selected && (
-                <span className="ml-auto text-[10px] font-semibold text-slate-400">Selected ✓</span>
-              )}
+              {selected && <span className="ml-auto text-[10px] font-semibold text-slate-400">Selected ✓</span>}
             </div>
             <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
             {!selected && (
               <ul className="mt-3 space-y-1">
                 {features.map((f) => (
-                  <li key={f} className={`flex items-center gap-2 text-xs text-slate-500`}>
-                    <span className={`w-3 h-3 shrink-0 ${checkColor}`}>✓</span> {f}
+                  <li key={f} className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className={`w-3 h-3 shrink-0 ${a.check}`}>✓</span> {f}
                   </li>
                 ))}
               </ul>
@@ -207,9 +247,8 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, descriptio
         </div>
       </button>
 
-      {/* Expanded content */}
       {selected && (
-        <div className={`border-t px-5 sm:px-6 py-5 space-y-4 ${accent === "amber" ? "border-amber-100" : "border-violet-100"}`}>
+        <div className={`border-t px-5 sm:px-6 py-5 space-y-4 ${a.divider}`}>
           {children}
         </div>
       )}
@@ -227,11 +266,24 @@ export default function WebsiteManagement() {
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-7">
-        <h1 className="text-xl font-bold text-slate-900">Customer Website</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Choose how to present <span className="font-medium text-slate-700">{saloon.name}</span> to visitors online.
-        </p>
+      <div className="mb-7 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Customer Website</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Choose how to present <span className="font-medium text-slate-700">{saloon.name}</span> to visitors online.
+          </p>
+        </div>
+        {saloon.handler && (
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors no-underline"
+          >
+            <Eye className="w-3 h-3" />
+            Preview site
+          </a>
+        )}
       </div>
 
       <div className="flex flex-col gap-4">
@@ -246,9 +298,7 @@ export default function WebsiteManagement() {
           badge="Live"
           description="A clean, customisable page with your salon's services, team, hours, and contact details."
           features={["Services & pricing", "Team profiles", "Location & hours", "Design customisation"]}
-          checkColor="text-amber-500"
         >
-          {/* Expanded: CTA + live preview iframe */}
           <div className="flex items-center gap-3 flex-wrap">
             <a
               href={designUrl}
@@ -267,28 +317,6 @@ export default function WebsiteManagement() {
               View live page ↗
             </a>
           </div>
-
-          {/* Live preview iframe */}
-          <div className="rounded-xl border border-amber-100 overflow-hidden bg-white">
-            <div className="bg-slate-100 border-b border-slate-200 px-3 py-1.5 flex items-center gap-2">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 rounded-full bg-red-400" />
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-              </div>
-              <span className="text-[10px] text-slate-400 font-mono flex-1 truncate">
-                {typeof window !== "undefined" ? `${window.location.origin}${previewUrl}` : previewUrl}
-              </span>
-            </div>
-            <div className="relative w-full" style={{ paddingBottom: "62.5%" }}>
-              <iframe
-                src={previewUrl}
-                title="Website preview"
-                className="absolute inset-0 w-full h-full border-0"
-                loading="lazy"
-              />
-            </div>
-          </div>
         </ModeCard>
 
         <ModeCard
@@ -296,19 +324,52 @@ export default function WebsiteManagement() {
           active={mode}
           onSelect={setMode}
           accent="violet"
+          disabled
           icon={<Wand2 className="w-5 h-5 text-violet-600" />}
-          title="AI-Generated per Customer"
+          title="Generative UI"
           badge="MCP · Preview"
-          description="MCP-powered pages that generate a unique experience tailored to each visitor's history and preferences."
+          description="Delivers a unique, AI-crafted page to every visitor — tailored to their visit history, preferences, and real-time context."
           features={[
             "Personalised content per visitor",
             "AI-curated service recommendations",
             "Dynamic promotions & loyalty offers",
             "Booking intelligence",
           ]}
-          checkColor="text-violet-400"
         >
           <McpMockPanel saloonName={saloon.name} />
+        </ModeCard>
+
+        <ModeCard
+          id="contact"
+          active={mode}
+          onSelect={setMode}
+          accent="matcha"
+          disabled
+          icon={<Handshake className="w-5 h-5 text-matcha-600" />}
+          title="Contact Us"
+          badge="Bespoke"
+          description="Have a specific vision in mind? Tell us what you need and our team will design and build a website crafted exactly to your expectations — no templates, no compromises."
+          features={[
+            "Dedicated design consultation",
+            "Custom layout & branding",
+            "Built to your exact specification",
+            "Ongoing support & updates",
+          ]}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Share your ideas, inspirations, or requirements and we'll take it from there. One of our web specialists will reach out within one business day to get started.
+            </p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <a
+                href="mailto:contact@my-saloon.dk?subject=Custom website enquiry"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-matcha-600 hover:bg-matcha-700 text-white text-sm font-semibold transition-colors no-underline"
+              >
+                <Mail className="w-3.5 h-3.5" /> Send us a message
+              </a>
+              <span className="text-xs text-slate-400">We typically respond within 24 hours.</span>
+            </div>
+          </div>
         </ModeCard>
 
       </div>
