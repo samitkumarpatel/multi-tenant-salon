@@ -361,7 +361,7 @@ paths:
     put:
       tags: [Staff, Admin]
       summary: Update a staff member
-      description: Admin-only. Updates name, contact details, role, status, and specializations for a staff member within the admin's saloon.
+      description: Admin-only. Updates name, contact details, role, status, specializations, photos, and bio for a staff member within the admin's saloon.
       operationId: updateStaffMember
       requestBody:
         required: true
@@ -1135,6 +1135,15 @@ components:
           items:
             type: string
           description: Serialized as a flat array of specialization strings
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: One or more photo URLs of the staff member, shown on the public website
+        bio:
+          type: string
+          description: Short bio / description of the staff member, shown on the public website
         createdAt:
           type: string
           format: date-time
@@ -1155,6 +1164,13 @@ components:
           type: array
           items:
             type: string
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        bio:
+          type: string
 
     UpdateStaffRequest:
       type: object
@@ -1174,6 +1190,13 @@ components:
           type: array
           items:
             type: string
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        bio:
+          type: string
 
     StaffRole:
       type: string

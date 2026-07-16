@@ -423,6 +423,8 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
     "role": "STYLIST",
     "status": "ACTIVE",
     "specializations": ["coloring", "balayage"],
+    "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-2.jpg"],
+    "bio": "Alice has 10 years of experience in color and balayage.",
     "createdAt": "2026-07-08T10:00:00Z"
   }
 ]
@@ -448,7 +450,9 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
   "email": "alice@glamsaloon.com",
   "phone": "+1234567890",
   "role": "STYLIST",
-  "specializations": ["coloring", "balayage"]
+  "specializations": ["coloring", "balayage"],
+  "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg"],
+  "bio": "Alice has 10 years of experience in color and balayage."
 }
 ```
 
@@ -459,6 +463,8 @@ Staff members are scoped to a saloon via the path. A member can only be retrieve
 | `phone` | string | no | |
 | `role` | string | yes | See [StaffRole](#staffrole) values |
 | `specializations` | array | no | Free-text strings |
+| `photoUrls` | array | no | One or more photo URLs shown on the public website *(planned — not yet implemented)* |
+| `bio` | string | no | Short bio / description shown on the public website *(planned — not yet implemented)* |
 
 New staff members are set to status `ACTIVE` automatically.
 
@@ -476,6 +482,8 @@ New staff members are set to status `ACTIVE` automatically.
   "role": "STYLIST",
   "status": "ACTIVE",
   "specializations": ["coloring", "balayage"],
+  "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg"],
+  "bio": "Alice has 10 years of experience in color and balayage.",
   "createdAt": "2026-07-08T10:00:00Z"
 }
 ```
@@ -518,11 +526,13 @@ New staff members are set to status `ACTIVE` automatically.
   "phone": "+1234567890",
   "role": "COLORIST",
   "status": "ON_LEAVE",
-  "specializations": ["coloring", "balayage", "highlights"]
+  "specializations": ["coloring", "balayage", "highlights"],
+  "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-2.jpg"],
+  "bio": "Alice has 10 years of experience in color and balayage."
 }
 ```
 
-All fields are required. `status` can be changed here (e.g. to `INACTIVE` or `ON_LEAVE`).
+All fields are required except `photoUrls` and `bio` *(planned — not yet implemented)*. `status` can be changed here (e.g. to `INACTIVE` or `ON_LEAVE`).
 
 **Response** `200 OK` — updated staff member object
 

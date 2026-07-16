@@ -61,6 +61,12 @@ export interface StaffMember {
   role: string;
   status: string;
   specializations?: string[];
+  /** Single photo (legacy) — prefer photoUrls going forward */
+  photoUrl?: string;
+  /** One or more photos of the staff member */
+  photoUrls?: string[];
+  /** Short bio / description shown on the website */
+  bio?: string;
   createdAt?: string;
 }
 
