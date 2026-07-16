@@ -1,17 +1,20 @@
 import React, { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate, useMatch } from "react-router";
+import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Eye, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift } from "lucide-react";
-import { API, HANDLER_API, apiFetch } from "~/lib/api";
-import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { SalonErrorPage } from "~/routes/saloon-page";
+import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
+import { API, HANDLER_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
+import type { Saloon, LayoutContext, WebsiteMode, WebsiteTheme } from "~/lib/types";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const { saloonId } = params;
-  const url = UUID_RE.test(saloonId!) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
-  return apiFetch<Saloon>(url);
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId!);
+  const url = (isUUID || /^\d+$/.test(saloonId!)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
+  const saloon = await apiFetch<Saloon>(url);
+  cacheSaloonUUID(saloonId!, String(saloon.id));
+  const theme = await apiFetch<WebsiteTheme>(`${API}/${saloon.id}/theme`).catch(() => null);
+  return { saloon, initialWebsiteMode: (theme?.websiteMode ?? null) as WebsiteMode | null };
 }
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -229,17 +232,72 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
 
 const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.ElementType; route?: string }[] = [
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
-  { key: "BOOKING",         label: "Booking",         hint: "Online appointment scheduling",           icon: CalendarCheck,  route: undefined },
+  { key: "BOOKING",         label: "Calendar",        hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
   { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: undefined },
   { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: undefined },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: undefined },
   { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: undefined },
 ];
 
+// ── Error boundary ────────────────────────────────────────────────────────────
+
+export function ErrorBoundary() {
+  const error    = useRouteError();
+  const { pathname } = useLocation();
+  const isPublic = pathname.endsWith("/c");
+
+  const is404 =
+    isRouteErrorResponse(error)
+      ? error.status === 404
+      : error instanceof Error
+      ? /HTTP 404|not found/i.test(error.message)
+      : false;
+
+  if (isPublic) {
+    return <SalonErrorPage is404={is404} />;
+  }
+
+  // Admin shell error — clean but minimal
+  return (
+    <div
+      className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-5">
+        <span className="text-2xl">✂️</span>
+      </div>
+      <h1 className="text-lg font-bold text-slate-800 mb-2">
+        {is404 ? "Saloon not found" : "Something went wrong"}
+      </h1>
+      <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-6">
+        {is404
+          ? "This saloon doesn't exist or the link is incorrect."
+          : "An error occurred while loading this page."}
+      </p>
+      <div className="flex gap-3">
+        <a
+          href="/"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium no-underline hover:bg-slate-700 transition-colors"
+        >
+          ← Go home
+        </a>
+        {!is404 && (
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            ↻ Retry
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const initial  = useLoaderData<typeof clientLoader>();
+  const { saloon: initial, initialWebsiteMode } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
   const [saloon, setSaloon]             = useState<Saloon>(initial);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -248,15 +306,16 @@ export default function Layout() {
   const [authed, setAuthed]             = useState(() =>
     Boolean(sessionStorage.getItem(`saloon-auth:${initial.id}`))
   );
-  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(() => {
-    const stored = localStorage.getItem(`saloon-website-mode:${initial.id}`);
-    return stored === "static" || stored === "ai" ? stored : null;
-  });
+  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(initialWebsiteMode);
 
   function setWebsiteMode(m: WebsiteMode | null) {
     setWebsiteModeState(m);
-    if (m) localStorage.setItem(`saloon-website-mode:${initial.id}`, m);
-    else localStorage.removeItem(`saloon-website-mode:${initial.id}`);
+    if (m) {
+      apiFetch(`${API}/${initial.id}/website-mode`, {
+        method: "PATCH",
+        body: JSON.stringify({ websiteMode: m }),
+      }).catch(() => {});
+    }
   }
 
   const ctx: LayoutContext = { saloon, setSaloon, websiteMode, setWebsiteMode };
@@ -343,24 +402,6 @@ export default function Layout() {
 
         {/* Right actions */}
         <div className="ml-auto flex items-center gap-2">
-          {saloon.handler && saloon.features?.includes("STATIC_WEBSITE") && websiteMode !== "ai" && (
-            <Link
-              to={`/${saloon.handler}/c`}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors no-underline"
-            >
-              <Eye className="w-3 h-3" />
-              <span className="hidden md:inline">Preview site</span>
-            </Link>
-          )}
-          {saloon.handler && saloon.features?.includes("STATIC_WEBSITE") && websiteMode === "ai" && (
-            <NavLink
-              to="website"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-violet-200 text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors no-underline"
-            >
-              <Eye className="w-3 h-3" />
-              <span className="hidden md:inline">MCP Preview</span>
-            </NavLink>
-          )}
           <button
             onClick={handleLogout}
             className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
@@ -453,6 +494,9 @@ export default function Layout() {
 
           {/* Sidebar footer */}
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
+            <NavLink to="help" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+              <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support
+            </NavLink>
             <button
               onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
               className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"

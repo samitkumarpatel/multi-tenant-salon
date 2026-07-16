@@ -114,21 +114,18 @@ export default function Home() {
               </div>
             </Link>
 
-            <Link
-              to="/customer"
-              className="group flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-8 no-underline transition-all duration-200 hover:border-matcha-400 hover:shadow-[0_0_0_4px_rgba(86,115,48,0.10)] hover:-translate-y-0.5"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center mb-6 group-hover:bg-stone-100 transition-colors">
-                <Users className="w-6 h-6 text-stone-500" />
+            <div className="relative flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-8 opacity-50 cursor-not-allowed select-none">
+              <div className="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center mb-6">
+                <Users className="w-6 h-6 text-stone-400" />
               </div>
-              <p className="text-2xl font-bold text-stone-900 mb-1">I'm a customer</p>
-              <p className="text-sm text-stone-500 leading-relaxed flex-1">
+              <p className="text-2xl font-bold text-stone-400 mb-1">I'm a customer</p>
+              <p className="text-sm text-stone-400 leading-relaxed flex-1">
                 Find a saloon near you, browse services and prices, and book your next appointment.
               </p>
-              <div className="flex items-center gap-1.5 mt-8 text-sm font-semibold text-matcha-600 group-hover:gap-2.5 transition-all">
-                Browse saloons <ArrowRight className="w-4 h-4" />
+              <div className="flex items-center gap-1.5 mt-8 text-sm font-semibold text-stone-400">
+                Coming soon
               </div>
-            </Link>
+            </div>
 
           </div>
         </div>

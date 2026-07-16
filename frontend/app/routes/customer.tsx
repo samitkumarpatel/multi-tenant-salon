@@ -48,7 +48,7 @@ function SaloonCard({ saloon: s }: { saloon: Saloon }) {
 
       <div className="px-5 pb-5">
         <Link
-          to={`/${s.id}`}
+          to={hasBooking ? `/${s.id}/book` : `/${s.id}`}
           className="block text-center w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors no-underline"
         >
           {hasBooking ? "Book now" : "Visit saloon"}

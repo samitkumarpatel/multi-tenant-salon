@@ -1,6 +1,7 @@
 import { useOutletContext } from "react-router";
 import { Link } from "react-router";
-import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight } from "lucide-react";
+import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check } from "lucide-react";
+import { useState } from "react";
 import type { LayoutContext } from "~/lib/types";
 import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
 import InfoBar from "~/components/InfoBar";
@@ -16,6 +17,14 @@ const FEATURE_HINTS: Record<string, string> = {
 
 export default function Manage() {
   const { saloon } = useOutletContext<LayoutContext>();
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copyToClipboard(value: string, key: string) {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 1500);
+    });
+  }
 
   const openHours     = saloon.operatingHours?.filter((h) => !h.closed) ?? [];
   const enabledKeys   = new Set(saloon.features ?? []);
@@ -31,6 +40,43 @@ export default function Manage() {
     </div>
 
     <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+
+      {/* Saloon Identity */}
+      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
+          <Hash className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Saloon Identity</span>
+        </div>
+        <div className="flex gap-3 py-1 text-sm items-center">
+          <span className="text-xs text-slate-400 min-w-[64px] shrink-0">ID</span>
+          <span className="font-mono text-xs text-slate-600 truncate flex-1">{String(saloon.id)}</span>
+          <button
+            onClick={() => copyToClipboard(String(saloon.id), "id")}
+            className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+            title="Copy ID"
+          >
+            {copied === "id" ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        {saloon.handler && (
+          <div className="flex gap-3 py-1 text-sm items-center">
+            <span className="text-xs text-slate-400 min-w-[64px] shrink-0">Handler</span>
+            <span className="font-mono text-xs text-slate-600 truncate flex-1">{saloon.handler}</span>
+            <button
+              onClick={() => copyToClipboard(saloon.handler!, "handler")}
+              className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+              title="Copy handler"
+            >
+              {copied === "handler" ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        )}
+        <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+          Use the ID or handler to access your saloon's public page:{" "}
+          <code className="bg-slate-50 px-1 py-0.5 rounded text-slate-500">/{saloon.handler ?? saloon.id}/c</code>
+        </p>
+      </div>
+
       {/* Owner */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
         <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
@@ -48,6 +94,9 @@ export default function Manage() {
           <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
             <MapPin className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Location</span>
+            <Link to="edit?step=1" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
+              <Pencil className="w-3 h-3" /> Edit
+            </Link>
           </div>
           {saloon.location.address && <InfoRow label="Address">{saloon.location.address}</InfoRow>}
           {saloon.location.city    && <InfoRow label="City">{saloon.location.city}</InfoRow>}
@@ -63,6 +112,9 @@ export default function Manage() {
           <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
             <Phone className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Contact</span>
+            <Link to="edit?step=2" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
+              <Pencil className="w-3 h-3" /> Edit
+            </Link>
           </div>
           {saloon.contact.phone && (
             <div className="flex gap-3 py-0.5 text-sm items-center">
@@ -103,6 +155,9 @@ export default function Manage() {
         <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
           <Zap className="w-3.5 h-3.5 text-slate-400" />
           <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Features</span>
+          <Link to="edit?step=3" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
+            <Pencil className="w-3 h-3" /> Edit
+          </Link>
         </div>
         {saloon.features?.length ? (
           <div className="flex flex-wrap gap-1.5 mt-1">
@@ -126,6 +181,9 @@ export default function Manage() {
           <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
             <Clock className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Operating Hours</span>
+            <Link to="edit?step=4" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
+              <Pencil className="w-3 h-3" /> Edit
+            </Link>
           </div>
           {openHours.map((h) => (
             <div key={h.day} className="flex gap-3 py-0.5 text-sm">

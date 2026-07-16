@@ -14,5 +14,9 @@ public record WebsiteTheme(
         String accentColor,
         String fontFamily,
         String logoBgColor,
+        String websiteMode,
+        String headerBg,
+        String footerBg,
+        String mapsUrl,
         Instant updatedAt
 ) {}

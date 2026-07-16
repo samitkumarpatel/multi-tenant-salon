@@ -45,7 +45,7 @@ class SaloonServiceController {
 
     @GetMapping("/{serviceId}")
     ResponseEntity<ServiceItem> findById(@PathVariable UUID saloonId, @PathVariable Long serviceId) {
-        return service.findById(saloonId, serviceId)
+        return service.findByIdAndSaloonId(serviceId, saloonId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

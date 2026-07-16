@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Country } from "~/lib/types";
+import { detectCountry } from "~/lib/locale";
 
 interface Props {
   value: string;
@@ -19,12 +20,7 @@ function parsePhone(value: string): { dialCode: string; local: string } {
 }
 
 function detectDialCode(countries: Country[]): string {
-  if (typeof navigator !== "undefined") {
-    const regionCode = navigator.language?.split("-").pop()?.toUpperCase() ?? "";
-    const match = countries.find((c) => c.code === regionCode);
-    if (match) return match.dialCode;
-  }
-  return countries[0]?.dialCode ?? "";
+  return detectCountry(countries)?.dialCode ?? countries[0]?.dialCode ?? "";
 }
 
 export default function PhoneInput({ value, onChange, countries, autoFocus }: Props) {

@@ -67,12 +67,61 @@ CREATE TABLE IF NOT EXISTS staff_member_specialization (
   value            VARCHAR(255) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS staff_availability (
+  id          BIGSERIAL    PRIMARY KEY,
+  saloon_id   UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  staff_id    BIGINT       NOT NULL REFERENCES staff_member(id) ON DELETE CASCADE,
+  day_of_week VARCHAR(10)  NOT NULL,
+  start_time  TIME         NOT NULL,
+  end_time    TIME         NOT NULL,
+  available   BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS staff_availability_override (
+  id            BIGSERIAL    PRIMARY KEY,
+  saloon_id     UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  staff_id      BIGINT       NOT NULL REFERENCES staff_member(id) ON DELETE CASCADE,
+  override_date DATE         NOT NULL,
+  start_time    TIME,
+  end_time      TIME,
+  available     BOOLEAN      NOT NULL DEFAULT FALSE,
+  reason        VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS booking (
+  id               BIGSERIAL    PRIMARY KEY,
+  saloon_id        UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  service_id       BIGINT       NOT NULL REFERENCES service_item(id) ON DELETE CASCADE,
+  staff_id         BIGINT       NOT NULL REFERENCES staff_member(id) ON DELETE CASCADE,
+  customer_name    VARCHAR(255) NOT NULL,
+  customer_email   VARCHAR(255) NOT NULL,
+  customer_phone   VARCHAR(50),
+  appointment_date DATE         NOT NULL,
+  start_time       TIME         NOT NULL,
+  end_time         TIME         NOT NULL,
+  status           VARCHAR(50)  NOT NULL DEFAULT 'PENDING',
+  notes            TEXT,
+  created_at       TIMESTAMPTZ  NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS saloon_website_theme (
   saloon_id       UUID         PRIMARY KEY REFERENCES saloon(id) ON DELETE CASCADE,
-  hero_bg         VARCHAR(50)  NOT NULL DEFAULT '#0F172A',
-  hero_text_color VARCHAR(50)  NOT NULL DEFAULT '#FFFFFF',
-  accent_color    VARCHAR(50)  NOT NULL DEFAULT '#F59E0B',
-  font_family     VARCHAR(100) NOT NULL DEFAULT 'inter',
-  logo_bg_color   VARCHAR(50)  NOT NULL DEFAULT '#F59E0B',
+  hero_bg         VARCHAR(50)  NOT NULL DEFAULT '#F8FAFC',
+  hero_text_color VARCHAR(50)  NOT NULL DEFAULT '#0F172A',
+  accent_color    VARCHAR(50)  NOT NULL DEFAULT '#059669',
+  font_family     VARCHAR(100) NOT NULL DEFAULT 'nunito',
+  logo_bg_color   VARCHAR(50)  NOT NULL DEFAULT '#7C3AED',
+  website_mode    VARCHAR(50)  NOT NULL DEFAULT 'static',
+  header_bg       VARCHAR(50)  NOT NULL DEFAULT '#FFFFFF',
+  footer_bg       VARCHAR(50)  NOT NULL DEFAULT '#1E293B',
+  maps_url        TEXT,
   updated_at      TIMESTAMPTZ
 );
+
+ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS website_mode VARCHAR(50) NOT NULL DEFAULT 'static';
+ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS header_bg VARCHAR(50) NOT NULL DEFAULT '#FFFFFF';
+ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS footer_bg VARCHAR(50) NOT NULL DEFAULT '#1E293B';
+ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS maps_url TEXT;
+
+ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS available_for_booking BOOLEAN NOT NULL DEFAULT TRUE;

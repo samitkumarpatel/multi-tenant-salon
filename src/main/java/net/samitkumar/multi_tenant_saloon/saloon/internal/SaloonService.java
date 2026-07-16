@@ -46,7 +46,7 @@ class SaloonService {
         var saloon = new Saloon(null, name, handler, owner, location, contact, operatingHours, featureRefs, Instant.now());
         var saved = repository.save(saloon);
         var eventFeatures = saved.features().stream().map(Saloon.SaloonFeatureRef::feature).toList();
-        eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), eventFeatures));
+        eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
         return saved;
     }
 
