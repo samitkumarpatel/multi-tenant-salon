@@ -8,4 +8,5 @@ import java.util.UUID;
 
 interface StaffRepository extends ListCrudRepository<StaffMember, Long> {
     List<StaffMember> findBySaloonId(UUID saloonId);
+    List<StaffMember> findBySaloonIdAndAvailableForBookingTrue(UUID saloonId);
 }

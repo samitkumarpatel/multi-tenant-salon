@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_saloon.saloonservice.internal;
 
+import net.samitkumar.multi_tenant_saloon.saloonservice.SaloonServiceApi;
 import net.samitkumar.multi_tenant_saloon.saloonservice.ServiceCategory;
 import net.samitkumar.multi_tenant_saloon.saloonservice.ServiceItem;
 import org.springframework.stereotype.Service;
@@ -11,7 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-class SaloonServiceManager {
+public class SaloonServiceManager implements SaloonServiceApi {
 
     private final SaloonServiceRepository repository;
 
@@ -23,7 +24,8 @@ class SaloonServiceManager {
         return repository.findBySaloonId(saloonId);
     }
 
-    Optional<ServiceItem> findById(UUID saloonId, Long serviceId) {
+    @Override
+    public Optional<ServiceItem> findByIdAndSaloonId(Long serviceId, UUID saloonId) {
         return repository.findById(serviceId).filter(s -> s.saloonId().equals(saloonId));
     }
 

@@ -6,7 +6,7 @@ export const FEATURES = [
 
 export const FEATURE_LABEL: Record<string, string> = {
   STATIC_WEBSITE: "Website", BOOKING: "Booking", MEMBERSHIP: "Membership",
-  WEBSHOP: "Web Shop", ANALYTICS: "Analytics", LOYALTY_PROGRAM: "Loyalty",
+  WEBSHOP: "Shop", ANALYTICS: "Analytics", LOYALTY_PROGRAM: "Loyalty",
 };
 
 export const DAYS = [

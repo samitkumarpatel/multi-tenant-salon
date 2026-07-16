@@ -2,6 +2,13 @@ export interface Country {
   name: string;
   code: string;
   dialCode: string;
+  currencyCode: string;
+}
+
+export interface Currency {
+  code: string;
+  name: string;
+  symbol: string;
 }
 
 export interface Owner {
@@ -43,7 +50,7 @@ export interface Saloon {
   createdAt?: string;
 }
 
-export type WebsiteMode = "static" | "ai";
+export type WebsiteMode = "static" | "ai" | "contact";
 
 export interface LayoutContext {
   saloon: Saloon;
@@ -60,7 +67,15 @@ export interface StaffMember {
   phone?: string;
   role: string;
   status: string;
+  isOwner?: boolean;
+  availableForBooking?: boolean;
   specializations?: string[];
+  /** Single photo (legacy) — prefer photoUrls going forward */
+  photoUrl?: string;
+  /** One or more photos of the staff member */
+  photoUrls?: string[];
+  /** Short bio / description shown on the website */
+  bio?: string;
   createdAt?: string;
 }
 
@@ -71,6 +86,10 @@ export interface WebsiteTheme {
   accentColor: string;
   fontFamily: string;
   logoBgColor: string;
+  headerBg: string;
+  footerBg: string;
+  mapsUrl?: string;
+  websiteMode?: string;
   updatedAt?: string;
 }
 
@@ -86,4 +105,49 @@ export interface ServiceItem {
   active: boolean;
   assignedStaffIds?: string[];
   createdAt?: string;
+}
+
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
+
+export interface Booking {
+  id: number;
+  saloonId: string;
+  serviceId: number;
+  staffId: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  status: BookingStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface AvailableSlot {
+  staffId: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface StaffAvailability {
+  id: number;
+  saloonId: string;
+  staffId: number;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  available: boolean;
+}
+
+export interface StaffAvailabilityOverride {
+  id: number;
+  saloonId: string;
+  staffId: number;
+  overrideDate: string;
+  startTime?: string;
+  endTime?: string;
+  available: boolean;
+  reason?: string;
 }

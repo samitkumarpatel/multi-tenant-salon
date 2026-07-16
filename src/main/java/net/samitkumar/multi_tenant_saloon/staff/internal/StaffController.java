@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.staff.internal;
 
 import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
+import net.samitkumar.multi_tenant_saloon.staff.StaffOnboardedEvent;
 import net.samitkumar.multi_tenant_saloon.staff.StaffRole;
 import net.samitkumar.multi_tenant_saloon.staff.StaffStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,12 @@ class StaffController {
         this.service = service;
     }
 
-    record OnboardRequest(String name, String email, String phone, StaffRole role, List<String> specializations) {}
+    record OnboardRequest(String name, String email, String phone, StaffRole role,
+                          List<String> specializations,
+                          List<StaffOnboardedEvent.DaySchedule> schedule) {}
 
     record UpdateRequest(String name, String email, String phone, StaffRole role, StaffStatus status,
-                         List<String> specializations) {}
+                         boolean availableForBooking, List<String> specializations) {}
 
     @GetMapping
     List<StaffMember> findAll(@PathVariable UUID saloonId) {
@@ -33,7 +36,7 @@ class StaffController {
     @PostMapping
     ResponseEntity<StaffMember> onboard(@PathVariable UUID saloonId, @RequestBody OnboardRequest request) {
         var member = service.onboard(saloonId, request.name(), request.email(), request.phone(),
-                request.role(), request.specializations());
+                request.role(), request.specializations(), request.schedule());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(member.id())
@@ -43,7 +46,7 @@ class StaffController {
 
     @GetMapping("/{staffId}")
     ResponseEntity<StaffMember> findById(@PathVariable UUID saloonId, @PathVariable Long staffId) {
-        return service.findById(saloonId, staffId)
+        return service.findByIdAndSaloonId(staffId, saloonId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -52,7 +55,7 @@ class StaffController {
     ResponseEntity<StaffMember> update(@PathVariable UUID saloonId, @PathVariable Long staffId,
                                        @RequestBody UpdateRequest request) {
         return service.update(saloonId, staffId, request.name(), request.email(), request.phone(),
-                        request.role(), request.status(), request.specializations())
+                        request.role(), request.status(), request.availableForBooking(), request.specializations())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
