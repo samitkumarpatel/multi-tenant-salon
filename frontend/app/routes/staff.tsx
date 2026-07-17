@@ -1,19 +1,24 @@
 import { useState, useRef } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock } from "lucide-react";
-import { SALOON_ADMIN_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera } from "lucide-react";
+import { SALOON_ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
 } from "~/lib/constants";
-import type { LayoutContext, StaffMember } from "~/lib/types";
+import type { Country, LayoutContext, StaffMember } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
 import TileGrid from "~/components/TileGrid";
+import PhoneInput from "~/components/PhoneInput";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
-  return apiFetch<StaffMember[]>(`${SALOON_ADMIN_API}/${sid}/staff`);
+  const [staff, countries] = await Promise.all([
+    apiFetch<StaffMember[]>(`${SALOON_ADMIN_API}/${sid}/staff`),
+    apiFetch<Country[]>(COUNTRIES_API).catch(() => [] as Country[]),
+  ]);
+  return { staff, countries };
 }
 
 // ── Shared styles ────────────────────────────────────────────────────────────
@@ -35,6 +40,7 @@ interface StaffFormFields {
   phone: string;
   role: string;
   specializations: string[];
+  photo: string | null;
 }
 
 // ── Schedule editor ───────────────────────────────────────────────────────────
@@ -116,16 +122,89 @@ function ScheduleEditor({
   );
 }
 
+// ── Photo picker ─────────────────────────────────────────────────────────────
+
+function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 mb-5 pb-5 border-b border-slate-100">
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => uploadRef.current?.click()}
+          className="w-20 h-20 rounded-full border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden hover:border-matcha-400 hover:bg-matcha-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-matcha-500/20"
+          title="Upload photo"
+        >
+          {value ? (
+            <img src={value} alt="Staff photo preview" className="w-full h-full object-cover" />
+          ) : (
+            <UserCircle className="w-10 h-10 text-slate-300" />
+          )}
+        </button>
+
+        {/* Camera badge */}
+        <button
+          type="button"
+          onClick={() => cameraRef.current?.click()}
+          title="Take photo"
+          className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-matcha-600 text-white flex items-center justify-center hover:bg-matcha-700 transition-colors cursor-pointer shadow-sm"
+        >
+          <Camera className="w-3 h-3" />
+        </button>
+
+        {/* Remove badge */}
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            title="Remove photo"
+            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer text-xs leading-none shadow-sm"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 text-xs text-slate-400">
+        <button type="button" onClick={() => uploadRef.current?.click()} className="hover:text-matcha-600 transition-colors cursor-pointer">
+          Upload photo
+        </button>
+        <span className="text-slate-200">·</span>
+        <button type="button" onClick={() => cameraRef.current?.click()} className="hover:text-matcha-600 transition-colors cursor-pointer">
+          Take photo
+        </button>
+      </div>
+
+      <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
+
 // ── Sub-component at module level so React never remounts it on re-render ────
 
 function StaffForm({
-  f, setF,
+  f, setF, countries,
 }: {
   f: StaffFormFields;
   setF: React.Dispatch<React.SetStateAction<StaffFormFields>>;
+  countries: Country[];
 }) {
   return (
     <>
+      <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} />
+
       <div className="mb-4">
         <label className={fieldLabel}>Name <span className="text-red-500">*</span></label>
         <input
@@ -150,10 +229,10 @@ function StaffForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <label className={fieldLabel}>Phone</label>
-          <input
-            className={inputCls}
+          <PhoneInput
             value={f.phone}
-            onChange={(e) => setF((p) => ({ ...p, phone: e.target.value }))}
+            onChange={(v) => setF((p) => ({ ...p, phone: v }))}
+            countries={countries}
           />
         </div>
         <div>
@@ -185,7 +264,7 @@ function StaffForm({
 
 export default function Staff() {
   const { saloon } = useOutletContext<LayoutContext>();
-  const init = useLoaderData<typeof clientLoader>();
+  const { staff: init, countries } = useLoaderData<typeof clientLoader>();
   const [staff,  setStaff]  = useState<StaffMember[]>(init);
   const [busy,   setBusy]   = useState(false);
   const [toast,  setToast]  = useState<{ msg: string; type: string } | null>(null);
@@ -195,7 +274,7 @@ export default function Staff() {
 
   const sid = saloon.id;
 
-  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [] });
+  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null });
   const [af, setAf] = useState<StaffFormFields>(blank);
   const [addSchedule, setAddSchedule] = useState<ScheduleEntry[]>(defaultSchedule);
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
@@ -216,6 +295,7 @@ export default function Staff() {
       role: m.role, status: m.status,
       availableForBooking: m.availableForBooking ?? true,
       specializations: [...(m.specializations ?? [])],
+      photo: null,
     });
     setModal((p) => ({ ...p, edit: true }));
   }
@@ -387,7 +467,7 @@ export default function Staff() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <StaffForm f={af} setF={setAf} />
+            <StaffForm f={af} setF={setAf} countries={countries} />
             <div className="mt-5">
               <ScheduleEditor schedule={addSchedule} onChange={setAddSchedule} />
             </div>
@@ -423,7 +503,7 @@ export default function Staff() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <StaffForm f={ef} setF={setEf as React.Dispatch<React.SetStateAction<StaffFormFields>>} />
+            <StaffForm f={ef} setF={setEf as React.Dispatch<React.SetStateAction<StaffFormFields>>} countries={countries} />
             <div className="mt-4 mb-2">
               <label className={fieldLabel}>Status</label>
               <select

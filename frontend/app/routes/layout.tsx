@@ -334,21 +334,8 @@ export default function Layout() {
   const isPreview = Boolean(useMatch("/:saloonId/c"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Customer preview — only accessible when STATIC_WEBSITE feature is enabled
+  // Customer preview — feature check is handled by the saloon-page itself
   if (isPreview) {
-    if (!saloon?.features?.includes("STATIC_WEBSITE")) {
-      return (
-        <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center px-5 text-center">
-          <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-5">
-            <Scissors className="w-6 h-6 text-slate-400" />
-          </div>
-          <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon?.name ?? saloonId}</h1>
-          <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
-            This saloon hasn't published a public website yet.
-          </p>
-        </div>
-      );
-    }
     return <Outlet context={ctx} />;
   }
 

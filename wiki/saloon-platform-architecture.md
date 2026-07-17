@@ -1,90 +1,240 @@
-# Multi-tenant salon platform — micro-frontend architecture & build instructions
+# Saloon SaaS Platform — Architecture
 
-This document is the build spec for an AI coding agent (or a human dev) implementing the frontend layer. The backend API already exists; this only covers frontend module structure, integration contracts, and the shared-template strategy.
+Architecture diagram: [`others/saloon_saas_architecture.svg`](../others/saloon_saas_architecture.svg)
 
-## 1. Modules
+---
 
-| Module | Audience | API base | Domain |
-|---|---|---|---|
-| `saloon-onboarding` | Saloon owner signup + customer discovery | `/api/saloon-onboarding/...` | `your-saloon.online` |
-| `saloon-public-website` | End customer of a specific salon | `/api/saloon/<id>/...` | `<tenant>.your-saloon.online` |
-| `saloon-admin` | Saloon owner back-office | `/api/saloon-admin/<id>/...` | `<tenant>.your-saloon.online/admin` |
-| `saloon-super-admin` | Anthropic-side support/ops | `/api/saloon-super-admin/...` | `admin.your-saloon.online` |
+## Overview
 
-Each module is an independently deployable app. Recommend **module federation (Webpack 5 / Vite plugin-federation)** or **single-spa** as the shell strategy, with a lightweight shell/root-config app that:
-- resolves the active module from hostname + path,
-- injects the tenant id (`saloonId`) into a shared context,
-- handles cross-module auth token propagation.
+A **multi-tenant SaaS platform** for saloon/salon management. Each saloon is a tenant. The platform is composed of four microfrontend applications backed by a single **Spring Modulith** backend.
 
-## 2. The critical shared piece: the template module
+---
 
-`saloon-public-website` must be built as **two layers**:
+## Frontend — Microfrontend Layer (Module Federation)
 
-1. **`@saloon/website-template`** — a standalone package (or federated remote) exporting:
-   - presentational components (hero, services list, booking widget, webshop, membership cards, gallery, etc.)
-   - a data layer that fetches exclusively from `/api/saloon/<id>/...`
-   - a theme/layout schema (JSON) describing which sections are enabled, in what order, with what design tokens
-2. **`saloon-public-website` app** — imports the template package, renders it read-only, adds SEO/meta, routing per page (home, services, book, webshop, membership).
+All four apps are independently deployable microfrontends wired together with Webpack Module Federation (or equivalent). They share a common design system and auth token but can be developed, tested, and deployed independently.
 
-`saloon-admin`'s design mode imports the **same** `@saloon/website-template` package and wraps it with an editing chrome:
-- a design palette (drag/drop sections, edit theme tokens, toggle sections on/off)
-- writes go to `/api/saloon-admin/<id>/website-config` (not the public API)
-- preview renders through the identical template components, fed by the same shape of data, so what the owner sees in the palette is pixel-identical to what the customer sees live
+| App | Audience | Responsibilities |
+|-----|----------|-----------------|
+| **saloon-onboarding** | New saloon owners | Registration wizard, initial setup, handler selection |
+| **saloon-public-website** | End customers | Booking flow, service catalog, staff gallery, real-time theme rendering |
+| **saloon-admin** | Saloon owner / manager | Staff management, service catalog, booking calendar, theme editor |
+| **saloon-super-admin** | Platform operators | Tenant management, platform-wide configuration, billing |
 
-**Rule for the agent:** never fork or duplicate template component markup between `saloon-admin` and `saloon-public-website`. If a component needs an "edit affordance" (e.g. hover-to-edit outline), implement it as an optional prop/slot on the shared component (`editable={true}`), not a separate component tree.
+### saloon-public-website — special: real-time theming
 
-## 3. Suggested repo structure
+This app is unique because its visual appearance is controlled at runtime by the saloon-admin. When an admin changes the theme (header/footer/hero background colors, accent color, font), the public website reflects those changes **without a deploy**. See the [Real-time Theme Flow](#real-time-theme-update-flow) section below.
+
+---
+
+## Backend — Modulith
+
+A **modular monolith** built with [Spring Modulith](https://docs.spring.io/spring-modulith/reference/). Modules live under `net.samitkumar.multi_tenant_saloon` as top-level packages. Module boundaries are enforced at compile-time by Modulith. Cross-module communication uses **Spring Application Events**, never direct bean injection.
+
+### Stack
+
+- Java 25, Spring Boot 4.1, Spring Modulith 2.0.6
+- Spring Data JDBC (PostgreSQL)
+- Testcontainers for integration tests
+- GraalVM Native Image ready
+
+### Modules
+
+#### Business modules
+
+| Module | Package | Responsibilities |
+|--------|---------|-----------------|
+| **saloon** | `saloon` | Core aggregate: `Saloon` entity, owner/location/contact info, operating hours, features. Publishes `SaloonCreatedEvent` and `WebsitePublishRequestedEvent`. |
+| **saloonservice** | `saloonservice` | `ServiceItem` catalog per saloon (name, price, duration, category, assigned staff). |
+| **staff** | `staff` | `StaffMember` roster per saloon (role, status, specializations, availability). Publishes `StaffOnboardedEvent`. |
+| **booking** | `booking` | Appointments, available slot calculation, staff availability schedule and overrides. Publishes `BookingCreatedEvent`, `BookingStatusChangedEvent`, `BookingRescheduledEvent`, `StaffScheduleUpdatedEvent`, `StaffAvailabilityOverrideAddedEvent/RemovedEvent`. |
+| **website** | `website` | `WebsiteTheme` per saloon (colors, font, maps URL, website mode). Listens to `WebsitePublishRequestedEvent`. |
+
+#### Support modules
+
+| Module | Package | Responsibilities |
+|--------|---------|-----------------|
+| **notification** | `notification` | Listens to booking and saloon events; dispatches SMS/email/push. Has **no REST endpoint** — purely event-driven. |
+| **utility** | `utility` | Shared reference data (country list). Exposed via `/api/saloon-utility/countries`. |
+
+---
+
+## API Route Namespaces
+
+All API routes share the `/api` base prefix. The next path segment determines the owning module and access level:
+
+| Prefix | Used by | Auth | Notes |
+|--------|---------|------|-------|
+| `/api/saloon-onboarding` | saloon-onboarding app | Public | `POST /api/saloon-onboarding` — creates a new saloon tenant |
+| `/api/saloon/{id-or-handler}/...` | saloon-public-website | Public (read-only) | Customer-facing: services, staff, booking slots, website theme |
+| `/api/saloon-admin/{id}/...` | saloon-admin app | Authenticated | All write operations: staff CRUD, service CRUD, booking management, theme, availability |
+| `/api/saloon-super-admin/...` | saloon-super-admin app | Admin auth | Platform-wide tenant management |
+| `/api/saloon-utility/...` | All apps | Public | Reference data (countries, enums) |
+
+### Endpoint quick-reference
+
+#### Saloon onboarding
+```
+POST   /api/saloon-onboarding                           Create new saloon
+GET    /api/saloon-onboarding                           List all saloons (admin use)
+```
+
+#### Public (customer-facing)
+```
+GET    /api/saloon/{id}                                 Get saloon detail
+GET    /api/saloon/{id}/services                        List services
+GET    /api/saloon/{id}/services/{serviceId}            Get service
+GET    /api/saloon/{id}/staff                           List staff
+GET    /api/saloon/{id}/staff/{staffId}                 Get staff member
+GET    /api/saloon/{id}/slots?date=&staffId=            Available booking slots
+POST   /api/saloon/{id}/booking                         Create booking (customer)
+GET    /api/saloon/{id}/website                         Get website theme
+```
+
+#### Saloon admin
+```
+GET/PUT  /api/saloon-admin/{id}                         Get/update saloon
+PUT      /api/saloon-admin/{id}/features                Update enabled features
+DELETE   /api/saloon-admin/{id}                         Delete saloon
+POST     /api/saloon-admin/{id}/website/publish         Trigger website publish
+
+GET/PUT  /api/saloon-admin/{id}/website                 Get/update website theme
+GET      /api/saloon-admin/{id}/website-type            Get website mode
+PATCH    /api/saloon-admin/{id}/website-type            Update website mode
+
+GET/POST /api/saloon-admin/{id}/services                List/create services
+GET/PUT/DELETE /api/saloon-admin/{id}/services/{svcId}  Manage service
+
+GET/POST /api/saloon-admin/{id}/staff                   List/create staff
+GET/PUT/DELETE /api/saloon-admin/{id}/staff/{staffId}   Manage staff member
+
+GET/PUT  /api/saloon-admin/{id}/staff/{staffId}/availability             Weekly schedule
+GET/POST /api/saloon-admin/{id}/staff/{staffId}/availability/overrides   Date overrides
+DELETE   /api/saloon-admin/{id}/staff/{staffId}/availability/overrides/{oid}
+
+GET/POST /api/saloon-admin/{id}/booking                 List/create bookings
+GET/PUT/DELETE /api/saloon-admin/{id}/booking/{bookingId} Manage booking
+POST     /api/saloon-admin/{id}/booking/{bookingId}/confirm
+POST     /api/saloon-admin/{id}/booking/{bookingId}/cancel
+POST     /api/saloon-admin/{id}/booking/{bookingId}/complete
+POST     /api/saloon-admin/{id}/booking/{bookingId}/no-show
+GET      /api/saloon-admin/{id}/slots                   Available slots (admin view)
+```
+
+#### Utility
+```
+GET    /api/saloon-utility/countries                    Country list
+```
+
+---
+
+## Spring Application Events
+
+Modules communicate exclusively through Spring Application Events annotated with `@ApplicationModuleListener`. Events are persisted via `spring-modulith-starter-jdbc` before dispatch, guaranteeing at-least-once delivery even across transaction boundaries.
+
+| Event | Publisher | Listeners |
+|-------|-----------|-----------|
+| `SaloonCreatedEvent` | `saloon` | `notification` (welcome email), `staff` (auto-create owner staff entry) |
+| `WebsitePublishRequestedEvent` | `saloon` | `website` (invoke AWS deployment pipeline) |
+| `StaffOnboardedEvent` | `staff` | `booking` (initialise default availability schedule) |
+| `BookingCreatedEvent` | `booking` | `notification` (confirmation SMS/email) |
+| `BookingStatusChangedEvent` | `booking` | `notification` (status update alert) |
+| `BookingRescheduledEvent` | `booking` | `notification` |
+| `StaffScheduleUpdatedEvent` | `booking` | — (reserved for downstream consumers) |
+| `StaffAvailabilityOverrideAddedEvent` | `booking` | — |
+| `StaffAvailabilityOverrideRemovedEvent` | `booking` | — |
+
+---
+
+## Real-time Theme Update Flow
+
+The **saloon-public-website** can reflect theme changes made in the **saloon-admin** instantly — without a redeploy or page reload.
 
 ```
-/packages
-  /website-template        # shared presentational + data layer (the "super important" piece)
-  /design-system           # shared tokens, buttons, inputs, layout primitives used by ALL 4 apps
-  /shared-auth             # token storage, tenant context, route guards
-/apps
-  /saloon-onboarding
-  /saloon-public-website    # imports @saloon/website-template (read-only mode)
-  /saloon-admin             # imports @saloon/website-template (editable mode) + full admin UI
-  /saloon-super-admin
-/shell                     # root-config / module federation host
+saloon-admin
+  └─ edits header_bg / footer_bg / hero_bg / accent_color / font_family / logo_bg_color
+  └─ PUT /api/saloon-admin/{id}/website  →  WebsiteThemeService  →  saves to saloon_website_theme table
+
+(Optional explicit publish)
+  └─ POST /api/saloon-admin/{id}/website/publish  →  WebsitePublishRequestedEvent
+  └─ WebsitePublishListener  →  deploys static assets to S3, creates Route 53 subdomain
+
+SSE push (planned)
+  └─ theme-change event  →  Server-Sent Events endpoint  →  saloon-public-website EventSource listener
+  └─ re-fetches GET /api/saloon/{id}/website  →  re-renders header / footer / hero in-place
 ```
 
-## 4. Module responsibilities (for scoping agent tasks)
+**Theme fields stored per tenant (`saloon_website_theme`):**
 
-**saloon-onboarding**
-- Owner signup flow → creates salon (draft) via `/api/saloon-onboarding/salons`
-- Customer-facing "explore nearby salons" directory/search
-- CRUD scoped entirely to onboarding namespace; no design/theme logic here
+| Field | Default | Description |
+|-------|---------|-------------|
+| `hero_bg` | `#F8FAFC` | Hero section background |
+| `hero_text_color` | `#0F172A` | Hero heading/subtext color |
+| `accent_color` | `#059669` | Buttons, links, highlights |
+| `font_family` | `nunito` | Body font |
+| `logo_bg_color` | `#7C3AED` | Logo container background |
+| `header_bg` | `#FFFFFF` | Header/navbar background |
+| `footer_bg` | `#1E293B` | Footer background |
+| `maps_url` | `null` | Embedded Google Maps URL |
+| `website_mode` | `STATIC_WEBSITE` | `STATIC_WEBSITE`, `GENERATIVE_UI`, or `CUSTOMISE_WEBSITE_CONTACT_US` |
 
-**saloon-admin**
-- Auth-gated, tenant-scoped (`/admin` under tenant subdomain)
-- Sections: basic info, services, staff, calendar/bookings, webshop, membership, website design & publish, settings
-- Website design tab renders `@saloon/website-template` in edit mode; "Publish" writes the config that the public site will read
-- All writes → `/api/saloon-admin/<id>/...`
+---
 
-**saloon-public-website**
-- Renders `@saloon/website-template` in read-only mode
-- Reads only from `/api/saloon/<id>/...`
-- Booking, webshop checkout, membership signup as customer-facing flows
-- Should support SSR/SSG for SEO (Next.js or similar) since it's public-facing and per-tenant
+## Data Layer
 
-**saloon-super-admin**
-- Cross-tenant dashboards: list/search all salons, impersonate/support tools, plan/billing overrides, moderation
-- Reads/writes via `/api/saloon-super-admin/...` only — never touches per-tenant admin/public APIs directly
+### Multi-tenancy strategy
 
-## 5. Cross-cutting concerns
+Each saloon is a tenant identified by its `id` (UUID) and `handler` (URL slug). The handler is used as the subdomain key: `{handler}.yourbrand.com`.
 
-- **Design system package**: buttons, form fields, cards, modals — shared by all 4 apps so they don't visually drift, even though `saloon-public-website`'s theme is tenant-customizable on top of it.
-- **Auth**: separate token scopes per module (customer session vs owner session vs internal ops session). Shell/root-config should not let a super-admin token leak into a public-website request or vice versa.
-- **Tenant resolution**: subdomain → `saloonId` lookup should happen once, at the shell level, and be passed down via context — don't re-resolve it independently in each module.
-- **Versioning the template package**: since `saloon-admin` previews against it and `saloon-public-website` renders it live, treat `@saloon/website-template` as a versioned internal package with its own changelog — a breaking change here affects two apps at once.
+| Strategy | When used | Isolation |
+|----------|-----------|-----------|
+| **Shared DB, row-level isolation** | Default (all tenants) | `tenant_id` / `saloon_id` column on every table |
+| **Schema-per-tenant DB** | Premium / enterprise tenants | Separate PostgreSQL schema per tenant |
 
-## 6. Suggested build order for the agent
+### Caching (Redis)
+- Session tokens
+- Real-time booking slot availability (short TTL)
+- Website theme (to avoid DB reads on every public page load)
 
-1. Scaffold `/packages/design-system` and `/packages/shared-auth`
-2. Scaffold `/packages/website-template` with 2–3 core sections (hero, services, booking) wired to a mocked `/api/saloon/<id>` response
-3. Scaffold `saloon-public-website` consuming the template read-only
-4. Scaffold `saloon-admin`, starting with the website design tab consuming the same template in editable mode
-5. Build out remaining `saloon-admin` CRUD sections (services, staff, calendar, webshop, membership)
-6. Build `saloon-onboarding`
-7. Build `saloon-super-admin`
-8. Wire the shell/root-config for domain-based routing across all four
+---
+
+## Multi-tenancy Resolution
+
+```
+Request: GET acmesaloon.yourbrand.com/services
+  └─ API Gateway extracts subdomain  →  handler = "acmesaloon"
+  └─ Resolves to saloon.id via handler lookup
+  └─ All downstream queries scoped to that saloon_id
+```
+
+Custom domain mapping (`mycustomsaloon.com` → handler) is also supported.
+
+---
+
+## Implementation Plan
+
+### Phase 1 — Backend alignment (current)
+- [x] `saloon` module — core entity, onboarding API
+- [x] `saloonservice` module — service catalog API
+- [x] `staff` module — roster and availability
+- [x] `booking` module — appointments, slots, overrides
+- [x] `website` module — theme CRUD, publish event
+- [x] `notification` module — event listeners (stub)
+- [x] `utility` module — countries
+
+### Phase 2 — Microfrontend scaffold
+- [ ] Set up Module Federation host shell
+- [ ] `saloon-onboarding` remote — registration wizard
+- [ ] `saloon-public-website` remote — customer booking + theme rendering
+- [ ] `saloon-admin` remote — management dashboard
+- [ ] `saloon-super-admin` remote — platform ops
+
+### Phase 3 — Real-time theme push
+- [ ] Add SSE endpoint: `GET /api/saloon/{id}/website/events`
+- [ ] Emit theme-change server-sent event on `PUT /api/saloon-admin/{id}/website`
+- [ ] `saloon-public-website` opens `EventSource` and hot-swaps CSS variables on event
+
+### Phase 4 — Website publish pipeline
+- [ ] AWS S3 static deployment in `WebsitePublishListener`
+- [ ] Route 53 subdomain auto-provisioning
+- [ ] CDN invalidation on re-publish

@@ -35,7 +35,7 @@ class StaffController {
     @PostMapping("/api/saloon-admin/{saloonId}/staff")
     ResponseEntity<StaffMember> onboard(@PathVariable UUID saloonId, @RequestBody OnboardRequest request) {
         var member = service.onboard(saloonId, request.name(), request.email(), request.phone(),
-                request.role(), request.specializations(), request.schedule());
+                request.role(), false, request.specializations(), request.schedule());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(member.id())

@@ -8,7 +8,7 @@ import {
   Monitor, Wand2, ArrowLeft, User, ArrowUp, CalendarCheck,
   Sparkles, Send,
 } from "lucide-react";
-import { SALOON_API, SALOON_ADMIN_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { SALOON_API, SALOON_ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice } from "~/lib/constants";
 import { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText } from "~/lib/theme";
 import { FeatureView, FEATURE_VIEWS } from "~/components/FeatureView";
@@ -19,9 +19,18 @@ import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, We
 // ── Loader ────────────────────────────────────────────────────────────────────
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
-  // saloon is provided by the parent layout via useOutletContext; only resolve
-  // the UUID here so we can call the nested API endpoints without an extra fetch
-  const saloonId = await resolveSaloonUUID(params.saloonId!);
+  const rawId = params.saloonId!;
+
+  // Single call first — check if the WEBSITE feature is enabled before firing any other API calls
+  const saloon = await apiFetch<Saloon>(`${SALOON_API}/${rawId}`);
+  const saloonId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId)
+    ? rawId
+    : String(saloon.id);
+  cacheSaloonUUID(rawId, saloonId);
+
+  if (!saloon.features?.includes("STATIC_WEBSITE")) {
+    return { websiteEnabled: false as const };
+  }
 
   const [websiteTypeResult, staff, services, theme] = await Promise.all([
     apiFetch<{ websiteType: WebsiteMode }>(`${SALOON_ADMIN_API}/${saloonId}/website-type`)
@@ -31,7 +40,12 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     apiFetch<WebsiteTheme>(`${SALOON_API}/${saloonId}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
   ]);
 
-  return { staff, services, theme: { ...theme, websiteType: websiteTypeResult.websiteType } };
+  return {
+    websiteEnabled: true as const,
+    staff,
+    services,
+    theme: { ...theme, websiteType: websiteTypeResult.websiteType },
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -793,10 +807,40 @@ export function ErrorBoundary() {
   return <SalonErrorPage is404={is404} />;
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Website not opted page ────────────────────────────────────────────────────
 
-export default function SaloonPage() {
-  const { staff, services, theme: loaderTheme } = useLoaderData<typeof clientLoader>();
+function WebsiteNotEnabled() {
+  const { saloon } = useOutletContext<LayoutContext>();
+  return (
+    <div
+      className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center px-5 text-center"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-5">
+        <Globe className="w-6 h-6 text-slate-400" />
+      </div>
+      {saloon?.name && (
+        <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon.name}</h1>
+      )}
+      <p className="text-base font-semibold text-slate-700 mb-2">Website not enabled</p>
+      <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
+        You haven't opted for Website. Please OPT in to get website features.
+      </p>
+    </div>
+  );
+}
+
+// ── Page (inner) ──────────────────────────────────────────────────────────────
+
+function SaloonPageContent({
+  staff,
+  services,
+  loaderTheme,
+}: {
+  staff: StaffMember[];
+  services: ServiceItem[];
+  loaderTheme: WebsiteTheme;
+}) {
   const { saloon } = useOutletContext<LayoutContext>();
   const location     = useLocation();
   const [searchParams] = useSearchParams();
@@ -1817,5 +1861,23 @@ export default function SaloonPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// ── Page (router entry) ───────────────────────────────────────────────────────
+
+export default function SaloonPage() {
+  const loaderData = useLoaderData<typeof clientLoader>();
+
+  if (!loaderData.websiteEnabled) {
+    return <WebsiteNotEnabled />;
+  }
+
+  return (
+    <SaloonPageContent
+      staff={loaderData.staff}
+      services={loaderData.services}
+      loaderTheme={loaderData.theme}
+    />
   );
 }

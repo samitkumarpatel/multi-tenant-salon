@@ -21,7 +21,8 @@
       "Bash(xargs ls -la)",
       "Bash(grep -v \"^$\")",
       "Bash(python3 *)",
-      "Bash(curl -s http://localhost:5174/)"
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(git stash *)"
     ]
   }
 }
