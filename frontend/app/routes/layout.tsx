@@ -1,20 +1,33 @@
-import React, { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
+import React, { useState, useEffect } from "react";
+import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation, useRevalidator } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "~/routes/saloon-page";
 import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
-import { API, HANDLER_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
-import type { Saloon, LayoutContext, WebsiteMode, WebsiteTheme } from "~/lib/types";
+import { SALOON_API, SALOON_ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
+import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
-export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
-  const { saloonId } = params;
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId!);
-  const url = (isUUID || /^\d+$/.test(saloonId!)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
-  const saloon = await apiFetch<Saloon>(url);
-  cacheSaloonUUID(saloonId!, String(saloon.id));
-  const theme = await apiFetch<WebsiteTheme>(`${API}/${saloon.id}/theme`).catch(() => null);
-  return { saloon, initialWebsiteMode: (theme?.websiteMode ?? null) as WebsiteMode | null };
+export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
+  const saloonId = params.saloonId!;
+  const isPreview = new URL(request.url).pathname.endsWith("/c");
+
+  if (isPreview) {
+    // Customer-facing page — always load from public API, no auth required
+    const saloon = await apiFetch<Saloon>(`${SALOON_API}/${saloonId}`);
+    cacheSaloonUUID(saloonId, String(saloon.id));
+    return { saloon, saloonId };
+  }
+
+  // Admin route — show login gate immediately if not authenticated
+  const authed = Boolean(sessionStorage.getItem(`saloon-auth:${saloonId}`));
+  if (!authed) {
+    return { saloon: null, saloonId };
+  }
+
+  // Authenticated — fetch saloon (accepts UUID or handler)
+  const saloon = await apiFetch<Saloon>(`${SALOON_API}/${saloonId}`);
+  cacheSaloonUUID(saloonId, String(saloon.id));
+  return { saloon, saloonId };
 }
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -26,13 +39,15 @@ const inputCls =
 
 type LoginStep = "email" | "sending" | "otp";
 
-function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => void }) {
-  const [step, setStep]       = useState<LoginStep>("email");
-  const [email, setEmail]     = useState("");
-  const [otp, setOtp]         = useState("");
+function LoginGate({ saloonId, onSuccess }: { saloonId: string; onSuccess: () => void }) {
+  const [step, setStep]         = useState<LoginStep>("email");
+  const [email, setEmail]       = useState("");
+  const [otp, setOtp]           = useState("");
   const [emailErr, setEmailErr] = useState("");
-  const [otpErr, setOtpErr]   = useState("");
+  const [otpErr, setOtpErr]     = useState("");
   const [verifying, setVerifying] = useState(false);
+
+  const displayId = saloonId.length > 16 ? `${saloonId.substring(0, 8)}…` : saloonId;
 
   function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -40,10 +55,6 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
 
     if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailErr("Enter a valid email address.");
-      return;
-    }
-    if (trimmed !== saloon.owner?.email?.toLowerCase()) {
-      setEmailErr("This email is not registered as the owner of this saloon.");
       return;
     }
 
@@ -84,7 +95,7 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
           <Scissors className="w-4 h-4 text-matcha-600" />
           <span className="text-sm font-semibold text-slate-700">my-saloon</span>
           <span className="text-slate-300 text-sm mx-1">/</span>
-          <span className="text-sm text-slate-500 truncate max-w-[180px]">{saloon.name}</span>
+          <span className="text-sm text-slate-500 truncate max-w-[180px] font-mono">{displayId}</span>
         </div>
         <div className="ml-auto">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
@@ -297,40 +308,41 @@ export function ErrorBoundary() {
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { saloon: initial, initialWebsiteMode } = useLoaderData<typeof clientLoader>();
-  const navigate = useNavigate();
-  const [saloon, setSaloon]             = useState<Saloon>(initial);
+  const { saloon: loaderSaloon, saloonId } = useLoaderData<typeof clientLoader>();
+  const navigate   = useNavigate();
+  const revalidator = useRevalidator();
+  const [saloon, setSaloon]             = useState<Saloon | null>(loaderSaloon);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]         = useState(false);
   const [deleteError, setDeleteError]   = useState<string | null>(null);
-  const [authed, setAuthed]             = useState(() =>
-    Boolean(sessionStorage.getItem(`saloon-auth:${initial.id}`))
-  );
-  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(initialWebsiteMode);
+  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(null);
+
+  // Sync state when loader data changes (e.g. after login revalidation)
+  useEffect(() => { setSaloon(loaderSaloon); }, [loaderSaloon]);
 
   function setWebsiteMode(m: WebsiteMode | null) {
     setWebsiteModeState(m);
     if (m) {
-      apiFetch(`${API}/${initial.id}/website-mode`, {
+      apiFetch(`${SALOON_ADMIN_API}/${saloon!.id}/website-type`, {
         method: "PATCH",
-        body: JSON.stringify({ websiteMode: m }),
+        body: JSON.stringify({ websiteType: m }),
       }).catch(() => {});
     }
   }
 
-  const ctx: LayoutContext = { saloon, setSaloon, websiteMode, setWebsiteMode };
+  const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode };
   const isPreview = Boolean(useMatch("/:saloonId/c"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Customer preview — only accessible when STATIC_WEBSITE feature is enabled
   if (isPreview) {
-    if (!saloon.features?.includes("STATIC_WEBSITE")) {
+    if (!saloon?.features?.includes("STATIC_WEBSITE")) {
       return (
         <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center px-5 text-center">
           <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-5">
             <Scissors className="w-6 h-6 text-slate-400" />
           </div>
-          <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon.name}</h1>
+          <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon?.name ?? saloonId}</h1>
           <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
             This saloon hasn't published a public website yet.
           </p>
@@ -340,14 +352,14 @@ export default function Layout() {
     return <Outlet context={ctx} />;
   }
 
-  // Not yet authenticated — show login gate
-  if (!authed) {
+  // Not yet authenticated — show login gate immediately (no API call yet)
+  if (!saloon) {
     return (
       <LoginGate
-        saloon={saloon}
+        saloonId={saloonId}
         onSuccess={() => {
-          sessionStorage.setItem(`saloon-auth:${saloon.id}`, "1");
-          setAuthed(true);
+          sessionStorage.setItem(`saloon-auth:${saloonId}`, "1");
+          revalidator.revalidate();
         }}
       />
     );
@@ -361,15 +373,15 @@ export default function Layout() {
     }`;
 
   function handleLogout() {
-    sessionStorage.removeItem(`saloon-auth:${saloon.id}`);
-    setAuthed(false);
+    sessionStorage.removeItem(`saloon-auth:${saloonId}`);
+    setSaloon(null);
   }
 
   async function handleDelete() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await apiFetch(`${API}/${saloon.id}`, { method: "DELETE" });
+      await apiFetch(`${SALOON_ADMIN_API}/${saloon.id}`, { method: "DELETE" });
       navigate("/customer");
     } catch (e: unknown) {
       setDeleteError(e instanceof Error ? e.message : "Delete failed");

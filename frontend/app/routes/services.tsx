@@ -2,20 +2,29 @@ import { useState, useRef } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, ChevronRight } from "lucide-react";
-import { API, COUNTRIES_API, CURRENCIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { SALOON_ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { SERVICE_CATEGORIES, CATEGORY_LABEL, formatPrice, toggleList } from "~/lib/constants";
-import type { LayoutContext, StaffMember, ServiceItem, Country, Currency } from "~/lib/types";
+import type { LayoutContext, StaffMember, ServiceItem, Country } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
+
+interface CurrencyOption { code: string; name: string; symbol: string; }
+
+function currenciesFromCountries(countries: Country[]): CurrencyOption[] {
+  const seen = new Set<string>();
+  return countries
+    .filter((c) => c.currencyCode && c.currencyName && c.currencySymbol && !seen.has(c.currencyCode) && seen.add(c.currencyCode))
+    .map((c) => ({ code: c.currencyCode, name: c.currencyName!, symbol: c.currencySymbol! }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
-  const [services, staff, countries, currencies] = await Promise.all([
-    apiFetch<ServiceItem[]>(`${API}/${sid}/services`),
-    apiFetch<StaffMember[]>(`${API}/${sid}/staff`),
+  const [services, staff, countries] = await Promise.all([
+    apiFetch<ServiceItem[]>(`${SALOON_ADMIN_API}/${sid}/services`),
+    apiFetch<StaffMember[]>(`${SALOON_ADMIN_API}/${sid}/staff`),
     apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
-    apiFetch<Currency[]>(CURRENCIES_API).catch((): Currency[] => []),
   ]);
-  return { services, staff, countries, currencies };
+  return { services, staff, countries };
 }
 
 // ── Shared styles ────────────────────────────────────────────────────────────
@@ -74,7 +83,7 @@ function StaffToggle({
 function CurrencySelect({
   currencies, value, onChange,
 }: {
-  currencies: Currency[];
+  currencies: CurrencyOption[];
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -96,7 +105,7 @@ function ServiceForm({
   f: ServiceFormFields;
   setF: React.Dispatch<React.SetStateAction<ServiceFormFields>>;
   staff: StaffMember[];
-  currencies: Currency[];
+  currencies: CurrencyOption[];
 }) {
   return (
     <>
@@ -169,18 +178,18 @@ function ServiceForm({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function defaultCurrency(saloonCountry: string | undefined, countries: Country[], currencies: Currency[]): string {
+function defaultCurrency(saloonCountry: string | undefined, countries: Country[]): string {
   if (!saloonCountry || !countries.length) return "USD";
   const country = countries.find((c) => c.name === saloonCountry);
-  if (!country?.currencyCode) return "USD";
-  return currencies.some((c) => c.code === country.currencyCode) ? country.currencyCode : "USD";
+  return country?.currencyCode ?? "USD";
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function Services() {
   const { saloon } = useOutletContext<LayoutContext>();
-  const { services: init, staff, countries, currencies } = useLoaderData<typeof clientLoader>();
+  const { services: init, staff, countries } = useLoaderData<typeof clientLoader>();
+  const currencies = currenciesFromCountries(countries);
   const [services, setServices] = useState<ServiceItem[]>(init);
   const [busy,     setBusy]     = useState(false);
   const [toast,    setToast]    = useState<{ msg: string; type: string } | null>(null);
@@ -188,7 +197,7 @@ export default function Services() {
   const [target, setTarget] = useState<ServiceItem | null>(null);
   const [modal,  setModal]  = useState({ add: false, edit: false, del: false });
 
-  const detectedCurrency = defaultCurrency(saloon.location?.country, countries, currencies);
+  const detectedCurrency = defaultCurrency(saloon.location?.country, countries);
 
   const blankSvc = (): ServiceFormFields => ({
     name: "", description: "", price: "", currency: detectedCurrency,
@@ -227,7 +236,7 @@ export default function Services() {
     if (!af.name || !af.price) return;
     setBusy(true);
     try {
-      const item = await apiFetch<ServiceItem>(`${API}/${sid}/services`, {
+      const item = await apiFetch<ServiceItem>(`${SALOON_ADMIN_API}/${sid}/services`, {
         method: "POST",
         body: JSON.stringify({
           name: af.name, description: af.description,
@@ -247,7 +256,7 @@ export default function Services() {
     if (!target) return;
     setBusy(true);
     try {
-      const updated = await apiFetch<ServiceItem>(`${API}/${sid}/services/${target.id}`, {
+      const updated = await apiFetch<ServiceItem>(`${SALOON_ADMIN_API}/${sid}/services/${target.id}`, {
         method: "PUT",
         body: JSON.stringify({
           name: ef.name, description: ef.description,
@@ -267,7 +276,7 @@ export default function Services() {
     if (!target) return;
     setBusy(true);
     try {
-      await apiFetch(`${API}/${sid}/services/${target.id}`, { method: "DELETE" });
+      await apiFetch(`${SALOON_ADMIN_API}/${sid}/services/${target.id}`, { method: "DELETE" });
       const name = target.name;
       setServices((p) => p.filter((s) => s.id !== target.id));
       closeModal("del");

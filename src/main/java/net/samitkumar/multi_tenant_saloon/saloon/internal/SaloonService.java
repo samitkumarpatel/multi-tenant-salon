@@ -54,12 +54,12 @@ class SaloonService {
         return repository.findAll();
     }
 
-    Optional<Saloon> findById(UUID id) {
-        return repository.findById(id);
-    }
-
-    Optional<Saloon> findByHandler(String handler) {
-        return repository.findByHandler(handler);
+    Optional<Saloon> findByIdOrHandler(String id) {
+        try {
+            return repository.findById(UUID.fromString(id));
+        } catch (IllegalArgumentException e) {
+            return repository.findByHandler(id);
+        }
     }
 
     Optional<Saloon> update(UUID id, String name, Saloon.Location location, Saloon.ContactInfo contact,

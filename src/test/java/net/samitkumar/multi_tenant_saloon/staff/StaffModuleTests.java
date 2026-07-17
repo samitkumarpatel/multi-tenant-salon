@@ -36,7 +36,7 @@ class StaffModuleTests {
     @Test
     void listStaffReturnsEmptyInitially() {
         client.get()
-                .uri("/api/saloons/{id}/staff", saloonId)
+                .uri("/api/saloon-admin/{id}/staff", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -47,7 +47,7 @@ class StaffModuleTests {
     @Test
     void onboardStaff() {
         client.post()
-                .uri("/api/saloons/{id}/staff", saloonId)
+                .uri("/api/saloon-admin/{id}/staff", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -71,7 +71,7 @@ class StaffModuleTests {
     @Test
     void staffLifecycle() {
         var created = client.post()
-                .uri("/api/saloons/{id}/staff", saloonId)
+                .uri("/api/saloon-admin/{id}/staff", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -89,7 +89,7 @@ class StaffModuleTests {
         String staffId = location.substring(location.lastIndexOf('/') + 1);
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -98,7 +98,7 @@ class StaffModuleTests {
                 .jsonPath("$.status").isEqualTo("ACTIVE");
 
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -116,19 +116,19 @@ class StaffModuleTests {
                 .jsonPath("$.specializations.length()").isEqualTo(1);
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/staff", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(1);
 
         client.delete()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -136,7 +136,7 @@ class StaffModuleTests {
     @Test
     void staffNotFound() {
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/99999", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/staff/99999", saloonId)
                 .exchange()
                 .expectStatus().isNotFound();
     }

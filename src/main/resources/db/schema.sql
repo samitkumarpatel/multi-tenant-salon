@@ -111,14 +111,24 @@ CREATE TABLE IF NOT EXISTS saloon_website_theme (
   accent_color    VARCHAR(50)  NOT NULL DEFAULT '#059669',
   font_family     VARCHAR(100) NOT NULL DEFAULT 'nunito',
   logo_bg_color   VARCHAR(50)  NOT NULL DEFAULT '#7C3AED',
-  website_mode    VARCHAR(50)  NOT NULL DEFAULT 'static',
+  website_mode    VARCHAR(50)  NOT NULL DEFAULT 'STATIC_WEBSITE',
   header_bg       VARCHAR(50)  NOT NULL DEFAULT '#FFFFFF',
   footer_bg       VARCHAR(50)  NOT NULL DEFAULT '#1E293B',
   maps_url        TEXT,
   updated_at      TIMESTAMPTZ
 );
 
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS website_mode VARCHAR(50) NOT NULL DEFAULT 'static';
+ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS website_mode VARCHAR(50) NOT NULL DEFAULT 'STATIC_WEBSITE';
+ALTER TABLE saloon_website_theme ALTER COLUMN website_mode SET DEFAULT 'STATIC_WEBSITE';
+
+UPDATE saloon_website_theme SET website_mode =
+  CASE website_mode
+    WHEN 'static'  THEN 'STATIC_WEBSITE'
+    WHEN 'ai'      THEN 'GENERATIVE_UI'
+    WHEN 'contact' THEN 'CUSTOMISE_WEBSITE_CONTACT_US'
+    ELSE website_mode
+  END
+WHERE website_mode IN ('static', 'ai', 'contact');
 ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS header_bg VARCHAR(50) NOT NULL DEFAULT '#FFFFFF';
 ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS footer_bg VARCHAR(50) NOT NULL DEFAULT '#1E293B';
 ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS maps_url TEXT;

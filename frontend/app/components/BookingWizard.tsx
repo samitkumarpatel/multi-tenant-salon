@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
 } from "lucide-react";
-import { API, apiFetch } from "~/lib/api";
+import { SALOON_API, apiFetch } from "~/lib/api";
 import { SiteHeader, SiteFooter } from "~/components/SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import { FONTS, loadGoogleFont, contrastText } from "~/lib/theme";
@@ -330,7 +330,7 @@ function WeekGrid({
         const iso = toISODate(d);
         const params = new URLSearchParams({ serviceId: String(serviceId), date: iso });
         if (staffId) params.set("staffId", String(staffId));
-        return apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+        return apiFetch<AvailableSlot[]>(`${SALOON_API}/${saloonId}/slots?${params}`)
           .then((slots) => [iso, futureSlots(iso, slots)] as const)
           .catch(() => [iso, []] as const);
       })
@@ -571,7 +571,7 @@ function DesignerGrid({
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
-    apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${SALOON_API}/${saloonId}/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load availability"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -716,7 +716,7 @@ function DaySlots({
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${SALOON_API}/${saloonId}/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load slots"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -1002,7 +1002,7 @@ function StepSlots({
     setSlots(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${SALOON_API}/${saloonId}/slots?${params}`)
       .then((s) => setSlots(futureSlots(date, s)))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load slots"))
       .finally(() => setLoading(false));
@@ -1273,7 +1273,7 @@ export function BookingWizard({
     setBusy(true);
     setError(null);
     try {
-      const booking = await apiFetch<Booking>(`${API}/${saloon.id}/bookings`, {
+      const booking = await apiFetch<Booking>(`${SALOON_API}/${saloon.id}/booking`, {
         method: "POST",
         body: JSON.stringify({
           serviceId: service.id,

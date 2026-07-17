@@ -39,7 +39,7 @@ class BookingModuleTests {
                 "Test Owner", "test@booking.com");
 
         serviceId = client.post()
-                .uri("/api/saloons/{id}/services", saloonId)
+                .uri("/api/saloon-admin/{id}/services", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -58,7 +58,7 @@ class BookingModuleTests {
                 .replaceAll(".*/", "");
 
         staffId = client.post()
-                .uri("/api/saloons/{id}/staff", saloonId)
+                .uri("/api/saloon-admin/{id}/staff", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -80,7 +80,7 @@ class BookingModuleTests {
     @Test
     void setAndGetAvailability() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [
@@ -96,7 +96,7 @@ class BookingModuleTests {
                 .jsonPath("$[0].dayOfWeek").isEqualTo("MONDAY");
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -106,7 +106,7 @@ class BookingModuleTests {
     @Test
     void replaceAvailabilityIsIdempotent() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
@@ -115,7 +115,7 @@ class BookingModuleTests {
                 .expectStatus().isOk();
 
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "WEDNESDAY", "startTime": "08:00", "endTime": "16:00", "available": true}]
@@ -127,7 +127,7 @@ class BookingModuleTests {
                 .jsonPath("$[0].dayOfWeek").isEqualTo("WEDNESDAY");
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -139,7 +139,7 @@ class BookingModuleTests {
     @Test
     void availabilityOverrideLifecycle() {
         var created = client.post()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -159,20 +159,20 @@ class BookingModuleTests {
         String overrideId = created.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(1);
 
         client.delete()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}",
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}",
                         saloonId, staffId, overrideId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -185,7 +185,7 @@ class BookingModuleTests {
     void getAvailableSlotsWhenStaffHasAvailability() {
         // Set Monday availability (TEST_DATE = 2027-01-04 is a Monday)
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "12:00", "available": true}]
@@ -195,7 +195,7 @@ class BookingModuleTests {
 
         // 3-hour window / 60 min service = 3 slots
         client.get()
-                .uri(u -> u.path("/api/saloons/{saloonId}/slots")
+                .uri(u -> u.path("/api/saloon/{saloonId}/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", TEST_DATE)
                         .queryParam("staffId", staffId)
@@ -213,7 +213,7 @@ class BookingModuleTests {
     @Test
     void getAvailableSlotsReturnsEmptyWhenNoAvailability() {
         client.get()
-                .uri(u -> u.path("/api/saloons/{saloonId}/slots")
+                .uri(u -> u.path("/api/saloon/{saloonId}/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", TEST_DATE)
                         .queryParam("staffId", staffId)
@@ -228,7 +228,7 @@ class BookingModuleTests {
     @Test
     void getAvailableSlotsServiceNotFound() {
         client.get()
-                .uri(u -> u.path("/api/saloons/{saloonId}/slots")
+                .uri(u -> u.path("/api/saloon/{saloonId}/slots")
                         .queryParam("serviceId", "99999")
                         .queryParam("date", TEST_DATE)
                         .build(saloonId))
@@ -242,7 +242,7 @@ class BookingModuleTests {
     void bookingLifecycle() {
         // Set Monday availability
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
@@ -251,7 +251,7 @@ class BookingModuleTests {
                 .expectStatus().isOk();
 
         var created = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -278,28 +278,28 @@ class BookingModuleTests {
         String bookingId = created.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.status").isEqualTo("PENDING");
 
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/booking", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(1);
 
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/confirm", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/confirm", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.status").isEqualTo("CONFIRMED");
 
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/complete", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/complete", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -309,7 +309,7 @@ class BookingModuleTests {
     @Test
     void bookingCanBeCancelled() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
@@ -318,7 +318,7 @@ class BookingModuleTests {
                 .expectStatus().isOk();
 
         var created = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -338,7 +338,7 @@ class BookingModuleTests {
         String bookingId = created.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/cancel", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/cancel", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -348,7 +348,7 @@ class BookingModuleTests {
     @Test
     void bookingCanBeMarkedNoShow() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
@@ -357,7 +357,7 @@ class BookingModuleTests {
                 .expectStatus().isOk();
 
         var created = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -377,7 +377,7 @@ class BookingModuleTests {
         String bookingId = created.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/no-show", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/no-show", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -387,7 +387,7 @@ class BookingModuleTests {
     @Test
     void bookingConflictIsRejected() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
@@ -397,7 +397,7 @@ class BookingModuleTests {
 
         // First booking at 09:00
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -414,7 +414,7 @@ class BookingModuleTests {
 
         // Second booking at the same slot should fail
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -433,7 +433,7 @@ class BookingModuleTests {
     @Test
     void bookingNotFound() {
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings/99999", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/booking/99999", saloonId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -441,7 +441,7 @@ class BookingModuleTests {
     @Test
     void deleteBooking() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
@@ -450,7 +450,7 @@ class BookingModuleTests {
                 .expectStatus().isOk();
 
         var created = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -470,12 +470,12 @@ class BookingModuleTests {
         String bookingId = created.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.delete()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isNotFound();
     }

@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock } from "lucide-react";
-import { API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { SALOON_ADMIN_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
@@ -13,7 +13,7 @@ import TileGrid from "~/components/TileGrid";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
-  return apiFetch<StaffMember[]>(`${API}/${sid}/staff`);
+  return apiFetch<StaffMember[]>(`${SALOON_ADMIN_API}/${sid}/staff`);
 }
 
 // ── Shared styles ────────────────────────────────────────────────────────────
@@ -229,7 +229,7 @@ export default function Staff() {
       const schedule = addSchedule
         .filter((e) => e.enabled)
         .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
-      const member = await apiFetch<StaffMember>(`${API}/${sid}/staff`, {
+      const member = await apiFetch<StaffMember>(`${SALOON_ADMIN_API}/${sid}/staff`, {
         method: "POST",
         body: JSON.stringify({ name: af.name, email: af.email, phone: af.phone, role: af.role, specializations: af.specializations, schedule }),
       });
@@ -244,7 +244,7 @@ export default function Staff() {
     if (!target) return;
     setBusy(true);
     try {
-      const updated = await apiFetch<StaffMember>(`${API}/${sid}/staff/${target.id}`, {
+      const updated = await apiFetch<StaffMember>(`${SALOON_ADMIN_API}/${sid}/staff/${target.id}`, {
         method: "PUT",
         body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations }),
       });
@@ -259,7 +259,7 @@ export default function Staff() {
     if (!target) return;
     setBusy(true);
     try {
-      await apiFetch(`${API}/${sid}/staff/${target.id}`, { method: "DELETE" });
+      await apiFetch(`${SALOON_ADMIN_API}/${sid}/staff/${target.id}`, { method: "DELETE" });
       const name = target.name;
       setStaff((p) => p.filter((m) => m.id !== target.id));
       closeModal("del");

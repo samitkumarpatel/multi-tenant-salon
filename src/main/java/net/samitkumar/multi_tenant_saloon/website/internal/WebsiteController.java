@@ -1,13 +1,13 @@
 package net.samitkumar.multi_tenant_saloon.website.internal;
 
 import net.samitkumar.multi_tenant_saloon.website.WebsiteTheme;
+import net.samitkumar.multi_tenant_saloon.website.WebsiteType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/saloons")
 class WebsiteController {
 
     private final WebsiteThemeService service;
@@ -27,14 +27,15 @@ class WebsiteController {
             String mapsUrl
     ) {}
 
-    record WebsiteModeRequest(String websiteMode) {}
+    record WebsiteTypeRequest(WebsiteType websiteType) {}
+    record WebsiteTypeResponse(WebsiteType websiteType) {}
 
-    @GetMapping("/{id}/theme")
+    @GetMapping({"/api/saloon/{id}/website", "/api/saloon-admin/{id}/website"})
     WebsiteTheme getTheme(@PathVariable UUID id) {
         return service.getTheme(id);
     }
 
-    @PutMapping("/{id}/theme")
+    @PutMapping("/api/saloon-admin/{id}/website")
     ResponseEntity<WebsiteTheme> saveTheme(@PathVariable UUID id, @RequestBody SaveThemeRequest req) {
         var theme = service.saveTheme(id, req.heroBg(), req.heroTextColor(),
                 req.accentColor(), req.fontFamily(), req.logoBgColor(),
@@ -42,8 +43,13 @@ class WebsiteController {
         return ResponseEntity.ok(theme);
     }
 
-    @PatchMapping("/{id}/website-mode")
-    ResponseEntity<WebsiteTheme> updateWebsiteMode(@PathVariable UUID id, @RequestBody WebsiteModeRequest req) {
-        return ResponseEntity.ok(service.updateWebsiteMode(id, req.websiteMode()));
+    @GetMapping("/api/saloon-admin/{id}/website-type")
+    WebsiteTypeResponse getWebsiteType(@PathVariable UUID id) {
+        return new WebsiteTypeResponse(service.getWebsiteType(id));
+    }
+
+    @PatchMapping("/api/saloon-admin/{id}/website-type")
+    ResponseEntity<WebsiteTheme> updateWebsiteType(@PathVariable UUID id, @RequestBody WebsiteTypeRequest req) {
+        return ResponseEntity.ok(service.updateWebsiteType(id, req.websiteType()));
     }
 }

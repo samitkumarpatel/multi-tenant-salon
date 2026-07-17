@@ -36,7 +36,7 @@ class SaloonServiceModuleTests {
     @Test
     void listServicesReturnsEmptyInitially() {
         client.get()
-                .uri("/api/saloons/{id}/services", saloonId)
+                .uri("/api/saloon-admin/{id}/services", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -47,7 +47,7 @@ class SaloonServiceModuleTests {
     @Test
     void addService() {
         client.post()
-                .uri("/api/saloons/{id}/services", saloonId)
+                .uri("/api/saloon-admin/{id}/services", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -72,7 +72,7 @@ class SaloonServiceModuleTests {
     @Test
     void serviceLifecycle() {
         var created = client.post()
-                .uri("/api/saloons/{id}/services", saloonId)
+                .uri("/api/saloon-admin/{id}/services", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -92,7 +92,7 @@ class SaloonServiceModuleTests {
         String serviceId = location.substring(location.lastIndexOf('/') + 1);
 
         client.get()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -100,7 +100,7 @@ class SaloonServiceModuleTests {
                 .jsonPath("$.price").isEqualTo(35.00);
 
         client.put()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -119,19 +119,19 @@ class SaloonServiceModuleTests {
                 .jsonPath("$.price").isEqualTo(45.00);
 
         client.get()
-                .uri("/api/saloons/{saloonId}/services", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/services", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(1);
 
         client.delete()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -139,7 +139,7 @@ class SaloonServiceModuleTests {
     @Test
     void serviceNotFound() {
         client.get()
-                .uri("/api/saloons/{saloonId}/services/99999", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/services/99999", saloonId)
                 .exchange()
                 .expectStatus().isNotFound();
     }

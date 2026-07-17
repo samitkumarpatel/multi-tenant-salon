@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.website.internal;
 
 import net.samitkumar.multi_tenant_saloon.website.WebsiteTheme;
+import net.samitkumar.multi_tenant_saloon.website.WebsiteType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,14 @@ class WebsiteThemeService {
 
     WebsiteTheme getTheme(UUID saloonId) {
         return repository.findById(saloonId)
-                .orElse(new WebsiteTheme(saloonId, "#F8FAFC", "#0F172A", "#059669", "nunito", "#7C3AED", "static", "#FFFFFF", "#1E293B", null, null));
+                .orElse(new WebsiteTheme(saloonId, "#F8FAFC", "#0F172A", "#059669", "nunito", "#7C3AED",
+                        WebsiteType.STATIC_WEBSITE, "#FFFFFF", "#1E293B", null, null));
+    }
+
+    WebsiteType getWebsiteType(UUID saloonId) {
+        return repository.findById(saloonId)
+                .map(WebsiteTheme::websiteType)
+                .orElse(WebsiteType.STATIC_WEBSITE);
     }
 
     WebsiteTheme saveTheme(UUID saloonId, String heroBg, String heroTextColor,
@@ -49,7 +57,7 @@ class WebsiteThemeService {
         return repository.findById(saloonId).orElseThrow();
     }
 
-    WebsiteTheme updateWebsiteMode(UUID saloonId, String websiteMode) {
+    WebsiteTheme updateWebsiteType(UUID saloonId, WebsiteType websiteType) {
         jdbc.update("""
                 INSERT INTO saloon_website_theme
                   (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color,
@@ -60,7 +68,7 @@ class WebsiteThemeService {
                   website_mode = EXCLUDED.website_mode,
                   updated_at   = EXCLUDED.updated_at
                 """,
-                saloonId, websiteMode, Timestamp.from(Instant.now()));
+                saloonId, websiteType.name(), Timestamp.from(Instant.now()));
 
         return repository.findById(saloonId).orElseThrow();
     }

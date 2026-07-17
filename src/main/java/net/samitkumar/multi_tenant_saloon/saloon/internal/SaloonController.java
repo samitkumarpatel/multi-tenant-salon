@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/saloons")
 class SaloonController {
 
     private final SaloonService service;
@@ -38,58 +37,51 @@ class SaloonController {
                                Saloon.ContactInfo contact,
                                List<Saloon.OperatingHours> operatingHours) {}
 
-    @PostMapping
+    @PostMapping("/api/saloon-onboarding")
     ResponseEntity<CreateSaloonResponse> create(@Valid @RequestBody CreateSaloonRequest request) {
         var owner = new Saloon.Owner(request.ownerName(), request.ownerEmail(), request.ownerPhone());
         var saloon = service.create(request.name(), owner, request.location(), request.contact(),
                 request.operatingHours(), request.features());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}")
+                .replacePath("/api/saloon/{id}")
                 .buildAndExpand(saloon.id())
                 .toUri();
         return ResponseEntity.created(location).body(new CreateSaloonResponse(saloon.id(), saloon.handler()));
     }
 
-    @GetMapping
+    @GetMapping("/api/saloon-onboarding")
     List<Saloon> findAll() {
         return service.findAll();
     }
 
-    @GetMapping("/{id}")
-    ResponseEntity<Saloon> findById(@PathVariable UUID id) {
-        return service.findById(id)
+    @GetMapping({"/api/saloon/{id}", "/api/saloon-admin/{id}"})
+    ResponseEntity<Saloon> findByIdOrHandler(@PathVariable String id) {
+        return service.findByIdOrHandler(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/handler/{handler}")
-    ResponseEntity<Saloon> findByHandler(@PathVariable String handler) {
-        return service.findByHandler(handler)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    @PutMapping("/{id}")
+    @PutMapping("/api/saloon-admin/{id}")
     ResponseEntity<Saloon> update(@PathVariable UUID id, @RequestBody UpdateSaloonRequest request) {
         return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/{id}/features")
+    @PutMapping("/api/saloon-admin/{id}/features")
     ResponseEntity<Saloon> updateFeatures(@PathVariable UUID id, @RequestBody List<SaloonFeature> features) {
         return service.updateFeatures(id, features)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/api/saloon-admin/{id}")
     ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/publish")
+    @PostMapping("/api/saloon-admin/{id}/website/publish")
     ResponseEntity<Void> publishWebsite(@PathVariable UUID id) {
         return switch (service.publishWebsite(id)) {
             case OK -> ResponseEntity.accepted().build();

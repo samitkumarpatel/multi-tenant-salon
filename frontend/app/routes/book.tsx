@@ -6,20 +6,18 @@
 
 import { useLoaderData, useNavigate, useParams, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { API, HANDLER_API, apiFetch } from "~/lib/api";
+import { SALOON_API, apiFetch } from "~/lib/api";
 import { DEFAULT_THEME } from "~/lib/theme";
 import { BookingWizard } from "~/components/BookingWizard";
 import type { Saloon, ServiceItem, StaffMember, WebsiteTheme } from "~/lib/types";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.saloonId!;
-  const saloon = await apiFetch<Saloon>(
-    /^\d+$/.test(id) ? `${API}/${id}` : `${HANDLER_API}/${id}`
-  );
+  const saloon = await apiFetch<Saloon>(`${SALOON_API}/${id}`);
   const [services, staff, theme] = await Promise.all([
-    apiFetch<ServiceItem[]>(`${API}/${saloon.id}/services`).catch((): ServiceItem[] => []),
-    apiFetch<StaffMember[]>(`${API}/${saloon.id}/staff`).catch((): StaffMember[] => []),
-    apiFetch<WebsiteTheme>(`${API}/${saloon.id}/theme`).catch((): WebsiteTheme => DEFAULT_THEME),
+    apiFetch<ServiceItem[]>(`${SALOON_API}/${saloon.id}/services`).catch((): ServiceItem[] => []),
+    apiFetch<StaffMember[]>(`${SALOON_API}/${saloon.id}/staff`).catch((): StaffMember[] => []),
+    apiFetch<WebsiteTheme>(`${SALOON_API}/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
   ]);
   return {
     saloon,
