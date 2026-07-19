@@ -23,26 +23,16 @@ class UtilityModuleTests {
     @Test
     void listCountries() {
         client.get()
-                .uri("/api/utility/countries")
+                .uri("/api/saloon-utility/countries")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$").isArray()
                 .jsonPath("$[0].name").isNotEmpty()
                 .jsonPath("$[0].code").isNotEmpty()
-                .jsonPath("$[0].dialCode").isNotEmpty();
-    }
-
-    @Test
-    void listCurrencies() {
-        client.get()
-                .uri("/api/utility/currencies")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$").isArray()
-                .jsonPath("$[0].code").isNotEmpty()
-                .jsonPath("$[0].name").isNotEmpty()
-                .jsonPath("$[0].symbol").isNotEmpty();
+                .jsonPath("$[0].dialCode").isNotEmpty()
+                .jsonPath("$[0].currencyCode").isNotEmpty()
+                .jsonPath("$[0].currencyName").isNotEmpty()
+                .jsonPath("$[0].currencySymbol").isNotEmpty();
     }
 }

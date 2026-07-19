@@ -24,7 +24,7 @@ class SaloonModuleTests {
     @Test
     void createSaloon() {
         client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -45,7 +45,7 @@ class SaloonModuleTests {
     @Test
     void createSaloonValidation() {
         client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -59,7 +59,7 @@ class SaloonModuleTests {
     @Test
     void listSaloons() {
         client.get()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -69,7 +69,7 @@ class SaloonModuleTests {
     @Test
     void saloonNotFound() {
         client.get()
-                .uri("/api/saloons/00000000-0000-0000-0000-000000000000")
+                .uri("/api/saloon/00000000-0000-0000-0000-000000000000")
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -77,7 +77,7 @@ class SaloonModuleTests {
     @Test
     void updateFeatures() {
         var created = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -97,7 +97,7 @@ class SaloonModuleTests {
         String id = location.substring(location.lastIndexOf('/') + 1);
 
         client.put()
-                .uri("/api/saloons/" + id + "/features")
+                .uri("/api/saloon-admin/" + id + "/features")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
@@ -111,7 +111,7 @@ class SaloonModuleTests {
     @Test
     void getSaloonByHandler() {
         var created = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -125,7 +125,7 @@ class SaloonModuleTests {
                 .expectBody()
                 .jsonPath("$.handler").value(handler -> {
                     client.get()
-                            .uri("/api/saloons/handler/" + handler)
+                            .uri("/api/saloon/" + handler)
                             .exchange()
                             .expectStatus().isOk()
                             .expectBody()
@@ -136,7 +136,7 @@ class SaloonModuleTests {
     @Test
     void updateSaloon() {
         var created = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -154,7 +154,7 @@ class SaloonModuleTests {
         String id = location.substring(location.lastIndexOf('/') + 1);
 
         client.put()
-                .uri("/api/saloons/" + id)
+                .uri("/api/saloon-admin/" + id)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -170,7 +170,7 @@ class SaloonModuleTests {
     @Test
     void publishSaloon() {
         var created = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -189,7 +189,7 @@ class SaloonModuleTests {
         String id = location.substring(location.lastIndexOf('/') + 1);
 
         client.post()
-                .uri("/api/saloons/" + id + "/publish")
+                .uri("/api/saloon-admin/" + id + "/website/publish")
                 .exchange()
                 .expectStatus().isAccepted();
     }
@@ -197,7 +197,7 @@ class SaloonModuleTests {
     @Test
     void publishSaloonWithoutWebsiteFeatureReturns422() {
         var created = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -216,7 +216,7 @@ class SaloonModuleTests {
         String id = location.substring(location.lastIndexOf('/') + 1);
 
         client.post()
-                .uri("/api/saloons/" + id + "/publish")
+                .uri("/api/saloon-admin/" + id + "/website/publish")
                 .exchange()
                 .expectStatus().isEqualTo(422);
     }
@@ -224,7 +224,7 @@ class SaloonModuleTests {
     @Test
     void deleteSaloon() {
         var created = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -244,12 +244,12 @@ class SaloonModuleTests {
         String id = location.substring(location.lastIndexOf('/') + 1);
 
         client.delete()
-                .uri("/api/saloons/" + id)
+                .uri("/api/saloon-admin/" + id)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/" + id)
+                .uri("/api/saloon/" + id)
                 .exchange()
                 .expectStatus().isNotFound();
     }

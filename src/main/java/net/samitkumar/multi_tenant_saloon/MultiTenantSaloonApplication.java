@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_saloon;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +20,7 @@ public class MultiTenantSaloonApplication {
 	WebMvcConfigurer corsConfigurer() {
 		return new WebMvcConfigurer() {
 			@Override
-			public void addCorsMappings(CorsRegistry registry) {
+			public void addCorsMappings(@NonNull CorsRegistry registry) {
 				registry.addMapping("/api/**")
 						.allowedOriginPatterns("*")
 						.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")

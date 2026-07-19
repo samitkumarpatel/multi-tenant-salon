@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/saloons/{saloonId}/staff/{staffId}/availability")
+@RequestMapping("/api/saloon-admin/{saloonId}/staff/{staffId}/availability")
 class AvailabilityController {
 
     private final BookingService service;

@@ -4,77 +4,95 @@ info:
   description: |
     REST API for the multi-tenant SaaS saloon/salon management platform.
 
-    ## Access Levels
-    Operations are split into two access levels:
-    - **Customer** – public-facing endpoints used by customers to browse saloons, check
-      availability, and book appointments.
-    - **Admin** – operations restricted to the saloon owner/administrator. Every admin
-      endpoint is scoped to a specific `saloonId` or `id` path parameter so that an admin
-      can only read and modify data that belongs to their own saloon.
+    ## Module / Access Hierarchy
+
+    The API is split into four distinct path namespaces:
+
+    | Namespace | Base Path | Who uses it |
+    |---|---|---|
+    | **Saloon Onboarding** | `/api/saloon-onboarding` | Anyone registering a new saloon tenant; platform-level listing |
+    | **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
+    | **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
+    | **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
+
+    ### Customer sub-paths
+    - `/api/saloon/{saloonId}/services/...` — browse the service catalog
+    - `/api/saloon/{saloonId}/staff/...` — view staff members
+    - `/api/saloon/{saloonId}/booking/...` — slot discovery and appointment creation
+    - `/api/saloon/{saloonId}/website` — public website theme
+
+    ### Admin sub-paths
+    - `/api/saloon-admin/{saloonId}/services/...` — full CRUD on the service catalog
+    - `/api/saloon-admin/{saloonId}/staff/...` — full CRUD + availability management
+    - `/api/saloon-admin/{saloonId}/booking/...` — view, reschedule, and change booking status
+    - `/api/saloon-admin/{saloonId}/website` — website theme + publish trigger
+    - `/api/saloon-admin/{saloonId}/website-type` — get or update the active website presentation type
 
     ## Notification Events
-    Every booking and calendar activity emits an internal Spring Modulith event that is
-    handled by the `notification` module, which prints a structured message to the console.
-    The following activities trigger a notification:
-    - **BookingCreatedEvent** → customer receives booking confirmation details.
-    - **BookingStatusChangedEvent** → customer is notified when a booking is confirmed,
-      cancelled, completed, or marked as no-show.
-    - **BookingRescheduledEvent** → customer is notified of the new date/time.
-    - **StaffScheduleUpdatedEvent** → admin is notified that a weekly schedule was replaced.
-    - **StaffAvailabilityOverrideAddedEvent** → admin is notified of the new date override.
-    - **StaffAvailabilityOverrideRemovedEvent** → admin is notified of the deleted override.
-  version: 1.0.0
+    Every booking and calendar activity emits an internal Spring Modulith event handled by
+    the `notification` module:
+    - **BookingCreatedEvent** → booking confirmation sent to customer.
+    - **BookingStatusChangedEvent** → customer notified on confirm/cancel/complete/no-show.
+    - **BookingRescheduledEvent** → customer notified of new date/time.
+    - **StaffScheduleUpdatedEvent** → admin notified of weekly schedule replacement.
+    - **StaffAvailabilityOverrideAddedEvent** → admin notified of new date override.
+    - **StaffAvailabilityOverrideRemovedEvent** → admin notified of deleted override.
+  version: 2.0.0
 
 servers:
   - url: http://localhost:8080
     description: Local development server
 
 tags:
-  - name: Saloons
-    description: Core saloon management
-  - name: Services
-    description: Service catalog per saloon
-  - name: Staff
+  - name: SaloonOnboarding
     description: |
-      Staff roster per saloon.
-      When a saloon is created the owner is automatically enrolled as a staff member
+      New saloon tenant registration and platform-level saloon listing.
+      Creating a saloon triggers auto-enrolment of the owner as a staff member
       (`isOwner = true`, `role = MANAGER`, `availableForBooking = true`).
-      Owner-staff entries cannot be deleted; owners may set `availableForBooking = false`
-      to opt out of the booking calendar.
-  - name: Availability
+  - name: Saloon
+    description: Customer-facing saloon discovery — browse, search by handler, view details.
+  - name: Services
+    description: Customer-facing service catalog — list and get services for a saloon.
+  - name: Staff
+    description: Customer-facing staff roster — list and view staff member profiles.
+  - name: Booking
     description: |
-      Staff availability calendar and overrides.
-      **Admin-only writes** – only the saloon admin may set weekly schedules or add/remove
-      overrides. Reads are available to any consumer (e.g. the slot-discovery engine).
-  - name: Bookings
-    description: |
-      Customer appointment bookings and available-slot discovery.
-      Slot discovery and booking creation are customer-facing. Listing all bookings,
-      rescheduling, status transitions (confirm/cancel/complete/no-show), and deletion
-      are **admin-only** operations.
+      Customer-facing appointment flow — slot discovery and booking creation/retrieval.
   - name: Website
-    description: Website theme per saloon
-  - name: Utility
-    description: Reference data (countries, currencies)
-  - name: Admin
+    description: Customer-facing website theme — read the public visual theme for a saloon.
+  - name: SaloonAdmin
     description: |
-      Marker tag for operations that are restricted to saloon administrators.
-      In production these endpoints must be protected by an authentication/authorisation
-      layer (e.g. Spring Security with a Bearer JWT); the current implementation enforces
-      saloon scoping via the `saloonId` path parameter only.
+      Admin operations on the saloon aggregate — update details, manage features, delete.
+      In production these endpoints must be protected by an auth layer (e.g. Bearer JWT).
+  - name: AdminServices
+    description: Admin service catalog management — full CRUD on a saloon's service items.
+  - name: AdminStaff
+    description: Admin staff roster management — onboard, update, and remove staff members.
+  - name: AdminAvailability
+    description: |
+      Admin staff availability calendar — replace weekly schedules and manage date-specific
+      overrides. Reads are shared with the slot-discovery engine.
+  - name: AdminBooking
+    description: |
+      Admin booking management — list, reschedule, change status (confirm/cancel/complete/
+      no-show), and delete bookings.
+  - name: AdminWebsite
+    description: Admin website management — save/update the website theme and trigger publish.
+  - name: Utility
+    description: Reference data — countries with embedded currency info. Loaded from static classpath resources.
 
 paths:
 
-  # ─── Saloons ───────────────────────────────────────────────────────────────
+  # ─── Saloon Onboarding ────────────────────────────────────────────────────────
 
-  /api/saloons:
+  /api/saloon-onboarding:
     get:
-      tags: [Saloons]
-      summary: List all saloons
+      tags: [SaloonOnboarding]
+      summary: List all saloons (platform view)
       operationId: listSaloons
       responses:
         "200":
-          description: List of saloons
+          description: List of all saloons across all tenants
           content:
             application/json:
               schema:
@@ -83,8 +101,8 @@ paths:
                   $ref: "#/components/schemas/Saloon"
 
     post:
-      tags: [Saloons]
-      summary: Create a new saloon
+      tags: [SaloonOnboarding]
+      summary: Register a new saloon (tenant onboarding)
       operationId: createSaloon
       requestBody:
         required: true
@@ -94,77 +112,38 @@ paths:
               $ref: "#/components/schemas/CreateSaloonRequest"
       responses:
         "201":
-          description: Saloon created
+          description: Saloon registered; owner auto-enrolled as staff member
+          headers:
+            Location:
+              description: URL of the newly created saloon, e.g. /api/saloon/{id}
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateSaloonResponse"
 
-  /api/saloons/{id}:
-    parameters:
-      - $ref: "#/components/parameters/SaloonId"
+  # ─── Customer — Saloon Discovery ─────────────────────────────────────────────
 
+  /api/saloon/{saloonIdOrHandler}:
     get:
-      tags: [Saloons]
-      summary: Get saloon by ID
+      tags: [Saloon]
+      summary: Get saloon by ID or handler (public)
+      description: |
+        Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
+        (`glam-saloon`). UUID lookup is tried first; if the value is not a valid UUID the
+        request falls back to a handler lookup.
       operationId: getSaloon
-      responses:
-        "200":
-          description: Saloon found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Saloon"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-    put:
-      tags: [Saloons, Admin]
-      summary: Update saloon details
-      description: Admin-only. Updates name, location, contact info, and operating hours for the admin's own saloon.
-      operationId: updateSaloon
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateSaloonRequest"
-      responses:
-        "200":
-          description: Saloon updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Saloon"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-    delete:
-      tags: [Saloons, Admin]
-      summary: Delete a saloon
-      description: Admin-only. Permanently removes the saloon and all its associated data (services, staff, bookings).
-      operationId: deleteSaloon
-      responses:
-        "204":
-          description: Saloon deleted
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/saloons/handler/{handler}:
-    get:
-      tags: [Saloons]
-      summary: Get saloon by URL handler
-      operationId: getSaloonByHandler
       parameters:
-        - name: handler
+        - name: saloonIdOrHandler
           in: path
           required: true
           schema:
             type: string
-          description: URL-friendly handler/slug for the saloon
+          description: Saloon UUID or URL-friendly handler slug
       responses:
         "200":
-          description: Saloon found
+          description: Saloon details
           content:
             application/json:
               schema:
@@ -172,62 +151,19 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloons/{id}/features:
-    put:
-      tags: [Saloons, Admin]
-      summary: Update saloon features
-      description: Admin-only. Replaces the full set of enabled features for the saloon (BOOKING, ANALYTICS, etc.).
-      operationId: updateSaloonFeatures
-      parameters:
-        - $ref: "#/components/parameters/SaloonId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: "#/components/schemas/SaloonFeature"
-              example: ["BOOKING", "ANALYTICS"]
-      responses:
-        "200":
-          description: Features updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Saloon"
-        "404":
-          $ref: "#/components/responses/NotFound"
+  # ─── Customer — Services ──────────────────────────────────────────────────────
 
-  /api/saloons/{id}/publish:
-    post:
-      tags: [Saloons, Admin]
-      summary: Publish a saloon (trigger website generation)
-      description: Admin-only. Triggers the website publish flow. Requires the STATIC_WEBSITE feature to be enabled.
-      operationId: publishSaloon
-      parameters:
-        - $ref: "#/components/parameters/SaloonId"
-      responses:
-        "202":
-          description: Publish request accepted
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          description: Saloon cannot be published (missing required data or features)
-
-  # ─── Services ──────────────────────────────────────────────────────────────
-
-  /api/saloons/{saloonId}/services:
+  /api/saloon/{saloonId}/services:
     parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
+      - $ref: "#/components/parameters/SaloonId"
 
     get:
       tags: [Services]
-      summary: List services for a saloon
+      summary: List services for a saloon (public)
       operationId: listServices
       responses:
         "200":
-          description: List of service items
+          description: List of active services
           content:
             application/json:
               schema:
@@ -235,37 +171,18 @@ paths:
                 items:
                   $ref: "#/components/schemas/ServiceItem"
 
-    post:
-      tags: [Services, Admin]
-      summary: Add a service to a saloon
-      description: Admin-only. Creates a new service item in the saloon's catalog.
-      operationId: addService
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddServiceRequest"
-      responses:
-        "201":
-          description: Service created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ServiceItem"
-
-  /api/saloons/{saloonId}/services/{serviceId}:
+  /api/saloon/{saloonId}/services/{serviceId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
+      - $ref: "#/components/parameters/SaloonId"
       - $ref: "#/components/parameters/ServiceId"
 
     get:
       tags: [Services]
-      summary: Get a service by ID
+      summary: Get a service by ID (public)
       operationId: getService
       responses:
         "200":
-          description: Service found
+          description: Service details
           content:
             application/json:
               schema:
@@ -273,47 +190,15 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-    put:
-      tags: [Services, Admin]
-      summary: Update a service
-      description: Admin-only. Updates pricing, duration, category, assigned staff, and active status.
-      operationId: updateService
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateServiceRequest"
-      responses:
-        "200":
-          description: Service updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ServiceItem"
-        "404":
-          $ref: "#/components/responses/NotFound"
+  # ─── Customer — Staff ─────────────────────────────────────────────────────────
 
-    delete:
-      tags: [Services, Admin]
-      summary: Delete a service
-      description: Admin-only. Removes a service from the catalog.
-      operationId: deleteService
-      responses:
-        "204":
-          description: Service deleted
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  # ─── Staff ─────────────────────────────────────────────────────────────────
-
-  /api/saloons/{saloonId}/staff:
+  /api/saloon/{saloonId}/staff:
     parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
+      - $ref: "#/components/parameters/SaloonId"
 
     get:
       tags: [Staff]
-      summary: List staff members for a saloon
+      summary: List staff members for a saloon (public)
       operationId: listStaff
       responses:
         "200":
@@ -325,37 +210,18 @@ paths:
                 items:
                   $ref: "#/components/schemas/StaffMember"
 
-    post:
-      tags: [Staff, Admin]
-      summary: Onboard a new staff member
-      description: Admin-only. Adds a staff member to the saloon roster.
-      operationId: onboardStaff
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OnboardStaffRequest"
-      responses:
-        "201":
-          description: Staff member created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StaffMember"
-
-  /api/saloons/{saloonId}/staff/{staffId}:
+  /api/saloon/{saloonId}/staff/{staffId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
+      - $ref: "#/components/parameters/SaloonId"
       - $ref: "#/components/parameters/StaffId"
 
     get:
       tags: [Staff]
-      summary: Get a staff member by ID
+      summary: Get a staff member by ID (public)
       operationId: getStaffMember
       responses:
         "200":
-          description: Staff member found
+          description: Staff member profile
           content:
             application/json:
               schema:
@@ -363,165 +229,23 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-    put:
-      tags: [Staff, Admin]
-      summary: Update a staff member
-      description: Admin-only. Updates name, contact details, role, status, specializations, photos, and bio for a staff member within the admin's saloon.
-      operationId: updateStaffMember
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateStaffRequest"
-      responses:
-        "200":
-          description: Staff member updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StaffMember"
-        "404":
-          $ref: "#/components/responses/NotFound"
+  # ─── Customer — Booking ───────────────────────────────────────────────────────
 
-    delete:
-      tags: [Staff, Admin]
-      summary: Remove a staff member
-      description: Admin-only. Removes a staff member from the roster. Existing bookings for this staff member are cascade-deleted.
-      operationId: deleteStaffMember
-      responses:
-        "204":
-          description: Staff member deleted
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  # ─── Staff Availability ────────────────────────────────────────────────────
-
-  /api/saloons/{saloonId}/staff/{staffId}/availability:
-    parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
-      - $ref: "#/components/parameters/StaffId"
-
+  /api/saloon/{saloonId}/booking/slots:
     get:
-      tags: [Availability]
-      summary: Get staff weekly availability schedule
-      operationId: getStaffAvailability
-      responses:
-        "200":
-          description: Weekly availability entries
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StaffAvailability"
-
-    put:
-      tags: [Availability, Admin]
-      summary: Replace staff weekly availability schedule
+      tags: [Booking]
+      summary: Get booking slots for a service on a given date
       description: |
-        Admin-only. Replaces the entire weekly schedule for a staff member within the admin's
-        saloon. Previous entries are deleted before the new set is saved.
-        Emits **StaffScheduleUpdatedEvent** → notification module logs the change to console.
-      operationId: setStaffAvailability
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: "#/components/schemas/DayScheduleRequest"
-      responses:
-        "200":
-          description: Updated availability entries
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StaffAvailability"
-
-  /api/saloons/{saloonId}/staff/{staffId}/availability/overrides:
-    parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
-      - $ref: "#/components/parameters/StaffId"
-
-    get:
-      tags: [Availability]
-      summary: List date-specific availability overrides for a staff member
-      operationId: getAvailabilityOverrides
-      responses:
-        "200":
-          description: List of overrides
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StaffAvailabilityOverride"
-
-    post:
-      tags: [Availability, Admin]
-      summary: Add a date-specific availability override
-      description: |
-        Admin-only. Pins availability for a staff member on a specific date, overriding the
-        regular weekly schedule. Set `available: false` with no times to mark the staff member
-        as unavailable for that day (e.g. holiday or sick leave).
-        Emits **StaffAvailabilityOverrideAddedEvent** → notification module logs the change.
-      operationId: addAvailabilityOverride
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddOverrideRequest"
-      responses:
-        "201":
-          description: Override created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StaffAvailabilityOverride"
-
-  /api/saloons/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}:
-    parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
-      - $ref: "#/components/parameters/StaffId"
-      - name: overrideId
-        in: path
-        required: true
-        schema:
-          type: integer
-          format: int64
-
-    delete:
-      tags: [Availability, Admin]
-      summary: Remove a date-specific availability override
-      description: |
-        Admin-only. Deletes the override so the regular weekly schedule applies again for
-        that date. Scoped to the admin's saloon — deletes only if the override belongs to
-        the given saloonId/staffId pair.
-        Emits **StaffAvailabilityOverrideRemovedEvent** → notification module logs the change.
-      operationId: removeAvailabilityOverride
-      responses:
-        "204":
-          description: Override removed
-
-  # ─── Slots & Bookings ──────────────────────────────────────────────────────
-
-  /api/saloons/{saloonId}/slots:
-    get:
-      tags: [Bookings]
-      summary: Get available booking slots for a service on a given date
-      description: |
-        Customer-facing. Returns all open time slots for a service on a specific date.
-        Slots are calculated from each eligible staff member's weekly schedule or
-        date-specific override, then filtered against existing non-cancelled bookings.
-        Pass an optional `staffId` to filter to a single beautician/staff member.
+        Customer-facing. Returns all time slots for a service on a specific date — both
+        available and already-booked ones. Slots are derived from each eligible staff
+        member's weekly schedule or date-specific override.
+        Each slot carries a `booked` flag: `false` means the slot is open and selectable;
+        `true` means it is taken (existing non-cancelled booking) and should be shown
+        grayed-out / non-selectable in the UI.
+        Optionally filter to a single staff member via `staffId`.
       operationId: getAvailableSlots
       parameters:
-        - $ref: "#/components/parameters/SaloonIdPath"
+        - $ref: "#/components/parameters/SaloonId"
         - name: serviceId
           in: query
           required: true
@@ -554,27 +278,12 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloons/{saloonId}/bookings:
+  /api/saloon/{saloonId}/booking:
     parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
-
-    get:
-      tags: [Bookings, Admin]
-      summary: List all bookings for a saloon
-      description: Admin-only. Returns all bookings across all statuses for the admin's saloon.
-      operationId: listBookings
-      responses:
-        "200":
-          description: List of bookings
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Booking"
+      - $ref: "#/components/parameters/SaloonId"
 
     post:
-      tags: [Bookings]
+      tags: [Booking]
       summary: Create a booking
       description: |
         Customer-facing. Books an available slot for a service. `staffId` is optional — the
@@ -599,18 +308,554 @@ paths:
         "409":
           description: Requested slot is no longer available
 
-  /api/saloons/{saloonId}/bookings/{bookingId}:
+  /api/saloon/{saloonId}/booking/{bookingId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonIdPath"
+      - $ref: "#/components/parameters/SaloonId"
       - $ref: "#/components/parameters/BookingId"
 
     get:
-      tags: [Bookings]
+      tags: [Booking]
       summary: Get a booking by ID
       operationId: getBooking
       responses:
         "200":
-          description: Booking found
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Customer — Website Theme ──────────────────────────────────────────────────
+
+  /api/saloon/{saloonId}/website:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [Website]
+      summary: Get website theme for a saloon (public)
+      description: |
+        Returns the visual theme used to render the saloon's public-facing website.
+        If no theme has been saved yet, sensible defaults are returned without touching the DB.
+      operationId: getTheme
+      responses:
+        "200":
+          description: Website theme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsiteTheme"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Saloon Management ────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [SaloonAdmin]
+      summary: Get saloon details (admin)
+      description: Accepts either a UUID or a handler slug — same lookup logic as the public endpoint.
+      operationId: adminGetSaloon
+      responses:
+        "200":
+          description: Saloon details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [SaloonAdmin]
+      summary: Update saloon details (admin)
+      description: Admin-only. Updates name, location, contact info, and operating hours. Owner, handler, and features are preserved.
+      operationId: updateSaloon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSaloonRequest"
+      responses:
+        "200":
+          description: Updated saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [SaloonAdmin]
+      summary: Delete a saloon (admin)
+      description: Admin-only. Permanently removes the saloon and all associated data (services, staff, bookings) via cascade delete.
+      operationId: deleteSaloon
+      responses:
+        "204":
+          description: Saloon deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/saloon-admin/{saloonId}/features:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    put:
+      tags: [SaloonAdmin]
+      summary: Replace saloon feature flags (admin)
+      description: Admin-only. Replaces the full set of enabled features for the saloon (BOOKING, ANALYTICS, etc.).
+      operationId: updateSaloonFeatures
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SaloonFeature"
+              example: ["BOOKING", "ANALYTICS"]
+      responses:
+        "200":
+          description: Features updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Website ──────────────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/website:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminWebsite]
+      summary: Get website theme (admin)
+      operationId: adminGetTheme
+      responses:
+        "200":
+          description: Website theme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsiteTheme"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [AdminWebsite]
+      summary: Save website theme (admin)
+      description: Admin-only. Upserts the website theme for the saloon. Creates a new row if none exists; otherwise updates in place.
+      operationId: saveTheme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveThemeRequest"
+      responses:
+        "200":
+          description: Theme saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsiteTheme"
+
+  /api/saloon-admin/{saloonId}/website/publish:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    post:
+      tags: [AdminWebsite]
+      summary: Publish the saloon website (admin)
+      description: |
+        Admin-only. Triggers the website publish pipeline. Requires the `STATIC_WEBSITE`
+        feature to be enabled. Returns immediately; actual deployment (S3, DNS) is handled
+        asynchronously by the `website` module.
+      operationId: publishSaloon
+      responses:
+        "202":
+          description: Publish request accepted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Saloon does not have the STATIC_WEBSITE feature enabled
+
+  /api/saloon-admin/{saloonId}/website-type:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminWebsite]
+      summary: Get website type (admin)
+      description: |
+        Admin-only. Returns the current website presentation type for the saloon.
+        Defaults to `STATIC_WEBSITE` if the theme row does not yet exist.
+        This endpoint is called when the admin navigates to the website tab.
+      operationId: getWebsiteType
+      responses:
+        "200":
+          description: Current website type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsiteTypeResponse"
+
+    patch:
+      tags: [AdminWebsite]
+      summary: Update website type (admin)
+      description: |
+        Admin-only. Updates the website presentation type. One of `STATIC_WEBSITE`,
+        `GENERATIVE_UI`, `CUSTOMISE_WEBSITE_CONTACT_US`. The rest of the theme is preserved.
+        Creates the theme row if it does not yet exist.
+      operationId: updateWebsiteType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebsiteTypeRequest"
+      responses:
+        "200":
+          description: Updated website theme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsiteTheme"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Services ─────────────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/services:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminServices]
+      summary: List services (admin)
+      operationId: adminListServices
+      responses:
+        "200":
+          description: List of service items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceItem"
+
+    post:
+      tags: [AdminServices]
+      summary: Add a service to the catalog (admin)
+      operationId: addService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddServiceRequest"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceItem"
+
+  /api/saloon-admin/{saloonId}/services/{serviceId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/ServiceId"
+
+    get:
+      tags: [AdminServices]
+      summary: Get a service by ID (admin)
+      operationId: adminGetService
+      responses:
+        "200":
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceItem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [AdminServices]
+      summary: Update a service (admin)
+      description: Admin-only. Updates pricing, duration, category, assigned staff, and active status.
+      operationId: updateService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateServiceRequest"
+      responses:
+        "200":
+          description: Service updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceItem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [AdminServices]
+      summary: Delete a service (admin)
+      operationId: deleteService
+      responses:
+        "204":
+          description: Service deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Staff ────────────────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/staff:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminStaff]
+      summary: List staff members (admin)
+      operationId: adminListStaff
+      responses:
+        "200":
+          description: List of staff members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffMember"
+
+    post:
+      tags: [AdminStaff]
+      summary: Onboard a new staff member (admin)
+      operationId: onboardStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardStaffRequest"
+      responses:
+        "201":
+          description: Staff member created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+
+  /api/saloon-admin/{saloonId}/staff/{staffId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/StaffId"
+
+    get:
+      tags: [AdminStaff]
+      summary: Get a staff member by ID (admin)
+      operationId: adminGetStaffMember
+      responses:
+        "200":
+          description: Staff member details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [AdminStaff]
+      summary: Update a staff member (admin)
+      description: Admin-only. Updates name, contact, role, status, specializations, photos, bio, and booking availability.
+      operationId: updateStaffMember
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffRequest"
+      responses:
+        "200":
+          description: Staff member updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [AdminStaff]
+      summary: Remove a staff member (admin)
+      description: Admin-only. Removes a staff member from the roster. Existing bookings for this member are cascade-deleted. Owner-staff entries (`isOwner = true`) cannot be deleted.
+      operationId: deleteStaffMember
+      responses:
+        "204":
+          description: Staff member removed
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Staff Availability ───────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/staff/{staffId}/availability:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/StaffId"
+
+    get:
+      tags: [AdminAvailability]
+      summary: Get staff weekly availability schedule (admin)
+      operationId: getStaffAvailability
+      responses:
+        "200":
+          description: Weekly availability entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAvailability"
+
+    put:
+      tags: [AdminAvailability]
+      summary: Replace staff weekly availability schedule (admin)
+      description: |
+        Admin-only. Replaces the entire weekly schedule for a staff member. Previous entries
+        are deleted before the new set is saved.
+        Emits **StaffScheduleUpdatedEvent** → notification module logs the change.
+      operationId: setStaffAvailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/DayScheduleRequest"
+      responses:
+        "200":
+          description: Updated availability entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAvailability"
+
+  /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/StaffId"
+
+    get:
+      tags: [AdminAvailability]
+      summary: List date-specific availability overrides (admin)
+      operationId: getAvailabilityOverrides
+      responses:
+        "200":
+          description: List of overrides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAvailabilityOverride"
+
+    post:
+      tags: [AdminAvailability]
+      summary: Add a date-specific availability override (admin)
+      description: |
+        Admin-only. Pins availability for a staff member on a specific date, overriding the
+        regular weekly schedule. Set `available: false` with no times to mark a day as
+        unavailable (e.g. holiday or sick leave).
+        Emits **StaffAvailabilityOverrideAddedEvent** → notification module logs the change.
+      operationId: addAvailabilityOverride
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddOverrideRequest"
+      responses:
+        "201":
+          description: Override created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAvailabilityOverride"
+
+  /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/StaffId"
+      - name: overrideId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+
+    delete:
+      tags: [AdminAvailability]
+      summary: Remove a date-specific availability override (admin)
+      description: |
+        Admin-only. Deletes the override so the regular weekly schedule applies again for
+        that date. Scoped to the given saloonId/staffId pair.
+        Emits **StaffAvailabilityOverrideRemovedEvent** → notification module logs the change.
+      operationId: removeAvailabilityOverride
+      responses:
+        "204":
+          description: Override removed
+
+  # ─── Admin — Booking ──────────────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/booking:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminBooking]
+      summary: List all bookings for a saloon (admin)
+      description: Admin-only. Returns all bookings across all statuses.
+      operationId: listBookings
+      responses:
+        "200":
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+
+  /api/saloon-admin/{saloonId}/booking/{bookingId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/BookingId"
+
+    get:
+      tags: [AdminBooking]
+      summary: Get a booking by ID (admin)
+      operationId: adminGetBooking
+      responses:
+        "200":
+          description: Booking details
           content:
             application/json:
               schema:
@@ -619,11 +864,10 @@ paths:
           $ref: "#/components/responses/NotFound"
 
     put:
-      tags: [Bookings, Admin]
-      summary: Reschedule a booking
+      tags: [AdminBooking]
+      summary: Reschedule a booking (admin)
       description: |
-        Admin-only. Moves a booking to a different date, time, or staff member. Intended
-        for urgent admin interventions (e.g. staff unavailability). The end time is
+        Admin-only. Moves a booking to a different date, time, or staff member. End time is
         recalculated automatically from the service duration.
         Emits **BookingRescheduledEvent** → customer receives a reschedule notification.
       operationId: rescheduleBooking
@@ -644,25 +888,26 @@ paths:
           $ref: "#/components/responses/NotFound"
 
     delete:
-      tags: [Bookings, Admin]
-      summary: Delete a booking
-      description: Admin-only. Permanently removes a booking record from the saloon.
+      tags: [AdminBooking]
+      summary: Delete a booking (admin)
+      description: Admin-only. Permanently removes a booking record.
       operationId: deleteBooking
       responses:
         "204":
           description: Booking deleted
 
-  /api/saloons/{saloonId}/bookings/{bookingId}/confirm:
+  /api/saloon-admin/{saloonId}/booking/{bookingId}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/BookingId"
+
     post:
-      tags: [Bookings, Admin]
-      summary: Confirm a booking
+      tags: [AdminBooking]
+      summary: Confirm a booking (admin)
       description: |
         Admin-only. Moves the booking from PENDING to CONFIRMED.
         Emits **BookingStatusChangedEvent** → customer receives a confirmation notification.
       operationId: confirmBooking
-      parameters:
-        - $ref: "#/components/parameters/SaloonIdPath"
-        - $ref: "#/components/parameters/BookingId"
       responses:
         "200":
           description: Booking confirmed
@@ -673,17 +918,18 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloons/{saloonId}/bookings/{bookingId}/cancel:
+  /api/saloon-admin/{saloonId}/booking/{bookingId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/BookingId"
+
     post:
-      tags: [Bookings, Admin]
-      summary: Cancel a booking
+      tags: [AdminBooking]
+      summary: Cancel a booking (admin)
       description: |
         Admin-only. Moves the booking to CANCELLED status.
         Emits **BookingStatusChangedEvent** → customer receives a cancellation notification.
       operationId: cancelBooking
-      parameters:
-        - $ref: "#/components/parameters/SaloonIdPath"
-        - $ref: "#/components/parameters/BookingId"
       responses:
         "200":
           description: Booking cancelled
@@ -694,17 +940,18 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloons/{saloonId}/bookings/{bookingId}/complete:
+  /api/saloon-admin/{saloonId}/booking/{bookingId}/complete:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/BookingId"
+
     post:
-      tags: [Bookings, Admin]
-      summary: Mark a booking as completed
+      tags: [AdminBooking]
+      summary: Mark a booking as completed (admin)
       description: |
         Admin-only. Marks the appointment as COMPLETED after the customer's visit.
         Emits **BookingStatusChangedEvent** → customer receives a completion notification.
       operationId: completeBooking
-      parameters:
-        - $ref: "#/components/parameters/SaloonIdPath"
-        - $ref: "#/components/parameters/BookingId"
       responses:
         "200":
           description: Booking completed
@@ -715,17 +962,18 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloons/{saloonId}/bookings/{bookingId}/no-show:
+  /api/saloon-admin/{saloonId}/booking/{bookingId}/no-show:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/BookingId"
+
     post:
-      tags: [Bookings, Admin]
-      summary: Mark a booking as no-show
+      tags: [AdminBooking]
+      summary: Mark a booking as no-show (admin)
       description: |
-        Admin-only. Records that the customer did not show up for their appointment.
+        Admin-only. Records that the customer did not attend their appointment.
         Emits **BookingStatusChangedEvent** → customer receives a no-show notification.
       operationId: noShowBooking
-      parameters:
-        - $ref: "#/components/parameters/SaloonIdPath"
-        - $ref: "#/components/parameters/BookingId"
       responses:
         "200":
           description: Booking marked as no-show
@@ -736,48 +984,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ─── Website Theme ─────────────────────────────────────────────────────────
+  # ─── Utility ──────────────────────────────────────────────────────────────────
 
-  /api/saloons/{id}/theme:
-    parameters:
-      - $ref: "#/components/parameters/SaloonId"
-
-    get:
-      tags: [Website]
-      summary: Get website theme for a saloon
-      operationId: getTheme
-      responses:
-        "200":
-          description: Website theme
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WebsiteTheme"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-    put:
-      tags: [Website, Admin]
-      summary: Save website theme for a saloon
-      description: Admin-only. Upserts the website theme for the admin's saloon. If no theme row exists it is created; otherwise it is updated.
-      operationId: saveTheme
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SaveThemeRequest"
-      responses:
-        "200":
-          description: Theme saved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WebsiteTheme"
-
-  # ─── Utility ───────────────────────────────────────────────────────────────
-
-  /api/utility/countries:
+  /api/saloon-utility/countries:
     get:
       tags: [Utility]
       summary: List all supported countries
@@ -792,22 +1001,8 @@ paths:
                 items:
                   $ref: "#/components/schemas/Country"
 
-  /api/utility/currencies:
-    get:
-      tags: [Utility]
-      summary: List all supported currencies
-      operationId: listCurrencies
-      responses:
-        "200":
-          description: List of currencies
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Currency"
 
-# ─── Components ──────────────────────────────────────────────────────────────
+# ─── Components ───────────────────────────────────────────────────────────────
 
 components:
 
@@ -819,20 +1014,10 @@ components:
       description: |
         JWT issued by the identity provider after the admin authenticates.
         **Not yet enforced** — authentication/authorisation is a planned future addition.
-        Until then, all endpoints are accessible without a token; saloon scoping via the
-        `saloonId` / `id` path parameter is the only enforcement in place.
+        Currently the `saloonId` path parameter is the only enforcement in place.
 
   parameters:
     SaloonId:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-      description: Saloon UUID
-
-    SaloonIdPath:
       name: saloonId
       in: path
       required: true
@@ -1059,6 +1244,7 @@ components:
 
     AddServiceRequest:
       type: object
+      required: [name, category]
       properties:
         name:
           type: string
@@ -1146,7 +1332,7 @@ components:
           type: boolean
           description: >
             When false, this staff member is excluded from slot discovery and will not
-            be offered to customers during booking. Defaults to true.
+            be offered to customers during booking.
           default: true
         specializations:
           type: array
@@ -1158,16 +1344,17 @@ components:
           items:
             type: string
             format: uri
-          description: One or more photo URLs of the staff member, shown on the public website
+          description: Photo URLs shown on the public website
         bio:
           type: string
-          description: Short bio / description of the staff member, shown on the public website
+          description: Short bio shown on the public website
         createdAt:
           type: string
           format: date-time
 
     OnboardStaffRequest:
       type: object
+      required: [name, role]
       properties:
         name:
           type: string
@@ -1334,7 +1521,7 @@ components:
         reason:
           type: string
 
-    # ── Slots & Bookings ──────────────────────────────────────────────────────
+    # ── Booking ───────────────────────────────────────────────────────────────
 
     AvailableSlot:
       type: object
@@ -1350,6 +1537,13 @@ components:
           type: string
           format: time
           example: "11:00"
+        booked:
+          type: boolean
+          description: >
+            true when an existing (non-cancelled) booking already occupies this slot.
+            The slot is still returned so the UI can display it as grayed-out / non-selectable.
+            false when the slot is open and can be booked.
+          example: false
 
     Booking:
       type: object
@@ -1455,6 +1649,17 @@ components:
           type: string
         logoBgColor:
           type: string
+        headerBg:
+          type: string
+          description: Navigation bar background color
+        footerBg:
+          type: string
+          description: Footer background color
+        mapsUrl:
+          type: string
+          description: Google Maps embed URL for the saloon location
+        websiteType:
+          $ref: "#/components/schemas/WebsiteType"
         updatedAt:
           type: string
           format: date-time
@@ -1472,6 +1677,33 @@ components:
           type: string
         logoBgColor:
           type: string
+        headerBg:
+          type: string
+          description: Navigation bar background color
+        footerBg:
+          type: string
+          description: Footer background color
+        mapsUrl:
+          type: string
+          description: Google Maps embed URL for the saloon location
+
+    WebsiteType:
+      type: string
+      enum: [STATIC_WEBSITE, GENERATIVE_UI, CUSTOMISE_WEBSITE_CONTACT_US]
+      description: Website presentation type
+
+    WebsiteTypeResponse:
+      type: object
+      properties:
+        websiteType:
+          $ref: "#/components/schemas/WebsiteType"
+
+    WebsiteTypeRequest:
+      type: object
+      required: [websiteType]
+      properties:
+        websiteType:
+          $ref: "#/components/schemas/WebsiteType"
 
     # ── Utility ───────────────────────────────────────────────────────────────
 
@@ -1486,16 +1718,12 @@ components:
         dialCode:
           type: string
           example: "+91"
-
-    Currency:
-      type: object
-      properties:
-        code:
+        currencyCode:
           type: string
-          example: USD
-        name:
+          example: INR
+        currencyName:
           type: string
-          example: US Dollar
-        symbol:
+          example: Indian Rupee
+        currencySymbol:
           type: string
-          example: "$"
+          example: "₹"

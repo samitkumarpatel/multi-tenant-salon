@@ -22,11 +22,13 @@ public record Saloon(
         @Embedded(onEmpty = Embedded.OnEmpty.USE_NULL) ContactInfo contact,
         @MappedCollection(idColumn = "saloon_id", keyColumn = "saloon_key") List<OperatingHours> operatingHours,
         @MappedCollection(idColumn = "saloon_id", keyColumn = "saloon_key") List<SaloonFeatureRef> features,
+        Integer bookingAdvanceDays,
         Instant createdAt
 ) {
     public Saloon {
         features = features != null ? List.copyOf(features) : List.of();
         operatingHours = operatingHours != null ? List.copyOf(operatingHours) : List.of();
+        if (bookingAdvanceDays == null) bookingAdvanceDays = 60;
     }
 
     public record Owner(

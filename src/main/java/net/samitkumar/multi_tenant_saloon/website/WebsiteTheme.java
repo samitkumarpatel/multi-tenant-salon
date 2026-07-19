@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.website;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.Instant;
@@ -14,7 +15,7 @@ public record WebsiteTheme(
         String accentColor,
         String fontFamily,
         String logoBgColor,
-        String websiteMode,
+        @Column("website_mode") WebsiteType websiteType,
         String headerBg,
         String footerBg,
         String mapsUrl,

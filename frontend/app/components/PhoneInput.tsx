@@ -7,6 +7,8 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   countries: Country[];
+  /** Country name (e.g. "India") — pre-selects that dial code when no dial code is in value */
+  defaultCountry?: string;
   autoFocus?: boolean;
 }
 
@@ -19,13 +21,17 @@ function parsePhone(value: string): { dialCode: string; local: string } {
   return { dialCode: "", local: value };
 }
 
-function detectDialCode(countries: Country[]): string {
+function defaultDialCode(countries: Country[], countryName?: string): string {
+  if (countryName) {
+    const match = countries.find((c) => c.name === countryName);
+    if (match) return match.dialCode;
+  }
   return detectCountry(countries)?.dialCode ?? countries[0]?.dialCode ?? "";
 }
 
-export default function PhoneInput({ value, onChange, countries, autoFocus }: Props) {
+export default function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus }: Props) {
   const parsed = parsePhone(value);
-  const [dialCode, setDialCode] = useState(() => parsed.dialCode || detectDialCode(countries));
+  const [dialCode, setDialCode] = useState(() => parsed.dialCode || defaultDialCode(countries, defaultCountry));
   const [local, setLocal]       = useState(parsed.local);
   const [open, setOpen]         = useState(false);
   const [query, setQuery]       = useState("");
