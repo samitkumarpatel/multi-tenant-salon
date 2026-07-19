@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/saloons/{saloonId}")
 class BookingController {
 
     private final BookingService service;
@@ -29,7 +28,7 @@ class BookingController {
 
     record UpdateBookingRequest(LocalDate appointmentDate, LocalTime startTime, Long staffId, String notes) {}
 
-    @GetMapping("/slots")
+    @GetMapping({"/api/saloon/{saloonId}/slots", "/api/saloon-admin/{saloonId}/slots"})
     List<AvailableSlot> getAvailableSlots(
             @PathVariable UUID saloonId,
             @RequestParam Long serviceId,
@@ -38,12 +37,12 @@ class BookingController {
         return service.findAvailableSlots(saloonId, serviceId, date, staffId);
     }
 
-    @GetMapping("/bookings")
+    @GetMapping("/api/saloon-admin/{saloonId}/booking")
     List<Booking> listBookings(@PathVariable UUID saloonId) {
         return service.findAll(saloonId);
     }
 
-    @PostMapping("/bookings")
+    @PostMapping({"/api/saloon/{saloonId}/booking", "/api/saloon-admin/{saloonId}/booking"})
     ResponseEntity<Booking> createBooking(@PathVariable UUID saloonId,
                                           @RequestBody CreateBookingRequest request) {
         var booking = service.create(saloonId, request.serviceId(), request.staffId(),
@@ -56,14 +55,14 @@ class BookingController {
         return ResponseEntity.created(location).body(booking);
     }
 
-    @GetMapping("/bookings/{bookingId}")
+    @GetMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}")
     ResponseEntity<Booking> getBooking(@PathVariable UUID saloonId, @PathVariable Long bookingId) {
         return service.findById(saloonId, bookingId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/bookings/{bookingId}")
+    @PutMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}")
     ResponseEntity<Booking> reschedule(@PathVariable UUID saloonId, @PathVariable Long bookingId,
                                        @RequestBody UpdateBookingRequest request) {
         return service.reschedule(saloonId, bookingId, request.appointmentDate(),
@@ -72,34 +71,34 @@ class BookingController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/bookings/{bookingId}")
+    @DeleteMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}")
     ResponseEntity<Void> deleteBooking(@PathVariable UUID saloonId, @PathVariable Long bookingId) {
         service.delete(saloonId, bookingId);
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/bookings/{bookingId}/confirm")
+    @PostMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}/confirm")
     ResponseEntity<Booking> confirm(@PathVariable UUID saloonId, @PathVariable Long bookingId) {
         return service.updateStatus(saloonId, bookingId, BookingStatus.CONFIRMED)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PostMapping("/bookings/{bookingId}/cancel")
+    @PostMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}/cancel")
     ResponseEntity<Booking> cancel(@PathVariable UUID saloonId, @PathVariable Long bookingId) {
         return service.updateStatus(saloonId, bookingId, BookingStatus.CANCELLED)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PostMapping("/bookings/{bookingId}/complete")
+    @PostMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}/complete")
     ResponseEntity<Booking> complete(@PathVariable UUID saloonId, @PathVariable Long bookingId) {
         return service.updateStatus(saloonId, bookingId, BookingStatus.COMPLETED)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PostMapping("/bookings/{bookingId}/no-show")
+    @PostMapping("/api/saloon-admin/{saloonId}/booking/{bookingId}/no-show")
     ResponseEntity<Booking> noShow(@PathVariable UUID saloonId, @PathVariable Long bookingId) {
         return service.updateStatus(saloonId, bookingId, BookingStatus.NO_SHOW)
                 .map(ResponseEntity::ok)

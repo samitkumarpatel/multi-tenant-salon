@@ -108,7 +108,9 @@ class BookingService {
             staffCandidates = List.of(requestedStaffId);
         } else {
             staffCandidates = serviceItem.assignedStaffIds().stream()
-                    .map(s -> Long.parseLong(s.staffId()))
+                    .map(s -> s.staffId())
+                    .filter(id -> id != null && id.matches("\\d+"))
+                    .map(Long::parseLong)
                     .collect(java.util.stream.Collectors.toList());
             if (staffCandidates.isEmpty()) {
                 staffCandidates = staffApi.findAvailableForBookingBySaloonId(saloonId).stream()
@@ -147,9 +149,7 @@ class BookingService {
                 final LocalTime slotStart = current;
                 boolean conflict = existingBookings.stream().anyMatch(b ->
                         slotStart.isBefore(b.endTime()) && slotEnd.isAfter(b.startTime()));
-                if (!conflict) {
-                    result.add(new AvailableSlot(staffId, slotStart, slotEnd));
-                }
+                result.add(new AvailableSlot(staffId, slotStart, slotEnd, conflict));
                 current = current.plusMinutes(duration);
             }
         }

@@ -5,11 +5,11 @@ import type { WebsiteTheme } from "~/lib/types";
 export const DEFAULT_THEME: WebsiteTheme = {
   heroBg: "#F8FAFC",
   heroTextColor: "#0F172A",
-  accentColor: "#059669",
-  fontFamily: "nunito",
-  logoBgColor: "#7C3AED",
-  headerBg: "#FFFFFF",
-  footerBg: "#1E293B",
+  accentColor: "#1D4ED8",
+  fontFamily: "system",
+  logoBgColor: "#10B981",
+  headerBg: "#E2E8F0",
+  footerBg: "#E2E8F0",
 };
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────

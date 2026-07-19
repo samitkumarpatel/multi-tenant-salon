@@ -1,34 +1,53 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useLoaderData, useLocation, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, useOutletContext, useLocation, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   MapPin, Phone, Mail, Globe, Clock, Timer,
   X, ChevronRight, Rocket, Palette, Check, RotateCcw,
   Monitor, Wand2, ArrowLeft, User, ArrowUp, CalendarCheck,
+  Sparkles, Send,
 } from "lucide-react";
-import { API, HANDLER_API, apiFetch } from "~/lib/api";
+import { SALOON_API, SALOON_ADMIN_API, COUNTRIES_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice } from "~/lib/constants";
 import { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText } from "~/lib/theme";
 import { FeatureView, FEATURE_VIEWS } from "~/components/FeatureView";
 import { BookingWizard } from "~/components/BookingWizard";
 import { FEATURE_NAV } from "~/components/SiteChrome";
-import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme } from "~/lib/types";
+import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, WebsiteMode, LayoutContext, Country } from "~/lib/types";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
-  const id = params.saloonId!;
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-  const saloon = await apiFetch<Saloon>(
-    (isUUID || /^\d+$/.test(id)) ? `${API}/${id}` : `${HANDLER_API}/${id}`
-  );
-  const [staff, services, theme] = await Promise.all([
-    apiFetch<StaffMember[]>(`${API}/${saloon.id}/staff`).catch((): StaffMember[] => []),
-    apiFetch<ServiceItem[]>(`${API}/${saloon.id}/services`).catch((): ServiceItem[] => []),
-    apiFetch<WebsiteTheme>(`${API}/${saloon.id}/theme`).catch((): WebsiteTheme => DEFAULT_THEME),
+  const rawId = params.saloonId!;
+
+  // Single call first — check if the WEBSITE feature is enabled before firing any other API calls
+  const saloon = await apiFetch<Saloon>(`${SALOON_API}/${rawId}`);
+  const saloonId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId)
+    ? rawId
+    : String(saloon.id);
+  cacheSaloonUUID(rawId, saloonId);
+
+  if (!saloon.features?.includes("STATIC_WEBSITE")) {
+    return { websiteEnabled: false as const };
+  }
+
+  const [websiteTypeResult, staff, services, theme, countries] = await Promise.all([
+    apiFetch<{ websiteType: WebsiteMode }>(`${SALOON_ADMIN_API}/${saloonId}/website-type`)
+      .catch((): { websiteType: WebsiteMode } => ({ websiteType: "STATIC_WEBSITE" })),
+    apiFetch<StaffMember[]>(`${SALOON_API}/${saloonId}/staff`).catch((): StaffMember[] => []),
+    apiFetch<ServiceItem[]>(`${SALOON_API}/${saloonId}/services`).catch((): ServiceItem[] => []),
+    apiFetch<WebsiteTheme>(`${SALOON_API}/${saloonId}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
+    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
-  return { saloon, staff, services, theme };
+
+  return {
+    websiteEnabled: true as const,
+    staff,
+    services,
+    theme: { ...theme, websiteType: websiteTypeResult.websiteType },
+    countries,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -322,7 +341,7 @@ function ThemePanel({
   async function handleSave() {
     setSaveState("saving");
     try {
-      await apiFetch<WebsiteTheme>(`${API}/${saloonId}/theme`, {
+      await apiFetch<WebsiteTheme>(`${SALOON_ADMIN_API}/${saloonId}/website`, {
         method: "PUT",
         body: JSON.stringify({
           heroBg: theme.heroBg,
@@ -719,7 +738,7 @@ function PreviewBanner({
   async function handlePublish() {
     setPublish("loading");
     try {
-      const res = await fetch(`${API}/${saloonId}/publish`, { method: "POST" });
+      const res = await fetch(`${SALOON_ADMIN_API}/${saloonId}/website/publish`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPublish("done");
       onPublished();
@@ -790,17 +809,55 @@ export function ErrorBoundary() {
   return <SalonErrorPage is404={is404} />;
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Website not opted page ────────────────────────────────────────────────────
 
-export default function SaloonPage() {
-  const { saloon, staff, services, theme: loaderTheme } = useLoaderData<typeof clientLoader>();
+function WebsiteNotEnabled() {
+  const { saloon } = useOutletContext<LayoutContext>();
+  return (
+    <div
+      className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center px-5 text-center"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-5">
+        <Globe className="w-6 h-6 text-slate-400" />
+      </div>
+      {saloon?.name && (
+        <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon.name}</h1>
+      )}
+      <p className="text-base font-semibold text-slate-700 mb-2">Website not enabled</p>
+      <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
+        You haven't opted for Website. Please OPT in to get website features.
+      </p>
+    </div>
+  );
+}
+
+// ── Page (inner) ──────────────────────────────────────────────────────────────
+
+function SaloonPageContent({
+  staff,
+  services,
+  loaderTheme,
+  countries,
+}: {
+  staff: StaffMember[];
+  services: ServiceItem[];
+  loaderTheme: WebsiteTheme;
+  countries: Country[];
+}) {
+  const { saloon } = useOutletContext<LayoutContext>();
   const location     = useLocation();
   const [searchParams] = useSearchParams();
   const isPreview    = location.pathname.endsWith("/c");
   // Booking is hash-routed like the feature views (#shop etc.)
   const bookUrl      = "#book";
 
-  const [showDesign, setShowDesign] = useState(() => isPreview && searchParams.get("design") === "1");
+  const [showDesign, setShowDesign] = useState(() =>
+    isPreview && (
+      searchParams.get("design") === "1" ||
+      (loaderTheme?.websiteType ?? "STATIC_WEBSITE") === "STATIC_WEBSITE"
+    )
+  );
   // Merge loaded theme over defaults so new fields (headerBg, footerBg, etc.) always have a value
   const initialTheme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
   const [theme, setTheme]           = useState<WebsiteTheme>(initialTheme);
@@ -928,6 +985,7 @@ export default function SaloonPage() {
           services={activeServices}
           staff={activeStaff}
           theme={theme}
+          countries={countries}
           initialServiceId={bookServiceId}
           initialStaffId={bookStaffId}
           onExit={() => { setBookServiceId(null); setBookStaffId(null); window.location.hash = ""; }}
@@ -967,6 +1025,189 @@ export default function SaloonPage() {
           bookUrl={bookUrl}
           onBack={() => { window.location.hash = ""; }}
         />
+      </div>
+    );
+  }
+
+  const previewBannerProps = {
+    handler: saloon.handler ?? saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
+    saloonId: String(saloon.id),
+    onDesign: () => setShowDesign((v) => !v),
+    hasChanges,
+    onPublished: () => setBaseTheme(theme),
+  };
+
+  const websiteType = theme.websiteType ?? "STATIC_WEBSITE";
+
+  if (websiteType === "GENERATIVE_UI") {
+    return (
+      <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStack }}>
+        {isPreview && <PreviewBanner {...previewBannerProps} />}
+        {isPreview && showDesign && (
+          <ThemePanel saloonId={String(saloon.id)} theme={theme} onChange={setTheme} onClose={() => setShowDesign(false)} />
+        )}
+
+        <header className="sticky top-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
+          <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: theme.logoBgColor }}>
+                <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(saloon.name)}</span>
+              </div>
+              <span className="text-sm font-bold" style={{ color: headerText }}>{saloon.name}</span>
+            </div>
+            {hasBooking && (
+              <a href={bookUrl} className="text-xs font-semibold px-4 py-2 rounded-full no-underline transition-opacity hover:opacity-80" style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                Book Now
+              </a>
+            )}
+          </div>
+        </header>
+
+        <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 text-center" style={{ backgroundColor: theme.heroBg, color: theme.heroTextColor }}>
+          <div className="mb-6 w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: theme.accentColor }}>
+            <Sparkles className="w-8 h-8" style={{ color: accentText }} />
+          </div>
+          <h1 className="text-4xl font-bold mb-3 max-w-xl">{saloon.name}</h1>
+          <p className="text-lg mb-2 max-w-md" style={{ color: hero.sub }}>Your AI-Powered Salon Experience</p>
+          <p className="text-sm max-w-sm mb-10" style={{ color: hero.subMuted }}>
+            Ask me anything — get personalised service recommendations, availability, or book your next appointment.
+          </p>
+          <div className="w-full max-w-md">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="e.g. 'Best treatment for dry hair' or 'Haircut under 30 min'"
+                className="w-full rounded-2xl border px-5 py-4 pr-14 text-sm outline-none"
+                style={{ borderColor: hero.chipBorder, backgroundColor: hero.cardBg, color: theme.heroTextColor }}
+                readOnly
+              />
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: theme.accentColor }}
+              >
+                <Send className="w-4 h-4" style={{ color: accentText }} />
+              </button>
+            </div>
+            <p className="mt-3 text-xs" style={{ color: hero.subMuted }}>Powered by AI · This feature is coming soon</p>
+          </div>
+        </section>
+
+        {popularServices.length > 0 && (
+          <section className="py-12 px-6 bg-white">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">Our Services</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {popularServices.map((s) => (
+                  <div key={s.id} className="rounded-xl p-4 border border-slate-100 bg-slate-50">
+                    <p className="font-semibold text-slate-900 text-sm">{s.name}</p>
+                    <p className="text-xs text-slate-500 mt-1">{s.durationMinutes} min · {formatPrice(s.price, s.currency)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <footer className="py-8 px-6 text-center text-xs" style={{ backgroundColor: footerBg, color: footerDim }}>
+          <p className="font-semibold" style={{ color: footerBright }}>{saloon.name}</p>
+          {saloon.contact?.phone && <p className="mt-1">{saloon.contact.phone}</p>}
+          {saloon.contact?.email && <p>{saloon.contact.email}</p>}
+          <p className="mt-4">© {new Date().getFullYear()} {saloon.name} · All rights reserved.</p>
+        </footer>
+      </div>
+    );
+  }
+
+  if (websiteType === "CUSTOMISE_WEBSITE_CONTACT_US") {
+    return (
+      <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStack }}>
+        {isPreview && <PreviewBanner {...previewBannerProps} />}
+        {isPreview && showDesign && (
+          <ThemePanel saloonId={String(saloon.id)} theme={theme} onChange={setTheme} onClose={() => setShowDesign(false)} />
+        )}
+
+        <header className="sticky top-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
+          <div className="max-w-4xl mx-auto px-6 h-14 flex items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: theme.logoBgColor }}>
+                <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(saloon.name)}</span>
+              </div>
+              <span className="text-sm font-bold" style={{ color: headerText }}>{saloon.name}</span>
+            </div>
+          </div>
+        </header>
+
+        <section className="py-20 px-6 text-center" style={{ backgroundColor: theme.heroBg, color: theme.heroTextColor }}>
+          <h1 className="text-4xl font-bold mb-3">{saloon.name}</h1>
+          {city && <p className="text-lg mb-10" style={{ color: hero.sub }}>{city}</p>}
+          <div className="flex flex-wrap justify-center gap-3 mb-10">
+            {saloon.contact?.phone && (
+              <a href={`tel:${saloon.contact.phone}`} className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-semibold no-underline hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                <Phone className="w-4 h-4" /> Call Us
+              </a>
+            )}
+            {saloon.contact?.email && (
+              <a href={`mailto:${saloon.contact.email}`} className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-semibold no-underline hover:opacity-80 transition-opacity" style={{ backgroundColor: hero.chipBg, color: theme.heroTextColor, border: `1px solid ${hero.chipBorder}` }}>
+                <Mail className="w-4 h-4" /> Email Us
+              </a>
+            )}
+          </div>
+          <div className="inline-flex flex-col gap-2 text-sm text-left">
+            {saloon.contact?.phone && (
+              <div className="flex items-center gap-2" style={{ color: hero.sub }}>
+                <Phone className="w-4 h-4 shrink-0" />{saloon.contact.phone}
+              </div>
+            )}
+            {saloon.contact?.email && (
+              <div className="flex items-center gap-2" style={{ color: hero.sub }}>
+                <Mail className="w-4 h-4 shrink-0" />{saloon.contact.email}
+              </div>
+            )}
+            {city && (
+              <div className="flex items-center gap-2" style={{ color: hero.sub }}>
+                <MapPin className="w-4 h-4 shrink-0" />{city}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="py-12 px-6 bg-white">
+          <div className="max-w-lg mx-auto">
+            <h2 className="text-xl font-bold text-slate-900 mb-2 text-center">Send us a message</h2>
+            <p className="text-sm text-slate-500 text-center mb-6">We'll get back to you as soon as possible.</p>
+            <div className="space-y-4">
+              <input type="text" placeholder="Your name" readOnly className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
+              <input type="text" placeholder="Your email or phone" readOnly className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 bg-slate-50 cursor-not-allowed" />
+              <textarea placeholder="What can we help you with?" rows={4} readOnly className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 bg-slate-50 cursor-not-allowed resize-none" />
+              <button disabled className="w-full py-3 rounded-xl text-sm font-semibold opacity-50 cursor-not-allowed flex items-center justify-center gap-2" style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                <Send className="w-4 h-4" /> Send Message <span className="text-xs font-normal">(coming soon)</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {activeServices.length > 0 && (
+          <section className="py-12 px-6" style={{ backgroundColor: theme.heroBg }}>
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-xl font-bold mb-6 text-center" style={{ color: theme.heroTextColor }}>What We Offer</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {activeServices.slice(0, 6).map((s) => (
+                  <div key={s.id} className="rounded-xl p-4" style={{ backgroundColor: hero.cardBg, border: `1px solid ${hero.cardBorder}` }}>
+                    <p className="font-semibold text-sm" style={{ color: theme.heroTextColor }}>{s.name}</p>
+                    <p className="text-xs mt-1" style={{ color: hero.sub }}>{s.durationMinutes} min · {formatPrice(s.price, s.currency)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <footer className="py-8 px-6 text-center text-xs" style={{ backgroundColor: footerBg, color: footerDim }}>
+          <p className="font-semibold" style={{ color: footerBright }}>{saloon.name}</p>
+          {saloon.contact?.phone && <p className="mt-1">{saloon.contact.phone}</p>}
+          {saloon.contact?.email && <p>{saloon.contact.email}</p>}
+          <p className="mt-4">© {new Date().getFullYear()} {saloon.name} · All rights reserved.</p>
+        </footer>
       </div>
     );
   }
@@ -1625,5 +1866,24 @@ export default function SaloonPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// ── Page (router entry) ───────────────────────────────────────────────────────
+
+export default function SaloonPage() {
+  const loaderData = useLoaderData<typeof clientLoader>();
+
+  if (!loaderData.websiteEnabled) {
+    return <WebsiteNotEnabled />;
+  }
+
+  return (
+    <SaloonPageContent
+      staff={loaderData.staff}
+      services={loaderData.services}
+      loaderTheme={loaderData.theme}
+      countries={loaderData.countries}
+    />
   );
 }

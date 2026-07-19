@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail, Phone } from "lucide-react";
+import { AppLogo } from "~/components/Logo";
 
 // ── Cookie consent banner ─────────────────────────────────────────────────────
 
@@ -69,15 +70,18 @@ export default function Home() {
   return (
     <div className="min-h-[100dvh] bg-cream flex flex-col">
 
-      {/* ── Top contact bar ──────────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <div className="px-5 pt-4">
-        <div className="max-w-2xl mx-auto flex justify-end gap-4">
-          <a href="mailto:contact@my-saloon.dk" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
-            <Mail className="w-3 h-3" /> contact@my-saloon.dk
-          </a>
-          <a href="tel:+4500000000" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
-            <Phone className="w-3 h-3" /> +45 00 00 00 00
-          </a>
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+          <AppLogo size={30} textColor="#1c1917" />
+          <div className="flex gap-4">
+            <a href="mailto:contact@my-saloon.dk" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
+              <Mail className="w-3 h-3" /> contact@my-saloon.dk
+            </a>
+            <a href="tel:+4500000000" className="hidden sm:flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
+              <Phone className="w-3 h-3" /> +45 00 00 00 00
+            </a>
+          </div>
         </div>
       </div>
 
@@ -135,9 +139,12 @@ export default function Home() {
       <footer className="px-5 pb-8">
         <div className="max-w-2xl mx-auto">
           <hr className="border-stone-200 mb-3" />
-          <p className="text-right text-[11px] text-stone-400">
-            © {new Date().getFullYear()} my-saloon · All rights reserved.
-          </p>
+          <div className="flex items-center justify-between gap-4">
+            <AppLogo size={18} textColor="#a8a29e" />
+            <p className="text-[11px] text-stone-400">
+              © {new Date().getFullYear()} · All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
 

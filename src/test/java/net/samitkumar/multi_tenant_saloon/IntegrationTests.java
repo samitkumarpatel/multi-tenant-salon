@@ -43,7 +43,7 @@ class IntegrationTests {
     @Order(1)
     void createSaloon() {
         var result = client.post()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -80,7 +80,7 @@ class IntegrationTests {
     @Order(2)
     void listSaloons() {
         client.get()
-                .uri("/api/saloons")
+                .uri("/api/saloon-onboarding")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -91,7 +91,7 @@ class IntegrationTests {
     @Order(3)
     void getSaloonById() {
         client.get()
-                .uri("/api/saloons/{id}", saloonId)
+                .uri("/api/saloon/{id}", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -106,7 +106,7 @@ class IntegrationTests {
     @Order(4)
     void getSaloonByHandler() {
         client.get()
-                .uri("/api/saloons/handler/integration-saloon")
+                .uri("/api/saloon/integration-saloon")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -117,7 +117,7 @@ class IntegrationTests {
     @Order(5)
     void updateSaloon() {
         client.put()
-                .uri("/api/saloons/{id}", saloonId)
+                .uri("/api/saloon-admin/{id}", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -142,7 +142,7 @@ class IntegrationTests {
     @Order(6)
     void updateSaloonFeatures() {
         client.put()
-                .uri("/api/saloons/{id}/features", saloonId)
+                .uri("/api/saloon-admin/{id}/features", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         ["BOOKING", "STATIC_WEBSITE", "ANALYTICS"]
@@ -157,7 +157,7 @@ class IntegrationTests {
     @Order(7)
     void publishSaloon() {
         client.post()
-                .uri("/api/saloons/{id}/publish", saloonId)
+                .uri("/api/saloon-admin/{id}/website/publish", saloonId)
                 .exchange()
                 .expectStatus().isAccepted();
     }
@@ -166,7 +166,7 @@ class IntegrationTests {
     @Order(8)
     void saloonNotFound() {
         client.get()
-                .uri("/api/saloons/00000000-0000-0000-0000-000000000000")
+                .uri("/api/saloon/00000000-0000-0000-0000-000000000000")
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -177,7 +177,7 @@ class IntegrationTests {
     @Order(10)
     void addService() {
         var result = client.post()
-                .uri("/api/saloons/{id}/services", saloonId)
+                .uri("/api/saloon-admin/{id}/services", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -204,7 +204,7 @@ class IntegrationTests {
     @Order(11)
     void listServices() {
         client.get()
-                .uri("/api/saloons/{id}/services", saloonId)
+                .uri("/api/saloon-admin/{id}/services", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -216,7 +216,7 @@ class IntegrationTests {
     @Order(12)
     void getService() {
         client.get()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -228,7 +228,7 @@ class IntegrationTests {
     @Order(13)
     void updateService() {
         client.put()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -252,7 +252,7 @@ class IntegrationTests {
     @Order(14)
     void serviceNotFound() {
         client.get()
-                .uri("/api/saloons/{saloonId}/services/99999", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/services/99999", saloonId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -263,7 +263,7 @@ class IntegrationTests {
     @Order(20)
     void onboardStaff() {
         var result = client.post()
-                .uri("/api/saloons/{id}/staff", saloonId)
+                .uri("/api/saloon-admin/{id}/staff", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -290,7 +290,7 @@ class IntegrationTests {
     @Order(21)
     void listStaff() {
         client.get()
-                .uri("/api/saloons/{id}/staff", saloonId)
+                .uri("/api/saloon-admin/{id}/staff", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -302,7 +302,7 @@ class IntegrationTests {
     @Order(22)
     void getStaff() {
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -314,7 +314,7 @@ class IntegrationTests {
     @Order(23)
     void updateStaff() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -336,7 +336,7 @@ class IntegrationTests {
     @Order(24)
     void staffNotFound() {
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/99999", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/staff/99999", saloonId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -347,7 +347,7 @@ class IntegrationTests {
     @Order(30)
     void getDefaultTheme() {
         client.get()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon/{id}/website", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -360,7 +360,7 @@ class IntegrationTests {
     @Order(31)
     void saveTheme() {
         client.put()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon-admin/{id}/website", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -384,7 +384,7 @@ class IntegrationTests {
     @Order(32)
     void getUpdatedTheme() {
         client.get()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon/{id}/website", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -398,7 +398,7 @@ class IntegrationTests {
     @Order(40)
     void setWeeklyAvailability() {
         client.put()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         [
@@ -421,7 +421,7 @@ class IntegrationTests {
     @Order(41)
     void getWeeklyAvailability() {
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -432,7 +432,7 @@ class IntegrationTests {
     @Order(42)
     void addAvailabilityOverride() {
         var result = client.post()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -455,7 +455,7 @@ class IntegrationTests {
     @Order(43)
     void listAvailabilityOverrides() {
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -467,13 +467,13 @@ class IntegrationTests {
     @Order(44)
     void deleteAvailabilityOverride() {
         client.delete()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}",
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}",
                         saloonId, staffId, overrideId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides", saloonId, staffId)
                 .exchange()
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(0);
@@ -486,7 +486,7 @@ class IntegrationTests {
     void getAvailableSlots() {
         // BOOKING_DATE = 2027-02-01 (Monday), staff has 09:00-17:00, service is 60 min → 8 slots
         client.get()
-                .uri(u -> u.path("/api/saloons/{saloonId}/slots")
+                .uri(u -> u.path("/api/saloon/{saloonId}/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", BOOKING_DATE)
                         .queryParam("staffId", staffId)
@@ -504,7 +504,7 @@ class IntegrationTests {
     @Order(51)
     void getAvailableSlotsWithoutStaffFilter() {
         client.get()
-                .uri(u -> u.path("/api/saloons/{saloonId}/slots")
+                .uri(u -> u.path("/api/saloon/{saloonId}/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", BOOKING_DATE)
                         .build(saloonId))
@@ -520,7 +520,7 @@ class IntegrationTests {
     @Order(60)
     void createBooking() {
         var result = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -550,7 +550,7 @@ class IntegrationTests {
     @Order(61)
     void getBooking() {
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -563,7 +563,7 @@ class IntegrationTests {
     @Order(62)
     void listBookings() {
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon-admin/{saloonId}/booking", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -575,7 +575,7 @@ class IntegrationTests {
     @Order(63)
     void conflictingSlotRejected() {
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -595,7 +595,7 @@ class IntegrationTests {
     @Order(64)
     void confirmBooking() {
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/confirm", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/confirm", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -606,7 +606,7 @@ class IntegrationTests {
     @Order(65)
     void rescheduleBooking() {
         client.put()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, bookingId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -627,7 +627,7 @@ class IntegrationTests {
     @Order(66)
     void completeBooking() {
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/complete", saloonId, bookingId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/complete", saloonId, bookingId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -638,7 +638,7 @@ class IntegrationTests {
     @Order(67)
     void createAndCancelBooking() {
         var result = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -658,7 +658,7 @@ class IntegrationTests {
         String cancelId = result.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/cancel", saloonId, cancelId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/cancel", saloonId, cancelId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -669,7 +669,7 @@ class IntegrationTests {
     @Order(68)
     void createAndMarkNoShow() {
         var result = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -689,7 +689,7 @@ class IntegrationTests {
         String noShowId = result.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.post()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}/no-show", saloonId, noShowId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}/no-show", saloonId, noShowId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -700,7 +700,7 @@ class IntegrationTests {
     @Order(69)
     void deleteBooking() {
         var result = client.post()
-                .uri("/api/saloons/{saloonId}/bookings", saloonId)
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -720,12 +720,12 @@ class IntegrationTests {
         String delId = result.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
 
         client.delete()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, delId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, delId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/bookings/{bookingId}", saloonId, delId)
+                .uri("/api/saloon-admin/{saloonId}/booking/{bookingId}", saloonId, delId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -736,7 +736,7 @@ class IntegrationTests {
     @Order(80)
     void listCountries() {
         client.get()
-                .uri("/api/utility/countries")
+                .uri("/api/saloon-utility/countries")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -750,7 +750,7 @@ class IntegrationTests {
     @Order(81)
     void listCurrencies() {
         client.get()
-                .uri("/api/utility/currencies")
+                .uri("/api/saloon-utility/currencies")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -766,12 +766,12 @@ class IntegrationTests {
     @Order(90)
     void deleteStaff() {
         client.delete()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/staff/{staffId}", saloonId, staffId)
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}", saloonId, staffId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -780,12 +780,12 @@ class IntegrationTests {
     @Order(91)
     void deleteService() {
         client.delete()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{saloonId}/services/{serviceId}", saloonId, serviceId)
+                .uri("/api/saloon-admin/{saloonId}/services/{serviceId}", saloonId, serviceId)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -794,12 +794,12 @@ class IntegrationTests {
     @Order(92)
     void deleteSaloon() {
         client.delete()
-                .uri("/api/saloons/{id}", saloonId)
+                .uri("/api/saloon-admin/{id}", saloonId)
                 .exchange()
                 .expectStatus().isNoContent();
 
         client.get()
-                .uri("/api/saloons/{id}", saloonId)
+                .uri("/api/saloon/{id}", saloonId)
                 .exchange()
                 .expectStatus().isNotFound();
     }

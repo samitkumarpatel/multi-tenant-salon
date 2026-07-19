@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/saloons/{saloonId}/staff")
 class StaffController {
 
     private final StaffService service;
@@ -28,15 +27,15 @@ class StaffController {
     record UpdateRequest(String name, String email, String phone, StaffRole role, StaffStatus status,
                          boolean availableForBooking, List<String> specializations) {}
 
-    @GetMapping
+    @GetMapping({"/api/saloon/{saloonId}/staff", "/api/saloon-admin/{saloonId}/staff"})
     List<StaffMember> findAll(@PathVariable UUID saloonId) {
         return service.findBySaloonId(saloonId);
     }
 
-    @PostMapping
+    @PostMapping("/api/saloon-admin/{saloonId}/staff")
     ResponseEntity<StaffMember> onboard(@PathVariable UUID saloonId, @RequestBody OnboardRequest request) {
         var member = service.onboard(saloonId, request.name(), request.email(), request.phone(),
-                request.role(), request.specializations(), request.schedule());
+                request.role(), false, request.specializations(), request.schedule());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(member.id())
@@ -44,14 +43,14 @@ class StaffController {
         return ResponseEntity.created(location).body(member);
     }
 
-    @GetMapping("/{staffId}")
+    @GetMapping({"/api/saloon/{saloonId}/staff/{staffId}", "/api/saloon-admin/{saloonId}/staff/{staffId}"})
     ResponseEntity<StaffMember> findById(@PathVariable UUID saloonId, @PathVariable Long staffId) {
         return service.findByIdAndSaloonId(staffId, saloonId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/{staffId}")
+    @PutMapping("/api/saloon-admin/{saloonId}/staff/{staffId}")
     ResponseEntity<StaffMember> update(@PathVariable UUID saloonId, @PathVariable Long staffId,
                                        @RequestBody UpdateRequest request) {
         return service.update(saloonId, staffId, request.name(), request.email(), request.phone(),
@@ -60,7 +59,7 @@ class StaffController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/{staffId}")
+    @DeleteMapping("/api/saloon-admin/{saloonId}/staff/{staffId}")
     ResponseEntity<Void> remove(@PathVariable UUID saloonId, @PathVariable Long staffId) {
         service.remove(saloonId, staffId);
         return ResponseEntity.noContent().build();
