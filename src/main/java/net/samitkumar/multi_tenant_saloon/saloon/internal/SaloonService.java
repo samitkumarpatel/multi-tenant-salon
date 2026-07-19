@@ -43,7 +43,7 @@ class SaloonService {
         var featureRefs = features != null
                 ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
                 : List.<Saloon.SaloonFeatureRef>of();
-        var saloon = new Saloon(null, name, handler, owner, location, contact, operatingHours, featureRefs, Instant.now());
+        var saloon = new Saloon(null, name, handler, owner, location, contact, operatingHours, featureRefs, 60, Instant.now());
         var saved = repository.save(saloon);
         var eventFeatures = saved.features().stream().map(Saloon.SaloonFeatureRef::feature).toList();
         eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
@@ -63,10 +63,11 @@ class SaloonService {
     }
 
     Optional<Saloon> update(UUID id, String name, Saloon.Location location, Saloon.ContactInfo contact,
-                            List<Saloon.OperatingHours> operatingHours) {
+                            List<Saloon.OperatingHours> operatingHours, Integer bookingAdvanceDays) {
         return repository.findById(id).map(existing -> {
+            var days = bookingAdvanceDays != null ? bookingAdvanceDays : existing.bookingAdvanceDays();
             var updated = new Saloon(existing.id(), name, existing.handler(), existing.owner(), location, contact,
-                    operatingHours, existing.features(), existing.createdAt());
+                    operatingHours, existing.features(), days, existing.createdAt());
             return repository.save(updated);
         });
     }
@@ -77,7 +78,7 @@ class SaloonService {
                     ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
                     : List.<Saloon.SaloonFeatureRef>of();
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
-                    existing.location(), existing.contact(), existing.operatingHours(), featureRefs, existing.createdAt());
+                    existing.location(), existing.contact(), existing.operatingHours(), featureRefs, existing.bookingAdvanceDays(), existing.createdAt());
             return repository.save(updated);
         });
     }

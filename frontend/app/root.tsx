@@ -3,6 +3,7 @@ import "./app.css";
 
 export function links() {
   return [
+    { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
     { rel: "preconnect", href: "https://fonts.googleapis.com" },
     {
       rel: "stylesheet",

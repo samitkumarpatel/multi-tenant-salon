@@ -22,7 +22,8 @@
       "Bash(grep -v \"^$\")",
       "Bash(python3 *)",
       "Bash(curl -s http://localhost:5174/)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(./mvnw clean *)"
     ]
   }
 }

@@ -211,6 +211,51 @@ class BookingModuleTests {
     }
 
     @Test
+    void bookedSlotsAreReturnedAsBooked() {
+        client.put()
+                .uri("/api/saloon-admin/{saloonId}/staff/{staffId}/availability", saloonId, staffId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "12:00", "available": true}]
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+
+        client.post()
+                .uri("/api/saloon/{saloonId}/booking", saloonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "serviceId": %s,
+                            "staffId": %s,
+                            "customerName": "Alice",
+                            "customerEmail": "alice@test.com",
+                            "appointmentDate": "%s",
+                            "startTime": "09:00"
+                        }
+                        """.formatted(serviceId, staffId, TEST_DATE))
+                .exchange()
+                .expectStatus().isCreated();
+
+        client.get()
+                .uri(u -> u.path("/api/saloon/{saloonId}/slots")
+                        .queryParam("serviceId", serviceId)
+                        .queryParam("date", TEST_DATE)
+                        .queryParam("staffId", staffId)
+                        .build(saloonId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(3)
+                .jsonPath("$[0].startTime").isEqualTo("09:00:00")
+                .jsonPath("$[0].booked").isEqualTo(true)
+                .jsonPath("$[1].startTime").isEqualTo("10:00:00")
+                .jsonPath("$[1].booked").isEqualTo(false)
+                .jsonPath("$[2].startTime").isEqualTo("11:00:00")
+                .jsonPath("$[2].booked").isEqualTo(false);
+    }
+
+    @Test
     void getAvailableSlotsReturnsEmptyWhenNoAvailability() {
         client.get()
                 .uri(u -> u.path("/api/saloon/{saloonId}/slots")

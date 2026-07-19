@@ -108,12 +108,12 @@ CREATE TABLE IF NOT EXISTS saloon_website_theme (
   saloon_id       UUID         PRIMARY KEY REFERENCES saloon(id) ON DELETE CASCADE,
   hero_bg         VARCHAR(50)  NOT NULL DEFAULT '#F8FAFC',
   hero_text_color VARCHAR(50)  NOT NULL DEFAULT '#0F172A',
-  accent_color    VARCHAR(50)  NOT NULL DEFAULT '#059669',
-  font_family     VARCHAR(100) NOT NULL DEFAULT 'nunito',
-  logo_bg_color   VARCHAR(50)  NOT NULL DEFAULT '#7C3AED',
+  accent_color    VARCHAR(50)  NOT NULL DEFAULT '#1D4ED8',
+  font_family     VARCHAR(100) NOT NULL DEFAULT 'system',
+  logo_bg_color   VARCHAR(50)  NOT NULL DEFAULT '#10B981',
   website_mode    VARCHAR(50)  NOT NULL DEFAULT 'STATIC_WEBSITE',
-  header_bg       VARCHAR(50)  NOT NULL DEFAULT '#FFFFFF',
-  footer_bg       VARCHAR(50)  NOT NULL DEFAULT '#1E293B',
+  header_bg       VARCHAR(50)  NOT NULL DEFAULT '#E2E8F0',
+  footer_bg       VARCHAR(50)  NOT NULL DEFAULT '#E2E8F0',
   maps_url        TEXT,
   updated_at      TIMESTAMPTZ
 );
@@ -135,3 +135,5 @@ ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS maps_url TEXT;
 
 ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS available_for_booking BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE saloon ADD COLUMN IF NOT EXISTS booking_advance_days INTEGER NOT NULL DEFAULT 60;

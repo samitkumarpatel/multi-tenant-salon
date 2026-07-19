@@ -234,11 +234,14 @@ paths:
   /api/saloon/{saloonId}/booking/slots:
     get:
       tags: [Booking]
-      summary: Get available booking slots for a service on a given date
+      summary: Get booking slots for a service on a given date
       description: |
-        Customer-facing. Returns all open time slots for a service on a specific date.
-        Slots are derived from each eligible staff member's weekly schedule or date-specific
-        override, then filtered against existing non-cancelled bookings.
+        Customer-facing. Returns all time slots for a service on a specific date — both
+        available and already-booked ones. Slots are derived from each eligible staff
+        member's weekly schedule or date-specific override.
+        Each slot carries a `booked` flag: `false` means the slot is open and selectable;
+        `true` means it is taken (existing non-cancelled booking) and should be shown
+        grayed-out / non-selectable in the UI.
         Optionally filter to a single staff member via `staffId`.
       operationId: getAvailableSlots
       parameters:
@@ -1534,6 +1537,13 @@ components:
           type: string
           format: time
           example: "11:00"
+        booked:
+          type: boolean
+          description: >
+            true when an existing (non-cancelled) booking already occupies this slot.
+            The slot is still returned so the UI can display it as grayed-out / non-selectable.
+            false when the slot is open and can be booked.
+          example: false
 
     Booking:
       type: object

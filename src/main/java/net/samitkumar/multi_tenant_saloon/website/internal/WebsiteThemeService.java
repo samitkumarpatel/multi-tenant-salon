@@ -22,8 +22,8 @@ class WebsiteThemeService {
 
     WebsiteTheme getTheme(UUID saloonId) {
         return repository.findById(saloonId)
-                .orElse(new WebsiteTheme(saloonId, "#F8FAFC", "#0F172A", "#059669", "nunito", "#7C3AED",
-                        WebsiteType.STATIC_WEBSITE, "#FFFFFF", "#1E293B", null, null));
+                .orElse(new WebsiteTheme(saloonId, "#F8FAFC", "#0F172A", "#1D4ED8", "system", "#10B981",
+                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, null));
     }
 
     WebsiteType getWebsiteType(UUID saloonId) {
@@ -63,7 +63,7 @@ class WebsiteThemeService {
                   (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color,
                    header_bg, footer_bg, website_mode, updated_at)
                 VALUES
-                  (?, '#F8FAFC', '#0F172A', '#059669', 'nunito', '#7C3AED', '#FFFFFF', '#1E293B', ?, ?)
+                  (?, '#F8FAFC', '#0F172A', '#1D4ED8', 'system', '#10B981', '#E2E8F0', '#E2E8F0', ?, ?)
                 ON CONFLICT (saloon_id) DO UPDATE SET
                   website_mode = EXCLUDED.website_mode,
                   updated_at   = EXCLUDED.updated_at

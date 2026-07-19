@@ -8,13 +8,13 @@ import {
   Monitor, Wand2, ArrowLeft, User, ArrowUp, CalendarCheck,
   Sparkles, Send,
 } from "lucide-react";
-import { SALOON_API, SALOON_ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
+import { SALOON_API, SALOON_ADMIN_API, COUNTRIES_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice } from "~/lib/constants";
 import { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText } from "~/lib/theme";
 import { FeatureView, FEATURE_VIEWS } from "~/components/FeatureView";
 import { BookingWizard } from "~/components/BookingWizard";
 import { FEATURE_NAV } from "~/components/SiteChrome";
-import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, WebsiteMode, LayoutContext } from "~/lib/types";
+import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, WebsiteMode, LayoutContext, Country } from "~/lib/types";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -32,12 +32,13 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     return { websiteEnabled: false as const };
   }
 
-  const [websiteTypeResult, staff, services, theme] = await Promise.all([
+  const [websiteTypeResult, staff, services, theme, countries] = await Promise.all([
     apiFetch<{ websiteType: WebsiteMode }>(`${SALOON_ADMIN_API}/${saloonId}/website-type`)
       .catch((): { websiteType: WebsiteMode } => ({ websiteType: "STATIC_WEBSITE" })),
     apiFetch<StaffMember[]>(`${SALOON_API}/${saloonId}/staff`).catch((): StaffMember[] => []),
     apiFetch<ServiceItem[]>(`${SALOON_API}/${saloonId}/services`).catch((): ServiceItem[] => []),
     apiFetch<WebsiteTheme>(`${SALOON_API}/${saloonId}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
+    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
 
   return {
@@ -45,6 +46,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     staff,
     services,
     theme: { ...theme, websiteType: websiteTypeResult.websiteType },
+    countries,
   };
 }
 
@@ -836,10 +838,12 @@ function SaloonPageContent({
   staff,
   services,
   loaderTheme,
+  countries,
 }: {
   staff: StaffMember[];
   services: ServiceItem[];
   loaderTheme: WebsiteTheme;
+  countries: Country[];
 }) {
   const { saloon } = useOutletContext<LayoutContext>();
   const location     = useLocation();
@@ -981,6 +985,7 @@ function SaloonPageContent({
           services={activeServices}
           staff={activeStaff}
           theme={theme}
+          countries={countries}
           initialServiceId={bookServiceId}
           initialStaffId={bookStaffId}
           onExit={() => { setBookServiceId(null); setBookStaffId(null); window.location.hash = ""; }}
@@ -1878,6 +1883,7 @@ export default function SaloonPage() {
       staff={loaderData.staff}
       services={loaderData.services}
       loaderTheme={loaderData.theme}
+      countries={loaderData.countries}
     />
   );
 }

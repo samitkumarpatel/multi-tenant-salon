@@ -3,7 +3,8 @@ import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErr
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "~/routes/saloon-page";
-import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
+import { AppLogo } from "~/components/Logo";
 import { SALOON_API, SALOON_ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
@@ -92,8 +93,7 @@ function LoginGate({ saloonId, onSuccess }: { saloonId: string; onSuccess: () =>
       {/* Top bar */}
       <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
         <div className="flex items-center gap-2">
-          <Scissors className="w-4 h-4 text-matcha-600" />
-          <span className="text-sm font-semibold text-slate-700">my-saloon</span>
+          <AppLogo size={24} textColor="#374151" />
           <span className="text-slate-300 text-sm mx-1">/</span>
           <span className="text-sm text-slate-500 truncate max-w-[180px] font-mono">{displayId}</span>
         </div>
@@ -229,9 +229,10 @@ function LoginGate({ saloonId, onSuccess }: { saloonId: string; onSuccess: () =>
       </div>
 
       {/* Footer */}
-      <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 shrink-0">
+      <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
+        <AppLogo size={16} textColor="#94a3b8" />
         <p className="text-[10px] text-slate-400 ml-auto">
-          © {new Date().getFullYear()} my-saloon · All rights reserved.
+          © {new Date().getFullYear()} · All rights reserved.
         </p>
       </footer>
 
@@ -391,9 +392,9 @@ export default function Layout() {
         </button>
 
         {/* Brand */}
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 pr-3 border-r border-slate-200">
-          <Scissors className="w-4 h-4 text-matcha-600" />
-          <span className="hidden sm:inline">my-saloon</span>
+        <div className="pr-3 border-r border-slate-200">
+          <AppLogo size={24} textColor="#374151" className="hidden sm:inline-flex" />
+          <AppLogo size={24} showText={false} className="sm:hidden" />
         </div>
         {/* Breadcrumb */}
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:block" />

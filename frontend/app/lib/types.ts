@@ -43,6 +43,7 @@ export interface Saloon {
   contact?: ContactInfo;
   operatingHours?: OperatingHours[];
   features?: string[];
+  bookingAdvanceDays?: number;
   createdAt?: string;
 }
 
@@ -125,6 +126,7 @@ export interface AvailableSlot {
   staffId: number;
   startTime: string;
   endTime: string;
+  booked?: boolean;
 }
 
 export interface StaffAvailability {

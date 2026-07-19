@@ -15,14 +15,15 @@
 
 import { useState, useEffect } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, Maximize2, Minimize2,
 } from "lucide-react";
 import { SALOON_API, apiFetch } from "~/lib/api";
 import { SiteHeader, SiteFooter } from "~/components/SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import { FONTS, loadGoogleFont, contrastText } from "~/lib/theme";
+import PhoneInput from "~/components/PhoneInput";
 import type {
-  Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours,
+  Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country,
 } from "~/lib/types";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ const STEP_LABELS = ["Service", "Date", "Time", "Details"];
 
 function StepBar({ current, accent }: { current: number; accent: Accent }) {
   return (
-    <div className="flex items-center gap-1.5 justify-center mb-7">
+    <div className="flex items-center gap-1.5 justify-center mb-4">
       {STEP_LABELS.map((label, i) => {
         const n = i + 1;
         const done = n < current;
@@ -144,11 +145,12 @@ function SelectionSummary({
 // ── Step 1: Service selection ─────────────────────────────────────────────────
 
 function StepService({
-  services, selected, accent, onSelect, onNext,
+  services, selected, accent, expanded, onSelect, onNext,
 }: {
   services: ServiceItem[];
   selected: ServiceItem | null;
   accent: Accent;
+  expanded: boolean;
   onSelect: (s: ServiceItem) => void;
   onNext: () => void;
 }) {
@@ -193,7 +195,7 @@ function StepService({
               No services match “{query}”.
             </p>
           ) : (
-            <div className="space-y-2 mb-6 max-h-[420px] overflow-y-auto pr-1">
+            <div className={`space-y-2 mb-6 overflow-y-auto pr-1 ${expanded ? "" : "max-h-[420px]"}`}>
               {filtered.map((s) => {
                 const isSel = selected?.id === s.id;
                 return (
@@ -272,6 +274,19 @@ function futureSlots(date: string, slots: AvailableSlot[]): AvailableSlot[] {
 }
 
 /**
+ * Deduplicate slots by startTime, preferring available (booked=false) over booked ones.
+ * Used in views where we show one slot per time regardless of which staff member fills it.
+ */
+function dedupeByTime(slots: AvailableSlot[]): AvailableSlot[] {
+  const map = new Map<string, AvailableSlot>();
+  for (const s of slots) {
+    const existing = map.get(s.startTime);
+    if (!existing || existing.booked) map.set(s.startTime, s);
+  }
+  return [...map.values()];
+}
+
+/**
  * Default booking date: today — unless the saloon is closed today or already
  * past closing time, in which case the next working day is used.
  */
@@ -292,7 +307,7 @@ function defaultBookingDate(hours: OperatingHours[]): string {
 }
 
 function WeekGrid({
-  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, onPick,
+  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, maxDate, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -303,6 +318,7 @@ function WeekGrid({
   accent: Accent;
   /** Weekday names (e.g. "MONDAY") on which the saloon is closed */
   closedDays: Set<string>;
+  maxDate: Date;
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
   const today = new Date();
@@ -318,6 +334,7 @@ function WeekGrid({
     return d;
   });
   const canPrev = weekStart > mondayOf(today);
+  const canNext = days[6] < maxDate;
   const rangeLabel = `${days[0].toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${days[6].toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
 
   useEffect(() => {
@@ -361,7 +378,8 @@ function WeekGrid({
         <button
           type="button"
           onClick={() => setWeekStart((w) => { const n = new Date(w); n.setDate(n.getDate() + 7); return n; })}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer transition-colors"
+          disabled={!canNext}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
           aria-label="Next week"
         >
           <ArrowRight className="w-3.5 h-3.5" />
@@ -373,11 +391,13 @@ function WeekGrid({
         {days.map((d) => {
           const iso      = toISODate(d);
           const isPast   = d < today;
+          const isBeyond = d > maxDate;
           const isClosed = closedDays.has(JS_DAY_NAME[d.getDay()]);
           const isToday  = d.getTime() === today.getTime();
           const isSelDay = date === iso;
-          const slots    = slotsByDate[iso] ?? [];
-          const clickable = !isPast && !isClosed && (loading || slots.length > 0);
+          const slots     = slotsByDate[iso] ?? [];
+          const available = slots.filter((s) => !s.booked).length;
+          const clickable = !isPast && !isBeyond && !isClosed && (loading || slots.length > 0);
           return (
             <div key={iso} className="min-w-0">
               <button
@@ -399,13 +419,13 @@ function WeekGrid({
                 </span>
                 <span
                   className="text-sm font-bold"
-                  style={{ color: isSelDay || isToday ? accent.color : isPast || isClosed ? "#cbd5e1" : "#0f172a" }}
+                  style={{ color: isSelDay || isToday ? accent.color : isPast || isBeyond || isClosed ? "#cbd5e1" : "#0f172a" }}
                 >
                   {d.getDate()}
                 </span>
                 {/* Availability hint — times for the selected day show below */}
-                <span className="text-[9px] font-semibold mt-0.5" style={{ color: !clickable || loading ? "#e2e8f0" : slots.length > 0 ? accent.color : "#cbd5e1" }}>
-                  {isClosed && !isPast ? "Closed" : isPast ? "—" : loading ? "·" : slots.length > 0 ? `${slots.length} slots` : "Full"}
+                <span className="text-[9px] font-semibold mt-0.5" style={{ color: !clickable || loading ? "#e2e8f0" : available > 0 ? accent.color : "#cbd5e1" }}>
+                  {isClosed && !isPast ? "Closed" : isPast || isBeyond ? "—" : loading ? "·" : available > 0 ? `${available} free` : slots.length > 0 ? "Full" : "Full"}
                 </span>
               </button>
             </div>
@@ -434,22 +454,26 @@ function WeekGrid({
             <p className="text-xs text-slate-400">No available times on this day.</p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-              {[...new Map((slotsByDate[date] ?? []).map((s) => [s.startTime, s])).values()].map((s) => {
+              {dedupeByTime(slotsByDate[date] ?? []).map((s) => {
                 const isSel = selectedSlot?.startTime === s.startTime;
+                const isBooked = s.booked;
                 return (
                   <button
                     key={s.startTime}
                     type="button"
-                    onClick={() => onPick(date, s)}
-                    className="py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer border hover:scale-[1.04]"
+                    onClick={() => !isBooked && onPick(date, s)}
+                    disabled={isBooked}
+                    className={`py-2 rounded-lg text-xs font-semibold transition-all border ${isBooked ? "cursor-not-allowed" : "cursor-pointer hover:scale-[1.04]"}`}
                     style={
-                      isSel
+                      isBooked
+                        ? { backgroundColor: "#f1f5f9", color: "#94a3b8", borderColor: "#e2e8f0" }
+                        : isSel
                         ? { backgroundColor: accent.color, color: accent.text, borderColor: accent.color }
                         : { backgroundColor: accent.tint, color: accent.color, borderColor: "transparent" }
                     }
-                    title={`${fmt12(s.startTime)} – ${fmt12(s.endTime)}`}
+                    title={isBooked ? `${fmt12(s.startTime)} – Booked` : `${fmt12(s.startTime)} – ${fmt12(s.endTime)}`}
                   >
-                    {fmt12(s.startTime)}
+                    {isBooked ? <span className="line-through opacity-60">{fmt12(s.startTime)}</span> : fmt12(s.startTime)}
                   </button>
                 );
               })}
@@ -464,18 +488,20 @@ function WeekGrid({
 // ── Month calendar (compact date picker) ─────────────────────────────────────
 
 function MonthCalendar({
-  date, setDate, accent, closedDays,
+  date, setDate, accent, closedDays, maxDate,
 }: {
   date: string;
   setDate: (d: string) => void;
   accent: Accent;
   closedDays: Set<string>;
+  maxDate: Date;
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const sel = date ? new Date(`${date}T00:00:00`) : today;
   const [month, setMonth] = useState(() => new Date(sel.getFullYear(), sel.getMonth(), 1));
   const canPrev = month > new Date(today.getFullYear(), today.getMonth(), 1);
+  const canNext = new Date(month.getFullYear(), month.getMonth() + 1, 1) <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
   const offset = (month.getDay() + 6) % 7; // Monday-first
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
 
@@ -497,7 +523,8 @@ function MonthCalendar({
         <button
           type="button"
           onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer transition-colors"
+          disabled={!canNext}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
           aria-label="Next month"
         >
           <ArrowRight className="w-3.5 h-3.5" />
@@ -514,7 +541,7 @@ function MonthCalendar({
         {Array.from({ length: daysInMonth }, (_, i) => {
           const d = new Date(month.getFullYear(), month.getMonth(), i + 1);
           const iso = toISODate(d);
-          const disabled = d < today || closedDays.has(JS_DAY_NAME[d.getDay()]);
+          const disabled = d < today || d > maxDate || closedDays.has(JS_DAY_NAME[d.getDay()]);
           const isSel = date === iso;
           const isToday = d.getTime() === today.getTime();
           return (
@@ -657,6 +684,21 @@ function DesignerGrid({
                         </div>
                       );
                     }
+                    if (slot.booked) {
+                      return (
+                        <div key={m.id} className="h-10 border-l border-slate-100 p-0.5">
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            className="w-full h-full rounded-md text-[10px] font-semibold cursor-not-allowed flex items-center justify-center bg-slate-50 text-slate-400 line-through"
+                            title={`${m.name} · ${fmt12(slot.startTime)} – Booked`}
+                          >
+                            Booked
+                          </button>
+                        </div>
+                      );
+                    }
                     const isSel = selectedSlot?.staffId === slot.staffId && selectedSlot?.startTime === slot.startTime;
                     return (
                       <div key={m.id} className="h-10 border-l border-slate-100 p-0.5">
@@ -760,23 +802,27 @@ function DaySlots({
               <div key={label}>
                 <p className="text-[10px] font-semibold text-slate-400 mb-1.5">{label}</p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-1.5">
-                  {[...new Map(list.map((s) => [s.startTime, s])).values()].map((s) => {
+                  {dedupeByTime(list).map((s) => {
                     const member = staffMap.get(s.staffId);
                     const isSel = selectedSlot?.startTime === s.startTime;
+                    const isBooked = s.booked;
                     return (
                       <button
                         key={s.startTime}
                         type="button"
-                        onClick={() => onPick(date, s)}
-                        className="py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer border hover:scale-[1.03] flex flex-col items-center"
+                        onClick={() => !isBooked && onPick(date, s)}
+                        disabled={isBooked}
+                        className={`py-2 rounded-lg text-xs font-semibold transition-all border flex flex-col items-center ${isBooked ? "cursor-not-allowed" : "cursor-pointer hover:scale-[1.03]"}`}
                         style={
-                          isSel
+                          isBooked
+                            ? { backgroundColor: "#f1f5f9", color: "#94a3b8", borderColor: "#e2e8f0" }
+                            : isSel
                             ? { backgroundColor: accent.color, color: accent.text, borderColor: accent.color }
                             : { backgroundColor: accent.tint, color: accent.color, borderColor: "transparent" }
                         }
-                        title={`${fmt12(s.startTime)} – ${fmt12(s.endTime)}${member ? ` · ${member.name}` : ""}`}
+                        title={isBooked ? `${fmt12(s.startTime)} – Booked` : `${fmt12(s.startTime)} – ${fmt12(s.endTime)}${member ? ` · ${member.name}` : ""}`}
                       >
-                        {fmt12(s.startTime)}
+                        {isBooked ? <span className="line-through opacity-60">{fmt12(s.startTime)}</span> : fmt12(s.startTime)}
                       </button>
                     );
                   })}
@@ -793,7 +839,7 @@ function DaySlots({
 // ── Step 2: Date + staff selection ────────────────────────────────────────────
 
 function StepDate({
-  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, defaultMode = "designer", onBack, onNext, onPickSlot,
+  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
 }: {
   saloonId: string;
   serviceId: number;
@@ -805,6 +851,7 @@ function StepDate({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  maxDate: Date;
   /** Initial view — "week" when a stylist was preselected via "Book with me" */
   defaultMode?: "input" | "week" | "designer";
   onBack: () => void;
@@ -820,34 +867,36 @@ function StepDate({
 
   const staffPicker = staff.length > 0 && (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-        Preferred staff member <span className="text-slate-400 font-normal">(optional)</span>
+      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+        Preferred staff member <span className="font-normal normal-case">— optional</span>
       </label>
-      <div className="grid sm:grid-cols-2 gap-2">
+      <div className="flex flex-wrap gap-2">
+        {/* Anyone available */}
         <button
           onClick={() => setStaffId(null)}
-          className="w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 bg-white hover:border-slate-300 hover:shadow-sm"
+          className="relative flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
           style={staffId === null ? selStyle : unselStyle}
         >
-          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
             <Users className="w-4 h-4 text-slate-400" />
           </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Anyone available</p>
-            <p className="text-xs text-slate-400">We'll assign the first available staff member</p>
-          </div>
-          {staffId === null && <Check className="w-4 h-4 ml-auto shrink-0" style={{ color: accent.color }} />}
+          <span className="text-[11px] font-semibold text-slate-700 text-center w-14">Anyone</span>
+          {staffId === null && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>
+              <Check className="w-3 h-3" style={{ color: accent.text }} />
+            </span>
+          )}
         </button>
 
         {staff.map((s) => (
           <button
             key={s.id}
             onClick={() => setStaffId(s.id)}
-            className="w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 bg-white hover:border-slate-300 hover:shadow-sm"
+            className="relative flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
             style={staffId === s.id ? selStyle : unselStyle}
           >
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden shrink-0"
               style={{ backgroundColor: accent.tint, color: accent.color }}
             >
               {(s.photoUrls?.[0] ?? s.photoUrl) ? (
@@ -862,11 +911,13 @@ function StepDate({
                 initials(s.name)
               )}
             </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-800">{s.name}</p>
-              <p className="text-xs text-slate-400">{STAFF_ROLE_LABEL[s.role] ?? s.role}</p>
-            </div>
-            {staffId === s.id && <Check className="w-4 h-4 ml-auto shrink-0" style={{ color: accent.color }} />}
+            <span className="text-[11px] font-semibold text-slate-700 text-center w-14 truncate">{s.name.split(" ")[0]}</span>
+            <span className="text-[9px] text-slate-400 -mt-0.5 w-14 truncate text-center">{STAFF_ROLE_LABEL[s.role] ?? s.role}</span>
+            {staffId === s.id && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>
+                <Check className="w-3 h-3" style={{ color: accent.text }} />
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -875,8 +926,8 @@ function StepDate({
 
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-900 mb-1">Pick a date</h2>
-      <p className="text-sm text-slate-500 mb-5">
+      <h2 className="text-lg font-bold text-slate-900 mb-0.5">Pick a date</h2>
+      <p className="text-sm text-slate-500 mb-3">
         {dateMode === "week"
           ? "Pick an available time straight from the week overview."
           : dateMode === "designer"
@@ -884,10 +935,13 @@ function StepDate({
           : "Choose when you'd like your appointment."}
       </p>
 
-      <div className="space-y-4 mb-6">
+      <div className="space-y-3 mb-4">
+        {/* Staff selection comes first — who you want determines when they're free */}
+        {dateMode !== "designer" && staffPicker}
+
         <div>
           <div className="flex flex-wrap items-center justify-between gap-y-1.5 mb-1.5">
-            <label className="block text-sm font-medium text-slate-700">Date <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700">Date &amp; time <span className="text-red-500">*</span></label>
             <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
               {(["designer", "week", "input"] as const).map((m) => (
                 <button
@@ -914,6 +968,7 @@ function StepDate({
               selectedSlot={selectedSlot}
               accent={accent}
               closedDays={closedDays}
+              maxDate={maxDate}
               onPick={onPickSlot}
             />
           ) : dateMode === "designer" ? (
@@ -923,6 +978,7 @@ function StepDate({
                 setDate={setDate}
                 accent={accent}
                 closedDays={closedDays}
+                maxDate={maxDate}
               />
               <DesignerGrid
                 saloonId={saloonId}
@@ -937,15 +993,13 @@ function StepDate({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="grid lg:grid-cols-[17rem_1fr] gap-4 items-start">
-                <MonthCalendar
-                  date={date}
-                  setDate={setDate}
-                  accent={accent}
-                  closedDays={closedDays}
-                />
-                {staffPicker}
-              </div>
+              <MonthCalendar
+                date={date}
+                setDate={setDate}
+                accent={accent}
+                closedDays={closedDays}
+                maxDate={maxDate}
+              />
               <DaySlots
                 saloonId={saloonId}
                 serviceId={serviceId}
@@ -960,8 +1014,6 @@ function StepDate({
             </div>
           )}
         </div>
-
-        {dateMode === "week" && staffPicker}
       </div>
 
       <div className="flex gap-3">
@@ -979,7 +1031,7 @@ function StepDate({
 // ── Step 3: Slot selection ────────────────────────────────────────────────────
 
 function StepSlots({
-  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, onSelect, onBack, onNext,
+  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, expanded, onSelect, onBack, onNext,
 }: {
   saloonId: string;
   serviceId: number;
@@ -988,6 +1040,7 @@ function StepSlots({
   staffMap: Map<number, StaffMember>;
   selectedSlot: AvailableSlot | null;
   accent: Accent;
+  expanded: boolean;
   onSelect: (s: AvailableSlot) => void;
   onBack: () => void;
   onNext: () => void;
@@ -1044,7 +1097,7 @@ function StepSlots({
             <p className="text-xs text-slate-400 mt-1">Try a different date or staff member.</p>
           </div>
         ) : (
-          <div className="space-y-5 mb-6 max-h-[380px] overflow-y-auto pr-1">
+          <div className={`space-y-5 mb-6 overflow-y-auto pr-1 ${expanded ? "" : "max-h-[380px]"}`}>
             {groups.map(([label, list]) => (
               <div key={label}>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
@@ -1052,16 +1105,25 @@ function StepSlots({
                   {list.map((s, i) => {
                     const member = staffMap.get(s.staffId);
                     const isSel = selectedSlot?.startTime === s.startTime && selectedSlot?.staffId === s.staffId;
+                    const isBooked = s.booked;
                     return (
                       <button
                         key={`${s.staffId}-${s.startTime}-${i}`}
-                        onClick={() => onSelect(s)}
-                        className="flex flex-col items-center p-3 rounded-xl border transition-all cursor-pointer bg-white hover:border-slate-300 hover:shadow-sm hover:-translate-y-px"
-                        style={isSel ? { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` } : { borderColor: "#e2e8f0" }}
+                        onClick={() => !isBooked && onSelect(s)}
+                        disabled={isBooked}
+                        className={`flex flex-col items-center p-3 rounded-xl border transition-all bg-white ${isBooked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-slate-300 hover:shadow-sm hover:-translate-y-px"}`}
+                        style={
+                          isBooked
+                            ? { borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }
+                            : isSel
+                            ? { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` }
+                            : { borderColor: "#e2e8f0" }
+                        }
+                        title={isBooked ? `${fmt12(s.startTime)} – Booked` : undefined}
                       >
-                        <span className="text-sm font-bold text-slate-900">{fmt12(s.startTime)}</span>
-                        <span className="text-xs text-slate-400 mt-0.5">{fmt12(s.endTime)}</span>
-                        {!staffId && member && (
+                        <span className={`text-sm font-bold ${isBooked ? "text-slate-400 line-through" : "text-slate-900"}`}>{fmt12(s.startTime)}</span>
+                        <span className="text-xs text-slate-400 mt-0.5">{isBooked ? "Booked" : fmt12(s.endTime)}</span>
+                        {!staffId && member && !isBooked && (
                           <span className="text-[0.6rem] font-semibold mt-1 px-1.5 py-0.5 rounded-full"
                             style={{ backgroundColor: accent.tint, color: accent.color }}>
                             {member.name.split(" ")[0]}
@@ -1094,10 +1156,12 @@ function StepSlots({
 // ── Step 4: Customer details ──────────────────────────────────────────────────
 
 function StepDetails({
-  form, setForm, accent, onBack, onSubmit, busy,
+  form, setForm, countries, saloonCountry, accent, onBack, onSubmit, busy,
 }: {
   form: { name: string; email: string; phone: string; notes: string };
   setForm: (f: { name: string; email: string; phone: string; notes: string }) => void;
+  countries: Country[];
+  saloonCountry?: string;
   accent: Accent;
   onBack: () => void;
   onSubmit: () => void;
@@ -1124,8 +1188,7 @@ function StepDetails({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone <span className="text-slate-400 font-normal">(optional)</span></label>
-          <input type="tel" className={inputCls} style={ringStyle} placeholder="+1 555 000 0000" value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <PhoneInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} countries={countries} defaultCountry={saloonCountry} />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
@@ -1218,12 +1281,13 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  saloon, services, staff, theme, initialServiceId = null, initialStaffId = null, onExit,
+  saloon, services, staff, theme, countries = [], initialServiceId = null, initialStaffId = null, onExit,
 }: {
   saloon: Saloon;
   services: ServiceItem[];
   staff: StaffMember[];
   theme: WebsiteTheme;
+  countries?: Country[];
   /** Preselects the service and starts at step 2 */
   initialServiceId?: number | null;
   /** Preselects the staff member ("Book with me") — calendar opens filtered to them */
@@ -1235,6 +1299,7 @@ export function BookingWizard({
   const preStaff    = staff.find((s) => s.id === initialStaffId) ?? null;
 
   const [step, setStep] = useState(preselected ? 2 : 1);
+  const [expanded, setExpanded] = useState(false);
   const [service, setService] = useState<ServiceItem | null>(preselected);
   const [date, setDate] = useState(() => defaultBookingDate(saloon.operatingHours ?? [])); // today, or next working day if closed/past hours
   const [staffId, setStaffId] = useState<number | null>(preStaff?.id ?? null);
@@ -1260,6 +1325,12 @@ export function BookingWizard({
   const closedDays = new Set(
     (saloon.operatingHours ?? []).filter((h) => h.closed).map((h) => h.day)
   );
+  const maxDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + (saloon.bookingAdvanceDays ?? 60));
+    d.setHours(23, 59, 59, 999);
+    return d;
+  })();
 
   async function submitBooking() {
     if (!service || !slot) return;
@@ -1305,20 +1376,20 @@ export function BookingWizard({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col" style={{ fontFamily: fontStack }}>
+    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStack }}>
       {/* Accent ribbon */}
-      <div className="h-1" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
+      <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 
       {/* Header — same chrome as the saloon website (Book link swapped for Back) */}
       <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} />
 
       {/* Body */}
       <main
-        className="flex-1 flex items-start justify-center px-6 py-8"
+        className="flex-1 flex items-start justify-center px-6 py-6 overflow-y-auto"
         style={{ background: `radial-gradient(80% 50% at 50% 0%, ${accent.color}0a, transparent 70%)` }}
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}
-        <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
+        <div className={`w-full transition-all duration-300 ${expanded || step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
           {step < 5 && <StepBar current={step} accent={accent} />}
           {step < 5 && (
             <SelectionSummary
@@ -1341,14 +1412,26 @@ export function BookingWizard({
 
           <div
             key={step}
-            className={step < 5 ? "bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6" : ""}
+            className={`relative ${step < 5 ? "bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6" : ""}`}
             style={{ animation: "fade-in 0.3s ease-out both" }}
           >
+            {/* Expand / collapse button — shown on all content steps */}
+            {step < 5 && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                title={expanded ? "Collapse" : "Expand view"}
+                className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer z-10"
+              >
+                {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            )}
+
           {step === 1 && (
             <StepService
               services={services}
               selected={service}
               accent={accent}
+              expanded={expanded}
               onSelect={(s) => { setService(s); setSlot(null); }}
               onNext={() => setStep(2)}
             />
@@ -1366,6 +1449,7 @@ export function BookingWizard({
               selectedSlot={slot}
               accent={accent}
               closedDays={closedDays}
+              maxDate={maxDate}
               defaultMode={preStaff ? "week" : "designer"}
               onBack={() => setStep(1)}
               onNext={() => { setViaWeek(false); setStep(3); }}
@@ -1382,6 +1466,7 @@ export function BookingWizard({
               staffMap={staffMap}
               selectedSlot={slot}
               accent={accent}
+              expanded={expanded}
               onSelect={setSlot}
               onBack={() => setStep(2)}
               onNext={() => { setViaWeek(false); setStep(4); }}
@@ -1392,6 +1477,8 @@ export function BookingWizard({
             <StepDetails
               form={form}
               setForm={setForm}
+              countries={countries}
+              saloonCountry={saloon.location?.country}
               accent={accent}
               onBack={() => setStep(viaWeek ? 2 : 3)}
               onSubmit={submitBooking}

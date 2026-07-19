@@ -250,33 +250,43 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 
 ## Customer — Booking
 
-### Get available slots
+### Get booking slots
 
 `GET /api/saloon/{saloonId}/booking/slots?serviceId={serviceId}&date={date}[&staffId={staffId}]`
+
+Returns **all** slots within each eligible staff member's working window — both available and already-booked ones. The `booked` flag tells the UI how to render each slot.
 
 **Response** `200 OK`
 
 ```json
 [
-  { "staffId": 1, "startTime": "10:00", "endTime": "10:45" },
-  { "staffId": 1, "startTime": "11:00", "endTime": "11:45" }
+  { "staffId": 1, "startTime": "09:00", "endTime": "09:45", "booked": true },
+  { "staffId": 1, "startTime": "10:00", "endTime": "10:45", "booked": false },
+  { "staffId": 1, "startTime": "11:00", "endTime": "11:45", "booked": false }
 ]
 ```
+
+| Field | Type | Notes |
+|---|---|---|
+| `staffId` | long | Staff member this slot belongs to |
+| `startTime` | time (`HH:mm:ss`) | Slot start time |
+| `endTime` | time (`HH:mm:ss`) | Slot end time (start + service duration) |
+| `booked` | boolean | `true` = occupied by an existing booking — show grayed-out, non-selectable. `false` = open and bookable. |
 
 **Query Parameters**
 
 | Name | Type | Required | Notes |
 |---|---|---|---|
-| `serviceId` | long | yes | Determines duration |
+| `serviceId` | long | yes | Determines slot duration |
 | `date` | date (`YYYY-MM-DD`) | yes | The appointment date |
 | `staffId` | long | no | Filter to a single staff member |
 
 **Flow**
 
-1. `BookingController.getAvailableSlots(UUID, serviceId, date, staffId?)` → `BookingService.getAvailableSlots(...)`
+1. `BookingController.getAvailableSlots(UUID, serviceId, date, staffId?)` → `BookingService.findAvailableSlots(...)`
 2. Fetches the service for duration, then for each eligible (active + `availableForBooking`) staff member resolves the effective schedule for the date (override takes precedence over weekly schedule).
-3. Generates candidate slots at service-duration intervals, then filters against existing non-cancelled bookings.
-4. Returns `List<AvailableSlot>` — empty if no openings.
+3. Generates candidate slots at service-duration intervals. Each slot is checked against existing non-cancelled bookings: conflicting slots are included with `booked = true`; open slots carry `booked = false`.
+4. Returns `List<AvailableSlot>` sorted by `startTime` then `staffId` — empty if the staff member has no schedule on that date.
 
 ---
 
