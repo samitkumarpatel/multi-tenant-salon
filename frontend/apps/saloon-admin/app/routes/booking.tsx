@@ -963,7 +963,7 @@ export default function BookingPage() {
     let cancelled = false;
     setRsSlotsLoading(true);
     const params = new URLSearchParams({ serviceId: String(rescheduleTarget.serviceId), date: rsForm.appointmentDate });
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/booking/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/slots?${params}`)
       .then((slots) => { if (!cancelled) setRsSlots(slots); })
       .catch(() => { if (!cancelled) setRsSlots([]); })
       .finally(() => { if (!cancelled) setRsSlotsLoading(false); });

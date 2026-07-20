@@ -31,7 +31,12 @@
       "Bash(git -C /home/samit/workspace/multi-tenant-saloon diff --name-only HEAD~1..HEAD)",
       "Bash(git *)",
       "Bash(git show *)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(xargs cat -n)",
+      "Bash(grep -rn '\\\\${API}' /home/samit/workspace/multi-tenant-saloon/frontend/apps/saloon-admin/app/routes/)",
+      "Bash(grep -rn '\\\\${HANDLER_API}' /home/samit/workspace/multi-tenant-saloon/frontend/apps/saloon-admin/app/routes/)",
+      "Bash(grep -rn '\\\\${API}' /home/samit/workspace/multi-tenant-saloon/frontend/apps/saloon-onboarding/app/routes/)",
+      "Bash(grep *)"
     ]
   }
 }

@@ -352,7 +352,7 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
   async function handlePublish() {
     setPublish("loading");
     try {
-      const res = await fetch(`${ADMIN_API}/${saloonId}/publish`, { method: "POST" });
+      const res = await fetch(`${ADMIN_API}/${saloonId}/website/publish`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPublish("done");
       onPublished();
@@ -372,7 +372,7 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shrink-0" />
         <span className="text-slate-400 truncate">
           Admin preview — customers see this at{" "}
-          <span className="text-white font-mono font-medium">{handler}.my-saloon.online</span>
+          <span className="text-white font-mono font-medium">{handler}.my-saloon.dk</span>
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">

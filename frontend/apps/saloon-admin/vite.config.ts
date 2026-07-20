@@ -7,7 +7,7 @@ const wellKnownBypass = {
   name: "well-known-bypass",
   configureServer(server: import("vite").ViteDevServer) {
     server.middlewares.use((req, res, next) => {
-      if (req.url?.startsWith("/.well-known/")) {
+      if (req.url?.startsWith("/.well-known/") || req.url === "/favicon.ico") {
         res.statusCode = 204;
         res.end();
         return;
