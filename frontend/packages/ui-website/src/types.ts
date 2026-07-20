@@ -82,7 +82,7 @@ export interface WebsiteTheme {
   headerBg: string;
   footerBg: string;
   mapsUrl?: string;
-  websiteMode?: string;
+  websiteType?: string;
   updatedAt?: string;
 }
 

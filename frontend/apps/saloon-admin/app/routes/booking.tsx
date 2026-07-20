@@ -6,7 +6,7 @@ import {
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Settings, Filter, List,
   Maximize2, Minimize2,
 } from "lucide-react";
-import { API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import type {
   LayoutContext, StaffMember, ServiceItem, Booking, BookingStatus,
@@ -17,9 +17,9 @@ import InfoBar from "~/components/InfoBar";
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
   const [bookings, staff, services] = await Promise.all([
-    apiFetch<Booking[]>(`${API}/${sid}/bookings`),
-    apiFetch<StaffMember[]>(`${API}/${sid}/staff`),
-    apiFetch<ServiceItem[]>(`${API}/${sid}/services`),
+    apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`),
+    apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`),
+    apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`),
   ]);
   return { bookings, staff, services };
 }
@@ -644,7 +644,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
 
   useEffect(() => {
     if (!selectedStaff) return;
-    apiFetch<StaffAvailability[]>(`${API}/${saloonId}/staff/${selectedStaff}/availability`)
+    apiFetch<StaffAvailability[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability`)
       .then((data) => {
         if (data.length === 0) {
           setSchedule(DEFAULT_SCHEDULE);
@@ -656,7 +656,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
         }
       })
       .catch(() => setSchedule(DEFAULT_SCHEDULE));
-    apiFetch<StaffAvailabilityOverride[]>(`${API}/${saloonId}/staff/${selectedStaff}/availability/overrides`)
+    apiFetch<StaffAvailabilityOverride[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides`)
       .then(setOverrides)
       .catch(() => setOverrides([]));
   }, [selectedStaff, saloonId]);
@@ -672,7 +672,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
     setSaving(true);
     try {
       const body = schedule.map((s) => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime, available: s.available }));
-      await apiFetch<StaffAvailability[]>(`${API}/${saloonId}/staff/${selectedStaff}/availability`, {
+      await apiFetch<StaffAvailability[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability`, {
         method: "PUT", body: JSON.stringify(body),
       });
       notify("Schedule saved!");
@@ -685,7 +685,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
     setSaving(true);
     try {
       const saved = await apiFetch<StaffAvailabilityOverride>(
-        `${API}/${saloonId}/staff/${selectedStaff}/availability/overrides`,
+        `${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides`,
         { method: "POST", body: JSON.stringify({
           overrideDate: overrideForm.overrideDate,
           startTime: overrideForm.available ? overrideForm.startTime : null,
@@ -704,7 +704,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
 
   async function deleteOverride(oid: number) {
     try {
-      await apiFetch(`${API}/${saloonId}/staff/${selectedStaff}/availability/overrides/${oid}`, { method: "DELETE" });
+      await apiFetch(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides/${oid}`, { method: "DELETE" });
       setOverrides((p) => p.filter((o) => o.id !== oid));
       notify("Exception removed.");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
@@ -882,7 +882,7 @@ function BookingSettingsPanel({ saloon, onSaved }: { saloon: { id: string | numb
   async function save() {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API}/${saloon.id}`, {
+      const res = await apiFetch(`${ADMIN_API}/${saloon.id}`, {
         method: "PUT",
         body: JSON.stringify({ bookingAdvanceDays: days }),
       });
@@ -963,7 +963,7 @@ export default function BookingPage() {
     let cancelled = false;
     setRsSlotsLoading(true);
     const params = new URLSearchParams({ serviceId: String(rescheduleTarget.serviceId), date: rsForm.appointmentDate });
-    apiFetch<AvailableSlot[]>(`${API}/${String(sid)}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/booking/slots?${params}`)
       .then((slots) => { if (!cancelled) setRsSlots(slots); })
       .catch(() => { if (!cancelled) setRsSlots([]); })
       .finally(() => { if (!cancelled) setRsSlotsLoading(false); });
@@ -974,7 +974,7 @@ export default function BookingPage() {
   async function handleAction(id: number, action: string) {
     setBusy(true);
     try {
-      const updated = await apiFetch<Booking>(`${API}/${sid}/bookings/${id}/${action}`, { method: "POST" });
+      const updated = await apiFetch<Booking>(`${ADMIN_API}/${sid}/booking/${id}/${action}`, { method: "POST" });
       setBookings((p) => p.map((b) => b.id === updated.id ? updated : b));
       notify(`Booking ${action}ed.`);
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
@@ -992,7 +992,7 @@ export default function BookingPage() {
     if (!rescheduleTarget) return;
     setBusy(true);
     try {
-      const updated = await apiFetch<Booking>(`${API}/${sid}/bookings/${rescheduleTarget.id}`, {
+      const updated = await apiFetch<Booking>(`${ADMIN_API}/${sid}/booking/${rescheduleTarget.id}`, {
         method: "PUT",
         body: JSON.stringify({
           appointmentDate: rsForm.appointmentDate,
@@ -1012,7 +1012,7 @@ export default function BookingPage() {
     if (!deleteTarget) return;
     setBusy(true);
     try {
-      await apiFetch(`${API}/${sid}/bookings/${deleteTarget.id}`, { method: "DELETE" });
+      await apiFetch(`${ADMIN_API}/${sid}/booking/${deleteTarget.id}`, { method: "DELETE" });
       setBookings((p) => p.filter((b) => b.id !== deleteTarget.id));
       setDeleteTarget(null);
       notify("Booking deleted.");

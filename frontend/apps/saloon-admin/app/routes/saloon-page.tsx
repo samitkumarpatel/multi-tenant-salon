@@ -7,7 +7,7 @@ import {
   SaloonWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
 } from "@saloon/ui-website";
 import type { WebsiteTheme, Saloon, StaffMember, ServiceItem } from "@saloon/ui-website";
-import { API, HANDLER_API, apiFetch } from "~/lib/api";
+import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
 import { useEffect, useRef } from "react";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -15,13 +15,12 @@ import { useEffect, useRef } from "react";
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.saloonId!;
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-  const saloon = await apiFetch<Saloon>(
-    (isUUID || /^\d+$/.test(id)) ? `${API}/${id}` : `${HANDLER_API}/${id}`
-  );
+  // single endpoint handles both UUID and handler
+  const saloon = await apiFetch<Saloon>(`${CUSTOMER_API}/${id}`);
   const [staff, services, theme] = await Promise.all([
-    apiFetch<StaffMember[]>(`${API}/${saloon.id}/staff`).catch((): StaffMember[] => []),
-    apiFetch<ServiceItem[]>(`${API}/${saloon.id}/services`).catch((): ServiceItem[] => []),
-    apiFetch<WebsiteTheme>(`${API}/${saloon.id}/theme`).catch((): WebsiteTheme => DEFAULT_THEME),
+    apiFetch<StaffMember[]>(`${CUSTOMER_API}/${saloon.id}/staff`).catch((): StaffMember[] => []),
+    apiFetch<ServiceItem[]>(`${CUSTOMER_API}/${saloon.id}/services`).catch((): ServiceItem[] => []),
+    apiFetch<WebsiteTheme>(`${CUSTOMER_API}/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
   ]);
   return { saloon, staff, services, theme };
 }
@@ -205,7 +204,7 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
   async function handleSave() {
     setSaveState("saving");
     try {
-      await apiFetch<WebsiteTheme>(`${API}/${saloonId}/theme`, {
+      await apiFetch<WebsiteTheme>(`${ADMIN_API}/${saloonId}/website`, {
         method: "PUT",
         body: JSON.stringify({
           heroBg: theme.heroBg, heroTextColor: theme.heroTextColor, accentColor: theme.accentColor,

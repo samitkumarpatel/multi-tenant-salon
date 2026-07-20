@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, ChevronRight } from "lucide-react";
-import { API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { SERVICE_CATEGORIES, CATEGORY_LABEL, formatPrice, toggleList } from "~/lib/constants";
 import type { LayoutContext, StaffMember, ServiceItem, Country } from "~/lib/types";
 import { InfoBar } from "@saloon/ui-shared";
@@ -20,8 +20,8 @@ function currenciesFromCountries(countries: Country[]): CurrencyOption[] {
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
   const [services, staff, countries] = await Promise.all([
-    apiFetch<ServiceItem[]>(`${API}/${sid}/services`),
-    apiFetch<StaffMember[]>(`${API}/${sid}/staff`),
+    apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`),
+    apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`),
     apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
   return { services, staff, countries };
@@ -236,7 +236,7 @@ export default function Services() {
     if (!af.name || !af.price) return;
     setBusy(true);
     try {
-      const item = await apiFetch<ServiceItem>(`${API}/${sid}/services`, {
+      const item = await apiFetch<ServiceItem>(`${ADMIN_API}/${sid}/services`, {
         method: "POST",
         body: JSON.stringify({
           name: af.name, description: af.description,
@@ -256,7 +256,7 @@ export default function Services() {
     if (!target) return;
     setBusy(true);
     try {
-      const updated = await apiFetch<ServiceItem>(`${API}/${sid}/services/${target.id}`, {
+      const updated = await apiFetch<ServiceItem>(`${ADMIN_API}/${sid}/services/${target.id}`, {
         method: "PUT",
         body: JSON.stringify({
           name: ef.name, description: ef.description,
@@ -276,7 +276,7 @@ export default function Services() {
     if (!target) return;
     setBusy(true);
     try {
-      await apiFetch(`${API}/${sid}/services/${target.id}`, { method: "DELETE" });
+      await apiFetch(`${ADMIN_API}/${sid}/services/${target.id}`, { method: "DELETE" });
       const name = target.name;
       setServices((p) => p.filter((s) => s.id !== target.id));
       closeModal("del");

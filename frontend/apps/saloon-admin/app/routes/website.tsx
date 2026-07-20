@@ -7,7 +7,7 @@ import {
   Handshake, Mail,
 } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
-import { API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { ADMIN_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 
 type Mode = WebsiteMode;
 
@@ -262,8 +262,8 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, descriptio
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
-  const data = await apiFetch<{ websiteMode: WebsiteMode }>(`${API}/${sid}/theme`).catch(() => null);
-  return { initialWebsiteMode: data?.websiteMode ?? null };
+  const data = await apiFetch<{ websiteType: WebsiteMode }>(`${ADMIN_API}/${sid}/website`).catch(() => null);
+  return { initialWebsiteMode: data?.websiteType ?? null };
 }
 
 export default function WebsiteManagement() {

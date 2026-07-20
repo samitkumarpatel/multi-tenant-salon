@@ -5,7 +5,7 @@ import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "@saloon/ui-website";
 import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
 import { AppLogo } from "~/components/Logo";
-import { API, HANDLER_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
+import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
 export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
@@ -13,9 +13,8 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
   const isPreview = new URL(request.url).pathname.endsWith("/c");
 
   if (isPreview) {
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId);
-    const url = (isUUID || /^\d+$/.test(saloonId)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
-    const saloon = await apiFetch<Saloon>(url);
+    // single endpoint handles both UUID and handler
+    const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
     cacheSaloonUUID(saloonId, String(saloon.id));
     return { saloon, saloonId };
   }
@@ -25,9 +24,8 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
     return { saloon: null, saloonId };
   }
 
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId);
-  const url = (isUUID || /^\d+$/.test(saloonId)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
-  const saloon = await apiFetch<Saloon>(url);
+  // single endpoint handles both UUID and handler
+  const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
   cacheSaloonUUID(saloonId, String(saloon.id));
   return { saloon, saloonId };
 }
@@ -312,9 +310,9 @@ export default function Layout() {
   function setWebsiteMode(m: WebsiteMode | null) {
     setWebsiteModeState(m);
     if (m) {
-      apiFetch(`${API}/${saloon!.id}/website-mode`, {
+      apiFetch(`${ADMIN_API}/${saloon!.id}/website-type`, {
         method: "PATCH",
-        body: JSON.stringify({ websiteMode: m }),
+        body: JSON.stringify({ websiteType: m }),
       }).catch(() => {});
     }
   }
@@ -368,7 +366,7 @@ export default function Layout() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await apiFetch(`${API}/${saloon!.id}`, { method: "DELETE" });
+      await apiFetch(`${ADMIN_API}/${saloon!.id}`, { method: "DELETE" });
       navigate("/customer");
     } catch (e: unknown) {
       setDeleteError(e instanceof Error ? e.message : "Delete failed");

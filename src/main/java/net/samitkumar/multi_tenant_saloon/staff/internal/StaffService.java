@@ -48,12 +48,13 @@ public class StaffService implements StaffApi {
     }
 
     StaffMember onboard(UUID saloonId, String name, String email, String phone, StaffRole role,
-                        List<String> specializations, List<StaffOnboardedEvent.DaySchedule> schedule) {
+                        boolean isOwner, List<String> specializations,
+                        List<StaffOnboardedEvent.DaySchedule> schedule) {
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
                 : List.<StaffMember.Specialization>of();
         var member = new StaffMember(null, saloonId, name, email, phone, role, StaffStatus.ACTIVE,
-                false, true, specs, Instant.now());
+                isOwner, true, specs, Instant.now());
         var saved = repository.save(member);
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
                 ? schedule
@@ -65,9 +66,7 @@ public class StaffService implements StaffApi {
     }
 
     StaffMember onboardOwner(UUID saloonId, String name, String email, String phone) {
-        var member = new StaffMember(null, saloonId, name, email, phone, StaffRole.MANAGER, StaffStatus.ACTIVE,
-                true, true, List.of(), Instant.now());
-        return repository.save(member);
+        return onboard(saloonId, name, email, phone, StaffRole.MANAGER, true, List.of(), null);
     }
 
     Optional<StaffMember> update(UUID saloonId, Long staffId, String name, String email, String phone,

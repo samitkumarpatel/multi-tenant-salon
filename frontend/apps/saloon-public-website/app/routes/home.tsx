@@ -29,11 +29,11 @@ export default function PublicWebsiteShell() {
 
     (async () => {
       try {
-        const saloon = await apiFetch<Saloon>(`/api/saloons/handler/${slug}`);
+        const saloon = await apiFetch<Saloon>(`/api/saloon/${slug}`);
         const [staff, services, theme] = await Promise.all([
-          apiFetch<StaffMember[]>(`/api/saloons/${saloon.id}/staff`).catch((): StaffMember[] => []),
-          apiFetch<ServiceItem[]>(`/api/saloons/${saloon.id}/services`).catch((): ServiceItem[] => []),
-          apiFetch<WebsiteTheme>(`/api/saloons/${saloon.id}/theme`).catch((): WebsiteTheme => DEFAULT_THEME),
+          apiFetch<StaffMember[]>(`/api/saloon/${saloon.id}/staff`).catch((): StaffMember[] => []),
+          apiFetch<ServiceItem[]>(`/api/saloon/${saloon.id}/services`).catch((): ServiceItem[] => []),
+          apiFetch<WebsiteTheme>(`/api/saloon/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
         ]);
         setState({ status: "ok", saloon, staff, services, theme: { ...DEFAULT_THEME, ...theme } });
       } catch (err) {

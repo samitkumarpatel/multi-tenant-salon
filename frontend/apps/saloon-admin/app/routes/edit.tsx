@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
-import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Saloon, Location, ContactInfo, Country } from "~/lib/types";
 import { HoursTable, TileGrid, CountrySelect, PhoneInput, InfoBar } from "@saloon/ui-shared";
@@ -65,7 +65,7 @@ export default function Edit() {
     setSaveError(null);
     setSaving(true);
     try {
-      const updated = await apiFetch<Saloon>(`${API}/${saloon.id}`, {
+      const updated = await apiFetch<Saloon>(`${ADMIN_API}/${saloon.id}`, {
         method: "PUT",
         body: JSON.stringify({
           name: name.trim(),
@@ -84,7 +84,7 @@ export default function Edit() {
           operatingHours: hours,
         }),
       });
-      const withFeatures = await apiFetch<Saloon>(`${API}/${saloon.id}/features`, {
+      const withFeatures = await apiFetch<Saloon>(`${ADMIN_API}/${saloon.id}/features`, {
         method: "PUT",
         body: JSON.stringify(features),
       });

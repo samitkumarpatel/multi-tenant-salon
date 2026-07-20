@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link, useLoaderData } from "react-router";
-import { API, apiFetch } from "~/lib/api";
+import { ONBOARDING_API, apiFetch } from "~/lib/api";
 import { ADMIN_APP_URL } from "~/lib/config";
 import type { Saloon } from "~/lib/types";
 import { FEATURE_LABEL } from "~/lib/constants";
 
 
 export async function clientLoader() {
-  return apiFetch<Saloon[]>(API) ?? [];
+  return apiFetch<Saloon[]>(ONBOARDING_API) ?? [];
 }
 
 function SaloonCard({ saloon: s }: { saloon: Saloon }) {

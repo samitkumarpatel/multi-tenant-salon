@@ -36,20 +36,49 @@ class WebsiteModuleTests {
     @Test
     void getThemeReturnsDefaultsWhenNotSet() {
         client.get()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon/{id}/website", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.saloonId").isEqualTo(saloonId.toString())
-                .jsonPath("$.heroBg").isEqualTo("#0F172A")
-                .jsonPath("$.accentColor").isEqualTo("#F59E0B")
-                .jsonPath("$.fontFamily").isEqualTo("inter");
+                .jsonPath("$.websiteType").isEqualTo("STATIC_WEBSITE");
+    }
+
+    @Test
+    void getWebsiteTypeReturnsDefaultWhenNotSet() {
+        client.get()
+                .uri("/api/saloon-admin/{id}/website-type", saloonId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.websiteType").isEqualTo("STATIC_WEBSITE");
+    }
+
+    @Test
+    void updateAndGetWebsiteType() {
+        client.patch()
+                .uri("/api/saloon-admin/{id}/website-type", saloonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "websiteType": "GENERATIVE_UI" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.websiteType").isEqualTo("GENERATIVE_UI");
+
+        client.get()
+                .uri("/api/saloon-admin/{id}/website-type", saloonId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.websiteType").isEqualTo("GENERATIVE_UI");
     }
 
     @Test
     void saveAndRetrieveTheme() {
         client.put()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon-admin/{id}/website", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {
@@ -69,7 +98,7 @@ class WebsiteModuleTests {
                 .jsonPath("$.updatedAt").isNotEmpty();
 
         client.get()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon/{id}/website", saloonId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -90,14 +119,14 @@ class WebsiteModuleTests {
                 """;
 
         client.put()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon-admin/{id}/website", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()
                 .expectStatus().isOk();
 
         client.put()
-                .uri("/api/saloons/{id}/theme", saloonId)
+                .uri("/api/saloon-admin/{id}/website", saloonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()
