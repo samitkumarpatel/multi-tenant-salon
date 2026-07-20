@@ -10,7 +10,7 @@ import type {
   Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours,
 } from "./types";
 
-const API = "/api/saloons";
+const CUSTOMER_API = "/api/saloon";
 
 function fmt12(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -279,7 +279,7 @@ function WeekGrid({
         const iso = toISODate(d);
         const params = new URLSearchParams({ serviceId: String(serviceId), date: iso });
         if (staffId) params.set("staffId", String(staffId));
-        return apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+        return apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/booking/slots?${params}`)
           .then((slots) => [iso, futureSlots(iso, slots)] as const)
           .catch(() => [iso, []] as const);
       })
@@ -436,7 +436,7 @@ function DesignerGrid({
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
-    apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/booking/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load availability"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -535,7 +535,7 @@ function DaySlots({
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/booking/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load slots"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -718,7 +718,7 @@ function StepSlots({
     setLoading(true); setError(null); setSlots(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/booking/slots?${params}`)
       .then((s) => setSlots(futureSlots(date, s)))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load slots"))
       .finally(() => setLoading(false));
@@ -915,7 +915,7 @@ export function BookingWizard({
     }
     setBusy(true); setError(null);
     try {
-      const booking = await apiFetch<Booking>(`${API}/${saloon.id}/bookings`, {
+      const booking = await apiFetch<Booking>(`${CUSTOMER_API}/${saloon.id}/booking`, {
         method: "POST",
         body: JSON.stringify({
           serviceId: service.id, staffId: slot.staffId, customerName: form.name,

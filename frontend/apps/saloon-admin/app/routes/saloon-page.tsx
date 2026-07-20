@@ -352,7 +352,7 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
   async function handlePublish() {
     setPublish("loading");
     try {
-      const res = await fetch(`${API}/${saloonId}/publish`, { method: "POST" });
+      const res = await fetch(`${ADMIN_API}/${saloonId}/publish`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPublish("done");
       onPublished();
