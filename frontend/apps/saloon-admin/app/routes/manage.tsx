@@ -4,7 +4,7 @@ import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, Arrow
 import { useState } from "react";
 import type { LayoutContext } from "~/lib/types";
 import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
-import InfoBar from "~/components/InfoBar";
+import { InfoBar } from "@saloon/ui-shared";
 
 const FEATURE_HINTS: Record<string, string> = {
   BOOKING:         "Let customers book appointments online, anytime.",

@@ -3,11 +3,7 @@ import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
 import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Saloon, Location, ContactInfo, Country } from "~/lib/types";
-import HoursTable from "~/components/HoursTable";
-import TileGrid from "~/components/TileGrid";
-import CountrySelect from "~/components/CountrySelect";
-import PhoneInput from "~/components/PhoneInput";
-import InfoBar from "~/components/InfoBar";
+import { HoursTable, TileGrid, CountrySelect, PhoneInput, InfoBar } from "@saloon/ui-shared";
 
 export async function clientLoader() {
   const countries = await apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []);

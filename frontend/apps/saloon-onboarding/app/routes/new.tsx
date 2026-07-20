@@ -2,13 +2,10 @@ import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
 import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
 import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { SALOON_DOMAIN } from "~/lib/config";
+import { SALOON_DOMAIN, ADMIN_APP_URL } from "~/lib/config";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
-import HoursTable from "~/components/HoursTable";
-import TileGrid from "~/components/TileGrid";
-import CountrySelect from "~/components/CountrySelect";
-import PhoneInput from "~/components/PhoneInput";
+import { HoursTable, TileGrid, CountrySelect, PhoneInput } from "@saloon/ui-shared";
 
 export async function clientLoader() {
   let countries: Country[] = [];
@@ -212,9 +209,8 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
     );
   }
 
-  const origin          = window.location.origin;
-  const adminHandlerUrl = `${origin}/${handler}`;
-  const adminIdUrl      = `${origin}/${id}`;
+  const adminHandlerUrl = `${ADMIN_APP_URL}/${handler}`;
+  const adminIdUrl      = `${ADMIN_APP_URL}/${id}`;
   const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
 
   // ── Processing phase ────────────────────────────────────────────────────────
@@ -315,12 +311,12 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
           </div>
 
           {/* CTA */}
-          <Link
-            to={`/${id}`}
+          <a
+            href={`${ADMIN_APP_URL}/${id}`}
             className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
           >
             Go to admin panel &amp; sign in →
-          </Link>
+          </a>
 
           <p className="text-center text-xs text-stone-400">
             Bookmark both URLs — either one takes you to your dashboard.
@@ -485,7 +481,20 @@ export default function NewSaloon() {
             </div>
             <div className={fieldCls}>
               <label className={labelCls}>Phone <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span></label>
-              <PhoneInput value={form.owner.phone ?? ""} onChange={(v) => setOwner({ phone: v })} countries={countries} />
+              <PhoneInput
+                value={form.owner.phone ?? ""}
+                onChange={(v) => {
+                  setOwner({ phone: v });
+                  if (!form.location.country) {
+                    const dc = v.startsWith("+") ? v.slice(0, v.indexOf(" ") > 0 ? v.indexOf(" ") : v.length) : null;
+                    if (dc) {
+                      const match = countries.find((c) => c.dialCode === dc);
+                      if (match) setLocation({ country: match.name });
+                    }
+                  }
+                }}
+                countries={countries}
+              />
               {errors.ownerPhone && <FieldError msg={errors.ownerPhone} />}
             </div>
           </div>
@@ -549,7 +558,23 @@ export default function NewSaloon() {
 
             <div className={fieldCls}>
               <label className={labelCls}>Phone</label>
-              <PhoneInput key={`contact-phone-${reuseOwnerContact}`} autoFocus value={form.contact.phone ?? ""} onChange={(v) => setContact({ phone: v })} countries={countries} />
+              <PhoneInput
+                key={`contact-phone-${reuseOwnerContact}`}
+                autoFocus
+                value={form.contact.phone ?? ""}
+                defaultCountry={form.location.country || undefined}
+                onChange={(v) => {
+                  setContact({ phone: v });
+                  if (!form.location.country) {
+                    const dc = v.startsWith("+") ? v.slice(0, v.indexOf(" ") > 0 ? v.indexOf(" ") : v.length) : null;
+                    if (dc) {
+                      const match = countries.find((c) => c.dialCode === dc);
+                      if (match) setLocation({ country: match.name });
+                    }
+                  }
+                }}
+                countries={countries}
+              />
               {errors.contactPhone && <FieldError msg={errors.contactPhone} />}
             </div>
             <div className={fieldCls}>

@@ -9,6 +9,8 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
+    "@saloon/ui-website": "*",
+    "@saloon/ui-shared": "*",
     "@react-router/node": "^7.18.0",
     "@tailwindcss/vite": "^4.3.2",
     "isbot": "^5.0.0",

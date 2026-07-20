@@ -875,9 +875,10 @@ function StepConfirm({
 }
 
 export function BookingWizard({
-  saloon, services, staff, theme, initialServiceId = null, initialStaffId = null, onExit,
+  saloon, services, staff, theme, countries: _countries, initialServiceId = null, initialStaffId = null, onExit,
 }: {
   saloon: Saloon; services: ServiceItem[]; staff: StaffMember[]; theme: WebsiteTheme;
+  countries?: unknown[];
   initialServiceId?: number | null; initialStaffId?: number | null; onExit: () => void;
 }) {
   const preselected = services.find((s) => s.id === initialServiceId) ?? null;

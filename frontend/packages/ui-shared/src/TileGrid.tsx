@@ -1,5 +1,3 @@
-import { toggleList } from "~/lib/constants";
-
 interface Props {
   options: readonly string[];
   labels: Record<string, string>;
@@ -7,7 +5,11 @@ interface Props {
   onChange: (selected: string[]) => void;
 }
 
-export default function TileGrid({ options, labels, selected, onChange }: Props) {
+function toggle(list: string[], val: string): string[] {
+  return list.includes(val) ? list.filter((x) => x !== val) : [...list, val];
+}
+
+export function TileGrid({ options, labels, selected, onChange }: Props) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
       {options.map((f) => {
@@ -16,7 +18,7 @@ export default function TileGrid({ options, labels, selected, onChange }: Props)
           <button
             key={f}
             type="button"
-            onClick={() => onChange(toggleList(selected, f))}
+            onClick={() => onChange(toggle(selected, f))}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors cursor-pointer select-none ${
               on
                 ? "border-matcha-500 bg-matcha-50 text-matcha-700"

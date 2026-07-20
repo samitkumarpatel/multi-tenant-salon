@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { Country } from "~/lib/types";
-import { detectCountry } from "~/lib/locale";
+import type { Country } from "@saloon/ui-website";
+import { detectCountry } from "./locale";
 
 interface Props {
   value: string;
@@ -10,7 +10,7 @@ interface Props {
   className?: string;
 }
 
-export default function CountrySelect({ value, onChange, countries, className = "" }: Props) {
+export function CountrySelect({ value, onChange, countries, className = "" }: Props) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);

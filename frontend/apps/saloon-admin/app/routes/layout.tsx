@@ -1,20 +1,35 @@
-import React, { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
+import React, { useState, useEffect } from "react";
+import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation, useRevalidator } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Scissors, Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
+import { AppLogo } from "~/components/Logo";
 import { API, HANDLER_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
-import type { Saloon, LayoutContext, WebsiteMode, WebsiteTheme } from "~/lib/types";
+import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
-export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
-  const { saloonId } = params;
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId!);
-  const url = (isUUID || /^\d+$/.test(saloonId!)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
+export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
+  const saloonId = params.saloonId!;
+  const isPreview = new URL(request.url).pathname.endsWith("/c");
+
+  if (isPreview) {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId);
+    const url = (isUUID || /^\d+$/.test(saloonId)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
+    const saloon = await apiFetch<Saloon>(url);
+    cacheSaloonUUID(saloonId, String(saloon.id));
+    return { saloon, saloonId };
+  }
+
+  const authed = Boolean(sessionStorage.getItem(`saloon-auth:${saloonId}`));
+  if (!authed) {
+    return { saloon: null, saloonId };
+  }
+
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saloonId);
+  const url = (isUUID || /^\d+$/.test(saloonId)) ? `${API}/${saloonId}` : `${HANDLER_API}/${saloonId}`;
   const saloon = await apiFetch<Saloon>(url);
-  cacheSaloonUUID(saloonId!, String(saloon.id));
-  const theme = await apiFetch<WebsiteTheme>(`${API}/${saloon.id}/theme`).catch(() => null);
-  return { saloon, initialWebsiteMode: (theme?.websiteMode ?? null) as WebsiteMode | null };
+  cacheSaloonUUID(saloonId, String(saloon.id));
+  return { saloon, saloonId };
 }
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -26,13 +41,15 @@ const inputCls =
 
 type LoginStep = "email" | "sending" | "otp";
 
-function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => void }) {
-  const [step, setStep]       = useState<LoginStep>("email");
-  const [email, setEmail]     = useState("");
-  const [otp, setOtp]         = useState("");
+function LoginGate({ saloonId, onSuccess }: { saloonId: string; onSuccess: () => void }) {
+  const [step, setStep]         = useState<LoginStep>("email");
+  const [email, setEmail]       = useState("");
+  const [otp, setOtp]           = useState("");
   const [emailErr, setEmailErr] = useState("");
-  const [otpErr, setOtpErr]   = useState("");
+  const [otpErr, setOtpErr]     = useState("");
   const [verifying, setVerifying] = useState(false);
+
+  const displayId = saloonId.length > 16 ? `${saloonId.substring(0, 8)}…` : saloonId;
 
   function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -42,14 +59,9 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
       setEmailErr("Enter a valid email address.");
       return;
     }
-    if (trimmed !== saloon.owner?.email?.toLowerCase()) {
-      setEmailErr("This email is not registered as the owner of this saloon.");
-      return;
-    }
 
     setEmailErr("");
     setStep("sending");
-    // Mock: simulate email delivery delay then show OTP entry
     setTimeout(() => setStep("otp"), 1500);
   }
 
@@ -78,13 +90,11 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
   return (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
 
-      {/* Top bar */}
       <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
         <div className="flex items-center gap-2">
-          <Scissors className="w-4 h-4 text-matcha-600" />
-          <span className="text-sm font-semibold text-slate-700">my-saloon</span>
+          <AppLogo size={24} textColor="#374151" />
           <span className="text-slate-300 text-sm mx-1">/</span>
-          <span className="text-sm text-slate-500 truncate max-w-[180px]">{saloon.name}</span>
+          <span className="text-sm text-slate-500 truncate max-w-[180px] font-mono">{displayId}</span>
         </div>
         <div className="ml-auto">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
@@ -93,14 +103,11 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
         </div>
       </header>
 
-      {/* Center content */}
       <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
         <div className="w-full max-w-[360px]">
 
-          {/* Card */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
 
-            {/* Card header */}
             <div className="px-6 py-5 border-b border-slate-100">
               <div className="flex items-center gap-2.5 mb-1">
                 <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
@@ -117,7 +124,6 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
 
             <div className="px-6 py-5 space-y-4">
 
-              {/* ── Step 1: Email ── */}
               {step === "email" && (
                 <form onSubmit={handleSend} className="flex flex-col gap-3">
                   <div>
@@ -147,7 +153,6 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
                 </form>
               )}
 
-              {/* ── Step 1.5: Sending ── */}
               {step === "sending" && (
                 <div className="flex flex-col items-center gap-3 py-4">
                   <div className="w-10 h-10 rounded-full border-2 border-matcha-200 border-t-matcha-600 animate-spin" />
@@ -155,10 +160,8 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
                 </div>
               )}
 
-              {/* ── Step 2: OTP ── */}
               {step === "otp" && (
                 <form onSubmit={handleVerify} className="flex flex-col gap-3">
-                  {/* Dev hint */}
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
                     <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
                       Dev
@@ -207,7 +210,6 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
             </div>
           </div>
 
-          {/* Below card */}
           <p className="text-center text-[11px] text-slate-400 mt-4">
             Not the owner?{" "}
             <Link to="/customer" className="text-matcha-600 hover:underline no-underline">
@@ -217,10 +219,10 @@ function LoginGate({ saloon, onSuccess }: { saloon: Saloon; onSuccess: () => voi
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 shrink-0">
+      <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
+        <AppLogo size={16} textColor="#94a3b8" />
         <p className="text-[10px] text-slate-400 ml-auto">
-          © {new Date().getFullYear()} my-saloon · All rights reserved.
+          © {new Date().getFullYear()} · All rights reserved.
         </p>
       </footer>
 
@@ -257,7 +259,6 @@ export function ErrorBoundary() {
     return <SalonErrorPage is404={is404} />;
   }
 
-  // Admin shell error — clean but minimal
   return (
     <div
       className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center"
@@ -297,40 +298,39 @@ export function ErrorBoundary() {
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { saloon: initial, initialWebsiteMode } = useLoaderData<typeof clientLoader>();
-  const navigate = useNavigate();
-  const [saloon, setSaloon]             = useState<Saloon>(initial);
+  const { saloon: loaderSaloon, saloonId } = useLoaderData<typeof clientLoader>();
+  const navigate   = useNavigate();
+  const revalidator = useRevalidator();
+  const [saloon, setSaloon]             = useState<Saloon | null>(loaderSaloon);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]         = useState(false);
   const [deleteError, setDeleteError]   = useState<string | null>(null);
-  const [authed, setAuthed]             = useState(() =>
-    Boolean(sessionStorage.getItem(`saloon-auth:${initial.id}`))
-  );
-  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(initialWebsiteMode);
+  const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(null);
+
+  useEffect(() => { setSaloon(loaderSaloon); }, [loaderSaloon]);
 
   function setWebsiteMode(m: WebsiteMode | null) {
     setWebsiteModeState(m);
     if (m) {
-      apiFetch(`${API}/${initial.id}/website-mode`, {
+      apiFetch(`${API}/${saloon!.id}/website-mode`, {
         method: "PATCH",
         body: JSON.stringify({ websiteMode: m }),
       }).catch(() => {});
     }
   }
 
-  const ctx: LayoutContext = { saloon, setSaloon, websiteMode, setWebsiteMode };
+  const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode };
   const isPreview = Boolean(useMatch("/:saloonId/c"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Customer preview — only accessible when STATIC_WEBSITE feature is enabled
   if (isPreview) {
-    if (!saloon.features?.includes("STATIC_WEBSITE")) {
+    if (!saloon?.features?.includes("STATIC_WEBSITE")) {
       return (
         <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center px-5 text-center">
           <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-5">
-            <Scissors className="w-6 h-6 text-slate-400" />
+            <AppLogo size={32} showText={false} />
           </div>
-          <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon.name}</h1>
+          <h1 className="text-lg font-bold text-slate-800 mb-2">{saloon?.name}</h1>
           <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
             This saloon hasn't published a public website yet.
           </p>
@@ -340,14 +340,13 @@ export default function Layout() {
     return <Outlet context={ctx} />;
   }
 
-  // Not yet authenticated — show login gate
-  if (!authed) {
+  if (!saloon) {
     return (
       <LoginGate
-        saloon={saloon}
+        saloonId={saloonId}
         onSuccess={() => {
-          sessionStorage.setItem(`saloon-auth:${saloon.id}`, "1");
-          setAuthed(true);
+          sessionStorage.setItem(`saloon-auth:${saloonId}`, "1");
+          revalidator.revalidate();
         }}
       />
     );
@@ -361,15 +360,15 @@ export default function Layout() {
     }`;
 
   function handleLogout() {
-    sessionStorage.removeItem(`saloon-auth:${saloon.id}`);
-    setAuthed(false);
+    sessionStorage.removeItem(`saloon-auth:${saloonId}`);
+    setSaloon(null);
   }
 
   async function handleDelete() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await apiFetch(`${API}/${saloon.id}`, { method: "DELETE" });
+      await apiFetch(`${API}/${saloon!.id}`, { method: "DELETE" });
       navigate("/customer");
     } catch (e: unknown) {
       setDeleteError(e instanceof Error ? e.message : "Delete failed");
@@ -382,7 +381,6 @@ export default function Layout() {
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <header className="h-12 bg-white border-b border-slate-200 flex items-center px-3 gap-2 shrink-0 z-40">
-        {/* Hamburger — mobile only */}
         <button
           className="md:hidden p-1.5 rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer"
           onClick={() => setSidebarOpen((v) => !v)}
@@ -391,16 +389,13 @@ export default function Layout() {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Brand */}
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 pr-3 border-r border-slate-200">
-          <Scissors className="w-4 h-4 text-matcha-600" />
-          <span className="hidden sm:inline">my-saloon</span>
+        <div className="pr-3 border-r border-slate-200">
+          <AppLogo size={24} textColor="#374151" className="hidden sm:inline-flex" />
+          <AppLogo size={24} showText={false} className="sm:hidden" />
         </div>
-        {/* Breadcrumb */}
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:block" />
         <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{saloon.name}</span>
 
-        {/* Right actions */}
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={handleLogout}
@@ -415,7 +410,6 @@ export default function Layout() {
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden relative">
 
-        {/* Mobile backdrop */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/20 z-40 md:hidden"
@@ -431,7 +425,6 @@ export default function Layout() {
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}>
 
-          {/* Close button — mobile only */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 md:hidden">
             <span className="text-xs font-semibold text-slate-500">Navigation</span>
             <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -439,7 +432,6 @@ export default function Layout() {
             </button>
           </div>
 
-          {/* Saloon identity */}
           <div className="px-4 py-4 border-b border-slate-100">
             <p className="text-xs font-semibold text-slate-900 truncate">{saloon.name}</p>
             <p className="text-[11px] text-slate-400 mt-0.5 truncate">
@@ -448,7 +440,6 @@ export default function Layout() {
             </p>
           </div>
 
-          {/* Nav */}
           <nav className="flex-1 px-3 py-3 flex flex-col gap-0.5">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5">
               Manage
@@ -492,7 +483,6 @@ export default function Layout() {
             )}
           </nav>
 
-          {/* Sidebar footer */}
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
             <NavLink to="help" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support

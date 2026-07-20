@@ -355,6 +355,7 @@ export default function NewSaloon() {
     );
   }
 
+
   function validate(s: number): Record<string, string> {
     const e: Record<string, string> = {};
     if (s === 0 && !form.name.trim()) e.name = "Saloon name is required.";
@@ -485,7 +486,20 @@ export default function NewSaloon() {
             </div>
             <div className={fieldCls}>
               <label className={labelCls}>Phone <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span></label>
-              <PhoneInput value={form.owner.phone ?? ""} onChange={(v) => setOwner({ phone: v })} countries={countries} />
+              <PhoneInput
+                value={form.owner.phone ?? ""}
+                onChange={(v) => {
+                  setOwner({ phone: v });
+                  if (!form.location.country) {
+                    const dc = v.startsWith("+") ? v.slice(0, v.indexOf(" ") > 0 ? v.indexOf(" ") : v.length) : null;
+                    if (dc) {
+                      const match = countries.find((c) => c.dialCode === dc);
+                      if (match) setLocation({ country: match.name });
+                    }
+                  }
+                }}
+                countries={countries}
+              />
               {errors.ownerPhone && <FieldError msg={errors.ownerPhone} />}
             </div>
           </div>
@@ -549,7 +563,23 @@ export default function NewSaloon() {
 
             <div className={fieldCls}>
               <label className={labelCls}>Phone</label>
-              <PhoneInput key={`contact-phone-${reuseOwnerContact}`} autoFocus value={form.contact.phone ?? ""} onChange={(v) => setContact({ phone: v })} countries={countries} />
+              <PhoneInput
+                key={`contact-phone-${reuseOwnerContact}`}
+                autoFocus
+                value={form.contact.phone ?? ""}
+                defaultCountry={form.location.country}
+                onChange={(v) => {
+                  setContact({ phone: v });
+                  if (!form.location.country) {
+                    const dc = v.startsWith("+") ? v.slice(0, v.indexOf(" ") > 0 ? v.indexOf(" ") : v.length) : null;
+                    if (dc) {
+                      const match = countries.find((c) => c.dialCode === dc);
+                      if (match) setLocation({ country: match.name });
+                    }
+                  }
+                }}
+                countries={countries}
+              />
               {errors.contactPhone && <FieldError msg={errors.contactPhone} />}
             </div>
             <div className={fieldCls}>

@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { useOutletContext } from "react-router";
+import { useOutletContext, useLoaderData } from "react-router";
+import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   Monitor, Wand2, Zap, ExternalLink, Eye,
   Sparkles, User, ChevronRight, Loader, RefreshCw,
   Handshake, Mail,
 } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
+import { API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 
 type Mode = WebsiteMode;
 
@@ -258,8 +260,21 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, descriptio
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const sid = await resolveSaloonUUID(params.saloonId!);
+  const data = await apiFetch<{ websiteMode: WebsiteMode }>(`${API}/${sid}/theme`).catch(() => null);
+  return { initialWebsiteMode: data?.websiteMode ?? null };
+}
+
 export default function WebsiteManagement() {
-  const { saloon, websiteMode: mode, setWebsiteMode: setMode } = useOutletContext<LayoutContext>();
+  const { saloon, setWebsiteMode: persistMode } = useOutletContext<LayoutContext>();
+  const { initialWebsiteMode } = useLoaderData<typeof clientLoader>();
+  const [mode, setModeState] = useState<WebsiteMode | null>(initialWebsiteMode);
+
+  function setMode(m: WebsiteMode | null) {
+    setModeState(m);
+    persistMode(m);
+  }
 
   const previewUrl = `/${saloon.handler ?? saloon.id}/c`;
   const designUrl  = `${previewUrl}?design=1`;
@@ -289,7 +304,7 @@ export default function WebsiteManagement() {
       <div className="flex flex-col gap-4">
 
         <ModeCard
-          id="static"
+          id="STATIC_WEBSITE"
           active={mode}
           onSelect={setMode}
           accent="amber"
@@ -306,7 +321,7 @@ export default function WebsiteManagement() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors no-underline"
             >
-              <ExternalLink className="w-3.5 h-3.5" /> Open &amp; Design
+              <ExternalLink className="w-3.5 h-3.5" /> Open &amp; Customise
             </a>
             <a
               href={previewUrl}
@@ -320,7 +335,7 @@ export default function WebsiteManagement() {
         </ModeCard>
 
         <ModeCard
-          id="ai"
+          id="GENERATIVE_UI"
           active={mode}
           onSelect={setMode}
           accent="violet"
@@ -340,7 +355,7 @@ export default function WebsiteManagement() {
         </ModeCard>
 
         <ModeCard
-          id="contact"
+          id="CUSTOMISE_WEBSITE_CONTACT_US"
           active={mode}
           onSelect={setMode}
           accent="matcha"

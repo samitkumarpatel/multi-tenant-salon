@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLoaderData } from "react-router";
 import { API, apiFetch } from "~/lib/api";
+import { ADMIN_APP_URL } from "~/lib/config";
 import type { Saloon } from "~/lib/types";
 import { FEATURE_LABEL } from "~/lib/constants";
 
@@ -47,18 +48,18 @@ function SaloonCard({ saloon: s }: { saloon: Saloon }) {
       </div>
 
       <div className="px-5 pb-5">
-        <Link
-          to={hasBooking ? `/${s.id}/book` : `/${s.id}`}
+        <a
+          href={hasBooking ? `${ADMIN_APP_URL}/${s.id}/book` : `${ADMIN_APP_URL}/${s.id}`}
           className="block text-center w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors no-underline"
         >
           {hasBooking ? "Book now" : "Visit saloon"}
-        </Link>
+        </a>
       </div>
     </div>
   );
 }
 
-export default function Customer() {
+export default function Explore() {
   const saloons = useLoaderData<typeof clientLoader>();
   const [query, setQuery] = useState("");
 

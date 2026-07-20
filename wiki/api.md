@@ -588,11 +588,28 @@ Theme settings are scoped to a saloon and control the visual appearance of its p
   "accentColor": "#F59E0B",
   "fontFamily": "inter",
   "logoBgColor": "#F59E0B",
+  "headerBg": "#FFFFFF",
+  "footerBg": "#1E293B",
+  "mapsUrl": null,
+  "websiteMode": "STATIC_WEBSITE",
   "updatedAt": null
 }
 ```
 
 `updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory).
+
+| Field | Type | Notes |
+|---|---|---|
+| `heroBg` | string | Hero section background color |
+| `heroTextColor` | string | Hero section text color |
+| `accentColor` | string | Primary accent / CTA color |
+| `fontFamily` | string | Font family slug |
+| `logoBgColor` | string | Background color behind the saloon logo |
+| `headerBg` | string | Header background color |
+| `footerBg` | string | Footer background color |
+| `mapsUrl` | string \| null | Google Maps embed URL for the location section |
+| `websiteMode` | string \| null | One of `STATIC_WEBSITE`, `GENERATIVE_UI`, `CUSTOMISE_WEBSITE_CONTACT_US` |
+| `updatedAt` | string \| null | ISO 8601 timestamp of last save; `null` if never saved |
 
 **Flow**
 
@@ -616,7 +633,10 @@ Creates or fully replaces the theme for a saloon (`ON CONFLICT DO UPDATE`).
   "heroTextColor": "#F8FAFC",
   "accentColor": "#6366F1",
   "fontFamily": "poppins",
-  "logoBgColor": "#6366F1"
+  "logoBgColor": "#6366F1",
+  "headerBg": "#FFFFFF",
+  "footerBg": "#1E293B",
+  "mapsUrl": "https://maps.google.com/..."
 }
 ```
 
@@ -627,26 +647,45 @@ Creates or fully replaces the theme for a saloon (`ON CONFLICT DO UPDATE`).
 | `accentColor` | string | Primary accent / CTA color |
 | `fontFamily` | string | Font family slug (e.g. `"inter"`, `"poppins"`) |
 | `logoBgColor` | string | Background color behind the saloon logo |
+| `headerBg` | string | Header background color |
+| `footerBg` | string | Footer background color |
+| `mapsUrl` | string | Google Maps embed URL for the location section |
 
-**Response** `200 OK`
-
-```json
-{
-  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "heroBg": "#1E293B",
-  "heroTextColor": "#F8FAFC",
-  "accentColor": "#6366F1",
-  "fontFamily": "poppins",
-  "logoBgColor": "#6366F1",
-  "updatedAt": "2026-07-08T12:00:00Z"
-}
-```
+**Response** `200 OK` — full `WebsiteTheme` object (same shape as [Get theme](#get-theme))
 
 **Flow**
 
 1. `WebsiteController.saveTheme(UUID, SaveThemeRequest)` → `WebsiteThemeService.saveTheme(UUID, ...)`
 2. **DB**: `INSERT INTO saloon_website_theme (...) VALUES (...) ON CONFLICT (saloon_id) DO UPDATE SET ...` with `updated_at = NOW()`.
 3. `WebsiteThemeRepository.findById(UUID)` re-fetches the persisted row and returns `200 OK`.
+
+---
+
+### Update website mode
+
+`PATCH /api/saloons/{id}/website-mode`
+
+Admin-only. Updates only the `websiteMode` field without replacing the rest of the theme.
+
+**Request**
+
+```json
+{ "websiteMode": "GENERATIVE_UI" }
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `websiteMode` | string | One of `STATIC_WEBSITE`, `GENERATIVE_UI`, `CUSTOMISE_WEBSITE_CONTACT_US` |
+
+**Response** `200 OK` — full `WebsiteTheme` object reflecting the updated mode
+
+**Response** `404 Not Found`
+
+**Flow**
+
+1. `WebsiteController.updateWebsiteMode(UUID, WebsiteModeRequest)` → `WebsiteThemeService.updateWebsiteMode(UUID, ...)`
+2. **DB**: `UPDATE saloon_website_theme SET website_mode = ?, updated_at = NOW() WHERE saloon_id = ?`
+3. Re-fetches and returns `200 OK` with the full theme.
 
 ---
 

@@ -1,19 +1,23 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock } from "lucide-react";
-import { API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera, RefreshCw } from "lucide-react";
+import { API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
 } from "~/lib/constants";
-import type { LayoutContext, StaffMember } from "~/lib/types";
-import InfoBar from "~/components/InfoBar";
-import TileGrid from "~/components/TileGrid";
+import type { Country, LayoutContext, OperatingHours, StaffMember } from "~/lib/types";
+import { InfoBar, TileGrid, PhoneInput } from "@saloon/ui-shared";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
-  return apiFetch<StaffMember[]>(`${API}/${sid}/staff`);
+  const [staff, countries] = await Promise.all([
+    apiFetch<StaffMember[]>(`${API}/${sid}/staff`),
+    apiFetch<Country[]>(COUNTRIES_API).catch(() => [] as Country[]),
+  ]);
+  return { staff, countries };
 }
 
 // ── Shared styles ────────────────────────────────────────────────────────────
@@ -35,6 +39,7 @@ interface StaffFormFields {
   phone: string;
   role: string;
   specializations: string[];
+  photo: string | null;
 }
 
 // ── Schedule editor ───────────────────────────────────────────────────────────
@@ -52,21 +57,27 @@ interface ScheduleEntry {
   enabled: boolean;
 }
 
-function defaultSchedule(): ScheduleEntry[] {
-  return ALL_DAYS.map((d) => ({
-    dayOfWeek: d,
-    startTime: "09:00",
-    endTime: "18:00",
-    enabled: d !== "SUNDAY",
-  }));
+function defaultSchedule(operatingHours?: OperatingHours[]): ScheduleEntry[] {
+  return ALL_DAYS.map((d) => {
+    const oh = operatingHours?.find((h) => h.day === d);
+    if (oh && !oh.closed) {
+      return { dayOfWeek: d, startTime: oh.openTime, endTime: oh.closeTime, enabled: true };
+    }
+    if (operatingHours?.length) {
+      return { dayOfWeek: d, startTime: "09:00", endTime: "18:00", enabled: false };
+    }
+    return { dayOfWeek: d, startTime: "09:00", endTime: "18:00", enabled: d !== "SUNDAY" };
+  });
 }
 
 function ScheduleEditor({
   schedule,
   onChange,
+  hint,
 }: {
   schedule: ScheduleEntry[];
   onChange: (s: ScheduleEntry[]) => void;
+  hint?: string;
 }) {
   function update(idx: number, patch: Partial<ScheduleEntry>) {
     onChange(schedule.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
@@ -74,9 +85,14 @@ function ScheduleEditor({
 
   return (
     <div>
-      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100 flex items-center gap-1.5">
+      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 pb-2 border-b border-slate-100 flex items-center gap-1.5">
         <Clock className="w-3.5 h-3.5" /> Calendar availability
       </div>
+      {hint && (
+        <p className="text-[11px] text-matcha-700 bg-matcha-50 border border-matcha-100 rounded-md px-2.5 py-1.5 mb-2.5">
+          {hint}
+        </p>
+      )}
       <div className="space-y-1.5">
         {schedule.map((entry, idx) => (
           <div key={entry.dayOfWeek} className="flex items-center gap-2">
@@ -116,16 +132,238 @@ function ScheduleEditor({
   );
 }
 
+// ── Camera capture modal ──────────────────────────────────────────────────────
+
+function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string) => void; onClose: () => void }) {
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [ready, setReady]   = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+  const [facing, setFacing] = useState<"user" | "environment">("user");
+
+  function startStream(facingMode: "user" | "environment") {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    setReady(false);
+    setError(null);
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false })
+      .then((stream) => {
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch((err: DOMException) => {
+        const msg =
+          err.name === "NotAllowedError"
+            ? "Camera access denied — allow camera access in your browser settings and try again."
+            : err.name === "NotFoundError"
+            ? "No camera found on this device."
+            : `Camera error: ${err.message}`;
+        setError(msg);
+      });
+  }
+
+  useEffect(() => {
+    startStream(facing);
+    return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function flipCamera() {
+    const next = facing === "user" ? "environment" : "user";
+    setFacing(next);
+    startStream(next);
+  }
+
+  function capture() {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !ready) return;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    const side = Math.min(w, h);
+    canvas.width  = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d")!;
+
+    if (facing === "user") {
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -(w + side) / 2, -(h - side) / 2, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(video, -(w - side) / 2, -(h - side) / 2, w, h);
+    }
+
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    onCapture(canvas.toDataURL("image/jpeg", 0.88));
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-xs flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <span className="text-sm font-semibold text-slate-800">Take a photo</span>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {error ? (
+          <div className="px-6 py-8 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+              <Camera className="w-6 h-6 text-red-400" />
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">{error}</p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium text-slate-700 cursor-pointer transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="relative bg-black aspect-square overflow-hidden">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                onCanPlay={() => setReady(true)}
+                className="w-full h-full object-cover"
+                style={{ transform: facing === "user" ? "scaleX(-1)" : "none" }}
+              />
+              {!ready && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                  <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={flipCamera}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors cursor-pointer backdrop-blur-sm"
+                title="Flip camera"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-40 h-40 rounded-full border-2 border-white/30" />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 py-5 bg-slate-50">
+              <button
+                type="button"
+                onClick={capture}
+                disabled={!ready}
+                title="Capture photo"
+                className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 hover:border-matcha-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center"
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-800 hover:bg-matcha-700 transition-colors" />
+              </button>
+              <p className="text-[11px] text-slate-400">Click the button to capture</p>
+            </div>
+          </>
+        )}
+      </div>
+      <canvas ref={canvasRef} className="hidden" />
+    </div>,
+    document.body
+  );
+}
+
+// ── Photo picker ──────────────────────────────────────────────────────────────
+
+function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const uploadRef      = useRef<HTMLInputElement>(null);
+  const [showCam, setShowCam] = useState(false);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  return (
+    <>
+      <div className="flex flex-col items-center gap-2 mb-5 pb-5 border-b border-slate-100">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => uploadRef.current?.click()}
+            className="w-20 h-20 rounded-full border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden hover:border-matcha-400 hover:bg-matcha-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-matcha-500/20"
+            title="Upload photo"
+          >
+            {value ? (
+              <img src={value} alt="Staff photo preview" className="w-full h-full object-cover" />
+            ) : (
+              <UserCircle className="w-10 h-10 text-slate-300" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCam(true)}
+            title="Take photo"
+            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-matcha-600 text-white flex items-center justify-center hover:bg-matcha-700 transition-colors cursor-pointer shadow-sm"
+          >
+            <Camera className="w-3 h-3" />
+          </button>
+
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              title="Remove photo"
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer text-xs leading-none shadow-sm"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <button type="button" onClick={() => uploadRef.current?.click()} className="hover:text-matcha-600 transition-colors cursor-pointer">
+            Upload photo
+          </button>
+          <span className="text-slate-200">·</span>
+          <button type="button" onClick={() => setShowCam(true)} className="hover:text-matcha-600 transition-colors cursor-pointer">
+            Take photo
+          </button>
+        </div>
+
+        <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      </div>
+
+      {showCam && (
+        <CameraCapture
+          onCapture={(dataUrl) => { onChange(dataUrl); setShowCam(false); }}
+          onClose={() => setShowCam(false)}
+        />
+      )}
+    </>
+  );
+}
+
 // ── Sub-component at module level so React never remounts it on re-render ────
 
 function StaffForm({
-  f, setF,
+  f, setF, countries, defaultCountry,
 }: {
   f: StaffFormFields;
   setF: React.Dispatch<React.SetStateAction<StaffFormFields>>;
+  countries: Country[];
+  defaultCountry?: string;
 }) {
   return (
     <>
+      <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} />
+
       <div className="mb-4">
         <label className={fieldLabel}>Name <span className="text-red-500">*</span></label>
         <input
@@ -150,10 +388,11 @@ function StaffForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <label className={fieldLabel}>Phone</label>
-          <input
-            className={inputCls}
+          <PhoneInput
             value={f.phone}
-            onChange={(e) => setF((p) => ({ ...p, phone: e.target.value }))}
+            onChange={(v) => setF((p) => ({ ...p, phone: v }))}
+            countries={countries}
+            defaultCountry={defaultCountry}
           />
         </div>
         <div>
@@ -185,7 +424,7 @@ function StaffForm({
 
 export default function Staff() {
   const { saloon } = useOutletContext<LayoutContext>();
-  const init = useLoaderData<typeof clientLoader>();
+  const { staff: init, countries } = useLoaderData<typeof clientLoader>();
   const [staff,  setStaff]  = useState<StaffMember[]>(init);
   const [busy,   setBusy]   = useState(false);
   const [toast,  setToast]  = useState<{ msg: string; type: string } | null>(null);
@@ -195,7 +434,7 @@ export default function Staff() {
 
   const sid = saloon.id;
 
-  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [] });
+  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null });
   const [af, setAf] = useState<StaffFormFields>(blank);
   const [addSchedule, setAddSchedule] = useState<ScheduleEntry[]>(defaultSchedule);
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
@@ -207,7 +446,11 @@ export default function Staff() {
   }
 
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
-  function openAdd() { setAf(blank()); setAddSchedule(defaultSchedule()); setModal((m) => ({ ...m, add: true })); }
+  function openAdd() {
+    setAf(blank());
+    setAddSchedule(defaultSchedule(saloon.operatingHours));
+    setModal((m) => ({ ...m, add: true }));
+  }
 
   function openEdit(m: StaffMember) {
     setTarget(m);
@@ -216,6 +459,7 @@ export default function Staff() {
       role: m.role, status: m.status,
       availableForBooking: m.availableForBooking ?? true,
       specializations: [...(m.specializations ?? [])],
+      photo: null,
     });
     setModal((p) => ({ ...p, edit: true }));
   }
@@ -303,10 +547,8 @@ export default function Staff() {
           {staff.map((m) => (
             <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
 
-              {/* Status dot */}
               <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status] ?? "bg-slate-300"}`} />
 
-              {/* Name + role + contact + specializations */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-semibold text-slate-900 truncate">{m.name}</span>
@@ -341,7 +583,6 @@ export default function Staff() {
                 ) : null}
               </div>
 
-              {/* Actions */}
               <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
@@ -359,7 +600,6 @@ export default function Staff() {
                 )}
               </div>
 
-              {/* Mobile chevron hint */}
               <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
             </div>
           ))}
@@ -387,9 +627,17 @@ export default function Staff() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <StaffForm f={af} setF={setAf} />
+            <StaffForm f={af} setF={setAf} countries={countries} defaultCountry={saloon.location?.country} />
             <div className="mt-5">
-              <ScheduleEditor schedule={addSchedule} onChange={setAddSchedule} />
+              <ScheduleEditor
+                schedule={addSchedule}
+                onChange={setAddSchedule}
+                hint={
+                  saloon.operatingHours?.some((h) => !h.closed)
+                    ? "Pre-filled from your saloon's opening hours — adjust per staff member as needed."
+                    : undefined
+                }
+              />
             </div>
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button
@@ -423,7 +671,7 @@ export default function Staff() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <StaffForm f={ef} setF={setEf as React.Dispatch<React.SetStateAction<StaffFormFields>>} />
+            <StaffForm f={ef} setF={setEf as React.Dispatch<React.SetStateAction<StaffFormFields>>} countries={countries} defaultCountry={saloon.location?.country} />
             <div className="mt-4 mb-2">
               <label className={fieldLabel}>Status</label>
               <select

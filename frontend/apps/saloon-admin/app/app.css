@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../../../packages/ui-shared/src";
+@source "../../../packages/ui-website/src";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -44,4 +46,21 @@
   60%       { transform: translateX(4px);  }
   75%       { transform: translateX(-2px); }
   90%       { transform: translateX(2px);  }
+}
+
+@keyframes snip {
+  0%   { transform: scale(1)    rotate(0deg);   }
+  25%  { transform: scale(1.14) rotate(-16deg); }
+  55%  { transform: scale(1.06) rotate(9deg);   }
+  78%  { transform: scale(1.02) rotate(-4deg);  }
+  100% { transform: scale(1)    rotate(0deg);   }
+}
+
+.logo-snip {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.logo-snip.is-snipping {
+  animation: snip 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

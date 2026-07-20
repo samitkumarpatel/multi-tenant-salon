@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { Country } from "~/lib/types";
-import { detectCountry } from "~/lib/locale";
+import type { Country } from "@saloon/ui-website";
+import { detectCountry } from "./locale";
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   countries: Country[];
+  /** Country name (e.g. "India") — pre-selects that dial code when no dial code is in value */
+  defaultCountry?: string;
   autoFocus?: boolean;
 }
 
@@ -19,13 +21,17 @@ function parsePhone(value: string): { dialCode: string; local: string } {
   return { dialCode: "", local: value };
 }
 
-function detectDialCode(countries: Country[]): string {
+function defaultDialCode(countries: Country[], countryName?: string): string {
+  if (countryName) {
+    const match = countries.find((c) => c.name === countryName);
+    if (match) return match.dialCode;
+  }
   return detectCountry(countries)?.dialCode ?? countries[0]?.dialCode ?? "";
 }
 
-export default function PhoneInput({ value, onChange, countries, autoFocus }: Props) {
+export function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus }: Props) {
   const parsed = parsePhone(value);
-  const [dialCode, setDialCode] = useState(() => parsed.dialCode || detectDialCode(countries));
+  const [dialCode, setDialCode] = useState(() => parsed.dialCode || defaultDialCode(countries, defaultCountry));
   const [local, setLocal]       = useState(parsed.local);
   const [open, setOpen]         = useState(false);
   const [query, setQuery]       = useState("");
@@ -71,7 +77,6 @@ export default function PhoneInput({ value, onChange, countries, autoFocus }: Pr
   return (
     <>
       <div className="flex border border-stone-200 rounded-xl bg-white focus-within:border-matcha-500 focus-within:ring-2 focus-within:ring-matcha-500/10 transition-all">
-        {/* Dial code trigger */}
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -84,7 +89,6 @@ export default function PhoneInput({ value, onChange, countries, autoFocus }: Pr
           </svg>
         </button>
 
-        {/* Local number input — digits, spaces, hyphens and parens only */}
         <input
           autoFocus={autoFocus}
           type="tel"
@@ -100,23 +104,16 @@ export default function PhoneInput({ value, onChange, countries, autoFocus }: Pr
         />
       </div>
 
-      {/* Portal — renders outside the animated container so `fixed` works correctly */}
       {open && createPortal(
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-black/30"
-            onClick={close}
-          />
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={close} />
 
-          {/* Sheet — full-height panel on mobile, constrained centered card on desktop */}
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Select country code"
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70vh]"
           >
-            {/* Search header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
               <svg className="w-4 h-4 text-stone-400 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="9" cy="9" r="6"/>
@@ -140,7 +137,6 @@ export default function PhoneInput({ value, onChange, countries, autoFocus }: Pr
               )}
             </div>
 
-            {/* Country list */}
             <ul className="overflow-y-auto flex-1 overscroll-contain">
               {filtered.map((c) => (
                 <li key={c.code}>

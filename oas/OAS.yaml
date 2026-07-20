@@ -775,6 +775,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/WebsiteTheme"
 
+  /api/saloons/{id}/website-mode:
+    patch:
+      tags: [Website, Admin]
+      summary: Update website mode for a saloon
+      description: Admin-only. Updates only the website presentation mode without changing other theme settings.
+      operationId: updateWebsiteMode
+      parameters:
+        - $ref: "#/components/parameters/SaloonId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebsiteModeRequest"
+      responses:
+        "200":
+          description: Website mode updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsiteTheme"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Utility ───────────────────────────────────────────────────────────────
 
   /api/utility/countries:
@@ -1455,6 +1479,15 @@ components:
           type: string
         logoBgColor:
           type: string
+        headerBg:
+          type: string
+        footerBg:
+          type: string
+        mapsUrl:
+          type: string
+          format: uri
+        websiteMode:
+          $ref: "#/components/schemas/WebsiteMode"
         updatedAt:
           type: string
           format: date-time
@@ -1472,6 +1505,27 @@ components:
           type: string
         logoBgColor:
           type: string
+        headerBg:
+          type: string
+        footerBg:
+          type: string
+        mapsUrl:
+          type: string
+          format: uri
+
+    WebsiteMode:
+      type: string
+      enum:
+        - STATIC_WEBSITE
+        - GENERATIVE_UI
+        - CUSTOMISE_WEBSITE_CONTACT_US
+
+    WebsiteModeRequest:
+      type: object
+      required: [websiteMode]
+      properties:
+        websiteMode:
+          $ref: "#/components/schemas/WebsiteMode"
 
     # ── Utility ───────────────────────────────────────────────────────────────
 
