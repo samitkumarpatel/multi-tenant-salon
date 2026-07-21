@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
 import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
-import { API, COUNTRIES_API, apiFetch } from "~/lib/api";
+import { SALOON_ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { SALOON_DOMAIN } from "~/lib/config";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
@@ -413,7 +413,7 @@ export default function NewSaloon() {
     setSaveError(null);
     setSaving(true);
     try {
-      const result = await apiFetch<{ id: string; handler: string }>(API, {
+      const result = await apiFetch<{ id: string; handler: string }>(SALOON_ONBOARDING_API, {
         method: "POST",
         body: JSON.stringify({
           name:       form.name.trim(),

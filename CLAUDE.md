@@ -82,3 +82,7 @@ Package name note: the Java package uses underscores (`net.samitkumar.multi_tena
 - If there is a need to consume data from an external service, use Spring's Http Service Client Enhancement (introduced in Spring Boot 4). https://spring.io/blog/2025/09/23/http-service-client-enhancements.
 - Ensure all Integration test use RestTestClient https://docs.spring.io/spring-framework/reference/testing/resttestclient.html
 - Ensure all tests run successfully with Testcontainers to validate real PostgreSQL interactions.
+
+## Instruction
+- For each changes, make sure to run `./mvnw clean install` or Just compile and Test.
+- If any api related changes , make sure to change [OAS](./oas/OAS.yaml) and [api.md](./wiki/api.md).
