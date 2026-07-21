@@ -7,6 +7,7 @@ import net.samitkumar.multi_tenant_saloon.staff.StaffRole;
 import net.samitkumar.multi_tenant_saloon.staff.StaffStatus;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -47,6 +48,7 @@ public class StaffService implements StaffApi {
         return repository.findBySaloonIdAndAvailableForBookingTrue(saloonId);
     }
 
+    @Transactional
     StaffMember onboard(UUID saloonId, String name, String email, String phone, StaffRole role,
                         boolean isOwner, List<String> specializations,
                         List<StaffOnboardedEvent.DaySchedule> schedule) {

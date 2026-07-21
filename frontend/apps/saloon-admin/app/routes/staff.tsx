@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
@@ -10,6 +10,8 @@ import {
 } from "~/lib/constants";
 import type { Country, LayoutContext, OperatingHours, StaffMember } from "~/lib/types";
 import { InfoBar, TileGrid, PhoneInput } from "@saloon/ui-shared";
+
+const toHHMM = (t: string) => t.slice(0, 5);
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
@@ -73,12 +75,16 @@ function defaultSchedule(operatingHours?: OperatingHours[]): ScheduleEntry[] {
 function ScheduleEditor({
   schedule,
   onChange,
+  operatingHours,
   hint,
 }: {
   schedule: ScheduleEntry[];
   onChange: (s: ScheduleEntry[]) => void;
+  operatingHours?: OperatingHours[];
   hint?: string;
 }) {
+  const hasConfiguredHours = Boolean(operatingHours?.length);
+
   function update(idx: number, patch: Partial<ScheduleEntry>) {
     onChange(schedule.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
   }
@@ -94,39 +100,81 @@ function ScheduleEditor({
         </p>
       )}
       <div className="space-y-1.5">
-        {schedule.map((entry, idx) => (
-          <div key={entry.dayOfWeek} className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => update(idx, { enabled: !entry.enabled })}
-              className={`w-9 h-5 rounded-full transition-colors shrink-0 relative cursor-pointer ${entry.enabled ? "bg-matcha-600" : "bg-slate-200"}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${entry.enabled ? "translate-x-4" : "translate-x-0"}`} />
-            </button>
-            <span className={`w-8 text-xs font-semibold shrink-0 ${entry.enabled ? "text-slate-700" : "text-slate-300"}`}>
-              {DAY_LABEL[entry.dayOfWeek]}
-            </span>
-            {entry.enabled ? (
-              <>
-                <input
-                  type="time"
-                  value={entry.startTime}
-                  onChange={(e) => update(idx, { startTime: e.target.value })}
-                  className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-md outline-none focus:border-matcha-500 focus:ring-1 focus:ring-matcha-500/10 bg-white text-slate-800"
-                />
-                <span className="text-xs text-slate-300">–</span>
-                <input
-                  type="time"
-                  value={entry.endTime}
-                  onChange={(e) => update(idx, { endTime: e.target.value })}
-                  className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-md outline-none focus:border-matcha-500 focus:ring-1 focus:ring-matcha-500/10 bg-white text-slate-800"
-                />
-              </>
-            ) : (
-              <span className="text-xs text-slate-300 italic">Day off</span>
-            )}
-          </div>
-        ))}
+        {schedule.map((entry, idx) => {
+          const oh = operatingHours?.find((h) => h.day === entry.dayOfWeek);
+          const saloonClosed = hasConfiguredHours && (!oh || oh.closed);
+          const startErr = entry.enabled && !saloonClosed && !!oh && !oh.closed && toHHMM(entry.startTime) < toHHMM(oh.openTime);
+          const endErr   = entry.enabled && !saloonClosed && !!oh && !oh.closed && toHHMM(entry.endTime)   > toHHMM(oh.closeTime);
+          const hasErr   = startErr || endErr;
+
+          return (
+            <div key={entry.dayOfWeek} className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={saloonClosed}
+                  onClick={() => !saloonClosed && update(idx, { enabled: !entry.enabled })}
+                  className={`w-9 h-5 rounded-full transition-colors shrink-0 relative ${
+                    saloonClosed
+                      ? "bg-slate-100 cursor-not-allowed"
+                      : `cursor-pointer ${entry.enabled ? "bg-matcha-600" : "bg-slate-200"}`
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                    entry.enabled && !saloonClosed ? "translate-x-4" : "translate-x-0"
+                  }`} />
+                </button>
+
+                <span className={`w-8 text-xs font-semibold shrink-0 ${
+                  saloonClosed || !entry.enabled ? "text-slate-300" : "text-slate-700"
+                }`}>
+                  {DAY_LABEL[entry.dayOfWeek]}
+                </span>
+
+                {saloonClosed ? (
+                  <span className="text-xs text-slate-300 italic">Saloon closed</span>
+                ) : entry.enabled ? (
+                  <>
+                    <input
+                      type="time"
+                      value={entry.startTime}
+                      min={oh?.openTime}
+                      max={entry.endTime}
+                      onChange={(e) => update(idx, { startTime: e.target.value })}
+                      className={`flex-1 px-2 py-1 text-xs border rounded-md outline-none focus:ring-1 ${
+                        startErr
+                          ? "border-amber-300 bg-amber-50 text-amber-800 focus:border-amber-400 focus:ring-amber-300/20"
+                          : "border-slate-200 bg-white text-slate-800 focus:border-matcha-500 focus:ring-matcha-500/10"
+                      }`}
+                    />
+                    <span className="text-xs text-slate-300">–</span>
+                    <input
+                      type="time"
+                      value={entry.endTime}
+                      min={entry.startTime}
+                      max={oh?.closeTime}
+                      onChange={(e) => update(idx, { endTime: e.target.value })}
+                      className={`flex-1 px-2 py-1 text-xs border rounded-md outline-none focus:ring-1 ${
+                        endErr
+                          ? "border-amber-300 bg-amber-50 text-amber-800 focus:border-amber-400 focus:ring-amber-300/20"
+                          : "border-slate-200 bg-white text-slate-800 focus:border-matcha-500 focus:ring-matcha-500/10"
+                      }`}
+                    />
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-300 italic">Day off</span>
+                )}
+              </div>
+
+              {hasErr && (
+                <p className="flex items-center gap-1 text-[10px] font-medium text-amber-600 pl-[84px]">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Outside saloon hours ({oh!.openTime} – {oh!.closeTime})
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -437,6 +485,13 @@ export default function Staff() {
   const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null });
   const [af, setAf] = useState<StaffFormFields>(blank);
   const [addSchedule, setAddSchedule] = useState<ScheduleEntry[]>(defaultSchedule);
+
+  const addScheduleHasErrors = addSchedule.some((entry) => {
+    if (!entry.enabled) return false;
+    const oh = saloon.operatingHours?.find((h) => h.day === entry.dayOfWeek);
+    if (!oh || oh.closed) return false;
+    return toHHMM(entry.startTime) < toHHMM(oh.openTime) || toHHMM(entry.endTime) > toHHMM(oh.closeTime);
+  });
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
 
   function notify(msg: string, type = "success") {
@@ -632,9 +687,10 @@ export default function Staff() {
               <ScheduleEditor
                 schedule={addSchedule}
                 onChange={setAddSchedule}
+                operatingHours={saloon.operatingHours}
                 hint={
                   saloon.operatingHours?.some((h) => !h.closed)
-                    ? "Pre-filled from your saloon's opening hours — adjust per staff member as needed."
+                    ? "Pre-filled from your saloon's opening hours. Times are capped to saloon operating hours."
                     : undefined
                 }
               />
@@ -648,7 +704,8 @@ export default function Staff() {
               </button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-                disabled={busy || !af.name || !af.email}
+                disabled={busy || !af.name || !af.email || addScheduleHasErrors}
+                title={addScheduleHasErrors ? "Fix schedule hours to match saloon operating hours before saving" : undefined}
                 onClick={submitAdd}
               >
                 {busy ? "Saving…" : "Onboard"}

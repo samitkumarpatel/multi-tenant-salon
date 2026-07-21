@@ -57,6 +57,8 @@ function fmt12(t: string) {
 
 const HOUR_H = 64; // px per hour
 
+const toHHMM = (t: string) => t.slice(0, 5);
+
 function deriveCalBounds(operatingHours?: OperatingHours[]): { calStart: number; calEnd: number } {
   const openDays = operatingHours?.filter((h) => !h.closed) ?? [];
   if (!openDays.length) return { calStart: 8, calEnd: 20 };
@@ -90,6 +92,15 @@ const BLOCK_COLOR: Record<BookingStatus, string> = {
   COMPLETED: "bg-green-50  border-l-green-500  text-green-900",
   NO_SHOW:   "bg-red-50    border-l-red-400    text-red-900",
 };
+
+const JS_DOW = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"] as const;
+const WEEK_ORDER = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
+
+function getDayOh(dateStr: string, operatingHours?: OperatingHours[]) {
+  if (!operatingHours?.length) return null;
+  const dow = JS_DOW[new Date(dateStr + "T12:00:00").getDay()];
+  return operatingHours.find((h) => h.day === dow) ?? null;
+}
 
 // ── Booking detail modal ──────────────────────────────────────────────────────
 
@@ -277,7 +288,7 @@ function BookingRow({
 
 function TimelineGrid({
   activeStaff, dayBookings, calStart, calEnd, calHours,
-  showNow, nowY, serviceMap, gridRef, maxHeight, onSelect,
+  showNow, nowY, serviceMap, gridRef, maxHeight, onSelect, dayOh,
 }: {
   activeStaff: StaffMember[];
   dayBookings: Booking[];
@@ -290,16 +301,33 @@ function TimelineGrid({
   gridRef: React.RefObject<HTMLDivElement | null>;
   maxHeight: number | undefined;
   onSelect: (b: Booking) => void;
+  dayOh: OperatingHours | null;
 }) {
+  const totalH = (calEnd - calStart) * HOUR_H;
+  const openY  = dayOh && !dayOh.closed
+    ? Math.max(0, timeToY(dayOh.openTime, calStart))
+    : null;
+  const closeY = dayOh && !dayOh.closed
+    ? Math.min(totalH, timeToY(dayOh.closeTime, calStart))
+    : null;
+
   return (
     <>
       <div className="flex border-b border-slate-200 bg-white z-10 sticky top-0">
         <div className="w-14 shrink-0 border-r border-slate-100 py-2" />
         {activeStaff.map((s) => {
           const count = dayBookings.filter((b) => b.staffId === s.id).length;
+          const paused = s.availableForBooking === false;
           return (
-            <div key={s.id} className="flex-1 min-w-[140px] px-2 py-2 border-r border-slate-100 last:border-r-0 overflow-hidden">
-              <p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
+            <div key={s.id} className={`flex-1 min-w-[140px] px-2 py-2 border-r border-slate-100 last:border-r-0 overflow-hidden ${paused ? "bg-amber-50/60" : ""}`}>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
+                {paused && (
+                  <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold border border-amber-200">
+                    <Ban className="w-2.5 h-2.5" /> Paused
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-slate-400 truncate">
                 {STAFF_ROLE_LABEL[s.role] ?? s.role}
                 {count > 0 && <span className="ml-1 text-matcha-600 font-semibold">{count} appt</span>}
@@ -325,11 +353,30 @@ function TimelineGrid({
           </div>
           {activeStaff.map((s) => {
             const col = dayBookings.filter((b) => b.staffId === s.id);
+            const paused = s.availableForBooking === false;
             return (
               <div key={s.id} className="flex-1 min-w-[140px] border-r border-slate-100 last:border-r-0 relative">
                 {calHours.map((h) => (
                   <div key={h} style={{ height: HOUR_H }} className="border-b border-slate-100" />
                 ))}
+                {/* Closed-day overlay */}
+                {dayOh?.closed && (
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: "repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(148,163,184,0.08) 8px, rgba(148,163,184,0.08) 16px)" }} />
+                )}
+                {/* Not-available-for-booking overlay */}
+                {paused && !dayOh?.closed && (
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: "repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(251,191,36,0.07) 8px, rgba(251,191,36,0.07) 16px)" }} />
+                )}
+                {/* Before-open shading */}
+                {openY !== null && openY > 0 && (
+                  <div className="absolute inset-x-0 top-0 bg-slate-100/60 border-b border-slate-200/60 pointer-events-none" style={{ height: openY }} />
+                )}
+                {/* After-close shading */}
+                {closeY !== null && closeY < totalH && (
+                  <div className="absolute inset-x-0 bg-slate-100/60 border-t border-slate-200/60 pointer-events-none" style={{ top: closeY, bottom: 0 }} />
+                )}
                 {showNow && (
                   <div className="absolute inset-x-0 pointer-events-none z-10 flex items-center" style={{ top: nowY }}>
                     <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 -ml-1" />
@@ -387,6 +434,8 @@ function BookingsPanel({
 
   const { calStart, calEnd } = deriveCalBounds(operatingHours);
   const calHours = Array.from({ length: calEnd - calStart }, (_, i) => calStart + i);
+  const dayOh      = getDayOh(viewDate, operatingHours);
+  const dayIsClosed = dayOh?.closed ?? false;
 
   const isToday     = viewDate === todayStr;
   const activeStaff = staff.filter((s) => s.status === "ACTIVE");
@@ -460,7 +509,17 @@ function BookingsPanel({
           className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors">
           <ChevronRight className="w-4 h-4" />
         </button>
-        <span className="text-sm font-semibold text-slate-800 flex-1 min-w-0 truncate">{formattedDate}</span>
+        <span className="text-sm font-semibold text-slate-800 truncate">{formattedDate}</span>
+        {dayIsClosed ? (
+          <span className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 shrink-0">
+            Closed
+          </span>
+        ) : dayOh ? (
+          <span className="text-[10px] font-medium text-matcha-700 px-2 py-0.5 rounded-full bg-matcha-50 border border-matcha-100 shrink-0">
+            {fmt12(dayOh.openTime)} – {fmt12(dayOh.closeTime)}
+          </span>
+        ) : null}
+        <span className="flex-1" />
         {!isToday && (
           <button onClick={() => setViewDate(todayStr)}
             className="px-3 py-1 text-xs font-medium rounded-md bg-matcha-600 text-white hover:bg-matcha-700 cursor-pointer transition-colors shrink-0">
@@ -495,6 +554,46 @@ function BookingsPanel({
         )}
       </div>
 
+      {/* ── Week strip ── */}
+      {operatingHours && operatingHours.length > 0 && (() => {
+        const vd   = new Date(viewDate + "T12:00:00");
+        const vDow = (vd.getDay() + 6) % 7; // Mon=0 … Sun=6
+        const monday = new Date(vd);
+        monday.setDate(vd.getDate() - vDow);
+        return (
+          <div className="flex gap-1">
+            {WEEK_ORDER.map((dayName, i) => {
+              const oh = operatingHours.find((h) => h.day === dayName);
+              const target = new Date(monday);
+              target.setDate(monday.getDate() + i);
+              const targetStr = target.toISOString().split("T")[0];
+              const isSelected = targetStr === viewDate;
+              return (
+                <button key={dayName} onClick={() => setViewDate(targetStr)}
+                  title={oh?.closed ? `${DAY_SHORT[dayName]} – Closed` : `${DAY_SHORT[dayName]} ${fmt12(oh?.openTime ?? "00:00")} – ${fmt12(oh?.closeTime ?? "00:00")}`}
+                  className={`flex flex-col items-center py-1 px-1.5 rounded-lg cursor-pointer transition-all min-w-[34px] ${
+                    isSelected
+                      ? "bg-slate-800 text-white"
+                      : oh?.closed
+                        ? "text-slate-300 hover:bg-slate-50"
+                        : "text-slate-600 hover:bg-slate-100"
+                  }`}>
+                  <span className={`text-[9px] font-semibold uppercase tracking-wide ${isSelected ? "text-white/70" : oh?.closed ? "text-slate-300" : "text-slate-400"}`}>
+                    {DAY_SHORT[dayName]}
+                  </span>
+                  <span className={`text-xs font-bold mt-0.5 ${isSelected ? "text-white" : oh?.closed ? "text-slate-300" : "text-slate-700"}`}>
+                    {target.getDate()}
+                  </span>
+                  {!oh?.closed && (
+                    <div className={`w-1 h-1 rounded-full mt-0.5 ${isSelected ? "bg-white/60" : "bg-matcha-500"}`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* ── Timeline (calendar) view ── */}
       {viewMode === "calendar" && (
         activeStaff.length === 0 ? (
@@ -508,6 +607,7 @@ function BookingsPanel({
                   calStart={calStart} calEnd={calEnd} calHours={calHours}
                   showNow={showNow} nowY={nowY} serviceMap={serviceMap}
                   gridRef={gridRef} maxHeight={520} onSelect={setSelected}
+                  dayOh={dayOh}
                 />
               </div>
             )}
@@ -522,7 +622,17 @@ function BookingsPanel({
                     <button onClick={() => goDay(1)} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors">
                       <ChevronRight className="w-4 h-4" />
                     </button>
-                    <span className="text-sm font-semibold text-slate-800 flex-1 min-w-0 truncate">{formattedDate}</span>
+                    <span className="text-sm font-semibold text-slate-800 truncate">{formattedDate}</span>
+                    {dayIsClosed ? (
+                      <span className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 shrink-0">
+                        Closed
+                      </span>
+                    ) : dayOh ? (
+                      <span className="text-[10px] font-medium text-matcha-700 px-2 py-0.5 rounded-full bg-matcha-50 border border-matcha-100 shrink-0">
+                        {fmt12(dayOh.openTime)} – {fmt12(dayOh.closeTime)}
+                      </span>
+                    ) : null}
+                    <span className="flex-1" />
                     {!isToday && (
                       <button onClick={() => setViewDate(todayStr)} className="px-3 py-1 text-xs font-medium rounded-md bg-matcha-600 text-white hover:bg-matcha-700 cursor-pointer transition-colors shrink-0">
                         Today
@@ -542,6 +652,7 @@ function BookingsPanel({
                       calStart={calStart} calEnd={calEnd} calHours={calHours}
                       showNow={showNow} nowY={nowY} serviceMap={serviceMap}
                       gridRef={gridRef} maxHeight={undefined} onSelect={setSelected}
+                      dayOh={dayOh}
                     />
                   </div>
                 </div>
@@ -624,7 +735,7 @@ const DEFAULT_SCHEDULE: StaffAvailability[] = DAYS.map((day) => ({
   startTime: "09:00", endTime: "17:00", available: day !== "SUNDAY",
 }));
 
-function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: StaffMember[] }) {
+function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: string; staff: StaffMember[]; operatingHours?: OperatingHours[] }) {
   const [selectedStaff, setSelectedStaff] = useState<number>(staff[0]?.id ?? 0);
   const [schedule, setSchedule] = useState<StaffAvailability[]>(DEFAULT_SCHEDULE);
   const [overrides, setOverrides] = useState<StaffAvailabilityOverride[]>([]);
@@ -669,6 +780,18 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
   }
 
   async function saveSchedule() {
+    if (operatingHours?.length) {
+      const violation = schedule.find((s) => {
+        if (!s.available) return false;
+        const oh = operatingHours.find((h) => h.day === s.dayOfWeek);
+        if (!oh || oh.closed) return false;
+        return toHHMM(s.startTime) < toHHMM(oh.openTime) || toHHMM(s.endTime) > toHHMM(oh.closeTime);
+      });
+      if (violation) {
+        notify("Staff hours cannot exceed saloon operating hours.", "error");
+        return;
+      }
+    }
     setSaving(true);
     try {
       const body = schedule.map((s) => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime, available: s.available }));
@@ -697,7 +820,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
       setOverrides((p) => [...p, saved]);
       setAddOverride(false);
       setOverrideForm({ overrideDate: "", startTime: "09:00", endTime: "17:00", available: true, reason: "" });
-      notify("Exception added!");
+      notify("Override added!");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
     finally { setSaving(false); }
   }
@@ -706,7 +829,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
     try {
       await apiFetch(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides/${oid}`, { method: "DELETE" });
       setOverrides((p) => p.filter((o) => o.id !== oid));
-      notify("Exception removed.");
+      notify("Override removed.");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
   }
 
@@ -715,6 +838,15 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
   );
 
   const currentStaff = staff.find((s) => s.id === selectedStaff);
+
+  const scheduleHasErrors = operatingHours?.length
+    ? schedule.some((s) => {
+        if (!s.available) return false;
+        const oh = operatingHours.find((h) => h.day === s.dayOfWeek);
+        if (!oh || oh.closed) return false;
+        return toHHMM(s.startTime) < toHHMM(oh.openTime) || toHHMM(s.endTime) > toHHMM(oh.closeTime);
+      })
+    : false;
 
   return (
     <div className="space-y-6">
@@ -732,57 +864,93 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
         )}
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-800">Weekly schedule</h3>
-            <p className="text-xs text-slate-400 mt-0.5">The default repeating hours for this staff member. Toggle a day off to mark them unavailable every week on that day.</p>
-          </div>
-          <button onClick={saveSchedule} disabled={saving}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50 shrink-0">
-            {saving ? "Saving…" : "Save schedule"}
-          </button>
+        <div className="px-4 py-3 border-b border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-800">Weekly schedule</h3>
+          <p className="text-xs text-slate-400 mt-0.5">The default repeating hours for this staff member. Toggle a day off to mark them unavailable every week on that day.</p>
         </div>
         <div className="divide-y divide-slate-100">
-          {schedule.map((s) => (
-            <div key={s.dayOfWeek} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="text-xs font-semibold text-slate-500 w-8">{DAY_SHORT[s.dayOfWeek]}</span>
-              <button onClick={() => toggleDay(s.dayOfWeek)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${s.available ? "bg-matcha-600" : "bg-slate-200"}`}>
-                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition-transform duration-200 ${s.available ? "translate-x-4" : "translate-x-0"}`} />
-              </button>
-              {s.available ? (
-                <div className="flex items-center gap-2 ml-1">
-                  <input type="time" value={s.startTime}
-                    onChange={(e) => setTime(s.dayOfWeek, "startTime", e.target.value)}
-                    className="border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 outline-none focus:border-matcha-500" />
-                  <span className="text-slate-400 text-xs">–</span>
-                  <input type="time" value={s.endTime}
-                    onChange={(e) => setTime(s.dayOfWeek, "endTime", e.target.value)}
-                    className="border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 outline-none focus:border-matcha-500" />
+          {schedule.map((s) => {
+            const oh = operatingHours?.find((h) => h.day === s.dayOfWeek);
+            const saloonClosed = operatingHours?.length && (!oh || oh.closed);
+            const startErr = s.available && !saloonClosed && !!oh && !oh.closed && toHHMM(s.startTime) < toHHMM(oh.openTime);
+            const endErr   = s.available && !saloonClosed && !!oh && !oh.closed && toHHMM(s.endTime)   > toHHMM(oh.closeTime);
+            const hasErr   = startErr || endErr;
+            return (
+              <div key={s.dayOfWeek} className="px-4 py-2.5">
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-semibold w-8 ${saloonClosed ? "text-slate-300" : "text-slate-500"}`}>
+                    {DAY_SHORT[s.dayOfWeek]}
+                  </span>
+                  <button onClick={() => !saloonClosed && toggleDay(s.dayOfWeek)}
+                    disabled={!!saloonClosed}
+                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${
+                      saloonClosed ? "bg-slate-100 cursor-not-allowed" : `cursor-pointer ${s.available ? "bg-matcha-600" : "bg-slate-200"}`
+                    }`}>
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition-transform duration-200 ${s.available && !saloonClosed ? "translate-x-4" : "translate-x-0"}`} />
+                  </button>
+                  {saloonClosed ? (
+                    <span className="text-xs text-slate-300 italic ml-1">Saloon closed</span>
+                  ) : s.available ? (
+                    <div className="flex items-center gap-2 ml-1">
+                      <input type="time" value={s.startTime}
+                        min={oh?.openTime}
+                        max={s.endTime}
+                        onChange={(e) => setTime(s.dayOfWeek, "startTime", e.target.value)}
+                        className={`border rounded-md px-2 py-1 text-xs outline-none focus:ring-1 ${
+                          startErr
+                            ? "border-amber-300 bg-amber-50 text-amber-800 focus:border-amber-400 focus:ring-amber-300/20"
+                            : "border-slate-200 text-slate-700 focus:border-matcha-500 focus:ring-matcha-500/10"
+                        }`} />
+                      <span className="text-slate-400 text-xs">–</span>
+                      <input type="time" value={s.endTime}
+                        min={s.startTime}
+                        max={oh?.closeTime}
+                        onChange={(e) => setTime(s.dayOfWeek, "endTime", e.target.value)}
+                        className={`border rounded-md px-2 py-1 text-xs outline-none focus:ring-1 ${
+                          endErr
+                            ? "border-amber-300 bg-amber-50 text-amber-800 focus:border-amber-400 focus:ring-amber-300/20"
+                            : "border-slate-200 text-slate-700 focus:border-matcha-500 focus:ring-matcha-500/10"
+                        }`} />
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400 ml-1">Unavailable</span>
+                  )}
                 </div>
-              ) : (
-                <span className="text-xs text-slate-400 ml-1">Unavailable</span>
-              )}
-            </div>
-          ))}
+                {hasErr && (
+                  <p className="flex items-center gap-1 text-[10px] font-medium text-amber-600 mt-1 pl-[76px]">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    Outside saloon hours ({oh!.openTime} – {oh!.closeTime})
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
+          <button onClick={saveSchedule} disabled={saving || scheduleHasErrors}
+            title={scheduleHasErrors ? "Fix hours that exceed saloon operating hours before saving" : undefined}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
+            {saving ? "Saving…" : "Save schedule"}
+          </button>
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Calendar exceptions</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Date overrides</h3>
             <p className="text-xs text-slate-400 mt-0.5">Override the weekly schedule for a specific date — e.g. vacation, public holiday, sick leave, or different hours on a particular day.</p>
           </div>
           <button onClick={() => setAddOverride(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-            <Plus className="w-3 h-3" /> Add exception
+            <Plus className="w-3 h-3" /> Add override
           </button>
         </div>
 
         {overrides.length === 0 ? (
-          <p className="text-xs text-slate-400 px-4 py-5 text-center">No exceptions yet. Add one to block off a vacation, holiday, or adjust hours on a specific date.</p>
+          <p className="text-xs text-slate-400 px-4 py-5 text-center">No overrides yet. Add one to block off a vacation, holiday, or adjust hours on a specific date.</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {overrides.map((o) => (
@@ -805,13 +973,14 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
           </div>
         )}
       </div>
+      </div>
 
       {addOverride && (
         <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && setAddOverride(false)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Add calendar exception</span>
+              <span className="text-base font-bold text-slate-900">Add date override</span>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setAddOverride(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
@@ -849,7 +1018,7 @@ function AvailabilityPanel({ saloonId, staff }: { saloonId: string; staff: Staff
                 className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">Cancel</button>
               <button onClick={saveOverride} disabled={saving || !overrideForm.overrideDate}
                 className="px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer disabled:opacity-50">
-                {saving ? "Saving…" : "Add exception"}
+                {saving ? "Saving…" : "Add override"}
               </button>
             </div>
           </div>
@@ -1026,9 +1195,9 @@ export default function BookingPage() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Calendar</h1>
+        <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
         <InfoBar>
-          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Manage Staff Availability</strong> to set each person's working hours and mark exceptions like vacations or public holidays. Use <strong>Settings</strong> to control how far in advance customers can book.
+          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Manage Staff Availability</strong> to set each person's working hours and add date overrides like vacations or public holidays. Use <strong>Settings</strong> to control how far in advance customers can book.
         </InfoBar>
       </div>
 
@@ -1053,7 +1222,7 @@ export default function BookingPage() {
       )}
 
       {tab === "availability" && (
-        <AvailabilityPanel saloonId={String(sid)} staff={staff} />
+        <AvailabilityPanel saloonId={String(sid)} staff={staff} operatingHours={saloon.operatingHours} />
       )}
 
       {tab === "settings" && (

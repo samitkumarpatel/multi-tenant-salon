@@ -3,8 +3,8 @@ import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErr
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle } from "lucide-react";
-import { AppLogo } from "~/components/Logo";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles } from "lucide-react";
+import { AppLogo } from "@saloon/ui-shared";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
@@ -232,7 +232,7 @@ function LoginGate({ saloonId, onSuccess }: { saloonId: string; onSuccess: () =>
 
 const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.ElementType; route?: string }[] = [
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
-  { key: "BOOKING",         label: "Calendar",        hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
+  { key: "BOOKING",         label: "Booking Calendar", hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
   { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: undefined },
   { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: undefined },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: undefined },
@@ -307,6 +307,16 @@ export default function Layout() {
 
   useEffect(() => { setSaloon(loaderSaloon); }, [loaderSaloon]);
 
+  useEffect(() => {
+    if (!saloon?.name) return;
+    document.title = `${saloon.name} · my-saloon`;
+    const initials = saloon.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='32' y2='32' gradientUnits='userSpaceOnUse'><stop offset='0' stop-color='#4ade80'/><stop offset='1' stop-color='#059669'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(#g)'/><text x='16' y='22' font-family='system-ui,sans-serif' font-size='13' font-weight='700' fill='white' text-anchor='middle'>${initials}</text></svg>`;
+    let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }, [saloon?.name]);
+
   function setWebsiteMode(m: WebsiteMode | null) {
     setWebsiteModeState(m);
     if (m) {
@@ -320,6 +330,14 @@ export default function Layout() {
   const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode };
   const isPreview = Boolean(useMatch("/:saloonId/c"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [websiteCoachSeen, setWebsiteCoachSeen] = useState(
+    () => Boolean(saloon && localStorage.getItem(`website-style-hint-seen:${saloon.id}`))
+  );
+
+  function markWebsiteCoachSeen() {
+    if (saloon) localStorage.setItem(`website-style-hint-seen:${saloon.id}`, "1");
+    setWebsiteCoachSeen(true);
+  }
 
   if (isPreview) {
     if (!saloon?.features?.includes("STATIC_WEBSITE")) {
@@ -466,9 +484,44 @@ export default function Layout() {
                 </p>
                 {FEATURE_NAV.filter((f) => saloon.features?.includes(f.key)).map((f) =>
                   f.route ? (
-                    <NavLink key={f.key} to={f.route} className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                      <f.icon className="w-4 h-4 shrink-0" /> {f.label}
-                    </NavLink>
+                    <React.Fragment key={f.key}>
+                      <NavLink
+                        to={f.route}
+                        className={sideNavClass}
+                        onClick={() => {
+                          setSidebarOpen(false);
+                          if (f.key === "STATIC_WEBSITE") markWebsiteCoachSeen();
+                        }}
+                      >
+                        <f.icon className="w-4 h-4 shrink-0" />
+                        {f.label}
+                        {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
+                          <span className="ml-auto relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                          </span>
+                        )}
+                      </NavLink>
+                      {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
+                        <div className="mx-3 mt-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5" /> Tip
+                            </span>
+                            <button
+                              onClick={markWebsiteCoachSeen}
+                              className="text-amber-400 hover:text-amber-700 transition-colors cursor-pointer"
+                              title="Dismiss tip"
+                            >
+                              <XIcon className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-amber-800 leading-snug">
+                            Choose how your public page looks — classic, AI-generated, or contact form.
+                          </p>
+                        </div>
+                      )}
+                    </React.Fragment>
                   ) : (
                     <span key={f.key} className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-300 cursor-default select-none">
                       <f.icon className="w-4 h-4 shrink-0" />

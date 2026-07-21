@@ -137,6 +137,43 @@ export function SiteFooter({
   const footerDim     = footerIsLight ? "#9CA3AF" : "#64748B";
   const footerBorder  = footerIsLight ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.08)";
 
+  if (current === "book") {
+    return (
+      <footer
+        className="shrink-0 border-t"
+        style={{
+          backgroundColor: footerBg,
+          color: footerDim,
+          borderColor: footerBorder,
+        }}
+      >
+        <div className="max-w-5xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-4 flex-wrap">
+            <p className="text-[11px]" style={{ color: footerDim }}>
+              © {new Date().getFullYear()} {saloon.name} · All rights reserved.
+            </p>
+            {saloon.contact?.phone && (
+              <a
+                href={`tel:${saloon.contact.phone}`}
+                className="inline-flex items-center gap-1.5 text-[11px] no-underline hover:opacity-80 transition-opacity"
+                style={{ color: footerDim }}
+              >
+                <Phone className="w-3 h-3" /> {saloon.contact.phone}
+              </a>
+            )}
+          </div>
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
+            style={{ color: theme.accentColor }}
+          >
+            <ArrowLeft className="w-3 h-3" /> Back to website
+          </button>
+        </div>
+      </footer>
+    );
+  }
+
   return (
     <footer className="mt-auto" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
       <div className="max-w-5xl mx-auto px-6 py-10 sm:py-12">

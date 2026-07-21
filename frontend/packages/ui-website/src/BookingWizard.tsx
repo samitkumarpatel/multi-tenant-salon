@@ -1283,7 +1283,7 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  saloon, services, staff, theme, countries = [], initialServiceId = null, initialStaffId = null, onExit,
+  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit,
 }: {
   saloon: Saloon;
   services: ServiceItem[];
@@ -1302,6 +1302,8 @@ export function BookingWizard({
 
   const [step, setStep] = useState(preselected ? 2 : 1);
   const [expanded, setExpanded] = useState(false);
+  const [fetchedCountries, setFetchedCountries] = useState<Country[]>([]);
+  const countries = countriesProp.length > 0 ? countriesProp : fetchedCountries;
   const [service, setService] = useState<ServiceItem | null>(preselected);
   const [date, setDate] = useState(() => defaultBookingDate(saloon.operatingHours ?? [])); // today, or next working day if closed/past hours
   const [staffId, setStaffId] = useState<number | null>(preStaff?.id ?? null);
@@ -1316,6 +1318,13 @@ export function BookingWizard({
     loadGoogleFont(theme.fontFamily);
   }, [theme.fontFamily]);
 
+  useEffect(() => {
+    if (countriesProp.length > 0) return;
+    apiFetch<Country[]>("/api/saloon-utility/countries")
+      .then(setFetchedCountries)
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fontStack  = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
   const accent: Accent = {
     color:  theme.accentColor,
@@ -1324,6 +1333,7 @@ export function BookingWizard({
     border: `${theme.accentColor}44`,
   };
   const staffMap = new Map(staff.map((s) => [s.id, s]));
+  const bookableStaff = staff.filter((s) => s.availableForBooking !== false);
   const closedDays = new Set(
     (saloon.operatingHours ?? []).filter((h) => h.closed).map((h) => h.day)
   );
@@ -1443,7 +1453,7 @@ export function BookingWizard({
             <StepDate
               saloonId={String(saloon.id)}
               serviceId={service.id}
-              staff={staff}
+              staff={bookableStaff}
               date={date}
               setDate={(d) => { setDate(d); setSlot(null); setViaWeek(false); }}
               staffId={staffId}

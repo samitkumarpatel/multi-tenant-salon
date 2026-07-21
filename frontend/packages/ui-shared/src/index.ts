@@ -1,3 +1,4 @@
+export { AppLogo } from "./AppLogo";
 export { CountrySelect } from "./CountrySelect";
 export { PhoneInput } from "./PhoneInput";
 export { HoursTable } from "./HoursTable";

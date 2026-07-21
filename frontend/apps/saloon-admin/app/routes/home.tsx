@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router";
-import { Building2, Users, ArrowRight, Cookie, Mail, Phone } from "lucide-react";
-import { AppLogo } from "~/components/Logo";
+import { Link, useNavigate } from "react-router";
+import { Building2, Users, ArrowRight, Cookie, Mail, Phone, LogIn } from "lucide-react";
+import { AppLogo } from "@saloon/ui-shared";
 
 // ── Cookie consent banner ─────────────────────────────────────────────────────
 
@@ -65,6 +65,41 @@ function CookieBanner() {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+function ReturnToSaloon() {
+  const navigate = useNavigate();
+  const [value, setValue] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = value.trim();
+    if (trimmed) navigate(`/${trimmed}`);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-8 pt-8 border-t border-stone-200">
+      <p className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-3">
+        Already have a saloon?
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Enter your saloon ID or handle"
+          className="flex-1 px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-800 bg-white outline-none focus:border-matcha-400 focus:ring-2 focus:ring-matcha-400/10 transition placeholder:text-stone-300"
+        />
+        <button
+          type="submit"
+          disabled={!value.trim()}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <LogIn className="w-4 h-4" /> Go
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function Home() {
   return (
@@ -132,6 +167,8 @@ export default function Home() {
             </div>
 
           </div>
+
+          <ReturnToSaloon />
         </div>
       </main>
 

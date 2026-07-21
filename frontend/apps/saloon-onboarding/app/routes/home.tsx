@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail, Phone } from "lucide-react";
+import { AppLogo } from "@saloon/ui-shared";
 
 type CookieChoice = "all" | "essential";
 
@@ -64,13 +65,16 @@ export default function Home() {
     <div className="min-h-[100dvh] bg-cream flex flex-col">
 
       <div className="px-5 pt-4">
-        <div className="max-w-2xl mx-auto flex justify-end gap-4">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+          <AppLogo size={24} textColor="#1c1917" />
+          <div className="flex gap-4">
           <a href="mailto:contact@my-saloon.dk" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
             <Mail className="w-3 h-3" /> contact@my-saloon.dk
           </a>
           <a href="tel:+4500000000" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
             <Phone className="w-3 h-3" /> +45 00 00 00 00
           </a>
+          </div>
         </div>
       </div>
 
@@ -104,21 +108,18 @@ export default function Home() {
               </div>
             </Link>
 
-            <Link
-              to="/explore"
-              className="group flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-8 no-underline transition-all duration-200 hover:border-matcha-400 hover:shadow-[0_0_0_4px_rgba(86,115,48,0.10)] hover:-translate-y-0.5"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mb-6 group-hover:bg-matcha-100 transition-colors">
-                <Users className="w-6 h-6 text-matcha-600" />
+            <div className="flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-8 opacity-50 cursor-not-allowed select-none">
+              <div className="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center mb-6">
+                <Users className="w-6 h-6 text-stone-400" />
               </div>
-              <p className="text-2xl font-bold text-stone-900 mb-1">I'm a customer</p>
-              <p className="text-sm text-stone-500 leading-relaxed flex-1">
+              <p className="text-2xl font-bold text-stone-400 mb-1">I'm a customer</p>
+              <p className="text-sm text-stone-400 leading-relaxed flex-1">
                 Find a saloon near you, browse services and prices, and book your next appointment.
               </p>
-              <div className="flex items-center gap-1.5 mt-8 text-sm font-semibold text-matcha-600 group-hover:gap-2.5 transition-all">
-                Explore saloons <ArrowRight className="w-4 h-4" />
+              <div className="flex items-center gap-1.5 mt-8 text-sm font-semibold text-stone-400">
+                Coming soon
               </div>
-            </Link>
+            </div>
 
           </div>
         </div>
