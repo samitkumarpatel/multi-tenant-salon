@@ -11,6 +11,8 @@ import net.samitkumar.multi_tenant_saloon.booking.StaffAvailabilityOverride;
 import net.samitkumar.multi_tenant_saloon.booking.StaffAvailabilityOverrideAddedEvent;
 import net.samitkumar.multi_tenant_saloon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_saloon.booking.StaffScheduleUpdatedEvent;
+import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.saloonservice.SaloonServiceApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffApi;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,6 +25,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -32,11 +35,14 @@ import java.util.UUID;
 @Service
 class BookingService {
 
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("H:mm");
+
     private final BookingRepository bookingRepo;
     private final StaffAvailabilityRepository availabilityRepo;
     private final StaffAvailabilityOverrideRepository overrideRepo;
     private final SaloonServiceApi saloonServiceApi;
     private final StaffApi staffApi;
+    private final SaloonApi saloonApi;
     private final ApplicationEventPublisher eventPublisher;
 
     BookingService(BookingRepository bookingRepo,
@@ -44,13 +50,40 @@ class BookingService {
                    StaffAvailabilityOverrideRepository overrideRepo,
                    SaloonServiceApi saloonServiceApi,
                    StaffApi staffApi,
+                   SaloonApi saloonApi,
                    ApplicationEventPublisher eventPublisher) {
         this.bookingRepo = bookingRepo;
         this.availabilityRepo = availabilityRepo;
         this.overrideRepo = overrideRepo;
         this.saloonServiceApi = saloonServiceApi;
         this.staffApi = staffApi;
+        this.saloonApi = saloonApi;
         this.eventPublisher = eventPublisher;
+    }
+
+    private void validateAgainstSaloonHours(UUID saloonId, DayOfWeek day, LocalTime start, LocalTime end) {
+        var hours = saloonApi.findOperatingHours(saloonId);
+        if (hours.isEmpty()) return; // no hours configured — no restriction
+
+        Saloon.OperatingHours oh = hours.stream()
+                .filter(h -> h.day() == day)
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Saloon has no operating hours defined for " + day));
+
+        if (oh.closed()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Saloon is closed on " + day + " — staff cannot be scheduled that day");
+        }
+
+        LocalTime saloonOpen  = LocalTime.parse(oh.openTime(),  TIME_FMT);
+        LocalTime saloonClose = LocalTime.parse(oh.closeTime(), TIME_FMT);
+
+        if (start.isBefore(saloonOpen) || end.isAfter(saloonClose)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Staff hours for " + day + " must be within saloon operating hours ("
+                    + oh.openTime() + " – " + oh.closeTime() + ")");
+        }
     }
 
     // ── Availability ──────────────────────────────────────────────────────────
@@ -61,6 +94,10 @@ class BookingService {
 
     @Transactional
     List<StaffAvailability> setAvailability(UUID saloonId, Long staffId, List<StaffAvailability> schedule) {
+        schedule.stream()
+                .filter(StaffAvailability::available)
+                .forEach(s -> validateAgainstSaloonHours(saloonId, s.dayOfWeek(), s.startTime(), s.endTime()));
+
         availabilityRepo.deleteBySaloonIdAndStaffId(saloonId, staffId);
         var saved = schedule.stream()
                 .map(s -> new StaffAvailability(null, saloonId, staffId, s.dayOfWeek(), s.startTime(), s.endTime(), s.available()))
@@ -75,6 +112,12 @@ class BookingService {
     }
 
     StaffAvailabilityOverride addOverride(UUID saloonId, Long staffId, StaffAvailabilityOverride override) {
+        if (override.available() && override.startTime() != null && override.endTime() != null) {
+            validateAgainstSaloonHours(saloonId,
+                    override.overrideDate().getDayOfWeek(),
+                    override.startTime(), override.endTime());
+        }
+
         var toSave = new StaffAvailabilityOverride(null, saloonId, staffId,
                 override.overrideDate(), override.startTime(), override.endTime(),
                 override.available(), override.reason());
