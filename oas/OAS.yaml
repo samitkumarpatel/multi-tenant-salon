@@ -232,6 +232,8 @@ paths:
   # ─── Customer — Booking ───────────────────────────────────────────────────────
 
   /api/saloon/{saloonId}/booking/slots:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
     get:
       tags: [Booking]
       summary: Get booking slots for a service on a given date
@@ -245,7 +247,6 @@ paths:
         Optionally filter to a single staff member via `staffId`.
       operationId: getAvailableSlots
       parameters:
-        - $ref: "#/components/parameters/SaloonId"
         - name: serviceId
           in: query
           required: true
@@ -1223,7 +1224,6 @@ components:
           type: string
         price:
           type: number
-          format: decimal
         currency:
           type: string
           example: USD
@@ -1252,7 +1252,6 @@ components:
           type: string
         price:
           type: number
-          format: decimal
         currency:
           type: string
         durationMinutes:
@@ -1273,7 +1272,6 @@ components:
           type: string
         price:
           type: number
-          format: decimal
         currency:
           type: string
         durationMinutes:
@@ -1488,13 +1486,11 @@ components:
           format: date
           example: "2026-12-25"
         startTime:
-          type: string
+          type: [string, "null"]
           format: time
-          nullable: true
         endTime:
-          type: string
+          type: [string, "null"]
           format: time
-          nullable: true
         available:
           type: boolean
         reason:
@@ -1509,13 +1505,11 @@ components:
           type: string
           format: date
         startTime:
-          type: string
+          type: [string, "null"]
           format: time
-          nullable: true
         endTime:
-          type: string
+          type: [string, "null"]
           format: time
-          nullable: true
         available:
           type: boolean
         reason:

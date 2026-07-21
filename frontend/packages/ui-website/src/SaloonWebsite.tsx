@@ -616,12 +616,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
                       );
                     })}
                   </div>
-                  {hasBooking && (
-                    <a href={bookUrl} className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold px-4 py-2.5 rounded-xl no-underline transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                      Book with our team <ChevronRight className="w-3.5 h-3.5" />
-                    </a>
-                  )}
                 </FadeIn>
               </aside>
             )}
@@ -630,7 +624,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
       )}
 
       {/* ── Floating actions ─────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3" style={{
+      <div className="fixed bottom-6 right-6 z-[100]" style={{
         opacity: heroVisible ? 0 : 1, transform: heroVisible ? "translateY(12px) scale(0.95)" : "translateY(0) scale(1)",
         pointerEvents: heroVisible ? "none" : "auto", transition: "opacity 0.3s ease, transform 0.3s ease",
       }}>
@@ -639,12 +633,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
           aria-label="Back to top">
           <ArrowUp className="w-4 h-4" />
         </button>
-        {hasBooking && (
-          <a href={bookUrl} className="inline-flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-full shadow-xl no-underline hover:opacity-90 hover:scale-105 transition-all"
-            style={{ backgroundColor: theme.accentColor, color: accentText }}>
-            <CalendarCheck className="w-4 h-4" /> Book now
-          </a>
-        )}
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
@@ -660,12 +648,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
                 <span className="text-sm font-bold" style={{ color: footerBright }}>{saloon.name}</span>
               </div>
               {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
-              {hasBooking && (
-                <a href={bookUrl} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg no-underline hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                  <CalendarCheck className="w-3.5 h-3.5" /> Book now
-                </a>
-              )}
             </div>
 
             {openHours.length > 0 && (

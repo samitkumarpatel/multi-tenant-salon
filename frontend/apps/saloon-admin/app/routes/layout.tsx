@@ -16,18 +16,30 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
     // single endpoint handles both UUID and handler
     const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
     cacheSaloonUUID(saloonId, String(saloon.id));
-    return { saloon, saloonId };
+    return { saloon, saloonId, pendingServices: false, pendingStaff: false };
   }
 
   const authed = Boolean(sessionStorage.getItem(`saloon-auth:${saloonId}`));
   if (!authed) {
-    return { saloon: null, saloonId };
+    return { saloon: null, saloonId, pendingServices: false, pendingStaff: false };
   }
 
   // single endpoint handles both UUID and handler
   const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
   cacheSaloonUUID(saloonId, String(saloon.id));
-  return { saloon, saloonId };
+
+  let pendingServices = false;
+  let pendingStaff = false;
+  if (saloon.features?.includes("BOOKING")) {
+    const [staffList, serviceList] = await Promise.all([
+      apiFetch<{ id: number }[]>(`${ADMIN_API}/${saloon.id}/staff`).catch(() => [] as { id: number }[]),
+      apiFetch<{ id: number }[]>(`${ADMIN_API}/${saloon.id}/services`).catch(() => [] as { id: number }[]),
+    ]);
+    pendingServices = serviceList.length === 0;
+    pendingStaff = staffList.length <= 1;
+  }
+
+  return { saloon, saloonId, pendingServices, pendingStaff };
 }
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -296,7 +308,7 @@ export function ErrorBoundary() {
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { saloon: loaderSaloon, saloonId } = useLoaderData<typeof clientLoader>();
+  const { saloon: loaderSaloon, saloonId, pendingServices, pendingStaff } = useLoaderData<typeof clientLoader>();
   const navigate   = useNavigate();
   const revalidator = useRevalidator();
   const [saloon, setSaloon]             = useState<Saloon | null>(loaderSaloon);
@@ -327,7 +339,7 @@ export default function Layout() {
     }
   }
 
-  const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode };
+  const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode, pendingServices, pendingStaff };
   const isPreview = Boolean(useMatch("/:saloonId/c"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [websiteCoachSeen, setWebsiteCoachSeen] = useState(
@@ -471,10 +483,22 @@ export default function Layout() {
 
             <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <Briefcase className="w-4 h-4 shrink-0" /> Services
+              {pendingServices && (
+                <span className="ml-auto relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+              )}
             </NavLink>
 
             <NavLink to="staff" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <Users className="w-4 h-4 shrink-0" /> Staff
+              {pendingStaff && (
+                <span className="ml-auto relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+              )}
             </NavLink>
 
             {FEATURE_NAV.some((f) => saloon.features?.includes(f.key)) && (

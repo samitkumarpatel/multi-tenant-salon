@@ -189,15 +189,11 @@ export function SiteFooter({
               <span className="text-sm font-bold" style={{ color: footerBright }}>{saloon.name}</span>
             </div>
             {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
-            {current === "book" ? (
+            {current === "book" && (
               <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity cursor-pointer" style={{ backgroundColor: theme.accentColor, color: accentText }}>
                 <ArrowLeft className="w-3.5 h-3.5" /> Back to website
               </button>
-            ) : hasBooking ? (
-              <a href="#book" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg no-underline hover:opacity-90 transition-opacity" style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                <CalendarCheck className="w-3.5 h-3.5" /> Book now
-              </a>
-            ) : null}
+            )}
           </div>
 
           {openHours.length > 0 && (

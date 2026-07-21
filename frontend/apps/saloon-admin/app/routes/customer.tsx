@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLoaderData } from "react-router";
-import { SALOON_ONBOARDING_API, apiFetch } from "~/lib/api";
+import { ONBOARDING_API as SALOON_ONBOARDING_API, apiFetch } from "~/lib/api";
 import type { Saloon } from "~/lib/types";
 import { FEATURE_LABEL } from "~/lib/constants";
 
