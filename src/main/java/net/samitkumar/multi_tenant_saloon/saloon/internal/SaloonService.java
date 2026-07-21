@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.saloon.internal;
 
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
 import net.samitkumar.multi_tenant_saloon.saloon.WebsitePublishRequestedEvent;
@@ -14,7 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-class SaloonService {
+class SaloonService implements SaloonApi {
 
     private final SaloonRepository repository;
     private final ApplicationEventPublisher eventPublisher;
@@ -81,6 +82,13 @@ class SaloonService {
                     existing.location(), existing.contact(), existing.operatingHours(), featureRefs, existing.bookingAdvanceDays(), existing.createdAt());
             return repository.save(updated);
         });
+    }
+
+    @Override
+    public List<Saloon.OperatingHours> findOperatingHours(UUID saloonId) {
+        return repository.findById(saloonId)
+                .map(s -> s.operatingHours() != null ? s.operatingHours() : List.<Saloon.OperatingHours>of())
+                .orElse(List.of());
     }
 
     void delete(UUID id) {
