@@ -491,6 +491,7 @@ function AddStaffFlow({
       </button>
       {showAdvanced && (
         <div className="mb-4 space-y-4">
+          <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} />
           <div>
             <label className={fieldLabel}>Phone</label>
             <PhoneInput
@@ -635,7 +636,7 @@ export default function Staff() {
       role: m.role, status: m.status,
       availableForBooking: m.availableForBooking ?? true,
       specializations: [...(m.specializations ?? [])],
-      photo: null,
+      photo: m.photoUrl ?? null,
     });
     setModal((p) => ({ ...p, edit: true }));
   }
@@ -651,7 +652,7 @@ export default function Staff() {
         .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
       const member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff`, {
         method: "POST",
-        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, schedule: sched }),
+        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, photoUrl: fields.photo, schedule: sched }),
       });
       setStaff((p) => [member, ...p]);
       closeModal("add");
@@ -666,7 +667,7 @@ export default function Staff() {
     try {
       const updated = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${target.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations }),
+        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl: ef.photo }),
       });
       setStaff((p) => p.map((m) => m.id === updated.id ? updated : m));
       closeModal("edit");

@@ -13,4 +13,5 @@ export interface LayoutContext {
   setWebsiteMode: (m: WebsiteMode | null) => void;
   pendingServices: boolean;
   pendingStaff: boolean;
+  pendingWebsite: boolean;
 }

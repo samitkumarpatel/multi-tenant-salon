@@ -13,6 +13,7 @@ import type {
   StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours, SaloonClosure,
 } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
+import { Tooltip } from "~/components/Tooltip";
 import { Toast, useToast } from "@saloon/ui-shared";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
@@ -273,37 +274,49 @@ function BookingRow({
         {!isPast && booking.status !== "CANCELLED" && booking.status !== "COMPLETED" && booking.status !== "NO_SHOW" && (
           <>
             {booking.status === "PENDING" && (
-              <button onClick={() => onAction(booking.id, "confirm")}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer transition-colors">
-                <Check className="w-3 h-3" /> Confirm
-              </button>
+              <Tooltip content="Confirm this appointment and notify the customer" side="top">
+                <button onClick={() => onAction(booking.id, "confirm")}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer transition-colors">
+                  <Check className="w-3 h-3" /> Confirm
+                </button>
+              </Tooltip>
             )}
             {booking.status === "CONFIRMED" && (
               <>
-                <button onClick={() => onAction(booking.id, "complete")}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-green-600 text-white hover:bg-green-700 cursor-pointer transition-colors">
-                  <CheckCircle className="w-3 h-3" /> Done
-                </button>
-                <button onClick={() => onAction(booking.id, "no-show")} title="No-show"
-                  className="p-1.5 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 cursor-pointer transition-colors">
-                  <AlertCircle className="w-3 h-3" />
-                </button>
+                <Tooltip content="Mark this appointment as completed" side="top">
+                  <button onClick={() => onAction(booking.id, "complete")}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-green-600 text-white hover:bg-green-700 cursor-pointer transition-colors">
+                    <CheckCircle className="w-3 h-3" /> Done
+                  </button>
+                </Tooltip>
+                <Tooltip content="Customer didn't show up for their appointment" side="top">
+                  <button onClick={() => onAction(booking.id, "no-show")}
+                    className="p-1.5 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 cursor-pointer transition-colors">
+                    <AlertCircle className="w-3 h-3" />
+                  </button>
+                </Tooltip>
               </>
             )}
-            <button onClick={() => onReschedule(booking)} title="Reschedule"
-              className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer transition-colors">
-              <RefreshCw className="w-3 h-3" />
-            </button>
-            <button onClick={() => onAction(booking.id, "cancel")} title="Cancel"
-              className="p-1.5 rounded-md border border-red-200 text-red-500 hover:bg-red-50 cursor-pointer transition-colors">
-              <Ban className="w-3 h-3" />
-            </button>
+            <Tooltip content="Move this booking to a different date or time" side="top">
+              <button onClick={() => onReschedule(booking)}
+                className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer transition-colors">
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Cancel this booking" side="top">
+              <button onClick={() => onAction(booking.id, "cancel")}
+                className="p-1.5 rounded-md border border-red-200 text-red-500 hover:bg-red-50 cursor-pointer transition-colors">
+                <Ban className="w-3 h-3" />
+              </button>
+            </Tooltip>
           </>
         )}
-        <button onClick={() => onDelete(booking)} title="Delete"
-          className="p-1.5 rounded-md text-slate-300 hover:text-red-500 cursor-pointer transition-colors">
-          <Trash2 className="w-3 h-3" />
-        </button>
+        <Tooltip content="Permanently delete this booking record" side="top">
+          <button onClick={() => onDelete(booking)}
+            className="p-1.5 rounded-md text-slate-300 hover:text-red-500 cursor-pointer transition-colors">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -976,55 +989,73 @@ function BookingsPanel({
     return (
       <div className="flex items-center gap-2 min-w-0">
         {/* Prev / Next */}
-        <button onClick={() => go(-1)} title="Previous"
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button onClick={() => go(1)} title="Next"
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        <Tooltip content={`Previous ${viewMode}`} side="bottom">
+          <button onClick={() => go(-1)}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </Tooltip>
+        <Tooltip content={`Next ${viewMode}`} side="bottom">
+          <button onClick={() => go(1)}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </Tooltip>
 
         {/* Period label */}
         <span className="text-sm font-semibold text-slate-800 truncate min-w-0">{periodLabel}</span>
-
 
         <span className="flex-1" />
 
         {/* View switcher */}
         <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0">
-          {VIEW_TABS.map(({ mode, icon, label }, i) => (
-            <button key={mode} onClick={() => setViewMode(mode)} title={`${label} view`}
-              className={`px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
-                i > 0 ? "border-l border-slate-200" : ""
-              } ${viewMode === mode ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-              {icon}
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
+          {VIEW_TABS.map(({ mode, icon, label }, i) => {
+            const VIEW_HINTS: Record<string, string> = {
+              day:   "Single-day timeline split by staff member",
+              week:  "7-day overview with all bookings across the week",
+              month: "Full month grid — click a day to drill into it",
+              list:  "Flat list of appointments for the selected day with filters",
+            };
+            return (
+              <Tooltip key={mode} content={VIEW_HINTS[mode]} side="bottom">
+                <button onClick={() => setViewMode(mode)}
+                  className={`px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                    i > 0 ? "border-l border-slate-200" : ""
+                  } ${viewMode === mode ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+                  {icon}
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              </Tooltip>
+            );
+          })}
         </div>
 
         {/* Refresh */}
-        <button
-          onClick={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }}
-          disabled={refreshing}
-          title="Refresh bookings"
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0 disabled:opacity-50">
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-        </button>
+        <Tooltip content="Reload the latest bookings from the server" side="bottom">
+          <button
+            onClick={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }}
+            disabled={refreshing}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0 disabled:opacity-50">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </Tooltip>
 
         {/* Expand / Collapse */}
         {onClose ? (
-          <button onClick={onClose} title="Collapse"
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
-            <Minimize2 className="w-4 h-4" />
-          </button>
+          <Tooltip content="Collapse back to the page" side="bottom">
+            <button onClick={onClose}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
+              <Minimize2 className="w-4 h-4" />
+            </button>
+          </Tooltip>
         ) : (
           canExpand && (
-            <button onClick={() => setExpanded(true)} title="Expand"
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
-              <Maximize2 className="w-4 h-4" />
-            </button>
+            <Tooltip content="Expand the calendar to full screen" side="bottom">
+              <button onClick={() => setExpanded(true)}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            </Tooltip>
           )
         )}
       </div>
@@ -1473,11 +1504,12 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
           })}
         </div>
         <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
-          <button onClick={saveSchedule} disabled={saving || scheduleHasErrors}
-            title={scheduleHasErrors ? "Fix hours that exceed saloon operating hours before saving" : undefined}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
-            {saving ? "Saving…" : "Save schedule"}
-          </button>
+          <Tooltip content={scheduleHasErrors ? "Fix hours that exceed saloon operating hours before saving" : "Save the recurring weekly availability for this staff member"} side="top">
+            <button onClick={saveSchedule} disabled={saving || scheduleHasErrors}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
+              {saving ? "Saving…" : "Save schedule"}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -1487,10 +1519,12 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
             <h3 className="text-sm font-semibold text-slate-800">Date overrides</h3>
             <p className="text-xs text-slate-400 mt-0.5">Override the weekly schedule for a specific date — e.g. vacation, public holiday, sick leave, or different hours on a particular day.</p>
           </div>
-          <button onClick={() => setAddOverride(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-            <Plus className="w-3 h-3" /> Add override
-          </button>
+          <Tooltip content="Add a one-off exception — vacation, sick day, or different hours on a specific date" side="left">
+            <button onClick={() => setAddOverride(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
+              <Plus className="w-3 h-3" /> Add override
+            </button>
+          </Tooltip>
         </div>
 
         {overrides.length === 0 ? (
@@ -1508,10 +1542,12 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
                     {o.reason && ` · ${o.reason}`}
                   </p>
                 </div>
-                <button onClick={() => deleteOverride(o.id)}
-                  className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <Tooltip content="Remove this date override" side="left">
+                  <button onClick={() => deleteOverride(o.id)}
+                    className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </Tooltip>
               </div>
             ))}
           </div>
@@ -1611,7 +1647,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
       setShowAdd(false);
       setForm({ startDate: "", endDate: "", reason: "" });
       setFormErr("");
-      notify("Closure added.");
+      notify("Dates blocked.");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
     finally { setSaving(false); }
   }
@@ -1620,7 +1656,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
     try {
       await apiFetch(`${ADMIN_API}/${saloonId}/closures/${id}`, { method: "DELETE" });
       setClosures((p) => p.filter((c) => c.id !== id));
-      notify("Closure removed.");
+      notify("Blocked dates removed.");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
   }
 
@@ -1638,15 +1674,17 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Saloon closures</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Blocked Dates</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Mark the saloon as closed for a day or date range — vacation, public holiday, emergency, or any special occasion. Customers will not be able to book during these periods.
+              Mark days or date ranges when the saloon won't accept any bookings — public holidays, vacation, emergency closures, or special occasions.
             </p>
           </div>
-          <button onClick={() => { setShowAdd(true); setFormErr(""); }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-            <Plus className="w-3 h-3" /> Add closure
-          </button>
+          <Tooltip content="Mark a day or date range when the whole saloon won't accept any bookings" side="left">
+            <button onClick={() => { setShowAdd(true); setFormErr(""); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
+              <Plus className="w-3 h-3" /> Block dates
+            </button>
+          </Tooltip>
         </div>
 
         {loading ? (
@@ -1656,7 +1694,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
           </div>
         ) : upcoming.length === 0 && past.length === 0 ? (
           <p className="text-xs text-slate-400 px-5 py-6 text-center">
-            No closures defined. Add one to block off vacation time or any date when the saloon won't accept bookings.
+            No blocked dates yet. Add one to mark vacation time, public holidays, or any day when the saloon won't accept bookings.
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -1676,10 +1714,12 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
                         <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
                       </div>
                     </div>
-                    <button onClick={() => removeClosure(c.id)}
-                      className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <Tooltip content="Remove this blocked period" side="left">
+                      <button onClick={() => removeClosure(c.id)}
+                        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
                   </div>
                 ))}
               </>
@@ -1700,10 +1740,12 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
                         <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
                       </div>
                     </div>
-                    <button onClick={() => removeClosure(c.id)}
-                      className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <Tooltip content="Remove this blocked period" side="left">
+                      <button onClick={() => removeClosure(c.id)}
+                        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
                   </div>
                 ))}
               </>
@@ -1721,7 +1763,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
                 <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
                   <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
                 </div>
-                <span className="text-base font-bold text-slate-900">Add closure</span>
+                <span className="text-base font-bold text-slate-900">Block dates</span>
               </div>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setShowAdd(false)}>
                 <X className="w-5 h-5" />
@@ -1746,7 +1788,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
               </div>
               <div>
                 <label className={fieldLabel}>Reason (optional)</label>
-                <input className={inputCls} placeholder="e.g. Annual vacation, Public holiday, Emergency closure"
+                <input className={inputCls} placeholder="e.g. Annual vacation, Bank holiday, Staff training"
                   value={form.reason}
                   onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))} />
               </div>
@@ -1764,7 +1806,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
               <button onClick={addClosure} disabled={saving}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 cursor-pointer disabled:opacity-50">
                 <CalendarOff className="w-3.5 h-3.5" />
-                {saving ? "Saving…" : "Add closure"}
+                {saving ? "Saving…" : "Block dates"}
               </button>
             </div>
           </div>
@@ -1941,23 +1983,31 @@ export default function BookingPage() {
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
         <InfoBar>
-          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to block off days the entire saloon is closed (vacation, holidays, emergencies) — no bookings can be made on those dates. Use <strong>Settings</strong> to control how far in advance customers can book.
+          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark days when the entire saloon won't accept bookings — holidays, vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
         </InfoBar>
       </div>
 
       <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit flex-wrap">
-        <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
-          <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Bookings</span>
-        </button>
-        <button className={tabCls(tab === "availability")} onClick={() => setTab("availability")}>
-          <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Staff Availability</span>
-        </button>
-        <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
-          <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Closures</span>
-        </button>
-        <button className={tabCls(tab === "settings")} onClick={() => setTab("settings")}>
-          <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> Settings</span>
-        </button>
+        <Tooltip content="View, confirm, reschedule, cancel, or complete customer appointments." side="bottom">
+          <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
+            <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Bookings</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Set each staff member's weekly working hours and add one-off date overrides." side="bottom">
+          <button className={tabCls(tab === "availability")} onClick={() => setTab("availability")}>
+            <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Staff Availability</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Mark days or date ranges when the saloon won't accept any bookings — holidays, vacation, emergencies." side="bottom">
+          <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
+            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Blocked Dates</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Control how far ahead customers can book appointments." side="bottom">
+          <button className={tabCls(tab === "settings")} onClick={() => setTab("settings")}>
+            <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> Settings</span>
+          </button>
+        </Tooltip>
       </div>
 
       {tab === "bookings" && (

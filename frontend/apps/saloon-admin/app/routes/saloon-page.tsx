@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useLoaderData, useSearchParams, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams, Outlet } from "react-router";
+import { useLoaderData, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { X, Palette, Check, Wand2, RotateCcw, Rocket } from "lucide-react";
 import {
-  SaloonWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
+  SaloonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
 } from "@saloon/ui-website";
 import type { WebsiteTheme, Saloon, StaffMember, ServiceItem } from "@saloon/ui-website";
 import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
@@ -411,14 +411,13 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
 
 export default function SaloonPreviewPage() {
   const { saloon, staff, services, theme: loaderTheme } = useLoaderData<typeof clientLoader>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
 
   const initialTheme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
   const [theme, setTheme]           = useState<WebsiteTheme>(initialTheme);
   const [baseTheme, setBaseTheme]   = useState<WebsiteTheme>(initialTheme);
-  const [showDesign, setShowDesign] = useState(() => searchParams.get("design") === "1");
+  const [showDesign, setShowDesign] = useState(true);
 
   const hasChanges = JSON.stringify(theme) !== JSON.stringify(baseTheme);
 
@@ -427,14 +426,11 @@ export default function SaloonPreviewPage() {
     saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
   const saloonId = String(saloon.id);
-  // Use the actual URL param (may be UUID or handler string) so basePath always matches location.pathname
   const { saloonId: saloonParam } = useParams<{ saloonId: string }>();
-  const basePath = `/${saloonParam}/c`;
 
-  const activePage = (() => {
-    const suffix = location.pathname.slice(basePath.length).replace(/^\//, "");
-    return suffix || undefined;
-  })();
+  // Hash-based sub-page navigation keeps the admin preview URL stable at /:saloonId/website-preview
+  // so that <a href> links inside SaloonWebsite never trigger a React Router route change.
+  const activePage = location.hash ? location.hash.replace(/^#/, "") : undefined;
 
   return (
     <>
@@ -453,13 +449,20 @@ export default function SaloonPreviewPage() {
           onClose={() => setShowDesign(false)}
         />
       )}
-      <SaloonWebsite
-        saloon={saloon} staff={staff} services={services} theme={theme}
-        activePage={activePage}
-        getPagePath={(page) => `/${saloonParam}/c/${page}`}
-        onNavigate={(page) => navigate(page ? `/${saloonParam}/c/${page}` : `/${saloonParam}/c`)}
-      />
-      <Outlet />
+      {theme.websiteType === "GENERATIVE_UI" ? (
+        <GenerativeUIWebsite
+          saloon={saloon} staff={staff} services={services} theme={theme}
+          getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+          onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+        />
+      ) : (
+        <SaloonWebsite
+          saloon={saloon} staff={staff} services={services} theme={theme}
+          activePage={activePage}
+          getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+          onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+        />
+      )}
     </>
   );
 }

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Outlet } from "react-router";
-import { SalonErrorPage, DEFAULT_THEME, apiFetch } from "@saloon/ui-website";
+import { useEffect } from "react";
+import { Outlet, useLoaderData } from "react-router";
+import type { ClientLoaderFunctionArgs } from "react-router";
+import { SalonErrorPage, SaloonDisabledPage, DEFAULT_THEME, apiFetch } from "@saloon/ui-website";
 import type { Saloon, StaffMember, ServiceItem, WebsiteTheme } from "@saloon/ui-website";
 
 function initials(name: string) {
@@ -23,22 +24,11 @@ function buildFaviconHref(name: string, bgColor: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function applyBranding(name: string, bgColor: string) {
-  document.title = name;
-  let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
-  if (!link) {
-    link = document.createElement("link");
-    link.rel = "icon";
-    document.head.appendChild(link);
-  }
-  link.href = buildFaviconHref(name, bgColor);
-}
-
-function slugFromHostname(hostname: string): string | null {
-  const parts = hostname.split(".");
+function slugFromRequest(request: Request): string | null {
+  const url = new URL(request.url);
+  const parts = url.hostname.split(".");
   if (parts.length >= 3) return parts[0];
-  const params = new URLSearchParams(window.location.search);
-  return params.get("slug");
+  return url.searchParams.get("slug");
 }
 
 export type TenantData = {
@@ -48,52 +38,79 @@ export type TenantData = {
   theme: WebsiteTheme;
 };
 
-type TenantState =
-  | { status: "loading" }
-  | { status: "ok" } & TenantData
+type LoaderData =
+  | ({ status: "ok" } & TenantData)
+  | { status: "disabled"; saloonName?: string }
   | { status: "not_found" }
   | { status: "error" };
 
+export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promise<LoaderData> {
+  const slug = slugFromRequest(request);
+  if (!slug) return { status: "not_found" };
+
+  try {
+    const saloon = await apiFetch<Saloon>(`/api/saloon/${slug}`);
+    const [staff, services, theme] = await Promise.all([
+      apiFetch<StaffMember[]>(`/api/saloon/${saloon.id}/staff`).catch((): StaffMember[] => []),
+      apiFetch<ServiceItem[]>(`/api/saloon/${saloon.id}/services`).catch((): ServiceItem[] => []),
+      apiFetch<WebsiteTheme>(`/api/saloon/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
+    ]);
+    const resolvedTheme = { ...DEFAULT_THEME, ...theme };
+    // Website is accessible if STATIC_WEBSITE feature is enabled OR a website mode is configured
+    const isEnabled =
+      saloon.features?.includes("STATIC_WEBSITE") ||
+      Boolean(resolvedTheme.websiteType);
+    if (!isEnabled) return { status: "disabled", saloonName: saloon.name };
+    return { status: "ok", saloon, staff, services, theme: resolvedTheme };
+  } catch (err) {
+    const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
+    return { status: is404 ? "not_found" : "error" };
+  }
+}
+
+// Prevent re-fetching when navigating between sub-pages within the same saloon
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+}: {
+  currentUrl: URL;
+  nextUrl: URL;
+}) {
+  return (
+    currentUrl.hostname !== nextUrl.hostname ||
+    currentUrl.searchParams.get("slug") !== nextUrl.searchParams.get("slug")
+  );
+}
+
+export function HydrateFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
+      <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
+      <p className="text-sm">Loading…</p>
+    </div>
+  );
+}
+
 export default function WebsiteShell() {
-  const [state, setState] = useState<TenantState>({ status: "loading" });
+  const data = useLoaderData<typeof clientLoader>();
 
   useEffect(() => {
-    const slug = slugFromHostname(window.location.hostname);
-    if (!slug) {
-      setState({ status: "not_found" });
-      return;
-    }
-
-    (async () => {
-      try {
-        const saloon = await apiFetch<Saloon>(`/api/saloon/${slug}`);
-        const [staff, services, theme] = await Promise.all([
-          apiFetch<StaffMember[]>(`/api/saloon/${saloon.id}/staff`).catch((): StaffMember[] => []),
-          apiFetch<ServiceItem[]>(`/api/saloon/${saloon.id}/services`).catch((): ServiceItem[] => []),
-          apiFetch<WebsiteTheme>(`/api/saloon/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
-        ]);
-        const resolvedTheme = { ...DEFAULT_THEME, ...theme };
-        applyBranding(saloon.name, resolvedTheme.logoBgColor);
-        setState({ status: "ok", saloon, staff, services, theme: resolvedTheme });
-      } catch (err) {
-        const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
-        setState({ status: is404 ? "not_found" : "error" });
+    if (data.status === "ok") {
+      document.title = data.saloon.name;
+      let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
       }
-    })();
-  }, []);
+      link.href = buildFaviconHref(data.saloon.name, data.theme.logoBgColor);
+    }
+  }, [data]);
 
-  if (state.status === "loading") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
-        <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
-        <p className="text-sm">Loading…</p>
-      </div>
-    );
-  }
+  if (data.status === "disabled") return <SaloonDisabledPage saloonName={data.saloonName} />;
+  if (data.status === "not_found") return <SalonErrorPage is404 />;
+  if (data.status === "error") return <SalonErrorPage is404={false} />;
 
-  if (state.status === "not_found") return <SalonErrorPage is404 />;
-  if (state.status === "error") return <SalonErrorPage is404={false} />;
-
-  const { saloon, staff, services, theme } = state;
+  const { saloon, staff, services, theme } = data;
   return <Outlet context={{ saloon, staff, services, theme } satisfies TenantData} />;
 }

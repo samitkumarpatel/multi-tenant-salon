@@ -1,4 +1,6 @@
-export { SaloonWebsite, SalonErrorPage } from "./SaloonWebsite";
+export { SaloonWebsite, SalonErrorPage, SaloonDisabledPage } from "./SaloonWebsite";
+export { GenerativeUIWebsite } from "./GenerativeUIWebsite";
+export type { GenerativeUIWebsiteProps } from "./GenerativeUIWebsite";
 export type { SaloonWebsiteProps } from "./SaloonWebsite";
 
 export { BookingWizard } from "./BookingWizard";

@@ -35,7 +35,7 @@ class SaloonController {
 
     record CreateSaloonResponse(UUID id, String handler) {}
 
-    record UpdateSaloonRequest(String name,
+    record UpdateSaloonRequest(@NotBlank String name,
                                Saloon.Location location,
                                Saloon.ContactInfo contact,
                                List<Saloon.OperatingHours> operatingHours,
@@ -66,7 +66,7 @@ class SaloonController {
     }
 
     @PutMapping("/api/saloon-admin/{id}")
-    ResponseEntity<Saloon> update(@PathVariable UUID id, @RequestBody UpdateSaloonRequest request) {
+    ResponseEntity<Saloon> update(@PathVariable UUID id, @Valid @RequestBody UpdateSaloonRequest request) {
         return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours(), request.bookingAdvanceDays())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());

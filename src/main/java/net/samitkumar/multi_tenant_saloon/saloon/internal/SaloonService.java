@@ -70,8 +70,9 @@ class SaloonService implements SaloonApi {
     Optional<Saloon> update(UUID id, String name, Saloon.Location location, Saloon.ContactInfo contact,
                             List<Saloon.OperatingHours> operatingHours, Integer bookingAdvanceDays) {
         return repository.findById(id).map(existing -> {
+            var nameToSave = (name != null && !name.isBlank()) ? name : existing.name();
             var days = bookingAdvanceDays != null ? bookingAdvanceDays : existing.bookingAdvanceDays();
-            var updated = new Saloon(existing.id(), name, existing.handler(), existing.owner(), location, contact,
+            var updated = new Saloon(existing.id(), nameToSave, existing.handler(), existing.owner(), location, contact,
                     operatingHours, existing.features(), days, existing.createdAt());
             return repository.save(updated);
         });

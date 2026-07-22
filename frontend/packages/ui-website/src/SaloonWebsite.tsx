@@ -197,6 +197,36 @@ export function SalonErrorPage({ is404 }: { is404: boolean }) {
   );
 }
 
+export function SaloonDisabledPage({ saloonName }: { saloonName?: string }) {
+  return (
+    <div
+      className="min-h-[100dvh] relative flex flex-col items-center justify-center px-6 text-center overflow-hidden select-none"
+      style={{ backgroundColor: "#0F172A", fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <style>{`
+        @keyframes comb-sway { 0%,100% { transform: rotate(-8deg) scale(1); } 50% { transform: rotate(8deg) scale(1.05); } }
+        @keyframes comb-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        .comb-sway { animation: comb-sway 3s ease-in-out infinite; }
+        .comb-float { animation: comb-float 4s ease-in-out infinite; }
+      `}</style>
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ opacity: 0.035, backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "28px 28px" }}
+      />
+      <div className="comb-float mb-8">
+        <div className="comb-sway text-6xl leading-none">💈</div>
+      </div>
+      <h1 className="text-2xl sm:text-3xl font-black text-white mb-3 leading-snug">
+        {saloonName ? `${saloonName} is coming soon` : "We're getting ready"}
+      </h1>
+      <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
+        This salon's website hasn't been published yet. Check back soon — good things take a little time to set up.
+      </p>
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">my-saloon.online</p>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export interface SaloonWebsiteProps {

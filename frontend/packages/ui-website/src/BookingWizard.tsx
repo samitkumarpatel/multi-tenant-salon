@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, Maximize2, Minimize2,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
 } from "lucide-react";
 import { apiFetch } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -153,12 +153,11 @@ function SelectionSummary({
 // ── Step 1: Service selection ─────────────────────────────────────────────────
 
 function StepService({
-  services, selected, accent, expanded, onSelect, onNext,
+  services, selected, accent, onSelect, onNext,
 }: {
   services: ServiceItem[];
   selected: ServiceItem | null;
   accent: Accent;
-  expanded: boolean;
   onSelect: (s: ServiceItem) => void;
   onNext: () => void;
 }) {
@@ -203,7 +202,7 @@ function StepService({
               No services match “{query}”.
             </p>
           ) : (
-            <div className={`space-y-2 mb-6 overflow-y-auto pr-1 ${expanded ? "" : "max-h-[420px]"}`}>
+            <div className="space-y-2 mb-6 overflow-y-auto pr-1 max-h-[420px]">
               {filtered.map((s) => {
                 const isSel = selected?.id === s.id;
                 return (
@@ -396,7 +395,8 @@ function WeekGrid({
       </div>
 
       {/* Day columns */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="overflow-x-auto -mx-3 px-3">
+      <div className="grid grid-cols-7 gap-1 min-w-[280px]">
         {days.map((d) => {
           const iso      = toISODate(d);
           const isPast   = d < today;
@@ -440,6 +440,7 @@ function WeekGrid({
             </div>
           );
         })}
+      </div>
       </div>
 
       {loading && (
@@ -641,7 +642,8 @@ function DesignerGrid({
           times.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-6">No available times on {fmtDate(date)} — try another date.</p>
           ) : (
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div style={{ minWidth: `calc(3.25rem + ${staff.length} * 5rem)` }}>
               {/* Header: time gutter + one column per designer, stretching full width */}
               <div
                 className="grid bg-slate-50/70 border-b border-slate-200"
@@ -731,6 +733,7 @@ function DesignerGrid({
                   })}
                 </div>
               ))}
+            </div>
             </div>
           )
         )}
@@ -1049,7 +1052,7 @@ function StepDate({
 // ── Step 3: Slot selection ────────────────────────────────────────────────────
 
 function StepSlots({
-  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, expanded, onSelect, onBack, onNext,
+  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, onSelect, onBack, onNext,
 }: {
   saloonId: string;
   serviceId: number;
@@ -1058,7 +1061,6 @@ function StepSlots({
   staffMap: Map<number, StaffMember>;
   selectedSlot: AvailableSlot | null;
   accent: Accent;
-  expanded: boolean;
   onSelect: (s: AvailableSlot) => void;
   onBack: () => void;
   onNext: () => void;
@@ -1115,7 +1117,7 @@ function StepSlots({
             <p className="text-xs text-slate-400 mt-1">Try a different date or staff member.</p>
           </div>
         ) : (
-          <div className={`space-y-5 mb-6 overflow-y-auto pr-1 ${expanded ? "" : "max-h-[380px]"}`}>
+          <div className="space-y-5 mb-6 overflow-y-auto pr-1 max-h-[380px]">
             {groups.map(([label, list]) => (
               <div key={label}>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
@@ -1320,7 +1322,6 @@ export function BookingWizard({
 
   const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
   const [step, setStep] = useState(preselected ? 2 : 1);
-  const [expanded, setExpanded] = useState(false);
   const [fetchedCountries, setFetchedCountries] = useState<Country[]>([]);
   const countries = countriesProp.length > 0 ? countriesProp : fetchedCountries;
   const [service, setService] = useState<ServiceItem | null>(preselected);
@@ -1426,7 +1427,7 @@ export function BookingWizard({
         style={{ background: `radial-gradient(80% 50% at 50% 0%, ${accent.color}0a, transparent 70%)` }}
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}
-        <div className={`w-full transition-all duration-300 ${expanded || step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
+        <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
           {step < 5 && <StepBar current={step} accent={accent} />}
           {step < 5 && (
             <SelectionSummary
@@ -1452,23 +1453,11 @@ export function BookingWizard({
             className={`relative ${step < 5 ? "bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6" : ""}`}
             style={{ animation: "fade-in 0.3s ease-out both" }}
           >
-            {/* Expand / collapse button — shown on all content steps */}
-            {step < 5 && (
-              <button
-                onClick={() => setExpanded((v) => !v)}
-                title={expanded ? "Collapse" : "Expand view"}
-                className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer z-10"
-              >
-                {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </button>
-            )}
-
           {step === 1 && (
             <StepService
               services={services}
               selected={service}
               accent={accent}
-              expanded={expanded}
               onSelect={(s) => { setService(s); setSlot(null); }}
               onNext={() => setStep(2)}
             />
@@ -1504,7 +1493,6 @@ export function BookingWizard({
               staffMap={staffMap}
               selectedSlot={slot}
               accent={accent}
-              expanded={expanded}
               onSelect={setSlot}
               onBack={() => setStep(2)}
               onNext={() => { setViaWeek(false); setStep(4); }}
