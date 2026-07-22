@@ -20,8 +20,10 @@ export const CATEGORY_LABEL: Record<string, string> = {
   BEARD: "Beard", MASSAGE: "Massage", WAXING: "Waxing", OTHER: "Other",
 };
 
-export const formatPrice = (price: number, currency = "USD") =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(price);
+export const formatPrice = (price: number | null | undefined, currency: string | null = "USD") => {
+  if (price == null) return "-";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: currency ?? "USD" }).format(price);
+};
 
 export const formatDate = (ts?: string) =>
   ts ? new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";

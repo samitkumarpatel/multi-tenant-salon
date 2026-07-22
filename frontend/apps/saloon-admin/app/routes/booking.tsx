@@ -4,15 +4,16 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Settings, Filter, List,
-  Maximize2, Minimize2, CalendarDays, LayoutGrid,
+  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff,
 } from "lucide-react";
 import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import type {
   LayoutContext, StaffMember, ServiceItem, Booking, BookingStatus,
-  StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours,
+  StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours, SaloonClosure,
 } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
+import { Toast, useToast } from "@saloon/ui-shared";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
@@ -1290,18 +1291,11 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
   const [schedule, setSchedule] = useState<StaffAvailability[]>(DEFAULT_SCHEDULE);
   const [overrides, setOverrides] = useState<StaffAvailabilityOverride[]>([]);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+  const { toast, notify } = useToast();
   const [addOverride, setAddOverride] = useState(false);
   const [overrideForm, setOverrideForm] = useState({
     overrideDate: "", startTime: "09:00", endTime: "17:00", available: true, reason: "",
   });
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  }
 
   useEffect(() => {
     if (!selectedStaff) return;
@@ -1316,10 +1310,10 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
           }));
         }
       })
-      .catch(() => setSchedule(DEFAULT_SCHEDULE));
+      .catch((e) => { setSchedule(DEFAULT_SCHEDULE); notify(e instanceof Error ? e.message : "Failed to load schedule", "error"); });
     apiFetch<StaffAvailabilityOverride[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides`)
       .then(setOverrides)
-      .catch(() => setOverrides([]));
+      .catch((e) => { setOverrides([]); notify(e instanceof Error ? e.message : "Failed to load overrides", "error"); });
   }, [selectedStaff, saloonId]);
 
   function toggleDay(day: string) {
@@ -1575,11 +1569,209 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
+      <Toast toast={toast} />
+    </div>
+  );
+}
+
+// ── Closures panel ────────────────────────────────────────────────────────────
+
+function ClosuresPanel({ saloonId }: { saloonId: string }) {
+  const [closures, setClosures] = useState<SaloonClosure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ startDate: "", endDate: "", reason: "" });
+  const [formErr, setFormErr] = useState("");
+  const { toast, notify } = useToast();
+
+  useEffect(() => {
+    apiFetch<SaloonClosure[]>(`${ADMIN_API}/${saloonId}/closures`)
+      .then(setClosures)
+      .catch((e) => notify(e instanceof Error ? e.message : "Failed to load closures", "error"))
+      .finally(() => setLoading(false));
+  }, [saloonId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function validate() {
+    if (!form.startDate || !form.endDate) return "Start and end dates are required.";
+    if (form.endDate < form.startDate) return "End date must be on or after start date.";
+    return "";
+  }
+
+  async function addClosure() {
+    const err = validate();
+    if (err) { setFormErr(err); return; }
+    setSaving(true);
+    try {
+      const saved = await apiFetch<SaloonClosure>(`${ADMIN_API}/${saloonId}/closures`, {
+        method: "POST",
+        body: JSON.stringify({ startDate: form.startDate, endDate: form.endDate, reason: form.reason || null }),
+      });
+      setClosures((p) => [...p, saved].sort((a, b) => a.startDate.localeCompare(b.startDate)));
+      setShowAdd(false);
+      setForm({ startDate: "", endDate: "", reason: "" });
+      setFormErr("");
+      notify("Closure added.");
+    } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function removeClosure(id: number) {
+    try {
+      await apiFetch(`${ADMIN_API}/${saloonId}/closures/${id}`, { method: "DELETE" });
+      setClosures((p) => p.filter((c) => c.id !== id));
+      notify("Closure removed.");
+    } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
+  }
+
+  function fmtRange(start: string, end: string) {
+    if (start === end) return start;
+    return `${start} – ${end}`;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = closures.filter((c) => c.endDate >= today);
+  const past     = closures.filter((c) => c.endDate <  today);
+
+  return (
+    <div className="max-w-lg space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Saloon closures</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Mark the saloon as closed for a day or date range — vacation, public holiday, emergency, or any special occasion. Customers will not be able to book during these periods.
+            </p>
+          </div>
+          <button onClick={() => { setShowAdd(true); setFormErr(""); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
+            <Plus className="w-3 h-3" /> Add closure
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-400">
+            <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
+            Loading…
+          </div>
+        ) : upcoming.length === 0 && past.length === 0 ? (
+          <p className="text-xs text-slate-400 px-5 py-6 text-center">
+            No closures defined. Add one to block off vacation time or any date when the saloon won't accept bookings.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {upcoming.length > 0 && (
+              <>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50/70">
+                  Upcoming
+                </p>
+                {upcoming.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                        <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{fmtRange(c.startDate, c.endDate)}</p>
+                        <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => removeClosure(c.id)}
+                      className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+            {past.length > 0 && (
+              <>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50/70">
+                  Past
+                </p>
+                {past.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-5 py-3 opacity-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                        <CalendarOff className="w-3.5 h-3.5 text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{fmtRange(c.startDate, c.endDate)}</p>
+                        <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => removeClosure(c.id)}
+                      className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowAdd(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                  <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+                <span className="text-base font-bold text-slate-900">Add closure</span>
+              </div>
+              <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setShowAdd(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={fieldLabel}>Start date <span className="text-red-500">*</span></label>
+                  <input type="date" className={inputCls}
+                    min={today}
+                    value={form.startDate}
+                    onChange={(e) => { setFormErr(""); setForm((p) => ({ ...p, startDate: e.target.value, endDate: p.endDate < e.target.value ? e.target.value : p.endDate })); }} />
+                </div>
+                <div>
+                  <label className={fieldLabel}>End date <span className="text-red-500">*</span></label>
+                  <input type="date" className={inputCls}
+                    min={form.startDate || today}
+                    value={form.endDate}
+                    onChange={(e) => { setFormErr(""); setForm((p) => ({ ...p, endDate: e.target.value })); }} />
+                </div>
+              </div>
+              <div>
+                <label className={fieldLabel}>Reason (optional)</label>
+                <input className={inputCls} placeholder="e.g. Annual vacation, Public holiday, Emergency closure"
+                  value={form.reason}
+                  onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))} />
+              </div>
+              {formErr && (
+                <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {formErr}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
+              <button onClick={() => setShowAdd(false)}
+                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={addClosure} disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 cursor-pointer disabled:opacity-50">
+                <CalendarOff className="w-3.5 h-3.5" />
+                {saving ? "Saving…" : "Add closure"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
+      <Toast toast={toast} />
     </div>
   );
 }
@@ -1593,7 +1785,7 @@ const ADVANCE_OPTIONS = [
   { days: 180, label: "6 months", desc: "Long-term advance" },
 ] as const;
 
-function BookingSettingsPanel({ saloon, onSaved }: { saloon: { id: string | number; bookingAdvanceDays?: number }; onSaved: (days: number) => void }) {
+function BookingSettingsPanel({ saloon, onSaved, onError }: { saloon: { id: string | number; bookingAdvanceDays?: number }; onSaved: (days: number) => void; onError: (msg: string) => void }) {
   const [days, setDays] = useState(saloon.bookingAdvanceDays ?? 60);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1608,7 +1800,7 @@ function BookingSettingsPanel({ saloon, onSaved }: { saloon: { id: string | numb
       onSaved((res as { bookingAdvanceDays: number }).bookingAdvanceDays ?? days);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch { /* ignore */ }
+    } catch (e) { onError(e instanceof Error ? e.message : "Failed to save settings"); }
     finally { setSaving(false); }
   }
 
@@ -1654,10 +1846,9 @@ export default function BookingPage() {
   const { saloon, setSaloon } = useOutletContext<LayoutContext>();
   const { bookings: init, staff, services } = useLoaderData<typeof clientLoader>();
   const [bookings, setBookings] = useState<Booking[]>(init);
-  const [tab, setTab] = useState<"bookings" | "availability" | "settings">("bookings");
+  const [tab, setTab] = useState<"bookings" | "availability" | "closures" | "settings">("bookings");
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast, notify } = useToast();
 
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null);
   const [rsForm, setRsForm] = useState({ appointmentDate: "", startTime: "", staffId: 0, notes: "" });
@@ -1671,11 +1862,7 @@ export default function BookingPage() {
   const staffMap = new Map(staff.map((s) => [s.id, s]));
   const serviceMap = new Map(services.map((s) => [s.id, s]));
 
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3500);
-  }
+
 
   useEffect(() => {
     if (!rescheduleTarget || !rsForm.appointmentDate) { setRsSlots(null); return; }
@@ -1684,7 +1871,7 @@ export default function BookingPage() {
     const params = new URLSearchParams({ serviceId: String(rescheduleTarget.serviceId), date: rsForm.appointmentDate });
     apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/slots?${params}`)
       .then((slots) => { if (!cancelled) setRsSlots(slots); })
-      .catch(() => { if (!cancelled) setRsSlots([]); })
+      .catch((e) => { if (!cancelled) { setRsSlots([]); notify(e instanceof Error ? e.message : "Failed to load slots", "error"); } })
       .finally(() => { if (!cancelled) setRsSlotsLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1743,7 +1930,7 @@ export default function BookingPage() {
     try {
       const fresh = await apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`);
       setBookings(fresh ?? []);
-    } catch { /* silently ignore */ }
+    } catch (e) { notify(e instanceof Error ? e.message : "Failed to refresh bookings", "error"); }
   }
 
   const tabCls = (active: boolean) =>
@@ -1754,16 +1941,19 @@ export default function BookingPage() {
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
         <InfoBar>
-          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Manage Staff Availability</strong> to set each person's working hours and add date overrides like vacations or public holidays. Use <strong>Settings</strong> to control how far in advance customers can book.
+          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to block off days the entire saloon is closed (vacation, holidays, emergencies) — no bookings can be made on those dates. Use <strong>Settings</strong> to control how far in advance customers can book.
         </InfoBar>
       </div>
 
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit">
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit flex-wrap">
         <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
           <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Bookings</span>
         </button>
         <button className={tabCls(tab === "availability")} onClick={() => setTab("availability")}>
-          <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Manage Staff Availability</span>
+          <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Staff Availability</span>
+        </button>
+        <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
+          <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Closures</span>
         </button>
         <button className={tabCls(tab === "settings")} onClick={() => setTab("settings")}>
           <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> Settings</span>
@@ -1783,10 +1973,15 @@ export default function BookingPage() {
         <AvailabilityPanel saloonId={String(sid)} staff={staff} operatingHours={saloon.operatingHours} />
       )}
 
+      {tab === "closures" && (
+        <ClosuresPanel saloonId={String(sid)} />
+      )}
+
       {tab === "settings" && (
         <BookingSettingsPanel
           saloon={{ id: String(sid), bookingAdvanceDays: saloon.bookingAdvanceDays }}
           onSaved={(days) => setSaloon({ ...saloon, bookingAdvanceDays: days })}
+          onError={(msg) => notify(msg, "error")}
         />
       )}
 
@@ -1944,11 +2139,7 @@ export default function BookingPage() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
     </>
   );
 }

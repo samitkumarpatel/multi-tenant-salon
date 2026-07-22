@@ -9,7 +9,7 @@ import {
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
 } from "~/lib/constants";
 import type { Country, LayoutContext, OperatingHours, StaffMember } from "~/lib/types";
-import { InfoBar, TileGrid, PhoneInput } from "@saloon/ui-shared";
+import { InfoBar, TileGrid, PhoneInput, Toast, useToast } from "@saloon/ui-shared";
 
 const toHHMM = (t: string) => t.slice(0, 5);
 
@@ -612,8 +612,7 @@ export default function Staff() {
   const { staff: init, countries } = useLoaderData<typeof clientLoader>();
   const [staff,  setStaff]  = useState<StaffMember[]>(init);
   const [busy,   setBusy]   = useState(false);
-  const [toast,  setToast]  = useState<{ msg: string; type: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast, notify } = useToast();
   const [target, setTarget] = useState<StaffMember | null>(null);
   const [modal,  setModal]  = useState({ add: false, edit: false, del: false });
 
@@ -625,12 +624,6 @@ export default function Staff() {
 
   const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null });
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
-
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  }
 
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
   function openAdd() { setModal((m) => ({ ...m, add: true })); }
@@ -951,11 +944,7 @@ export default function Staff() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
     </>
   );
 }

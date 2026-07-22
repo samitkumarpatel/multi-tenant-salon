@@ -7,11 +7,11 @@ import type { OperatingHours, Saloon, WebsiteTheme } from "./types";
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
-/** Features that get their own hash-routed view + header nav link */
-export const FEATURE_NAV: Record<string, { label: string; hash: string }> = {
-  WEBSHOP:         { label: "Shop",       hash: "shop" },
-  MEMBERSHIP:      { label: "Membership", hash: "membership" },
-  LOYALTY_PROGRAM: { label: "Loyalty",    hash: "loyalty" },
+/** Features that get their own path-routed view + header nav link */
+export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
+  WEBSHOP:         { label: "Shop",       path: "shop" },
+  MEMBERSHIP:      { label: "Membership", path: "membership" },
+  LOYALTY_PROGRAM: { label: "Loyalty",    path: "loyalty" },
 };
 
 function isOpenNow(hours?: OperatingHours[]): boolean {
@@ -30,12 +30,13 @@ function initials(name: string) {
 }
 
 export function SiteHeader({
-  saloon, theme, current, onBack,
+  saloon, theme, current, onBack, getPagePath,
 }: {
   saloon: Saloon;
   theme: WebsiteTheme;
   current: string;
   onBack: () => void;
+  getPagePath?: (page: string) => string;
 }) {
   const open        = isOpenNow(saloon.operatingHours);
   const hasBooking  = saloon.features?.includes("BOOKING");
@@ -43,7 +44,7 @@ export function SiteHeader({
   const featurePages = (saloon.features ?? [])
     .filter((f) => FEATURE_NAV[f])
     .map((f) => FEATURE_NAV[f])
-    .filter((fp) => fp.hash !== current);
+    .filter((fp) => fp.path !== current);
 
   const headerBg      = theme.headerBg ?? "#FFFFFF";
   const headerIsLight = isLightColor(headerBg);
@@ -77,8 +78,8 @@ export function SiteHeader({
             </button>
             {featurePages.map((fp) => (
               <a
-                key={fp.hash}
-                href={`#${fp.hash}`}
+                key={fp.path}
+                href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`}
                 className="hidden md:inline no-underline transition-colors font-medium text-slate-500 hover:text-slate-900"
               >
                 {fp.label}
@@ -104,7 +105,7 @@ export function SiteHeader({
               <CalendarCheck className="w-3.5 h-3.5" /> Book appointment
             </span>
           ) : hasBooking ? (
-            <a href="#book"
+            <a href={getPagePath ? getPagePath("book") : "/book"}
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
               style={{ backgroundColor: theme.accentColor, color: accentText }}>
               Book now
@@ -117,12 +118,13 @@ export function SiteHeader({
 }
 
 export function SiteFooter({
-  saloon, theme, current, onBack,
+  saloon, theme, current, onBack, getPagePath,
 }: {
   saloon: Saloon;
   theme: WebsiteTheme;
   current: string;
   onBack: () => void;
+  getPagePath?: (page: string) => string;
 }) {
   const accentText = contrastText(theme.accentColor);
   const hasBooking = saloon.features?.includes("BOOKING");

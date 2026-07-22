@@ -4,7 +4,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "@saloon/ui-website";
 import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles } from "lucide-react";
-import { AppLogo } from "@saloon/ui-shared";
+import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
@@ -316,6 +316,7 @@ export default function Layout() {
   const [deleting, setDeleting]         = useState(false);
   const [deleteError, setDeleteError]   = useState<string | null>(null);
   const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(null);
+  const { toast, notify } = useToast();
 
   useEffect(() => { setSaloon(loaderSaloon); }, [loaderSaloon]);
 
@@ -335,7 +336,7 @@ export default function Layout() {
       apiFetch(`${ADMIN_API}/${saloon!.id}/website-type`, {
         method: "PATCH",
         body: JSON.stringify({ websiteType: m }),
-      }).catch(() => {});
+      }).catch((e) => notify(e instanceof Error ? e.message : "Failed to update website type", "error"));
     }
   }
 
@@ -623,6 +624,8 @@ export default function Layout() {
           </div>
         </div>
       )}
+
+      <Toast toast={toast} />
     </div>
   );
 }

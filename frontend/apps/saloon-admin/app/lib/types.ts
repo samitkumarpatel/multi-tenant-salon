@@ -1,7 +1,7 @@
 export type {
   Country, Currency, Owner, Location, ContactInfo, OperatingHours, Saloon, WebsiteMode,
   StaffMember, WebsiteTheme, ServiceItem, BookingStatus, Booking,
-  AvailableSlot, StaffAvailability, StaffAvailabilityOverride,
+  AvailableSlot, StaffAvailability, StaffAvailabilityOverride, SaloonClosure,
 } from "@saloon/ui-website";
 
 import type { Saloon, WebsiteMode } from "@saloon/ui-website";

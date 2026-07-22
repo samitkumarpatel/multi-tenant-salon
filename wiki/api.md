@@ -17,7 +17,7 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/website/publish`, `/website-type`, `/features`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/website`, `/website/publish`, `/website-type`, `/features`
 
 ---
 
@@ -166,9 +166,24 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
     "active": true,
     "assignedStaffIds": ["1", "2"],
     "createdAt": "2026-07-08T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Pay as you go",
+    "description": "Haircut, Coloring, Facial and more",
+    "price": null,
+    "currency": null,
+    "durationMinutes": null,
+    "category": "OTHER",
+    "active": true,
+    "assignedStaffIds": [],
+    "createdAt": "2026-07-08T10:00:00Z"
   }
 ]
 ```
+
+> **Pay-as-you-go services**: `price` and `currency` are `null` when no fixed price is set. `durationMinutes` is `null` when not specified — the UI defaults to displaying 30 min and the slot engine uses 30 min for availability calculations.
 
 **Flow**
 
@@ -647,9 +662,9 @@ Same response as the public endpoint. See [List services](#list-services).
 |---|---|---|---|
 | `name` | string | yes | |
 | `description` | string | no | |
-| `price` | decimal | no | |
-| `currency` | string | no | ISO 4217, e.g. `"USD"` |
-| `durationMinutes` | int | no | |
+| `price` | decimal\|null | no | Omit or send `null` for pay-as-you-go |
+| `currency` | string\|null | no | ISO 4217, e.g. `"USD"`; `null` when `price` is `null` |
+| `durationMinutes` | int\|null | no | Omit or send `null` for pay-as-you-go; defaults to 30 min in the UI and slot engine |
 | `category` | string | yes | See [ServiceCategory](#servicecategory) values |
 | `assignedStaffIds` | array | no | IDs of staff members to assign |
 
@@ -939,6 +954,82 @@ Emits **StaffAvailabilityOverrideAddedEvent**.
 
 Deletes the override so the regular weekly schedule applies again for that date.
 Emits **StaffAvailabilityOverrideRemovedEvent**.
+
+**Response** `204 No Content`
+
+---
+
+## Customer — Closures (read-only)
+
+`GET /api/saloon/{saloonId}/closures`
+
+Returns all closures for the saloon. Used by the booking wizard to disable closed date ranges in the calendar (month, week, and designer views).
+
+**Response** `200 OK` — array of `SaloonClosure` (same schema as admin endpoint below).
+
+---
+
+## Admin — Closures
+
+Saloon closures block the entire saloon on a date range (vacation, public holiday, emergency). When a date falls within a closure:
+- `GET .../slots` returns an **empty array**
+- `POST .../booking` returns **HTTP 400**
+- Booking calendar views visually disable those dates
+
+### List closures
+
+`GET /api/saloon-admin/{saloonId}/closures`
+
+**Response** `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "startDate": "2026-08-04",
+    "endDate": "2026-08-15",
+    "reason": "Annual vacation"
+  },
+  {
+    "id": 2,
+    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "startDate": "2026-12-25",
+    "endDate": "2026-12-25",
+    "reason": "Christmas Day"
+  }
+]
+```
+
+---
+
+### Add a closure
+
+`POST /api/saloon-admin/{saloonId}/closures`
+
+**Request**
+
+```json
+{
+  "startDate": "2026-08-04",
+  "endDate": "2026-08-15",
+  "reason": "Annual vacation"
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `startDate` | date | yes | First day of the closure, `YYYY-MM-DD` |
+| `endDate` | date | yes | Last day (inclusive); same as `startDate` for a single-day closure |
+| `reason` | string | no | Human-readable reason shown in admin UI |
+
+**Response** `200 OK` — the created `SaloonClosure` object
+
+---
+
+### Remove a closure
+
+`DELETE /api/saloon-admin/{saloonId}/closures/{closureId}`
 
 **Response** `204 No Content`
 

@@ -2,12 +2,15 @@ package net.samitkumar.multi_tenant_saloon.saloon.internal;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonClosure;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -89,5 +92,24 @@ class SaloonController {
             case NOT_FOUND -> ResponseEntity.notFound().build();
             case FEATURE_NOT_ENABLED -> ResponseEntity.unprocessableEntity().build();
         };
+    }
+
+    record AddClosureRequest(@NotNull LocalDate startDate, @NotNull LocalDate endDate, String reason) {}
+
+    @GetMapping({"/api/saloon/{id}/closures", "/api/saloon-admin/{id}/closures"})
+    List<SaloonClosure> listClosures(@PathVariable UUID id) {
+        return service.findClosures(id);
+    }
+
+    @PostMapping("/api/saloon-admin/{id}/closures")
+    ResponseEntity<SaloonClosure> addClosure(@PathVariable UUID id, @Valid @RequestBody AddClosureRequest request) {
+        var closure = service.addClosure(id, request.startDate(), request.endDate(), request.reason());
+        return ResponseEntity.ok(closure);
+    }
+
+    @DeleteMapping("/api/saloon-admin/{id}/closures/{closureId}")
+    ResponseEntity<Void> removeClosure(@PathVariable UUID id, @PathVariable Long closureId) {
+        service.removeClosure(id, closureId);
+        return ResponseEntity.noContent().build();
     }
 }

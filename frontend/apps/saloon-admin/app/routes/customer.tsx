@@ -6,7 +6,11 @@ import { FEATURE_LABEL } from "~/lib/constants";
 
 
 export async function clientLoader() {
-  return apiFetch<Saloon[]>(SALOON_ONBOARDING_API) ?? [];
+  try {
+    return { saloons: await apiFetch<Saloon[]>(SALOON_ONBOARDING_API), error: null };
+  } catch (e: unknown) {
+    return { saloons: [] as Saloon[], error: e instanceof Error ? e.message : "Failed to load saloons" };
+  }
 }
 
 function SaloonCard({ saloon: s }: { saloon: Saloon }) {
@@ -59,7 +63,7 @@ function SaloonCard({ saloon: s }: { saloon: Saloon }) {
 }
 
 export default function Customer() {
-  const saloons = useLoaderData<typeof clientLoader>();
+  const { saloons, error } = useLoaderData<typeof clientLoader>();
   const [query, setQuery] = useState("");
 
   const filtered = query.trim()
@@ -92,6 +96,12 @@ export default function Customer() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
+        {error && (
+          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <p className="text-xs text-stone-400 mb-4">
           {filtered.length} saloon{filtered.length !== 1 ? "s" : ""}
           {query ? ` for "${query}"` : ""}

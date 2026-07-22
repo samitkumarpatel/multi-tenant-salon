@@ -30,6 +30,12 @@ const CUSTOMER_API = "/api/saloon";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+type ClosureRange = { startDate: string; endDate: string };
+
+function isClosedByRange(iso: string, ranges: ClosureRange[]): boolean {
+  return ranges.some((r) => iso >= r.startDate && iso <= r.endDate);
+}
+
 function fmt12(t: string) {
   const [h, m] = t.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
@@ -309,7 +315,7 @@ function defaultBookingDate(hours: OperatingHours[]): string {
 }
 
 function WeekGrid({
-  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, maxDate, onPick,
+  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, closedDateRanges, maxDate, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -320,6 +326,7 @@ function WeekGrid({
   accent: Accent;
   /** Weekday names (e.g. "MONDAY") on which the saloon is closed */
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   maxDate: Date;
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
@@ -343,7 +350,7 @@ function WeekGrid({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const fetchable = days.filter((d) => d >= today && !closedDays.has(JS_DAY_NAME[d.getDay()]));
+    const fetchable = days.filter((d) => d >= today && !closedDays.has(JS_DAY_NAME[d.getDay()]) && !isClosedByRange(toISODate(d), closedDateRanges));
     Promise.all(
       fetchable.map((d) => {
         const iso = toISODate(d);
@@ -394,7 +401,7 @@ function WeekGrid({
           const iso      = toISODate(d);
           const isPast   = d < today;
           const isBeyond = d > maxDate;
-          const isClosed = closedDays.has(JS_DAY_NAME[d.getDay()]);
+          const isClosed = closedDays.has(JS_DAY_NAME[d.getDay()]) || isClosedByRange(iso, closedDateRanges);
           const isToday  = d.getTime() === today.getTime();
           const isSelDay = date === iso;
           const slots     = slotsByDate[iso] ?? [];
@@ -490,12 +497,13 @@ function WeekGrid({
 // ── Month calendar (compact date picker) ─────────────────────────────────────
 
 function MonthCalendar({
-  date, setDate, accent, closedDays, maxDate,
+  date, setDate, accent, closedDays, closedDateRanges, maxDate,
 }: {
   date: string;
   setDate: (d: string) => void;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   maxDate: Date;
 }) {
   const today = new Date();
@@ -543,7 +551,7 @@ function MonthCalendar({
         {Array.from({ length: daysInMonth }, (_, i) => {
           const d = new Date(month.getFullYear(), month.getMonth(), i + 1);
           const iso = toISODate(d);
-          const disabled = d < today || d > maxDate || closedDays.has(JS_DAY_NAME[d.getDay()]);
+          const disabled = d < today || d > maxDate || closedDays.has(JS_DAY_NAME[d.getDay()]) || isClosedByRange(iso, closedDateRanges);
           const isSel = date === iso;
           const isToday = d.getTime() === today.getTime();
           return (
@@ -575,7 +583,7 @@ function MonthCalendar({
 // ── Designer/day grid (X axis = time, Y axis = designer) ─────────────────────
 
 function DesignerGrid({
-  saloonId, serviceId, staff, date, selectedSlot, accent, closedDays, onPick,
+  saloonId, serviceId, staff, date, selectedSlot, accent, closedDays, closedDateRanges, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -584,6 +592,7 @@ function DesignerGrid({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
   const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
@@ -591,7 +600,7 @@ function DesignerGrid({
   const [error, setError] = useState<string | null>(null);
 
   const isClosed = date
-    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()])
+    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()]) || isClosedByRange(date, closedDateRanges)
     : false;
 
   useEffect(() => {
@@ -732,7 +741,7 @@ function DesignerGrid({
 // ── Inline day slots (auto-loads for the picked date + staff) ────────────────
 
 function DaySlots({
-  saloonId, serviceId, date, staffId, staff, selectedSlot, accent, closedDays, onPick,
+  saloonId, serviceId, date, staffId, staff, selectedSlot, accent, closedDays, closedDateRanges, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -742,6 +751,7 @@ function DaySlots({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
   const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
@@ -750,7 +760,7 @@ function DaySlots({
   const staffMap = new Map(staff.map((s) => [s.id, s]));
 
   const isClosed = date
-    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()])
+    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()]) || isClosedByRange(date, closedDateRanges)
     : false;
 
   useEffect(() => {
@@ -841,7 +851,7 @@ function DaySlots({
 // ── Step 2: Date + staff selection ────────────────────────────────────────────
 
 function StepDate({
-  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
+  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
 }: {
   saloonId: string;
   serviceId: number;
@@ -853,6 +863,7 @@ function StepDate({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   maxDate: Date;
   /** Initial view — "week" when a stylist was preselected via "Book with me" */
   defaultMode?: "input" | "week" | "designer";
@@ -970,6 +981,7 @@ function StepDate({
               selectedSlot={selectedSlot}
               accent={accent}
               closedDays={closedDays}
+              closedDateRanges={closedDateRanges}
               maxDate={maxDate}
               onPick={onPickSlot}
             />
@@ -980,6 +992,7 @@ function StepDate({
                 setDate={setDate}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 maxDate={maxDate}
               />
               <DesignerGrid
@@ -990,6 +1003,7 @@ function StepDate({
                 selectedSlot={selectedSlot}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 onPick={onPickSlot}
               />
             </div>
@@ -1000,6 +1014,7 @@ function StepDate({
                 setDate={setDate}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 maxDate={maxDate}
               />
               <DaySlots
@@ -1011,6 +1026,7 @@ function StepDate({
                 selectedSlot={selectedSlot}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 onPick={onPickSlot}
               />
             </div>
@@ -1283,7 +1299,7 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit,
+  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath,
 }: {
   saloon: Saloon;
   services: ServiceItem[];
@@ -1296,10 +1312,13 @@ export function BookingWizard({
   initialStaffId?: number | null;
   /** Called when the visitor leaves the wizard (logo / back after confirmation) */
   onExit: () => void;
+  /** Builds a path for a given page key (e.g. "shop" → "/shop") */
+  getPagePath?: (page: string) => string;
 }) {
   const preselected = services.find((s) => s.id === initialServiceId) ?? null;
   const preStaff    = staff.find((s) => s.id === initialStaffId) ?? null;
 
+  const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
   const [step, setStep] = useState(preselected ? 2 : 1);
   const [expanded, setExpanded] = useState(false);
   const [fetchedCountries, setFetchedCountries] = useState<Country[]>([]);
@@ -1324,6 +1343,12 @@ export function BookingWizard({
       .then(setFetchedCountries)
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    apiFetch<ClosureRange[]>(`${CUSTOMER_API}/${saloon.id}/closures`)
+      .then(setClosedDateRanges)
+      .catch(() => {});
+  }, [saloon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fontStack  = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
   const accent: Accent = {
@@ -1393,7 +1418,7 @@ export function BookingWizard({
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 
       {/* Header — same chrome as the saloon website (Book link swapped for Back) */}
-      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} />
+      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} />
 
       {/* Body */}
       <main
@@ -1461,6 +1486,7 @@ export function BookingWizard({
               selectedSlot={slot}
               accent={accent}
               closedDays={closedDays}
+              closedDateRanges={closedDateRanges}
               maxDate={maxDate}
               defaultMode={preStaff ? "week" : "designer"}
               onBack={() => setStep(1)}
@@ -1513,7 +1539,7 @@ export function BookingWizard({
       </main>
 
       {/* Footer — same chrome as the saloon website */}
-      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} />
+      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useLoaderData, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, useSearchParams, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams, Outlet } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { X, Palette, Check, Wand2, RotateCcw, Rocket } from "lucide-react";
 import {
@@ -11,6 +11,11 @@ import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
 import { useEffect, useRef } from "react";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
+
+// Prevent re-fetching when navigating to sub-pages (book, shop…) within the same saloon preview
+export function shouldRevalidate({ currentParams, nextParams }: { currentParams: Record<string,string>; nextParams: Record<string,string> }) {
+  return currentParams.saloonId !== nextParams.saloonId;
+}
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.saloonId!;
@@ -407,6 +412,8 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
 export default function SaloonPreviewPage() {
   const { saloon, staff, services, theme: loaderTheme } = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const initialTheme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
   const [theme, setTheme]           = useState<WebsiteTheme>(initialTheme);
@@ -419,24 +426,40 @@ export default function SaloonPreviewPage() {
     (saloon as Saloon & { handler?: string }).handler ??
     saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
+  const saloonId = String(saloon.id);
+  // Use the actual URL param (may be UUID or handler string) so basePath always matches location.pathname
+  const { saloonId: saloonParam } = useParams<{ saloonId: string }>();
+  const basePath = `/${saloonParam}/c`;
+
+  const activePage = (() => {
+    const suffix = location.pathname.slice(basePath.length).replace(/^\//, "");
+    return suffix || undefined;
+  })();
+
   return (
     <>
       <PreviewBanner
         handler={handler}
-        saloonId={String(saloon.id)}
+        saloonId={saloonId}
         onDesign={() => setShowDesign((v) => !v)}
         hasChanges={hasChanges}
         onPublished={() => setBaseTheme(theme)}
       />
       {showDesign && (
         <ThemePanel
-          saloonId={String(saloon.id)}
+          saloonId={saloonId}
           theme={theme}
           onChange={setTheme}
           onClose={() => setShowDesign(false)}
         />
       )}
-      <SaloonWebsite saloon={saloon} staff={staff} services={services} theme={theme} />
+      <SaloonWebsite
+        saloon={saloon} staff={staff} services={services} theme={theme}
+        activePage={activePage}
+        getPagePath={(page) => `/${saloonParam}/c/${page}`}
+        onNavigate={(page) => navigate(page ? `/${saloonParam}/c/${page}` : `/${saloonParam}/c`)}
+      />
+      <Outlet />
     </>
   );
 }

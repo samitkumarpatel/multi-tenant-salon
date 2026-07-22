@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, ChevronRight, Plus, ChevronDown } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { SERVICE_CATEGORIES, CATEGORY_LABEL, formatPrice, toggleList } from "~/lib/constants";
 import type { LayoutContext, StaffMember, ServiceItem, Country } from "~/lib/types";
-import { InfoBar } from "@saloon/ui-shared";
+import { InfoBar, Toast, useToast } from "@saloon/ui-shared";
 
 interface CurrencyOption { code: string; name: string; symbol: string; }
 
@@ -136,7 +136,7 @@ function AddServiceFlow({
   }
 
   const isCustomDuration = f.durationMinutes !== "" && !DURATION_PRESETS.includes(Number(f.durationMinutes));
-  const canSubmit = Boolean(f.name.trim() && f.price);
+  const canSubmit = Boolean(f.name.trim());
 
   if (step === 0) {
     return (
@@ -219,13 +219,13 @@ function AddServiceFlow({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className={fieldLabel}>Price <span className="text-red-500">*</span></label>
+          <label className={fieldLabel}>Price <span className="text-xs font-normal text-slate-400">(leave blank for pay as you go)</span></label>
           <input
             className={inputCls}
             type="number"
             min="0"
             step="0.01"
-            placeholder="0.00"
+            placeholder="Pay as you go"
             value={f.price}
             onChange={(e) => setF((p) => ({ ...p, price: e.target.value }))}
           />
@@ -313,11 +313,11 @@ function ServiceForm({ f, setF, staff, currencies }: {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div>
-          <label className={fieldLabel}>Price <span className="text-red-500">*</span></label>
+          <label className={fieldLabel}>Price</label>
           <input
             className={inputCls}
             type="number" min="0" step="0.01"
-            placeholder="0.00"
+            placeholder="Pay as you go"
             value={f.price}
             onChange={(e) => setF((p) => ({ ...p, price: e.target.value }))}
           />
@@ -357,8 +357,7 @@ export default function Services() {
   const currencies = currenciesFromCountries(countries);
   const [services, setServices] = useState<ServiceItem[]>(init);
   const [busy,     setBusy]     = useState(false);
-  const [toast,    setToast]    = useState<{ msg: string; type: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast, notify } = useToast();
   const [target, setTarget] = useState<ServiceItem | null>(null);
   const [modal,  setModal]  = useState({ add: false, edit: false, del: false });
 
@@ -378,12 +377,6 @@ export default function Services() {
 
   const sid = saloon.id;
 
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  }
-
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
   function openAdd() { setModal((m) => ({ ...m, add: true })); }
 
@@ -391,8 +384,10 @@ export default function Services() {
     setTarget(item);
     setEf({
       name: item.name, description: item.description ?? "",
-      price: String(item.price), currency: item.currency ?? detectedCurrency,
-      durationMinutes: String(item.durationMinutes), category: item.category,
+      price: item.price != null ? String(item.price) : "",
+      currency: item.currency ?? detectedCurrency,
+      durationMinutes: item.durationMinutes != null ? String(item.durationMinutes) : "30",
+      category: item.category,
       active: item.active, assignedStaffIds: [...(item.assignedStaffIds ?? [])],
     });
     setModal((m) => ({ ...m, edit: true }));
@@ -401,15 +396,17 @@ export default function Services() {
   function openDel(item: ServiceItem) { setTarget(item); setModal((m) => ({ ...m, del: true })); }
 
   async function submitAdd(fields: ServiceFormFields) {
-    if (!fields.name || !fields.price) return;
+    if (!fields.name) return;
     setBusy(true);
     try {
       const item = await apiFetch<ServiceItem>(`${ADMIN_API}/${sid}/services`, {
         method: "POST",
         body: JSON.stringify({
           name: fields.name, description: fields.description,
-          price: parseFloat(fields.price), currency: fields.currency,
-          durationMinutes: parseInt(fields.durationMinutes) || 30, category: fields.category,
+          price: fields.price ? parseFloat(fields.price) : null,
+          currency: fields.price ? fields.currency : null,
+          durationMinutes: parseInt(fields.durationMinutes) || null,
+          category: fields.category,
           assignedStaffIds: fields.assignedStaffIds,
         }),
       });
@@ -428,8 +425,10 @@ export default function Services() {
         method: "PUT",
         body: JSON.stringify({
           name: ef.name, description: ef.description,
-          price: parseFloat(ef.price), currency: ef.currency,
-          durationMinutes: parseInt(ef.durationMinutes) || 30, category: ef.category,
+          price: ef.price ? parseFloat(ef.price) : null,
+          currency: ef.price ? ef.currency : null,
+          durationMinutes: parseInt(ef.durationMinutes) || null,
+          category: ef.category,
           active: ef.active, assignedStaffIds: ef.assignedStaffIds,
         }),
       });
@@ -536,7 +535,7 @@ export default function Services() {
                     </span>
                     <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
                       <Clock className="w-2.5 h-2.5" />
-                      {sv.durationMinutes} min
+                      {sv.durationMinutes ?? 30} min
                     </span>
                     {sv.assignedStaffIds?.length ? (
                       <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
@@ -550,7 +549,7 @@ export default function Services() {
                   )}
                 </div>
                 <div className="shrink-0 text-right hidden sm:block">
-                  <span className="text-base font-extrabold text-matcha-600 tracking-tight">
+                  <span className={`font-extrabold tracking-tight ${sv.price != null ? "text-base text-matcha-600" : "text-base text-slate-400"}`}>
                     {formatPrice(sv.price, sv.currency)}
                   </span>
                 </div>
@@ -684,11 +683,7 @@ export default function Services() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
     </>
   );
 }

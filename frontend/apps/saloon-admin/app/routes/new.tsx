@@ -9,6 +9,7 @@ import HoursTable from "~/components/HoursTable";
 import TileGrid from "~/components/TileGrid";
 import CountrySelect from "~/components/CountrySelect";
 import PhoneInput from "~/components/PhoneInput";
+import { Toast, useToast } from "@saloon/ui-shared";
 
 export async function clientLoader() {
   let countries: Country[] = [];
@@ -337,9 +338,9 @@ export default function NewSaloon() {
   const [step,      setStep]      = useState(0);
   const [form,      setForm]      = useState<FormState>(emptyForm);
   const [errors,    setErrors]    = useState<Record<string, string>>({});
-  const [saving,             setSaving]             = useState(false);
-  const [saveError,          setSaveError]          = useState<string | null>(null);
-  const [created,            setCreated]            = useState<{ id: string; handler: string } | null>(null);
+  const [saving,   setSaving]   = useState(false);
+  const [created,  setCreated]  = useState<{ id: string; handler: string } | null>(null);
+  const { toast, notify }       = useToast();
   const [reuseOwnerContact,  setReuseOwnerContact]  = useState<boolean | null>(null);
   const [formShaking,        setFormShaking]        = useState(false);
 
@@ -406,11 +407,10 @@ export default function NewSaloon() {
     setStep((s) => s + 1);
   }
 
-  function goBack() { setErrors({}); setSaveError(null); setStep((s) => s - 1); }
-  function goTo(s: number) { if (s < step) { setErrors({}); setSaveError(null); setStep(s); } }
+  function goBack() { setErrors({}); setStep((s) => s - 1); }
+  function goTo(s: number) { if (s < step) { setErrors({}); setStep(s); } }
 
   async function handleCreate() {
-    setSaveError(null);
     setSaving(true);
     try {
       const result = await apiFetch<{ id: string; handler: string }>(SALOON_ONBOARDING_API, {
@@ -438,7 +438,7 @@ export default function NewSaloon() {
       });
       setCreated({ id: result.id, handler: result.handler });
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : "Failed to create saloon");
+      notify(e instanceof Error ? e.message : "Failed to create saloon", "error");
       setSaving(false);
     }
   }
@@ -672,12 +672,6 @@ export default function NewSaloon() {
 
             {/* Step content — keyed so it fades in on each transition */}
             <div key={step} className="px-6 py-5 animate-[fade-in_0.18s_ease]">
-              {saveError && (
-                <div className="mb-4 flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl animate-[fade-in_0.2s_ease]">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700 leading-snug">{saveError}</p>
-                </div>
-              )}
               {countriesError && [1, 2, 3].includes(step) && (
                 <div className="mb-4 flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl animate-[fade-in_0.2s_ease]">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
@@ -720,6 +714,8 @@ export default function NewSaloon() {
           </div>
         </div>
       </main>
+
+      <Toast toast={toast} />
     </div>
   );
 }

@@ -78,6 +78,11 @@ tags:
       no-show), and delete bookings.
   - name: AdminWebsite
     description: Admin website management — save/update the website theme and trigger publish.
+  - name: AdminClosures
+    description: |
+      Admin saloon-closure management — define date ranges when the entire saloon is closed.
+      When a closure covers the requested date, slot discovery returns an empty list and booking
+      creation returns HTTP 400. Use this for vacations, public holidays, or emergency shutdowns.
   - name: Utility
     description: Reference data — countries with embedded currency info. Loaded from static classpath resources.
 
@@ -245,6 +250,7 @@ paths:
         `true` means it is taken (existing non-cancelled booking) and should be shown
         grayed-out / non-selectable in the UI.
         Optionally filter to a single staff member via `staffId`.
+        Returns an **empty array** when the date falls within a saloon closure.
       operationId: getAvailableSlots
       parameters:
         - name: serviceId
@@ -289,6 +295,7 @@ paths:
       description: |
         Customer-facing. Books an available slot for a service. `staffId` is optional — the
         system auto-assigns the first available staff member if omitted.
+        Returns HTTP 400 when `appointmentDate` falls within a saloon closure.
         Emits **BookingCreatedEvent** → customer receives a booking confirmation notification.
       operationId: createBooking
       requestBody:
@@ -304,6 +311,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Booking"
+        "400":
+          description: Saloon is closed on the requested date (saloon closure)
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -985,6 +994,93 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ─── Customer — Closures (read-only) ─────────────────────────────────────────
+
+  /api/saloon/{saloonId}/closures:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [CustomerBooking]
+      summary: List saloon closures (customer)
+      description: >
+        Returns all closures defined for this saloon. The booking wizard uses this
+        to disable closed date ranges in all three calendar views.
+      operationId: listClosuresPublic
+      responses:
+        "200":
+          description: List of closures
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SaloonClosure"
+
+  # ─── Admin — Closures ────────────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/closures:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminClosures]
+      summary: List saloon closures (admin)
+      description: Returns all closures defined for this saloon, sorted by start date.
+      operationId: listClosures
+      responses:
+        "200":
+          description: List of closures
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SaloonClosure"
+
+    post:
+      tags: [AdminClosures]
+      summary: Add a saloon closure (admin)
+      description: |
+        Admin-only. Marks the saloon as closed for a date range. A single day can be closed
+        by setting `startDate` and `endDate` to the same value. Once saved, slot discovery
+        will return an empty list for any date within the closure, and booking creation will
+        return HTTP 400 for those dates.
+      operationId: addClosure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddClosureRequest"
+      responses:
+        "200":
+          description: Closure created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaloonClosure"
+
+  /api/saloon-admin/{saloonId}/closures/{closureId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - name: closureId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+        description: Closure ID
+
+    delete:
+      tags: [AdminClosures]
+      summary: Remove a saloon closure (admin)
+      description: Admin-only. Removes the closure so bookings can be taken for those dates again.
+      operationId: removeClosure
+      responses:
+        "204":
+          description: Closure removed
+
   # ─── Utility ──────────────────────────────────────────────────────────────────
 
   /api/saloon-utility/countries:
@@ -1059,6 +1155,45 @@ components:
       description: Resource not found
 
   schemas:
+
+    # ── Closure ──────────────────────────────────────────────────────────────
+
+    SaloonClosure:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        saloonId:
+          type: string
+          format: uuid
+        startDate:
+          type: string
+          format: date
+          example: "2026-08-01"
+        endDate:
+          type: string
+          format: date
+          example: "2026-08-14"
+        reason:
+          type: string
+          example: "Annual vacation"
+
+    AddClosureRequest:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: First day of the closure (inclusive)
+        endDate:
+          type: string
+          format: date
+          description: Last day of the closure (inclusive); use same value as startDate for a single day
+        reason:
+          type: string
+          description: Optional human-readable reason shown in the admin UI
 
     # ── Saloon ────────────────────────────────────────────────────────────────
 
@@ -1223,12 +1358,15 @@ components:
         description:
           type: string
         price:
-          type: number
+          type: ["number", "null"]
+          description: null for pay-as-you-go services
         currency:
-          type: string
+          type: ["string", "null"]
           example: USD
+          description: null when price is null
         durationMinutes:
-          type: integer
+          type: ["integer", "null"]
+          description: null for pay-as-you-go services; UI defaults to 30 min
         category:
           $ref: "#/components/schemas/ServiceCategory"
         active:
@@ -1251,11 +1389,14 @@ components:
         description:
           type: string
         price:
-          type: number
+          type: ["number", "null"]
+          description: Omit or send null for a pay-as-you-go service
         currency:
-          type: string
+          type: ["string", "null"]
+          description: ISO 4217; omit or send null when price is null
         durationMinutes:
-          type: integer
+          type: ["integer", "null"]
+          description: Omit or send null for pay-as-you-go; slot engine defaults to 30 min
         category:
           $ref: "#/components/schemas/ServiceCategory"
         assignedStaffIds:
@@ -1271,11 +1412,14 @@ components:
         description:
           type: string
         price:
-          type: number
+          type: ["number", "null"]
+          description: null for pay-as-you-go services
         currency:
-          type: string
+          type: ["string", "null"]
+          description: null when price is null
         durationMinutes:
-          type: integer
+          type: ["integer", "null"]
+          description: null for pay-as-you-go; UI defaults to 30 min
         category:
           $ref: "#/components/schemas/ServiceCategory"
         active:

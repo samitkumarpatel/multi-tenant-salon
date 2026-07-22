@@ -12,7 +12,13 @@ export default [
     route("website", "routes/website.tsx"),
     route("booking", "routes/booking.tsx"),
     route("help", "routes/help.tsx"),
-    route("c", "routes/saloon-page.tsx"),
+    route("c", "routes/saloon-page.tsx", [
+      index("routes/saloon-preview-empty.tsx"),
+      route("book", "routes/saloon-preview-empty.tsx"),
+      route("shop", "routes/saloon-preview-empty.tsx"),
+      route("membership", "routes/saloon-preview-empty.tsx"),
+      route("loyalty", "routes/saloon-preview-empty.tsx"),
+    ]),
   ]),
   route(":saloonId/book", "routes/book.tsx"),
 ] satisfies RouteConfig;
