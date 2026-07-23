@@ -1,16 +1,21 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useLoaderData, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { X, Palette, Check, Wand2, RotateCcw, Rocket } from "lucide-react";
 import {
-  SaloonWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
+  SaloonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
 } from "@saloon/ui-website";
 import type { WebsiteTheme, Saloon, StaffMember, ServiceItem } from "@saloon/ui-website";
 import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
 import { useEffect, useRef } from "react";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
+
+// Prevent re-fetching when navigating to sub-pages (book, shop…) within the same saloon preview
+export function shouldRevalidate({ currentParams, nextParams }: { currentParams: Record<string,string>; nextParams: Record<string,string> }) {
+  return currentParams.saloonId !== nextParams.saloonId;
+}
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.saloonId!;
@@ -406,12 +411,13 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
 
 export default function SaloonPreviewPage() {
   const { saloon, staff, services, theme: loaderTheme } = useLoaderData<typeof clientLoader>();
-  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const initialTheme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
   const [theme, setTheme]           = useState<WebsiteTheme>(initialTheme);
   const [baseTheme, setBaseTheme]   = useState<WebsiteTheme>(initialTheme);
-  const [showDesign, setShowDesign] = useState(() => searchParams.get("design") === "1");
+  const [showDesign, setShowDesign] = useState(true);
 
   const hasChanges = JSON.stringify(theme) !== JSON.stringify(baseTheme);
 
@@ -419,24 +425,44 @@ export default function SaloonPreviewPage() {
     (saloon as Saloon & { handler?: string }).handler ??
     saloon.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
+  const saloonId = String(saloon.id);
+  const { saloonId: saloonParam } = useParams<{ saloonId: string }>();
+
+  // Hash-based sub-page navigation keeps the admin preview URL stable at /:saloonId/website-preview
+  // so that <a href> links inside SaloonWebsite never trigger a React Router route change.
+  const activePage = location.hash ? location.hash.replace(/^#/, "") : undefined;
+
   return (
     <>
       <PreviewBanner
         handler={handler}
-        saloonId={String(saloon.id)}
+        saloonId={saloonId}
         onDesign={() => setShowDesign((v) => !v)}
         hasChanges={hasChanges}
         onPublished={() => setBaseTheme(theme)}
       />
       {showDesign && (
         <ThemePanel
-          saloonId={String(saloon.id)}
+          saloonId={saloonId}
           theme={theme}
           onChange={setTheme}
           onClose={() => setShowDesign(false)}
         />
       )}
-      <SaloonWebsite saloon={saloon} staff={staff} services={services} theme={theme} />
+      {theme.websiteType === "GENERATIVE_UI" ? (
+        <GenerativeUIWebsite
+          saloon={saloon} staff={staff} services={services} theme={theme}
+          getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+          onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+        />
+      ) : (
+        <SaloonWebsite
+          saloon={saloon} staff={staff} services={services} theme={theme}
+          activePage={activePage}
+          getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+          onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+        />
+      )}
     </>
   );
 }

@@ -1,4 +1,6 @@
-export { SaloonWebsite, SalonErrorPage } from "./SaloonWebsite";
+export { SaloonWebsite, SalonErrorPage, SaloonDisabledPage } from "./SaloonWebsite";
+export { GenerativeUIWebsite } from "./GenerativeUIWebsite";
+export type { GenerativeUIWebsiteProps } from "./GenerativeUIWebsite";
 export type { SaloonWebsiteProps } from "./SaloonWebsite";
 
 export { BookingWizard } from "./BookingWizard";
@@ -13,5 +15,6 @@ export type {
   Saloon, Owner, Location, ContactInfo, OperatingHours,
   StaffMember, ServiceItem, WebsiteTheme, WebsiteMode,
   Booking, BookingStatus, AvailableSlot, StaffAvailability, StaffAvailabilityOverride,
+  SaloonClosure,
   Country, Currency,
 } from "./types";

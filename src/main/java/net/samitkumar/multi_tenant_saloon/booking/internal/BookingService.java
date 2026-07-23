@@ -36,6 +36,7 @@ import java.util.UUID;
 class BookingService {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("H:mm");
+    private static final int DEFAULT_DURATION_MINUTES = 30;
 
     private final BookingRepository bookingRepo;
     private final StaffAvailabilityRepository availabilityRepo;
@@ -141,10 +142,14 @@ class BookingService {
     // ── Slot calculation ──────────────────────────────────────────────────────
 
     List<AvailableSlot> findAvailableSlots(UUID saloonId, Long serviceId, LocalDate date, Long requestedStaffId) {
+        if (saloonApi.isClosedOn(saloonId, date)) {
+            return List.of();
+        }
+
         var serviceItem = saloonServiceApi.findByIdAndSaloonId(serviceId, saloonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
 
-        int duration = serviceItem.durationMinutes();
+        int duration = serviceItem.durationMinutes() != null ? serviceItem.durationMinutes() : DEFAULT_DURATION_MINUTES;
 
         List<Long> staffCandidates;
         if (requestedStaffId != null) {
@@ -217,6 +222,11 @@ class BookingService {
                    String customerName, String customerEmail, String customerPhone,
                    LocalDate appointmentDate, LocalTime startTime, String notes) {
 
+        if (saloonApi.isClosedOn(saloonId, appointmentDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Saloon is closed on " + appointmentDate + " — no bookings can be made for this date");
+        }
+
         var serviceItem = saloonServiceApi.findByIdAndSaloonId(serviceId, saloonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
 
@@ -234,7 +244,7 @@ class BookingService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No available staff for requested slot"));
         }
 
-        LocalTime endTime = startTime.plusMinutes(serviceItem.durationMinutes());
+        LocalTime endTime = startTime.plusMinutes(serviceItem.durationMinutes() != null ? serviceItem.durationMinutes() : DEFAULT_DURATION_MINUTES);
 
         boolean conflict = bookingRepo.findActiveByStaffOnDate(saloonId, staffId, appointmentDate)
                 .stream().anyMatch(b -> startTime.isBefore(b.endTime()) && endTime.isAfter(b.startTime()));
@@ -276,7 +286,7 @@ class BookingService {
         return bookingRepo.findBySaloonIdAndId(saloonId, bookingId).map(existing -> {
             var serviceItem = saloonServiceApi.findByIdAndSaloonId(existing.serviceId(), saloonId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
-            LocalTime newEndTime = newStartTime.plusMinutes(serviceItem.durationMinutes());
+            LocalTime newEndTime = newStartTime.plusMinutes(serviceItem.durationMinutes() != null ? serviceItem.durationMinutes() : DEFAULT_DURATION_MINUTES);
             Long staffId = newStaffId != null ? newStaffId : existing.staffId();
 
             var updated = new Booking(existing.id(), existing.saloonId(), existing.serviceId(),

@@ -20,10 +20,10 @@ class SaloonServiceController {
     }
 
     record AddServiceRequest(String name, String description, BigDecimal price, String currency,
-                             int durationMinutes, ServiceCategory category, List<String> assignedStaffIds) {}
+                             Integer durationMinutes, ServiceCategory category, List<String> assignedStaffIds) {}
 
     record UpdateServiceRequest(String name, String description, BigDecimal price, String currency,
-                                int durationMinutes, ServiceCategory category, boolean active,
+                                Integer durationMinutes, ServiceCategory category, boolean active,
                                 List<String> assignedStaffIds) {}
 
     @GetMapping({"/api/saloon/{saloonId}/services", "/api/saloon-admin/{saloonId}/services"})

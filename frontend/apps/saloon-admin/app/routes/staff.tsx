@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle, Plus, ChevronDown } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
 } from "~/lib/constants";
 import type { Country, LayoutContext, OperatingHours, StaffMember } from "~/lib/types";
-import { InfoBar, TileGrid, PhoneInput } from "@saloon/ui-shared";
+import { InfoBar, TileGrid, PhoneInput, Toast, useToast } from "@saloon/ui-shared";
 
 const toHHMM = (t: string) => t.slice(0, 5);
 
@@ -22,8 +22,6 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   return { staff, countries };
 }
 
-// ── Shared styles ────────────────────────────────────────────────────────────
-
 const inputCls = "w-full px-3 py-2 border border-slate-200 rounded-md text-sm outline-none transition-[border-color,box-shadow] focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-slate-900 font-sans";
 const fieldLabel = "block text-sm font-medium text-slate-700 mb-1";
 
@@ -33,7 +31,15 @@ const STATUS_DOT: Record<string, string> = {
   ON_LEAVE: "bg-amber-500",
 };
 
-// ── Form field type ──────────────────────────────────────────────────────────
+// ── Onboarding constants ──────────────────────────────────────────────────────
+
+const ROLE_EMOJI: Record<string, string> = {
+  MANAGER: "👔", STYLIST: "✂️", COLORIST: "🎨",
+  MAKEUP_ARTIST: "💄", NAIL_TECHNICIAN: "💅",
+  RECEPTIONIST: "📋", ASSISTANT: "🤝",
+};
+
+// ── Form field type ───────────────────────────────────────────────────────────
 
 interface StaffFormFields {
   name: string;
@@ -398,11 +404,143 @@ function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: 
   );
 }
 
-// ── Sub-component at module level so React never remounts it on re-render ────
+// ── Add / onboarding flow ─────────────────────────────────────────────────────
 
-function StaffForm({
-  f, setF, countries, defaultCountry,
+function AddStaffFlow({
+  countries,
+  defaultCountry,
+  operatingHours,
+  onSubmit,
+  busy,
 }: {
+  countries: Country[];
+  defaultCountry?: string;
+  operatingHours?: OperatingHours[];
+  onSubmit: (fields: StaffFormFields, schedule: ScheduleEntry[]) => void;
+  busy: boolean;
+}) {
+  const [f, setF] = useState<StaffFormFields>({
+    name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null,
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [schedule, setSchedule] = useState<ScheduleEntry[]>(() => defaultSchedule(operatingHours));
+
+  const scheduleHasErrors = schedule.some((entry) => {
+    if (!entry.enabled) return false;
+    const oh = operatingHours?.find((h) => h.day === entry.dayOfWeek);
+    if (!oh || oh.closed) return false;
+    return toHHMM(entry.startTime) < toHHMM(oh.openTime) || toHHMM(entry.endTime) > toHHMM(oh.closeTime);
+  });
+
+  const canSubmit = Boolean(f.name.trim() && f.email.trim()) && !scheduleHasErrors;
+
+  return (
+    <div>
+      <div className="mb-5">
+        <label className={fieldLabel}>Full name <span className="text-red-500">*</span></label>
+        <input
+          autoFocus
+          className={inputCls}
+          placeholder="e.g. Anna Nguyen"
+          value={f.name}
+          onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
+        />
+      </div>
+
+      <div className="mb-5">
+        <label className={fieldLabel}>Role</label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {STAFF_ROLES.map((role) => (
+            <button
+              key={role}
+              type="button"
+              onClick={() => setF((p) => ({ ...p, role }))}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border cursor-pointer transition-all text-left ${
+                f.role === role
+                  ? "border-matcha-400 bg-matcha-50"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              <span className="text-base shrink-0 leading-none">{ROLE_EMOJI[role]}</span>
+              <span className={`text-xs font-semibold leading-tight ${f.role === role ? "text-matcha-700" : "text-slate-600"}`}>
+                {STAFF_ROLE_LABEL[role]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className={fieldLabel}>Email <span className="text-red-500">*</span></label>
+        <input
+          className={inputCls}
+          type="email"
+          placeholder="staff@saloon.com"
+          value={f.email}
+          onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowAdvanced(!showAdvanced)}
+        className="flex items-center gap-1 text-xs text-slate-400 hover:text-matcha-600 cursor-pointer transition-colors mb-3"
+      >
+        {showAdvanced ? <ChevronDown className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+        {showAdvanced ? "Hide advanced options" : "Phone, specializations & availability"}
+      </button>
+      {showAdvanced && (
+        <div className="mb-4 space-y-4">
+          <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} />
+          <div>
+            <label className={fieldLabel}>Phone</label>
+            <PhoneInput
+              value={f.phone}
+              onChange={(v) => setF((p) => ({ ...p, phone: v }))}
+              countries={countries}
+              defaultCountry={defaultCountry}
+            />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
+              Specializations
+            </div>
+            <TileGrid
+              options={SPECIALIZATION_OPTIONS}
+              labels={CATEGORY_LABEL}
+              selected={f.specializations}
+              onChange={(specs) => setF((p) => ({ ...p, specializations: specs }))}
+            />
+          </div>
+          <ScheduleEditor
+            schedule={schedule}
+            onChange={setSchedule}
+            operatingHours={operatingHours}
+            hint={
+              operatingHours?.some((h) => !h.closed)
+                ? "Pre-filled from your saloon's opening hours. Times are capped to saloon operating hours."
+                : undefined
+            }
+          />
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={!canSubmit || busy}
+        title={scheduleHasErrors ? "Fix schedule hours before saving" : undefined}
+        onClick={() => onSubmit(f, schedule)}
+        className="w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+      >
+        {busy ? "Adding…" : "Add Team Member →"}
+      </button>
+    </div>
+  );
+}
+
+// ── Edit form (full fields, photo, schedule not editable here) ────────────────
+
+function StaffForm({ f, setF, countries, defaultCountry }: {
   f: StaffFormFields;
   setF: React.Dispatch<React.SetStateAction<StaffFormFields>>;
   countries: Country[];
@@ -468,44 +606,28 @@ function StaffForm({
   );
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function Staff() {
   const { saloon } = useOutletContext<LayoutContext>();
   const { staff: init, countries } = useLoaderData<typeof clientLoader>();
   const [staff,  setStaff]  = useState<StaffMember[]>(init);
   const [busy,   setBusy]   = useState(false);
-  const [toast,  setToast]  = useState<{ msg: string; type: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast, notify } = useToast();
   const [target, setTarget] = useState<StaffMember | null>(null);
   const [modal,  setModal]  = useState({ add: false, edit: false, del: false });
 
   const sid = saloon.id;
+  const hasBooking = saloon.features?.includes("BOOKING") ?? false;
+  const [alertDismissed, setAlertDismissed] = useState(
+    () => Boolean(localStorage.getItem(`setup-alert-dismissed:staff:${saloon.id}`))
+  );
 
   const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null });
-  const [af, setAf] = useState<StaffFormFields>(blank);
-  const [addSchedule, setAddSchedule] = useState<ScheduleEntry[]>(defaultSchedule);
-
-  const addScheduleHasErrors = addSchedule.some((entry) => {
-    if (!entry.enabled) return false;
-    const oh = saloon.operatingHours?.find((h) => h.day === entry.dayOfWeek);
-    if (!oh || oh.closed) return false;
-    return toHHMM(entry.startTime) < toHHMM(oh.openTime) || toHHMM(entry.endTime) > toHHMM(oh.closeTime);
-  });
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
 
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  }
-
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
-  function openAdd() {
-    setAf(blank());
-    setAddSchedule(defaultSchedule(saloon.operatingHours));
-    setModal((m) => ({ ...m, add: true }));
-  }
+  function openAdd() { setModal((m) => ({ ...m, add: true })); }
 
   function openEdit(m: StaffMember) {
     setTarget(m);
@@ -514,27 +636,27 @@ export default function Staff() {
       role: m.role, status: m.status,
       availableForBooking: m.availableForBooking ?? true,
       specializations: [...(m.specializations ?? [])],
-      photo: null,
+      photo: m.photoUrl ?? null,
     });
     setModal((p) => ({ ...p, edit: true }));
   }
 
   function openDel(m: StaffMember) { setTarget(m); setModal((p) => ({ ...p, del: true })); }
 
-  async function submitAdd() {
-    if (!af.name || !af.email) return;
+  async function submitAdd(fields: StaffFormFields, schedule: ScheduleEntry[]) {
+    if (!fields.name || !fields.email) return;
     setBusy(true);
     try {
-      const schedule = addSchedule
+      const sched = schedule
         .filter((e) => e.enabled)
         .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
       const member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff`, {
         method: "POST",
-        body: JSON.stringify({ name: af.name, email: af.email, phone: af.phone, role: af.role, specializations: af.specializations, schedule }),
+        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, photoUrl: fields.photo, schedule: sched }),
       });
       setStaff((p) => [member, ...p]);
       closeModal("add");
-      notify(`${member.name} onboarded!`);
+      notify(`${member.name} added!`);
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
     finally { setBusy(false); }
   }
@@ -545,7 +667,7 @@ export default function Staff() {
     try {
       const updated = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${target.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations }),
+        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl: ef.photo }),
       });
       setStaff((p) => p.map((m) => m.id === updated.id ? updated : m));
       closeModal("edit");
@@ -577,99 +699,135 @@ export default function Staff() {
         </InfoBar>
       </div>
 
-      {staff.length > 0 && (
-        <p className="text-sm text-slate-500 font-medium mb-4">
-          {staff.length} staff member{staff.length !== 1 ? "s" : ""}
-        </p>
-      )}
-
-      {!staff.length ? (
-        <div className="text-center py-20 px-8">
-          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-            <UserCircle className="w-6 h-6 text-slate-400" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-500 mb-1">No staff yet</h3>
-          <p className="text-xs text-slate-400 mb-6">Onboard the first staff member to get started.</p>
+      {/* ── Setup alert (booking enabled, insufficient staff, not dismissed) */}
+      {staff.length <= 1 && hasBooking && !alertDismissed && (
+        <div className="mb-4 flex items-center gap-2.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          </span>
+          <span className="flex-1 leading-snug">
+            {staff.length === 0
+              ? "Add a team member — booking needs someone to assign appointments to."
+              : "Add at least one more team member so appointments can be assigned to your staff."}
+          </span>
           <button
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
-            onClick={openAdd}
+            type="button"
+            onClick={() => {
+              localStorage.setItem(`setup-alert-dismissed:staff:${saloon.id}`, "1");
+              setAlertDismissed(true);
+            }}
+            className="shrink-0 text-amber-400 hover:text-amber-700 transition-colors cursor-pointer"
+            title="Ignore"
           >
-            Onboard Staff
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
-      ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
-          {staff.map((m) => (
-            <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
-
-              <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status] ?? "bg-slate-300"}`} />
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-slate-900 truncate">{m.name}</span>
-                  {m.isOwner && (
-                    <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
-                      <Crown className="w-2.5 h-2.5" /> Owner
-                    </span>
-                  )}
-                  <span className="text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wide shrink-0">
-                    {STAFF_ROLE_LABEL[m.role] ?? m.role}
-                  </span>
-                  <span className="text-[0.62rem] text-slate-400 shrink-0">
-                    {STAFF_STATUS_LABEL[m.status] ?? m.status}
-                  </span>
-                  {m.availableForBooking === false && (
-                    <span className="inline-flex items-center gap-0.5 text-[0.62rem] text-slate-400 shrink-0">
-                      <CalendarOff className="w-2.5 h-2.5" /> Not bookable
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-slate-400 mt-0.5 truncate">
-                  {m.email}{m.phone ? ` · ${m.phone}` : ""}
-                </div>
-                {m.specializations?.length ? (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {m.specializations.map((s) => (
-                      <span key={s} className="text-[0.6rem] font-semibold bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded-full border border-slate-200">
-                        {CATEGORY_LABEL[s] ?? s}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
-                  onClick={() => openEdit(m)}
-                >
-                  <Pencil className="w-3 h-3" /> Edit
-                </button>
-                {!m.isOwner && (
-                  <button
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
-                    onClick={() => openDel(m)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
-            </div>
-          ))}
-          <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
-            <button
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
-              onClick={openAdd}
-            >
-              Onboard Staff
-            </button>
-          </div>
-        </div>
       )}
 
-      {/* Add / Onboard modal */}
+      {/* ── Empty state: inline onboarding ──────────────────────────────── */}
+      {!staff.length ? (
+        <div className="max-w-xl mx-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                <UserCircle className="w-5 h-5 text-violet-500" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-800">Who's on your team?</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Add the first team member to get started.</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <AddStaffFlow
+                countries={countries}
+                defaultCountry={saloon.location?.country}
+                operatingHours={saloon.operatingHours}
+                onSubmit={submitAdd}
+                busy={busy}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-slate-500 font-medium mb-4">
+            {staff.length} staff member{staff.length !== 1 ? "s" : ""}
+          </p>
+
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
+            {staff.map((m) => (
+              <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
+
+                <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status] ?? "bg-slate-300"}`} />
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-slate-900 truncate">{m.name}</span>
+                    {m.isOwner && (
+                      <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
+                        <Crown className="w-2.5 h-2.5" /> Owner
+                      </span>
+                    )}
+                    <span className="text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wide shrink-0">
+                      {STAFF_ROLE_LABEL[m.role] ?? m.role}
+                    </span>
+                    <span className="text-[0.62rem] text-slate-400 shrink-0">
+                      {STAFF_STATUS_LABEL[m.status] ?? m.status}
+                    </span>
+                    {m.availableForBooking === false && (
+                      <span className="inline-flex items-center gap-0.5 text-[0.62rem] text-slate-400 shrink-0">
+                        <CalendarOff className="w-2.5 h-2.5" /> Not bookable
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5 truncate">
+                    {m.email}{m.phone ? ` · ${m.phone}` : ""}
+                  </div>
+                  {m.specializations?.length ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.specializations.map((s) => (
+                        <span key={s} className="text-[0.6rem] font-semibold bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded-full border border-slate-200">
+                          {CATEGORY_LABEL[s] ?? s}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+                    onClick={() => openEdit(m)}
+                  >
+                    <Pencil className="w-3 h-3" /> Edit
+                  </button>
+                  {!m.isOwner && (
+                    <button
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
+                      onClick={() => openDel(m)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
+              </div>
+            ))}
+            <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
+              <button
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
+                onClick={openAdd}
+              >
+                Add Team Member
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Add modal (same flow) ────────────────────────────────────────── */}
       {modal.add && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -677,45 +835,23 @@ export default function Staff() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Onboard Staff</span>
+              <span className="text-base font-bold text-slate-900">Add Team Member</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("add")}>
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <StaffForm f={af} setF={setAf} countries={countries} defaultCountry={saloon.location?.country} />
-            <div className="mt-5">
-              <ScheduleEditor
-                schedule={addSchedule}
-                onChange={setAddSchedule}
-                operatingHours={saloon.operatingHours}
-                hint={
-                  saloon.operatingHours?.some((h) => !h.closed)
-                    ? "Pre-filled from your saloon's opening hours. Times are capped to saloon operating hours."
-                    : undefined
-                }
-              />
-            </div>
-            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-              <button
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
-                onClick={() => closeModal("add")}
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-                disabled={busy || !af.name || !af.email || addScheduleHasErrors}
-                title={addScheduleHasErrors ? "Fix schedule hours to match saloon operating hours before saving" : undefined}
-                onClick={submitAdd}
-              >
-                {busy ? "Saving…" : "Onboard"}
-              </button>
-            </div>
+            <AddStaffFlow
+              countries={countries}
+              defaultCountry={saloon.location?.country}
+              operatingHours={saloon.operatingHours}
+              onSubmit={submitAdd}
+              busy={busy}
+            />
           </div>
         </div>
       )}
 
-      {/* Edit modal */}
+      {/* ── Edit modal ───────────────────────────────────────────────────── */}
       {modal.edit && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -774,7 +910,7 @@ export default function Staff() {
         </div>
       )}
 
-      {/* Delete modal */}
+      {/* ── Delete modal ─────────────────────────────────────────────────── */}
       {modal.del && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -809,11 +945,7 @@ export default function Staff() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
     </>
   );
 }
