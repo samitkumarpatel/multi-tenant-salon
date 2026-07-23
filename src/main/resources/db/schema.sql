@@ -137,3 +137,11 @@ ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFA
 ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS available_for_booking BOOLEAN NOT NULL DEFAULT TRUE;
 
 ALTER TABLE saloon ADD COLUMN IF NOT EXISTS booking_advance_days INTEGER NOT NULL DEFAULT 60;
+
+CREATE TABLE IF NOT EXISTS saloon_closure (
+  id          BIGSERIAL    PRIMARY KEY,
+  saloon_id   UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  start_date  DATE         NOT NULL,
+  end_date    DATE         NOT NULL,
+  reason      VARCHAR(255)
+);

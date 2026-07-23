@@ -1,33 +1,63 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation, useRevalidator } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles } from "lucide-react";
-import { AppLogo } from "@saloon/ui-shared";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, Mail, KeyRound, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks } from "lucide-react";
+import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
+import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
 import type { Saloon, LayoutContext, WebsiteMode } from "~/lib/types";
 
 export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
   const saloonId = params.saloonId!;
-  const isPreview = new URL(request.url).pathname.endsWith("/c");
+  const isPreview = new URL(request.url).pathname.endsWith("/website-preview");
 
   if (isPreview) {
     // single endpoint handles both UUID and handler
     const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
     cacheSaloonUUID(saloonId, String(saloon.id));
-    return { saloon, saloonId };
+    return { saloon, saloonId, pendingServices: false, pendingStaff: false, pendingWebsite: false };
   }
 
   const authed = Boolean(sessionStorage.getItem(`saloon-auth:${saloonId}`));
   if (!authed) {
-    return { saloon: null, saloonId };
+    return { saloon: null, saloonId, pendingServices: false, pendingStaff: false, pendingWebsite: false };
   }
 
   // single endpoint handles both UUID and handler
   const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
   cacheSaloonUUID(saloonId, String(saloon.id));
-  return { saloon, saloonId };
+
+  let pendingServices = false;
+  let pendingStaff = false;
+  let pendingWebsite = false;
+
+  const fetchTasks: Promise<void>[] = [];
+
+  if (saloon.features?.includes("BOOKING")) {
+    fetchTasks.push(
+      Promise.all([
+        apiFetch<{ id: number }[]>(`${ADMIN_API}/${saloon.id}/staff`).catch(() => [] as { id: number }[]),
+        apiFetch<{ id: number }[]>(`${ADMIN_API}/${saloon.id}/services`).catch(() => [] as { id: number }[]),
+      ]).then(([staffList, serviceList]) => {
+        pendingServices = serviceList.length <= 1; // default "Pay as you go" is seeded on create, so require at least 2
+        pendingStaff = staffList.length <= 1;
+      })
+    );
+  }
+
+  if (saloon.features?.includes("STATIC_WEBSITE")) {
+    fetchTasks.push(
+      apiFetch<{ websiteType: string | null }>(`${ADMIN_API}/${saloon.id}/website`)
+        .then((d) => { pendingWebsite = d.websiteType == null; })
+        .catch(() => { pendingWebsite = true; })
+    );
+  }
+
+  await Promise.all(fetchTasks);
+
+  return { saloon, saloonId, pendingServices, pendingStaff, pendingWebsite };
 }
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -244,7 +274,7 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
 export function ErrorBoundary() {
   const error    = useRouteError();
   const { pathname } = useLocation();
-  const isPublic = pathname.endsWith("/c");
+  const isPublic = pathname.endsWith("/website-preview");
 
   const is404 =
     isRouteErrorResponse(error)
@@ -296,7 +326,7 @@ export function ErrorBoundary() {
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { saloon: loaderSaloon, saloonId } = useLoaderData<typeof clientLoader>();
+  const { saloon: loaderSaloon, saloonId, pendingServices, pendingStaff, pendingWebsite } = useLoaderData<typeof clientLoader>();
   const navigate   = useNavigate();
   const revalidator = useRevalidator();
   const [saloon, setSaloon]             = useState<Saloon | null>(loaderSaloon);
@@ -304,6 +334,7 @@ export default function Layout() {
   const [deleting, setDeleting]         = useState(false);
   const [deleteError, setDeleteError]   = useState<string | null>(null);
   const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(null);
+  const { toast, notify } = useToast();
 
   useEffect(() => { setSaloon(loaderSaloon); }, [loaderSaloon]);
 
@@ -323,16 +354,28 @@ export default function Layout() {
       apiFetch(`${ADMIN_API}/${saloon!.id}/website-type`, {
         method: "PATCH",
         body: JSON.stringify({ websiteType: m }),
-      }).catch(() => {});
+      }).catch((e) => notify(e instanceof Error ? e.message : "Failed to update website type", "error"));
     }
   }
 
-  const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode };
-  const isPreview = Boolean(useMatch("/:saloonId/c"));
+  const ctx: LayoutContext = { saloon: saloon!, setSaloon: (s) => setSaloon(s), websiteMode, setWebsiteMode, pendingServices, pendingStaff, pendingWebsite };
+  const isPreview = Boolean(useMatch("/:saloonId/website-preview"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [websiteCoachSeen, setWebsiteCoachSeen] = useState(
     () => Boolean(saloon && localStorage.getItem(`website-style-hint-seen:${saloon.id}`))
   );
+
+  // After login, if setup is incomplete redirect straight to the setup page.
+  // The ref is set in onSuccess (before revalidation) so the effect fires once
+  // saloon data is available post-revalidation.
+  const redirectToSetupRef = useRef(false);
+  useEffect(() => {
+    if (!saloon || isPreview || !redirectToSetupRef.current) return;
+    redirectToSetupRef.current = false;
+    if (pendingServices || pendingStaff || pendingWebsite) {
+      navigate(`/${saloonId}/setup`);
+    }
+  }, [saloon?.id]);
 
   function markWebsiteCoachSeen() {
     if (saloon) localStorage.setItem(`website-style-hint-seen:${saloon.id}`, "1");
@@ -362,6 +405,7 @@ export default function Layout() {
         saloonId={saloonId}
         onSuccess={() => {
           sessionStorage.setItem(`saloon-auth:${saloonId}`, "1");
+          redirectToSetupRef.current = true;
           revalidator.revalidate();
         }}
       />
@@ -413,13 +457,15 @@ export default function Layout() {
         <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{saloon.name}</span>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
+          <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3 h-3" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </Tooltip>
         </div>
       </header>
 
@@ -461,21 +507,53 @@ export default function Layout() {
               Manage
             </p>
 
-            <NavLink to="" end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <LayoutDashboard className="w-4 h-4 shrink-0" /> Overview
-            </NavLink>
+            {(pendingServices || pendingStaff || pendingWebsite) && (
+              <Tooltip content="Finish your onboarding checklist to prepare for your first customer.">
+                <NavLink to="setup" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                  <ListChecks className="w-4 h-4 shrink-0" /> Get started
+                  <span className="ml-auto relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  </span>
+                </NavLink>
+              </Tooltip>
+            )}
 
-            <NavLink to="edit" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <Pencil className="w-4 h-4 shrink-0" /> Edit Saloon
-            </NavLink>
+            <Tooltip content="A read-only snapshot of your saloon — identity, location, hours, and active features.">
+              <NavLink to="" end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <LayoutDashboard className="w-4 h-4 shrink-0" /> Overview
+              </NavLink>
+            </Tooltip>
 
-            <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <Briefcase className="w-4 h-4 shrink-0" /> Services
-            </NavLink>
+            <Tooltip content="Update your saloon's name, location, contact info, operating hours, and enabled features.">
+              <NavLink to="edit" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <Pencil className="w-4 h-4 shrink-0" /> Edit Saloon
+              </NavLink>
+            </Tooltip>
 
-            <NavLink to="staff" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <Users className="w-4 h-4 shrink-0" /> Staff
-            </NavLink>
+            <Tooltip content="Build your booking menu — add treatments, set pricing, duration, and assign staff.">
+              <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <Briefcase className="w-4 h-4 shrink-0" /> Saloon Services
+                {pendingServices && (
+                  <span className="ml-auto relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  </span>
+                )}
+              </NavLink>
+            </Tooltip>
+
+            <Tooltip content="Add team members, set their roles and specializations, and control booking availability.">
+              <NavLink to="staff" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <Users className="w-4 h-4 shrink-0" /> Staff
+                {pendingStaff && (
+                  <span className="ml-auto relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  </span>
+                )}
+              </NavLink>
+            </Tooltip>
 
             {FEATURE_NAV.some((f) => saloon.features?.includes(f.key)) && (
               <>
@@ -485,23 +563,25 @@ export default function Layout() {
                 {FEATURE_NAV.filter((f) => saloon.features?.includes(f.key)).map((f) =>
                   f.route ? (
                     <React.Fragment key={f.key}>
-                      <NavLink
-                        to={f.route}
-                        className={sideNavClass}
-                        onClick={() => {
-                          setSidebarOpen(false);
-                          if (f.key === "STATIC_WEBSITE") markWebsiteCoachSeen();
-                        }}
-                      >
-                        <f.icon className="w-4 h-4 shrink-0" />
-                        {f.label}
-                        {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
-                          <span className="ml-auto relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-                          </span>
-                        )}
-                      </NavLink>
+                      <Tooltip content={f.hint}>
+                        <NavLink
+                          to={f.route}
+                          className={sideNavClass}
+                          onClick={() => {
+                            setSidebarOpen(false);
+                            if (f.key === "STATIC_WEBSITE") markWebsiteCoachSeen();
+                          }}
+                        >
+                          <f.icon className="w-4 h-4 shrink-0" />
+                          {f.label}
+                          {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
+                            <span className="ml-auto relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                            </span>
+                          )}
+                        </NavLink>
+                      </Tooltip>
                       {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
                         <div className="mx-3 mt-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
                           <div className="flex items-center justify-between mb-1">
@@ -523,11 +603,13 @@ export default function Layout() {
                       )}
                     </React.Fragment>
                   ) : (
-                    <span key={f.key} className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-300 cursor-default select-none">
-                      <f.icon className="w-4 h-4 shrink-0" />
-                      <span className="text-sm font-medium">{f.label}</span>
-                      <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">Soon</span>
-                    </span>
+                    <Tooltip key={f.key} content={`${f.hint} Coming soon.`}>
+                      <span className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-300 cursor-default select-none">
+                        <f.icon className="w-4 h-4 shrink-0" />
+                        <span className="text-sm font-medium">{f.label}</span>
+                        <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">Soon</span>
+                      </span>
+                    </Tooltip>
                   )
                 )}
               </>
@@ -535,15 +617,19 @@ export default function Layout() {
           </nav>
 
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
-            <NavLink to="help" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support
-            </NavLink>
-            <button
-              onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
-              className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
-            >
-              <Trash2 className="w-4 h-4 shrink-0" /> Delete saloon
-            </button>
+            <Tooltip content="Find documentation, FAQs, and ways to get in touch with support.">
+              <NavLink to="help" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support
+              </NavLink>
+            </Tooltip>
+            <Tooltip content="Permanently remove this saloon and all its data. This action cannot be undone.">
+              <button
+                onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" /> Delete saloon
+              </button>
+            </Tooltip>
           </div>
         </aside>
 
@@ -599,6 +685,8 @@ export default function Layout() {
           </div>
         </div>
       )}
+
+      <Toast toast={toast} />
     </div>
   );
 }

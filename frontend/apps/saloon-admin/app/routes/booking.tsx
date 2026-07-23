@@ -4,15 +4,17 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Settings, Filter, List,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff,
 } from "lucide-react";
 import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import type {
   LayoutContext, StaffMember, ServiceItem, Booking, BookingStatus,
-  StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours,
+  StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours, SaloonClosure,
 } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
+import { Tooltip } from "~/components/Tooltip";
+import { Toast, useToast } from "@saloon/ui-shared";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSaloonUUID(params.saloonId!);
@@ -92,6 +94,30 @@ const BLOCK_COLOR: Record<BookingStatus, string> = {
   COMPLETED: "bg-green-50  border-l-green-500  text-green-900",
   NO_SHOW:   "bg-red-50    border-l-red-400    text-red-900",
 };
+
+const STATUS_DOT: Record<BookingStatus, string> = {
+  PENDING:   "bg-amber-400",
+  CONFIRMED: "bg-blue-500",
+  CANCELLED: "bg-slate-300",
+  COMPLETED: "bg-green-500",
+  NO_SHOW:   "bg-red-400",
+};
+
+// 12-color palette for per-stylist identification (week/month views)
+const STAFF_COLORS = [
+  "#6366f1", // indigo
+  "#ec4899", // pink
+  "#0d9488", // teal
+  "#d97706", // amber
+  "#7c3aed", // violet
+  "#dc2626", // red
+  "#0284c7", // sky
+  "#059669", // emerald
+  "#ea580c", // orange
+  "#65a30d", // lime
+  "#db2777", // fuchsia
+  "#0891b2", // cyan
+] as const;
 
 const JS_DOW = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"] as const;
 const WEEK_ORDER = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
@@ -248,37 +274,49 @@ function BookingRow({
         {!isPast && booking.status !== "CANCELLED" && booking.status !== "COMPLETED" && booking.status !== "NO_SHOW" && (
           <>
             {booking.status === "PENDING" && (
-              <button onClick={() => onAction(booking.id, "confirm")}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer transition-colors">
-                <Check className="w-3 h-3" /> Confirm
-              </button>
+              <Tooltip content="Confirm this appointment and notify the customer" side="top">
+                <button onClick={() => onAction(booking.id, "confirm")}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer transition-colors">
+                  <Check className="w-3 h-3" /> Confirm
+                </button>
+              </Tooltip>
             )}
             {booking.status === "CONFIRMED" && (
               <>
-                <button onClick={() => onAction(booking.id, "complete")}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-green-600 text-white hover:bg-green-700 cursor-pointer transition-colors">
-                  <CheckCircle className="w-3 h-3" /> Done
-                </button>
-                <button onClick={() => onAction(booking.id, "no-show")} title="No-show"
-                  className="p-1.5 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 cursor-pointer transition-colors">
-                  <AlertCircle className="w-3 h-3" />
-                </button>
+                <Tooltip content="Mark this appointment as completed" side="top">
+                  <button onClick={() => onAction(booking.id, "complete")}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-green-600 text-white hover:bg-green-700 cursor-pointer transition-colors">
+                    <CheckCircle className="w-3 h-3" /> Done
+                  </button>
+                </Tooltip>
+                <Tooltip content="Customer didn't show up for their appointment" side="top">
+                  <button onClick={() => onAction(booking.id, "no-show")}
+                    className="p-1.5 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 cursor-pointer transition-colors">
+                    <AlertCircle className="w-3 h-3" />
+                  </button>
+                </Tooltip>
               </>
             )}
-            <button onClick={() => onReschedule(booking)} title="Reschedule"
-              className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer transition-colors">
-              <RefreshCw className="w-3 h-3" />
-            </button>
-            <button onClick={() => onAction(booking.id, "cancel")} title="Cancel"
-              className="p-1.5 rounded-md border border-red-200 text-red-500 hover:bg-red-50 cursor-pointer transition-colors">
-              <Ban className="w-3 h-3" />
-            </button>
+            <Tooltip content="Move this booking to a different date or time" side="top">
+              <button onClick={() => onReschedule(booking)}
+                className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer transition-colors">
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Cancel this booking" side="top">
+              <button onClick={() => onAction(booking.id, "cancel")}
+                className="p-1.5 rounded-md border border-red-200 text-red-500 hover:bg-red-50 cursor-pointer transition-colors">
+                <Ban className="w-3 h-3" />
+              </button>
+            </Tooltip>
           </>
         )}
-        <button onClick={() => onDelete(booking)} title="Delete"
-          className="p-1.5 rounded-md text-slate-300 hover:text-red-500 cursor-pointer transition-colors">
-          <Trash2 className="w-3 h-3" />
-        </button>
+        <Tooltip content="Permanently delete this booking record" side="top">
+          <button onClick={() => onDelete(booking)}
+            className="p-1.5 rounded-md text-slate-300 hover:text-red-500 cursor-pointer transition-colors">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -409,10 +447,428 @@ function TimelineGrid({
   );
 }
 
-// ── Bookings panel (calendar + list views with stats + filters) ───────────────
+// ── Overlap lane assignment (week view) ───────────────────────────────────────
+
+type LanedBooking = { booking: Booking; lane: number; totalLanes: number };
+
+function assignLanes(bookings: Booking[]): LanedBooking[] {
+  const sorted = [...bookings].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const laneEnds: string[] = [];
+  const result: LanedBooking[] = [];
+  for (const b of sorted) {
+    let lane = laneEnds.findIndex((end) => b.startTime >= end);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(""); }
+    laneEnds[lane] = b.endTime;
+    result.push({ booking: b, lane, totalLanes: 0 });
+  }
+  for (let i = 0; i < result.length; i++) {
+    const { booking: b, lane } = result[i];
+    let max = lane;
+    for (const other of result) {
+      if (other.booking.startTime < b.endTime && other.booking.endTime > b.startTime) {
+        max = Math.max(max, other.lane);
+      }
+    }
+    result[i].totalLanes = max + 1;
+  }
+  return result;
+}
+
+// ── Week timeline grid ────────────────────────────────────────────────────────
+
+const DOW_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function WeekTimelineGrid({
+  weekDates, allBookings, calStart, calEnd, calHours,
+  todayStr, serviceMap, staffMap, staffColorMap, filterStaffId, operatingHours, gridRef, maxHeight, onSelect,
+}: {
+  weekDates: string[];
+  allBookings: Booking[];
+  calStart: number;
+  calEnd: number;
+  calHours: number[];
+  todayStr: string;
+  serviceMap: Map<number, ServiceItem>;
+  staffMap: Map<number, StaffMember>;
+  staffColorMap: Map<number, string>;
+  filterStaffId: number;
+  operatingHours?: OperatingHours[];
+  gridRef: React.RefObject<HTMLDivElement | null>;
+  maxHeight: number | undefined;
+  onSelect: (b: Booking) => void;
+}) {
+  const [hover, setHover] = useState<{ booking: Booking; x: number; y: number } | null>(null);
+  const totalH = (calEnd - calStart) * HOUR_H;
+  const now = new Date();
+  const nowY = ((now.getHours() - calStart) * 60 + now.getMinutes()) * (HOUR_H / 60);
+  const showNow = now.getHours() >= calStart && now.getHours() < calEnd;
+
+  function initials(name: string) {
+    return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  }
+
+  return (
+    <>
+      {/* ── Day header row ── */}
+      <div className="flex border-b border-slate-200 bg-white z-10 sticky top-0">
+        <div className="w-14 shrink-0 border-r border-slate-100 py-2" />
+        {weekDates.map((dateStr) => {
+          const d = new Date(dateStr + "T12:00:00");
+          const isToday = dateStr === todayStr;
+          const oh = getDayOh(dateStr, operatingHours);
+          const isClosed = oh?.closed ?? false;
+          const count = allBookings.filter((b) => b.appointmentDate === dateStr).length;
+          return (
+            <div key={dateStr} className={`flex-1 min-w-[90px] px-2 py-2 border-r border-slate-100 last:border-r-0 text-center ${isToday ? "bg-matcha-50" : ""}`}>
+              <p className={`text-[9px] font-semibold uppercase tracking-wider ${isToday ? "text-matcha-600" : isClosed ? "text-slate-300" : "text-slate-400"}`}>
+                {DOW_ABBR[d.getDay()]}
+              </p>
+              <p className={`text-sm font-bold ${isToday ? "text-matcha-700" : isClosed ? "text-slate-300" : "text-slate-700"}`}>
+                {d.getDate()}
+              </p>
+              {count > 0 && (
+                <p className={`text-[9px] font-semibold ${isToday ? "text-matcha-500" : "text-slate-400"}`}>{count} appt</p>
+              )}
+              {isClosed && <p className="text-[9px] text-slate-300">Closed</p>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Time grid ── */}
+      <div ref={gridRef} className="overflow-y-auto overflow-x-auto"
+        style={maxHeight !== undefined ? { maxHeight } : { height: "100%" }}>
+        <div className="flex" style={{ height: totalH }}>
+          {/* Time axis */}
+          <div className="w-14 shrink-0 border-r border-slate-100 relative select-none">
+            {calHours.map((h) => (
+              <div key={h} style={{ height: HOUR_H }} className="border-b border-slate-100" />
+            ))}
+            {calHours.map((h) => (
+              <span key={h} className="absolute right-2 text-[9px] font-medium text-slate-400 leading-none"
+                style={{ top: (h - calStart) * HOUR_H + 4 }}>{fmtHour(h)}</span>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          {weekDates.map((dateStr) => {
+            const dayBkgs = allBookings.filter((b) => b.appointmentDate === dateStr);
+            const oh = getDayOh(dateStr, operatingHours);
+            const isClosed = oh?.closed ?? false;
+            const isToday = dateStr === todayStr;
+            const openY  = oh && !oh.closed ? Math.max(0, timeToY(oh.openTime, calStart)) : null;
+            const closeY = oh && !oh.closed ? Math.min(totalH, timeToY(oh.closeTime, calStart)) : null;
+            const laned  = assignLanes(dayBkgs);
+            return (
+              <div key={dateStr} className={`flex-1 min-w-[90px] border-r border-slate-100 last:border-r-0 relative ${isToday ? "bg-matcha-50/30" : ""}`}>
+                {calHours.map((h) => (
+                  <div key={h} style={{ height: HOUR_H }} className="border-b border-slate-100" />
+                ))}
+                {isClosed && (
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: "repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(148,163,184,0.08) 8px, rgba(148,163,184,0.08) 16px)" }} />
+                )}
+                {openY !== null && openY > 0 && (
+                  <div className="absolute inset-x-0 top-0 bg-slate-100/60 border-b border-slate-200/60 pointer-events-none" style={{ height: openY }} />
+                )}
+                {closeY !== null && closeY < totalH && (
+                  <div className="absolute inset-x-0 bg-slate-100/60 border-t border-slate-200/60 pointer-events-none" style={{ top: closeY, bottom: 0 }} />
+                )}
+                {isToday && showNow && (
+                  <div className="absolute inset-x-0 pointer-events-none z-10 flex items-center" style={{ top: nowY }}>
+                    <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 -ml-1" />
+                    <div className="flex-1 h-px bg-red-400" />
+                  </div>
+                )}
+
+                {/* Booking blocks */}
+                {laned.map(({ booking: b, lane, totalLanes }) => {
+                  const top        = timeToY(b.startTime, calStart);
+                  const height     = slotHeight(b.startTime, b.endTime);
+                  const W          = 100 / totalLanes;
+                  const left       = (lane / totalLanes) * 100;
+                  const svc        = serviceMap.get(b.serviceId);
+                  const member     = staffMap.get(b.staffId);
+                  const staffColor = staffColorMap.get(b.staffId);
+                  const isFiltered = filterStaffId !== 0 && b.staffId !== filterStaffId;
+
+                  return (
+                    <button key={b.id}
+                      onMouseEnter={(e) => !isFiltered && setHover({ booking: b, x: e.clientX, y: e.clientY })}
+                      onMouseMove={(e) => !isFiltered && setHover((h) => h ? { ...h, x: e.clientX, y: e.clientY } : null)}
+                      onMouseLeave={() => setHover(null)}
+                      onClick={() => { if (isFiltered) return; setHover(null); onSelect(b); }}
+                      style={{
+                        top, height, position: "absolute",
+                        left: `calc(${left}% + 2px)`, width: `calc(${W}% - 4px)`,
+                        borderLeftColor: staffColor,
+                        opacity: isFiltered ? 0.12 : 1,
+                        transition: "opacity 0.18s ease, transform 0.1s ease, box-shadow 0.1s ease",
+                      }}
+                      className={`rounded border-l-2 text-left overflow-hidden cursor-pointer shadow-sm ${
+                        isFiltered ? "pointer-events-none" : "hover:shadow-md hover:scale-[1.01] hover:z-10"
+                      } ${BLOCK_COLOR[b.status]}`}>
+
+                      {/* Ultra-slim (< 22px): single-line name */}
+                      {height < 22 && (
+                        <p className="px-1.5 text-[8px] font-bold leading-none truncate" style={{ lineHeight: `${height}px` }}>
+                          {b.customerName}
+                        </p>
+                      )}
+
+                      {/* Compact (22–42px): status dot + name */}
+                      {height >= 22 && height < 42 && (
+                        <div className="px-1.5 py-1 flex items-center gap-1 min-w-0">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[b.status]}`} />
+                          <p className="text-[9px] font-bold leading-tight truncate">{b.customerName}</p>
+                        </div>
+                      )}
+
+                      {/* Medium (42–62px): time + name + service */}
+                      {height >= 42 && height < 62 && (
+                        <div className="px-1.5 py-1 space-y-0.5">
+                          <p className="text-[8px] font-semibold opacity-55 leading-none tabular-nums">{fmt12(b.startTime)}</p>
+                          <p className="text-[9px] font-bold leading-tight truncate">{b.customerName}</p>
+                          {svc && <p className="text-[8px] leading-tight truncate opacity-65">{svc.name}</p>}
+                        </div>
+                      )}
+
+                      {/* Tall (62–88px): time range + name + service + staff first name */}
+                      {height >= 62 && height < 88 && (
+                        <div className="px-1.5 py-1.5 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 opacity-45 shrink-0" />
+                            <span className="text-[8px] font-semibold opacity-60 tabular-nums">
+                              {fmt12(b.startTime)} – {fmt12(b.endTime)}
+                            </span>
+                          </div>
+                          <p className="text-[9px] font-bold leading-tight truncate">{b.customerName}</p>
+                          {svc && <p className="text-[8px] leading-tight truncate opacity-65">{svc.name}</p>}
+                          {member && (
+                            <p className="text-[8px] opacity-50 leading-tight truncate">{member.name.split(" ")[0]}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Full (≥ 88px): everything including staff avatar */}
+                      {height >= 88 && (
+                        <div className="px-1.5 py-1.5 space-y-1 h-full flex flex-col">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 opacity-45 shrink-0" />
+                            <span className="text-[8px] font-semibold opacity-60 tabular-nums">
+                              {fmt12(b.startTime)} – {fmt12(b.endTime)}
+                            </span>
+                          </div>
+                          <p className="text-[9px] font-bold leading-snug">{b.customerName}</p>
+                          {svc && (
+                            <p className="text-[8px] leading-tight opacity-70 truncate">{svc.name}</p>
+                          )}
+                          {member && (
+                            <div className="flex items-center gap-1 mt-auto pt-1">
+                              <div className="w-4 h-4 rounded-full bg-white/50 flex items-center justify-center shrink-0 ring-1 ring-black/10">
+                                <span className="text-[7px] font-black leading-none">{initials(member.name)}</span>
+                              </div>
+                              <span className="text-[8px] opacity-60 truncate">{member.name.split(" ")[0]}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Hover detail card (fixed, pointer-events-none) ── */}
+      {hover && (() => {
+        const b      = hover.booking;
+        const svc    = serviceMap.get(b.serviceId);
+        const member = staffMap.get(b.staffId);
+        const vw     = typeof window !== "undefined" ? window.innerWidth  : 1200;
+        const vh     = typeof window !== "undefined" ? window.innerHeight : 900;
+        const cardW  = 230;
+        const x = Math.min(hover.x + 16, vw - cardW - 8);
+        const y = Math.max(8, Math.min(hover.y - 24, vh - 280));
+        const hoverStaffColor = staffColorMap.get(b.staffId) ?? "#94a3b8";
+        return (
+          <div style={{ position: "fixed", left: x, top: y, zIndex: 9999, width: cardW, pointerEvents: "none" }}
+            className="bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden">
+            {/* Staff color accent strip */}
+            <div className="h-1.5 w-full" style={{ backgroundColor: hoverStaffColor }} />
+            <div className="p-3 space-y-2.5">
+
+              {/* Status + time */}
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-[0.6rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${STATUS_COLOR[b.status]}`}>
+                  {STATUS_LABEL[b.status]}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                  {fmt12(b.startTime)} – {fmt12(b.endTime)}
+                </span>
+              </div>
+
+              {/* Customer */}
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900 leading-tight truncate">{b.customerName}</p>
+                {b.customerEmail && (
+                  <p className="text-[10px] text-slate-400 truncate mt-0.5">{b.customerEmail}</p>
+                )}
+                {b.customerPhone && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">{b.customerPhone}</p>
+                )}
+              </div>
+
+              {/* Service */}
+              {svc && (
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-700 truncate">{svc.name}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{svc.durationMinutes} min · {formatPrice(svc.price, svc.currency)}</p>
+                </div>
+              )}
+
+              {/* Staff */}
+              {member && (
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm"
+                    style={{ backgroundColor: hoverStaffColor }}>
+                    <span className="text-[9px] font-black text-white">{initials(member.name)}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 leading-none truncate">{member.name}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {b.notes && (
+                <p className="text-[10px] text-slate-400 italic border-t border-slate-100 pt-2 leading-relaxed">{b.notes}</p>
+              )}
+            </div>
+
+            {/* Footer hint */}
+            <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100">
+              <p className="text-[9px] text-slate-400">Click to manage this booking</p>
+            </div>
+          </div>
+        );
+      })()}
+    </>
+  );
+}
+
+// ── Month grid ────────────────────────────────────────────────────────────────
+
+function MonthGrid({
+  allBookings, viewDate, todayStr, maxHeight, staffColorMap, filterStaffId, onSelectDate,
+}: {
+  allBookings: Booking[];
+  viewDate: string;
+  todayStr: string;
+  maxHeight: number | undefined;
+  staffColorMap: Map<number, string>;
+  filterStaffId: number;
+  onSelectDate: (d: string) => void;
+}) {
+  const d = new Date(viewDate + "T12:00:00");
+  const year  = d.getFullYear();
+  const month = d.getMonth();
+  const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
+  const daysInMth = new Date(year, month + 1, 0).getDate();
+
+  const cells: string[] = [];
+  for (let i = firstDow - 1; i >= 0; i--) {
+    cells.push(new Date(year, month, -i).toISOString().split("T")[0]);
+  }
+  for (let day = 1; day <= daysInMth; day++) {
+    cells.push(new Date(year, month, day).toISOString().split("T")[0]);
+  }
+  const tail = (7 - (cells.length % 7)) % 7;
+  for (let i = 1; i <= tail; i++) {
+    cells.push(new Date(year, month + 1, i).toISOString().split("T")[0]);
+  }
+
+  const byDate = new Map<string, Booking[]>();
+  for (const b of allBookings) {
+    if (!byDate.has(b.appointmentDate)) byDate.set(b.appointmentDate, []);
+    byDate.get(b.appointmentDate)!.push(b);
+  }
+
+  const weeks: string[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  const DAY_HDR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  return (
+    <div className="overflow-y-auto" style={maxHeight !== undefined ? { maxHeight } : {}}>
+      <div className="grid grid-cols-7 border-b border-slate-200 sticky top-0 bg-white z-10">
+        {DAY_HDR.map((h) => (
+          <div key={h} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400">{h}</div>
+        ))}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {weeks.map((week, wi) => (
+          <div key={wi} className="grid grid-cols-7 divide-x divide-slate-100" style={{ minHeight: 88 }}>
+            {week.map((dateStr) => {
+              const isCurrentMonth = new Date(dateStr + "T12:00:00").getMonth() === month;
+              const isToday    = dateStr === todayStr;
+              const isSelected = dateStr === viewDate;
+              const bkgs       = byDate.get(dateStr) ?? [];
+              const visible    = bkgs.slice(0, 3);
+              const extra      = bkgs.length - 3;
+              return (
+                <button key={dateStr} onClick={() => onSelectDate(dateStr)}
+                  className={`p-1.5 text-left transition-colors cursor-pointer ${
+                    isCurrentMonth ? "bg-white hover:bg-slate-50" : "bg-slate-50/40 hover:bg-slate-100/50"
+                  } ${isToday ? "ring-1 ring-inset ring-matcha-400" : ""}`}>
+                  <span className={`text-xs font-bold inline-flex w-6 h-6 items-center justify-center rounded-full ${
+                    isToday ? "bg-matcha-600 text-white"
+                      : isSelected ? "bg-slate-200 text-slate-800"
+                      : isCurrentMonth ? "text-slate-700" : "text-slate-300"
+                  }`}>
+                    {new Date(dateStr + "T12:00:00").getDate()}
+                  </span>
+                  <div className="mt-0.5 space-y-0.5">
+                    {visible.map((b) => {
+                      const staffColor = staffColorMap.get(b.staffId);
+                      const isFiltered = filterStaffId !== 0 && b.staffId !== filterStaffId;
+                      return (
+                        <div key={b.id}
+                          className={`text-[8px] font-medium pl-1.5 pr-1 py-0.5 rounded-r border-l-2 truncate leading-tight ${
+                            b.status === "CONFIRMED" ? "bg-blue-100 text-blue-800"
+                              : b.status === "PENDING"   ? "bg-amber-100 text-amber-800"
+                              : b.status === "COMPLETED" ? "bg-green-100 text-green-800"
+                              : b.status === "CANCELLED" ? "bg-slate-100 text-slate-400"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                          style={{
+                            borderLeftColor: staffColor ?? "transparent",
+                            opacity: isFiltered ? 0.15 : 1,
+                            transition: "opacity 0.18s ease",
+                          }}>
+                          {fmt12(b.startTime)} {b.customerName}
+                        </div>
+                      );
+                    })}
+                    {extra > 0 && <p className="text-[8px] text-slate-400 pl-1">+{extra} more</p>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Bookings panel (day / week / month / list views with stats + filters) ──────
 
 function BookingsPanel({
-  bookings: allBookings, staffMap, serviceMap, staff, operatingHours, onAction, onReschedule, onDelete,
+  bookings: allBookings, staffMap, serviceMap, staff, operatingHours, onAction, onReschedule, onDelete, onRefresh,
 }: {
   bookings: Booking[];
   staffMap: Map<number, StaffMember>;
@@ -422,14 +878,17 @@ function BookingsPanel({
   onAction: (id: number, action: string) => void;
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
+  onRefresh: () => Promise<void>;
 }) {
   const todayStr = new Date().toISOString().split("T")[0];
   const [viewDate, setViewDate]         = useState(todayStr);
-  const [viewMode, setViewMode]         = useState<"calendar" | "list">("calendar");
-  const [filterStatus, setFilterStatus] = useState<BookingStatus | "ALL">("ALL");
-  const [filterStaff, setFilterStaff]   = useState<number>(0);
-  const [selected, setSelected]         = useState<Booking | null>(null);
-  const [expanded, setExpanded]         = useState(false);
+  const [viewMode, setViewMode]         = useState<"day" | "week" | "month" | "list">("day");
+  const [filterStatus, setFilterStatus]     = useState<BookingStatus | "ALL">("ALL");
+  const [filterStaff, setFilterStaff]       = useState<number>(0);
+  const [filterStaffWeek, setFilterStaffWeek] = useState<number>(0); // 0 = all (week/month views)
+  const [selected, setSelected]             = useState<Booking | null>(null);
+  const [expanded, setExpanded]             = useState(false);
+  const [refreshing, setRefreshing]         = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const { calStart, calEnd } = deriveCalBounds(operatingHours);
@@ -437,15 +896,38 @@ function BookingsPanel({
   const dayOh      = getDayOh(viewDate, operatingHours);
   const dayIsClosed = dayOh?.closed ?? false;
 
-  const isToday     = viewDate === todayStr;
-  const activeStaff = staff.filter((s) => s.status === "ACTIVE");
-  const dayBookings = allBookings.filter((b) => b.appointmentDate === viewDate);
+  const isToday      = viewDate === todayStr;
+  const activeStaff  = staff.filter((s) => s.status === "ACTIVE");
+  const dayBookings  = allBookings.filter((b) => b.appointmentDate === viewDate);
+  const staffColorMap = new Map(activeStaff.map((s, i) => [s.id, STAFF_COLORS[i % STAFF_COLORS.length]]));
+
+  // Week dates (Mon–Sun) containing viewDate
+  const weekDates = (() => {
+    const vd   = new Date(viewDate + "T12:00:00");
+    const vDow = (vd.getDay() + 6) % 7;
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(vd);
+      d.setDate(vd.getDate() - vDow + i);
+      return d.toISOString().split("T")[0];
+    });
+  })();
+
+  const monthStr       = viewDate.slice(0, 7); // "YYYY-MM"
+  const weekInclToday  = weekDates.includes(todayStr);
+  const monthInclToday = todayStr.startsWith(monthStr);
+
+  // Bookings for the active period (for stats)
+  const periodBookings = viewMode === "day" || viewMode === "list"
+    ? dayBookings
+    : viewMode === "week"
+      ? allBookings.filter((b) => weekDates.includes(b.appointmentDate))
+      : allBookings.filter((b) => b.appointmentDate.startsWith(monthStr));
 
   const counts = {
-    total:     dayBookings.length,
-    pending:   dayBookings.filter((b) => b.status === "PENDING").length,
-    confirmed: dayBookings.filter((b) => b.status === "CONFIRMED").length,
-    completed: dayBookings.filter((b) => b.status === "COMPLETED").length,
+    total:     periodBookings.length,
+    pending:   periodBookings.filter((b) => b.status === "PENDING").length,
+    confirmed: periodBookings.filter((b) => b.status === "CONFIRMED").length,
+    completed: periodBookings.filter((b) => b.status === "COMPLETED").length,
   };
 
   const listBookings = dayBookings
@@ -458,19 +940,36 @@ function BookingsPanel({
   const showNow = isToday && now.getHours() >= calStart && now.getHours() < calEnd;
 
   useEffect(() => {
-    if (!gridRef.current || viewMode !== "calendar") return;
-    gridRef.current.scrollTop = isToday ? Math.max(0, nowY - 120) : 0;
+    if (!gridRef.current || viewMode === "list" || viewMode === "month") return;
+    const todayVisible = viewMode === "day" ? isToday : weekInclToday;
+    gridRef.current.scrollTop = todayVisible ? Math.max(0, nowY - 120) : 0;
   }, [viewDate, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function goDay(offset: number) {
+  function go(offset: number) {
     const d = new Date(viewDate + "T12:00:00");
-    d.setDate(d.getDate() + offset);
+    if (viewMode === "week") {
+      d.setDate(d.getDate() + offset * 7);
+    } else if (viewMode === "month") {
+      d.setMonth(d.getMonth() + offset, 1);
+    } else {
+      d.setDate(d.getDate() + offset);
+    }
     setViewDate(d.toISOString().split("T")[0]);
   }
 
   const formattedDate = new Date(viewDate + "T12:00:00").toLocaleDateString("en-GB", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
+  const weekLabel = [
+    new Date(weekDates[0] + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    "–",
+    new Date(weekDates[6] + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+  ].join(" ");
+  const monthLabel = new Date(viewDate + "T12:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const periodLabel = viewMode === "week" ? weekLabel : viewMode === "month" ? monthLabel : formattedDate;
+
+  const showTodayBtn = viewMode === "day" ? !isToday : viewMode === "week" ? !weekInclToday : !monthInclToday;
+  const canExpand    = viewMode !== "list";
 
   const STAT_CARDS = [
     { label: "Appointments", value: counts.total,     colorCls: "text-slate-700", status: "ALL"       as const },
@@ -478,6 +977,183 @@ function BookingsPanel({
     { label: "Confirmed",    value: counts.confirmed, colorCls: "text-blue-600",  status: "CONFIRMED" as const },
     { label: "Completed",    value: counts.completed, colorCls: "text-green-600", status: "COMPLETED" as const },
   ] as const;
+
+  // Shared nav bar — includes view toggle so both inline and expanded share one row
+  function NavBar({ onClose }: { onClose?: () => void }) {
+    const VIEW_TABS = [
+      { mode: "day"   as const, icon: <CalendarCheck className="w-3.5 h-3.5" />, label: "Day"   },
+      { mode: "week"  as const, icon: <CalendarDays  className="w-3.5 h-3.5" />, label: "Week"  },
+      { mode: "month" as const, icon: <LayoutGrid    className="w-3.5 h-3.5" />, label: "Month" },
+      { mode: "list"  as const, icon: <List          className="w-3.5 h-3.5" />, label: "List"  },
+    ];
+    return (
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Prev / Next */}
+        <Tooltip content={`Previous ${viewMode}`} side="bottom">
+          <button onClick={() => go(-1)}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </Tooltip>
+        <Tooltip content={`Next ${viewMode}`} side="bottom">
+          <button onClick={() => go(1)}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </Tooltip>
+
+        {/* Period label */}
+        <span className="text-sm font-semibold text-slate-800 truncate min-w-0">{periodLabel}</span>
+
+        <span className="flex-1" />
+
+        {/* View switcher */}
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0">
+          {VIEW_TABS.map(({ mode, icon, label }, i) => {
+            const VIEW_HINTS: Record<string, string> = {
+              day:   "Single-day timeline split by staff member",
+              week:  "7-day overview with all bookings across the week",
+              month: "Full month grid — click a day to drill into it",
+              list:  "Flat list of appointments for the selected day with filters",
+            };
+            return (
+              <Tooltip key={mode} content={VIEW_HINTS[mode]} side="bottom">
+                <button onClick={() => setViewMode(mode)}
+                  className={`px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                    i > 0 ? "border-l border-slate-200" : ""
+                  } ${viewMode === mode ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+                  {icon}
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              </Tooltip>
+            );
+          })}
+        </div>
+
+        {/* Refresh */}
+        <Tooltip content="Reload the latest bookings from the server" side="bottom">
+          <button
+            onClick={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }}
+            disabled={refreshing}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0 disabled:opacity-50">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </Tooltip>
+
+        {/* Expand / Collapse */}
+        {onClose ? (
+          <Tooltip content="Collapse back to the page" side="bottom">
+            <button onClick={onClose}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
+              <Minimize2 className="w-4 h-4" />
+            </button>
+          </Tooltip>
+        ) : (
+          canExpand && (
+            <Tooltip content="Expand the calendar to full screen" side="bottom">
+              <button onClick={() => setExpanded(true)}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          )
+        )}
+      </div>
+    );
+  }
+
+  function ViewContent({ forExpanded }: { forExpanded: boolean }) {
+    const mh = forExpanded ? undefined : 520;
+    if (viewMode === "day") {
+      if (activeStaff.length === 0) {
+        return <div className="text-center py-20 text-slate-400 text-sm">No active staff — onboard staff first.</div>;
+      }
+      return (
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <TimelineGrid
+              activeStaff={activeStaff} dayBookings={dayBookings}
+              calStart={calStart} calEnd={calEnd} calHours={calHours}
+              showNow={showNow} nowY={nowY} serviceMap={serviceMap}
+              gridRef={gridRef} maxHeight={mh} onSelect={setSelected}
+              dayOh={dayOh}
+            />
+          </div>
+          {dayBookings.length === 0 && (
+            <p className="text-center text-xs text-slate-400">
+              No appointments {isToday ? "today" : `on ${formattedDate}`}.
+            </p>
+          )}
+        </>
+      );
+    }
+    // Staff filter pill bar shared by week + month
+    const staffPills = activeStaff.length > 1 ? (
+      <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-0.5 shrink-0">Stylist</span>
+        <button
+          onClick={() => setFilterStaffWeek(0)}
+          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer ${
+            filterStaffWeek === 0
+              ? "bg-slate-800 text-white border-slate-800"
+              : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+          }`}>
+          All
+        </button>
+        {activeStaff.map((s) => {
+          const color   = staffColorMap.get(s.id)!;
+          const isActive = filterStaffWeek === s.id;
+          return (
+            <button key={s.id}
+              onClick={() => setFilterStaffWeek(filterStaffWeek === s.id ? 0 : s.id)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer"
+              style={{
+                borderColor: color,
+                color: isActive ? "#fff" : color,
+                backgroundColor: isActive ? color : `${color}18`,
+              }}>
+              <span className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: isActive ? "rgba(255,255,255,0.75)" : color }} />
+              {s.name.split(" ")[0]}
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
+
+    if (viewMode === "week") {
+      return (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {staffPills}
+          <WeekTimelineGrid
+            weekDates={weekDates} allBookings={allBookings}
+            calStart={calStart} calEnd={calEnd} calHours={calHours}
+            todayStr={todayStr} serviceMap={serviceMap} staffMap={staffMap}
+            staffColorMap={staffColorMap} filterStaffId={filterStaffWeek}
+            operatingHours={operatingHours}
+            gridRef={gridRef} maxHeight={mh} onSelect={setSelected}
+          />
+        </div>
+      );
+    }
+    if (viewMode === "month") {
+      return (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {staffPills}
+          <MonthGrid
+            allBookings={allBookings} viewDate={viewDate} todayStr={todayStr}
+            maxHeight={mh} staffColorMap={staffColorMap} filterStaffId={filterStaffWeek}
+            onSelectDate={(d) => {
+              setViewDate(d);
+              setViewMode("day");
+              if (forExpanded) setExpanded(false);
+            }}
+          />
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-4">
@@ -499,65 +1175,13 @@ function BookingsPanel({
         })}
       </div>
 
-      {/* ── Date nav + view toggle ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button onClick={() => goDay(-1)}
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button onClick={() => goDay(1)}
-          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors">
-          <ChevronRight className="w-4 h-4" />
-        </button>
-        <span className="text-sm font-semibold text-slate-800 truncate">{formattedDate}</span>
-        {dayIsClosed ? (
-          <span className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 shrink-0">
-            Closed
-          </span>
-        ) : dayOh ? (
-          <span className="text-[10px] font-medium text-matcha-700 px-2 py-0.5 rounded-full bg-matcha-50 border border-matcha-100 shrink-0">
-            {fmt12(dayOh.openTime)} – {fmt12(dayOh.closeTime)}
-          </span>
-        ) : null}
-        <span className="flex-1" />
-        {!isToday && (
-          <button onClick={() => setViewDate(todayStr)}
-            className="px-3 py-1 text-xs font-medium rounded-md bg-matcha-600 text-white hover:bg-matcha-700 cursor-pointer transition-colors shrink-0">
-            Today
-          </button>
-        )}
-        <input type="date" value={viewDate}
-          onChange={(e) => e.target.value && setViewDate(e.target.value)}
-          className="border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 outline-none focus:border-matcha-500 cursor-pointer shrink-0" />
-        <div className="flex rounded-md border border-slate-200 overflow-hidden shrink-0">
-          <button onClick={() => setViewMode("calendar")} title="Timeline view"
-            className={`px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-              viewMode === "calendar" ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
-            }`}>
-            <CalendarCheck className="w-3.5 h-3.5" /> Timeline
-          </button>
-          <button onClick={() => setViewMode("list")} title="List view"
-            className={`px-2.5 py-1.5 text-xs font-medium border-l border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              viewMode === "list" ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
-            }`}>
-            <List className="w-3.5 h-3.5" /> List
-          </button>
-        </div>
-        {viewMode === "calendar" && (
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            title="Expand to full page"
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+      {/* ── Single toolbar: nav + view switcher ── */}
+      <NavBar />
 
-      {/* ── Week strip ── */}
-      {operatingHours && operatingHours.length > 0 && (() => {
+      {/* ── Week strip (day mode only) ── */}
+      {viewMode === "day" && operatingHours && operatingHours.length > 0 && (() => {
         const vd   = new Date(viewDate + "T12:00:00");
-        const vDow = (vd.getDay() + 6) % 7; // Mon=0 … Sun=6
+        const vDow = (vd.getDay() + 6) % 7;
         const monday = new Date(vd);
         monday.setDate(vd.getDate() - vDow);
         return (
@@ -566,26 +1190,37 @@ function BookingsPanel({
               const oh = operatingHours.find((h) => h.day === dayName);
               const target = new Date(monday);
               target.setDate(monday.getDate() + i);
-              const targetStr = target.toISOString().split("T")[0];
+              const targetStr  = target.toISOString().split("T")[0];
               const isSelected = targetStr === viewDate;
+              const isToday    = targetStr === todayStr;
               return (
                 <button key={dayName} onClick={() => setViewDate(targetStr)}
                   title={oh?.closed ? `${DAY_SHORT[dayName]} – Closed` : `${DAY_SHORT[dayName]} ${fmt12(oh?.openTime ?? "00:00")} – ${fmt12(oh?.closeTime ?? "00:00")}`}
                   className={`flex flex-col items-center py-1 px-1.5 rounded-lg cursor-pointer transition-all min-w-[34px] ${
-                    isSelected
-                      ? "bg-slate-800 text-white"
-                      : oh?.closed
-                        ? "text-slate-300 hover:bg-slate-50"
-                        : "text-slate-600 hover:bg-slate-100"
+                    isSelected && isToday
+                      ? "bg-matcha-600 text-white"
+                      : isSelected
+                        ? "bg-slate-800 text-white"
+                        : isToday
+                          ? "ring-1 ring-matcha-500 text-matcha-700"
+                          : oh?.closed
+                            ? "text-slate-300 hover:bg-slate-50"
+                            : "text-slate-600 hover:bg-slate-100"
                   }`}>
-                  <span className={`text-[9px] font-semibold uppercase tracking-wide ${isSelected ? "text-white/70" : oh?.closed ? "text-slate-300" : "text-slate-400"}`}>
+                  <span className={`text-[9px] font-semibold uppercase tracking-wide ${
+                    isSelected ? "text-white/70" : isToday ? "text-matcha-500" : oh?.closed ? "text-slate-300" : "text-slate-400"
+                  }`}>
                     {DAY_SHORT[dayName]}
                   </span>
-                  <span className={`text-xs font-bold mt-0.5 ${isSelected ? "text-white" : oh?.closed ? "text-slate-300" : "text-slate-700"}`}>
+                  <span className={`text-xs font-bold mt-0.5 ${
+                    isSelected ? "text-white" : isToday ? "text-matcha-700" : oh?.closed ? "text-slate-300" : "text-slate-700"
+                  }`}>
                     {target.getDate()}
                   </span>
                   {!oh?.closed && (
-                    <div className={`w-1 h-1 rounded-full mt-0.5 ${isSelected ? "bg-white/60" : "bg-matcha-500"}`} />
+                    <div className={`w-1 h-1 rounded-full mt-0.5 ${
+                      isSelected ? "bg-white/60" : isToday ? "bg-matcha-500" : "bg-matcha-400/50"
+                    }`} />
                   )}
                 </button>
               );
@@ -594,78 +1229,11 @@ function BookingsPanel({
         );
       })()}
 
-      {/* ── Timeline (calendar) view ── */}
-      {viewMode === "calendar" && (
-        activeStaff.length === 0 ? (
-          <div className="text-center py-20 text-slate-400 text-sm">No active staff — onboard staff first.</div>
-        ) : (
-          <>
-            {!expanded && (
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <TimelineGrid
-                  activeStaff={activeStaff} dayBookings={dayBookings}
-                  calStart={calStart} calEnd={calEnd} calHours={calHours}
-                  showNow={showNow} nowY={nowY} serviceMap={serviceMap}
-                  gridRef={gridRef} maxHeight={520} onSelect={setSelected}
-                  dayOh={dayOh}
-                />
-              </div>
-            )}
-
-            {expanded && (
-              <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm p-5 flex items-stretch">
-                <div className="flex-1 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-                  <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white shrink-0 flex-wrap rounded-t-2xl">
-                    <button onClick={() => goDay(-1)} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors">
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => goDay(1)} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors">
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                    <span className="text-sm font-semibold text-slate-800 truncate">{formattedDate}</span>
-                    {dayIsClosed ? (
-                      <span className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 shrink-0">
-                        Closed
-                      </span>
-                    ) : dayOh ? (
-                      <span className="text-[10px] font-medium text-matcha-700 px-2 py-0.5 rounded-full bg-matcha-50 border border-matcha-100 shrink-0">
-                        {fmt12(dayOh.openTime)} – {fmt12(dayOh.closeTime)}
-                      </span>
-                    ) : null}
-                    <span className="flex-1" />
-                    {!isToday && (
-                      <button onClick={() => setViewDate(todayStr)} className="px-3 py-1 text-xs font-medium rounded-md bg-matcha-600 text-white hover:bg-matcha-700 cursor-pointer transition-colors shrink-0">
-                        Today
-                      </button>
-                    )}
-                    <input type="date" value={viewDate}
-                      onChange={(e) => e.target.value && setViewDate(e.target.value)}
-                      className="border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 outline-none focus:border-matcha-500 cursor-pointer shrink-0" />
-                    <button onClick={() => setExpanded(false)} title="Collapse"
-                      className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
-                      <Minimize2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <TimelineGrid
-                      activeStaff={activeStaff} dayBookings={dayBookings}
-                      calStart={calStart} calEnd={calEnd} calHours={calHours}
-                      showNow={showNow} nowY={nowY} serviceMap={serviceMap}
-                      gridRef={gridRef} maxHeight={undefined} onSelect={setSelected}
-                      dayOh={dayOh}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {dayBookings.length === 0 && !expanded && (
-              <p className="text-center text-xs text-slate-400">
-                No appointments {isToday ? "today" : `on ${formattedDate}`}.
-              </p>
-            )}
-          </>
-        )
+      {/* ── Day / Week / Month views ── */}
+      {viewMode !== "list" && !expanded && (
+        <div className="space-y-2">
+          <ViewContent forExpanded={false} />
+        </div>
       )}
 
       {/* ── List view ── */}
@@ -715,6 +1283,20 @@ function BookingsPanel({
         </div>
       )}
 
+      {/* ── Fullscreen expanded overlay ── */}
+      {expanded && canExpand && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm p-5 flex items-stretch">
+          <div className="flex-1 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-200 bg-white shrink-0 rounded-t-2xl">
+              <NavBar onClose={() => setExpanded(false)} />
+            </div>
+            <div className="flex-1 overflow-hidden p-4 flex flex-col gap-3">
+              <ViewContent forExpanded={true} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {selected && (
         <BookingDetailModal
           booking={selected} staffMap={staffMap} serviceMap={serviceMap}
@@ -740,18 +1322,11 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
   const [schedule, setSchedule] = useState<StaffAvailability[]>(DEFAULT_SCHEDULE);
   const [overrides, setOverrides] = useState<StaffAvailabilityOverride[]>([]);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+  const { toast, notify } = useToast();
   const [addOverride, setAddOverride] = useState(false);
   const [overrideForm, setOverrideForm] = useState({
     overrideDate: "", startTime: "09:00", endTime: "17:00", available: true, reason: "",
   });
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  }
 
   useEffect(() => {
     if (!selectedStaff) return;
@@ -766,10 +1341,10 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
           }));
         }
       })
-      .catch(() => setSchedule(DEFAULT_SCHEDULE));
+      .catch((e) => { setSchedule(DEFAULT_SCHEDULE); notify(e instanceof Error ? e.message : "Failed to load schedule", "error"); });
     apiFetch<StaffAvailabilityOverride[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides`)
       .then(setOverrides)
-      .catch(() => setOverrides([]));
+      .catch((e) => { setOverrides([]); notify(e instanceof Error ? e.message : "Failed to load overrides", "error"); });
   }, [selectedStaff, saloonId]);
 
   function toggleDay(day: string) {
@@ -929,11 +1504,12 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
           })}
         </div>
         <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
-          <button onClick={saveSchedule} disabled={saving || scheduleHasErrors}
-            title={scheduleHasErrors ? "Fix hours that exceed saloon operating hours before saving" : undefined}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
-            {saving ? "Saving…" : "Save schedule"}
-          </button>
+          <Tooltip content={scheduleHasErrors ? "Fix hours that exceed saloon operating hours before saving" : "Save the recurring weekly availability for this staff member"} side="top">
+            <button onClick={saveSchedule} disabled={saving || scheduleHasErrors}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
+              {saving ? "Saving…" : "Save schedule"}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -943,10 +1519,12 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
             <h3 className="text-sm font-semibold text-slate-800">Date overrides</h3>
             <p className="text-xs text-slate-400 mt-0.5">Override the weekly schedule for a specific date — e.g. vacation, public holiday, sick leave, or different hours on a particular day.</p>
           </div>
-          <button onClick={() => setAddOverride(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-            <Plus className="w-3 h-3" /> Add override
-          </button>
+          <Tooltip content="Add a one-off exception — vacation, sick day, or different hours on a specific date" side="left">
+            <button onClick={() => setAddOverride(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
+              <Plus className="w-3 h-3" /> Add override
+            </button>
+          </Tooltip>
         </div>
 
         {overrides.length === 0 ? (
@@ -964,10 +1542,12 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
                     {o.reason && ` · ${o.reason}`}
                   </p>
                 </div>
-                <button onClick={() => deleteOverride(o.id)}
-                  className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <Tooltip content="Remove this date override" side="left">
+                  <button onClick={() => deleteOverride(o.id)}
+                    className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </Tooltip>
               </div>
             ))}
           </div>
@@ -1025,11 +1605,215 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
+      <Toast toast={toast} />
+    </div>
+  );
+}
+
+// ── Closures panel ────────────────────────────────────────────────────────────
+
+function ClosuresPanel({ saloonId }: { saloonId: string }) {
+  const [closures, setClosures] = useState<SaloonClosure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ startDate: "", endDate: "", reason: "" });
+  const [formErr, setFormErr] = useState("");
+  const { toast, notify } = useToast();
+
+  useEffect(() => {
+    apiFetch<SaloonClosure[]>(`${ADMIN_API}/${saloonId}/closures`)
+      .then(setClosures)
+      .catch((e) => notify(e instanceof Error ? e.message : "Failed to load closures", "error"))
+      .finally(() => setLoading(false));
+  }, [saloonId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function validate() {
+    if (!form.startDate || !form.endDate) return "Start and end dates are required.";
+    if (form.endDate < form.startDate) return "End date must be on or after start date.";
+    return "";
+  }
+
+  async function addClosure() {
+    const err = validate();
+    if (err) { setFormErr(err); return; }
+    setSaving(true);
+    try {
+      const saved = await apiFetch<SaloonClosure>(`${ADMIN_API}/${saloonId}/closures`, {
+        method: "POST",
+        body: JSON.stringify({ startDate: form.startDate, endDate: form.endDate, reason: form.reason || null }),
+      });
+      setClosures((p) => [...p, saved].sort((a, b) => a.startDate.localeCompare(b.startDate)));
+      setShowAdd(false);
+      setForm({ startDate: "", endDate: "", reason: "" });
+      setFormErr("");
+      notify("Dates blocked.");
+    } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function removeClosure(id: number) {
+    try {
+      await apiFetch(`${ADMIN_API}/${saloonId}/closures/${id}`, { method: "DELETE" });
+      setClosures((p) => p.filter((c) => c.id !== id));
+      notify("Blocked dates removed.");
+    } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
+  }
+
+  function fmtRange(start: string, end: string) {
+    if (start === end) return start;
+    return `${start} – ${end}`;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = closures.filter((c) => c.endDate >= today);
+  const past     = closures.filter((c) => c.endDate <  today);
+
+  return (
+    <div className="max-w-lg space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Blocked Dates</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Mark days or date ranges when the saloon won't accept any bookings — public holidays, vacation, emergency closures, or special occasions.
+            </p>
+          </div>
+          <Tooltip content="Mark a day or date range when the whole saloon won't accept any bookings" side="left">
+            <button onClick={() => { setShowAdd(true); setFormErr(""); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
+              <Plus className="w-3 h-3" /> Block dates
+            </button>
+          </Tooltip>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-400">
+            <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
+            Loading…
+          </div>
+        ) : upcoming.length === 0 && past.length === 0 ? (
+          <p className="text-xs text-slate-400 px-5 py-6 text-center">
+            No blocked dates yet. Add one to mark vacation time, public holidays, or any day when the saloon won't accept bookings.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {upcoming.length > 0 && (
+              <>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50/70">
+                  Upcoming
+                </p>
+                {upcoming.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                        <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{fmtRange(c.startDate, c.endDate)}</p>
+                        <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
+                      </div>
+                    </div>
+                    <Tooltip content="Remove this blocked period" side="left">
+                      <button onClick={() => removeClosure(c.id)}
+                        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
+                  </div>
+                ))}
+              </>
+            )}
+            {past.length > 0 && (
+              <>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50/70">
+                  Past
+                </p>
+                {past.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-5 py-3 opacity-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                        <CalendarOff className="w-3.5 h-3.5 text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{fmtRange(c.startDate, c.endDate)}</p>
+                        <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
+                      </div>
+                    </div>
+                    <Tooltip content="Remove this blocked period" side="left">
+                      <button onClick={() => removeClosure(c.id)}
+                        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowAdd(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                  <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+                <span className="text-base font-bold text-slate-900">Block dates</span>
+              </div>
+              <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setShowAdd(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={fieldLabel}>Start date <span className="text-red-500">*</span></label>
+                  <input type="date" className={inputCls}
+                    min={today}
+                    value={form.startDate}
+                    onChange={(e) => { setFormErr(""); setForm((p) => ({ ...p, startDate: e.target.value, endDate: p.endDate < e.target.value ? e.target.value : p.endDate })); }} />
+                </div>
+                <div>
+                  <label className={fieldLabel}>End date <span className="text-red-500">*</span></label>
+                  <input type="date" className={inputCls}
+                    min={form.startDate || today}
+                    value={form.endDate}
+                    onChange={(e) => { setFormErr(""); setForm((p) => ({ ...p, endDate: e.target.value })); }} />
+                </div>
+              </div>
+              <div>
+                <label className={fieldLabel}>Reason (optional)</label>
+                <input className={inputCls} placeholder="e.g. Annual vacation, Bank holiday, Staff training"
+                  value={form.reason}
+                  onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))} />
+              </div>
+              {formErr && (
+                <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {formErr}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
+              <button onClick={() => setShowAdd(false)}
+                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={addClosure} disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 cursor-pointer disabled:opacity-50">
+                <CalendarOff className="w-3.5 h-3.5" />
+                {saving ? "Saving…" : "Block dates"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
+      <Toast toast={toast} />
     </div>
   );
 }
@@ -1043,7 +1827,7 @@ const ADVANCE_OPTIONS = [
   { days: 180, label: "6 months", desc: "Long-term advance" },
 ] as const;
 
-function BookingSettingsPanel({ saloon, onSaved }: { saloon: { id: string | number; bookingAdvanceDays?: number }; onSaved: (days: number) => void }) {
+function BookingSettingsPanel({ saloon, onSaved, onError }: { saloon: { id: string | number; bookingAdvanceDays?: number }; onSaved: (days: number) => void; onError: (msg: string) => void }) {
   const [days, setDays] = useState(saloon.bookingAdvanceDays ?? 60);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1058,7 +1842,7 @@ function BookingSettingsPanel({ saloon, onSaved }: { saloon: { id: string | numb
       onSaved((res as { bookingAdvanceDays: number }).bookingAdvanceDays ?? days);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch { /* ignore */ }
+    } catch (e) { onError(e instanceof Error ? e.message : "Failed to save settings"); }
     finally { setSaving(false); }
   }
 
@@ -1104,10 +1888,9 @@ export default function BookingPage() {
   const { saloon, setSaloon } = useOutletContext<LayoutContext>();
   const { bookings: init, staff, services } = useLoaderData<typeof clientLoader>();
   const [bookings, setBookings] = useState<Booking[]>(init);
-  const [tab, setTab] = useState<"bookings" | "availability" | "settings">("bookings");
+  const [tab, setTab] = useState<"bookings" | "availability" | "closures" | "settings">("bookings");
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast, notify } = useToast();
 
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null);
   const [rsForm, setRsForm] = useState({ appointmentDate: "", startTime: "", staffId: 0, notes: "" });
@@ -1121,11 +1904,7 @@ export default function BookingPage() {
   const staffMap = new Map(staff.map((s) => [s.id, s]));
   const serviceMap = new Map(services.map((s) => [s.id, s]));
 
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3500);
-  }
+
 
   useEffect(() => {
     if (!rescheduleTarget || !rsForm.appointmentDate) { setRsSlots(null); return; }
@@ -1134,7 +1913,7 @@ export default function BookingPage() {
     const params = new URLSearchParams({ serviceId: String(rescheduleTarget.serviceId), date: rsForm.appointmentDate });
     apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/slots?${params}`)
       .then((slots) => { if (!cancelled) setRsSlots(slots); })
-      .catch(() => { if (!cancelled) setRsSlots([]); })
+      .catch((e) => { if (!cancelled) { setRsSlots([]); notify(e instanceof Error ? e.message : "Failed to load slots", "error"); } })
       .finally(() => { if (!cancelled) setRsSlotsLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1189,6 +1968,13 @@ export default function BookingPage() {
     finally { setBusy(false); }
   }
 
+  async function handleRefresh() {
+    try {
+      const fresh = await apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`);
+      setBookings(fresh ?? []);
+    } catch (e) { notify(e instanceof Error ? e.message : "Failed to refresh bookings", "error"); }
+  }
+
   const tabCls = (active: boolean) =>
     `px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors ${active ? "bg-matcha-600 text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`;
 
@@ -1197,20 +1983,31 @@ export default function BookingPage() {
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
         <InfoBar>
-          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Manage Staff Availability</strong> to set each person's working hours and add date overrides like vacations or public holidays. Use <strong>Settings</strong> to control how far in advance customers can book.
+          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark days when the entire saloon won't accept bookings — holidays, vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
         </InfoBar>
       </div>
 
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit">
-        <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
-          <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Bookings</span>
-        </button>
-        <button className={tabCls(tab === "availability")} onClick={() => setTab("availability")}>
-          <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Manage Staff Availability</span>
-        </button>
-        <button className={tabCls(tab === "settings")} onClick={() => setTab("settings")}>
-          <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> Settings</span>
-        </button>
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit flex-wrap">
+        <Tooltip content="View, confirm, reschedule, cancel, or complete customer appointments." side="bottom">
+          <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
+            <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Bookings</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Set each staff member's weekly working hours and add one-off date overrides." side="bottom">
+          <button className={tabCls(tab === "availability")} onClick={() => setTab("availability")}>
+            <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Staff Availability</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Mark days or date ranges when the saloon won't accept any bookings — holidays, vacation, emergencies." side="bottom">
+          <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
+            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Blocked Dates</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Control how far ahead customers can book appointments." side="bottom">
+          <button className={tabCls(tab === "settings")} onClick={() => setTab("settings")}>
+            <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> Settings</span>
+          </button>
+        </Tooltip>
       </div>
 
       {tab === "bookings" && (
@@ -1218,6 +2015,7 @@ export default function BookingPage() {
           bookings={bookings} staffMap={staffMap} serviceMap={serviceMap}
           staff={staff} operatingHours={saloon.operatingHours}
           onAction={handleAction} onReschedule={openReschedule} onDelete={setDeleteTarget}
+          onRefresh={handleRefresh}
         />
       )}
 
@@ -1225,10 +2023,15 @@ export default function BookingPage() {
         <AvailabilityPanel saloonId={String(sid)} staff={staff} operatingHours={saloon.operatingHours} />
       )}
 
+      {tab === "closures" && (
+        <ClosuresPanel saloonId={String(sid)} />
+      )}
+
       {tab === "settings" && (
         <BookingSettingsPanel
           saloon={{ id: String(sid), bookingAdvanceDays: saloon.bookingAdvanceDays }}
           onSaved={(days) => setSaloon({ ...saloon, bookingAdvanceDays: days })}
+          onError={(msg) => notify(msg, "error")}
         />
       )}
 
@@ -1386,11 +2189,7 @@ export default function BookingPage() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
     </>
   );
 }

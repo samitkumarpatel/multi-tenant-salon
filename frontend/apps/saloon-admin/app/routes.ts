@@ -12,7 +12,8 @@ export default [
     route("website", "routes/website.tsx"),
     route("booking", "routes/booking.tsx"),
     route("help", "routes/help.tsx"),
-    route("c", "routes/saloon-page.tsx"),
+    route("website-preview", "routes/saloon-page.tsx"),
+    route("setup", "routes/setup.tsx"),
   ]),
   route(":saloonId/book", "routes/book.tsx"),
 ] satisfies RouteConfig;

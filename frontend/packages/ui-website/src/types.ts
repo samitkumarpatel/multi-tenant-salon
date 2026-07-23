@@ -145,3 +145,11 @@ export interface StaffAvailabilityOverride {
   available: boolean;
   reason?: string;
 }
+
+export interface SaloonClosure {
+  id: number;
+  saloonId: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}

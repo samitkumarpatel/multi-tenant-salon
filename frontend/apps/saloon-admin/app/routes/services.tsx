@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, ChevronRight, Plus, ChevronDown } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { SERVICE_CATEGORIES, CATEGORY_LABEL, formatPrice, toggleList } from "~/lib/constants";
 import type { LayoutContext, StaffMember, ServiceItem, Country } from "~/lib/types";
-import { InfoBar } from "@saloon/ui-shared";
+import { InfoBar, Toast, useToast } from "@saloon/ui-shared";
 
 interface CurrencyOption { code: string; name: string; symbol: string; }
 
@@ -27,12 +27,25 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   return { services, staff, countries };
 }
 
-// ── Shared styles ────────────────────────────────────────────────────────────
-
 const inputCls = "w-full px-3 py-2 border border-slate-200 rounded-md text-sm outline-none transition-[border-color,box-shadow] focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-slate-900 font-sans";
 const fieldLabel = "block text-sm font-medium text-slate-700 mb-1";
 
-// ── Form field type ──────────────────────────────────────────────────────────
+// ── Onboarding constants ──────────────────────────────────────────────────────
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  HAIR: "✂️", MAKEUP: "💄", NAILS: "💅", SKIN_CARE: "🌿",
+  BEARD: "🪒", MASSAGE: "🫴", WAXING: "🍯", OTHER: "✨",
+};
+
+const DURATION_PRESETS = [15, 30, 45, 60, 90];
+
+const CATEGORY_NAME_HINT: Record<string, string> = {
+  HAIR: "Haircut", MAKEUP: "Full Makeup", NAILS: "Manicure",
+  SKIN_CARE: "Facial", BEARD: "Beard Trim", MASSAGE: "Relaxing Massage",
+  WAXING: "Waxing Session", OTHER: "My Service",
+};
+
+// ── Form field type ───────────────────────────────────────────────────────────
 
 interface ServiceFormFields {
   name: string;
@@ -44,11 +57,9 @@ interface ServiceFormFields {
   assignedStaffIds: string[];
 }
 
-// ── Sub-components (module-level so React never remounts them on re-render) ──
+// ── Shared sub-components ─────────────────────────────────────────────────────
 
-function StaffToggle({
-  staff, ids, onChange,
-}: {
+function StaffToggle({ staff, ids, onChange }: {
   staff: StaffMember[];
   ids: string[];
   onChange: (ids: string[]) => void;
@@ -80,9 +91,7 @@ function StaffToggle({
   );
 }
 
-function CurrencySelect({
-  currencies, value, onChange,
-}: {
+function CurrencySelect({ currencies, value, onChange }: {
   currencies: CurrencyOption[];
   value: string;
   onChange: (v: string) => void;
@@ -99,9 +108,177 @@ function CurrencySelect({
   );
 }
 
-function ServiceForm({
-  f, setF, staff, currencies,
+// ── Add / onboarding flow ─────────────────────────────────────────────────────
+
+function AddServiceFlow({
+  staff,
+  currencies,
+  defaultCurrency,
+  onSubmit,
+  busy,
 }: {
+  staff: StaffMember[];
+  currencies: CurrencyOption[];
+  defaultCurrency: string;
+  onSubmit: (f: ServiceFormFields) => void;
+  busy: boolean;
+}) {
+  const [step, setStep] = useState<0 | 1>(0);
+  const [showExtra, setShowExtra] = useState(false);
+  const [f, setF] = useState<ServiceFormFields>({
+    name: "", description: "", price: "", currency: defaultCurrency,
+    durationMinutes: "30", category: "", assignedStaffIds: [],
+  });
+
+  function pickCategory(cat: string) {
+    setF((p) => ({ ...p, category: cat, name: p.name || CATEGORY_NAME_HINT[cat] || "" }));
+    setStep(1);
+  }
+
+  const isCustomDuration = f.durationMinutes !== "" && !DURATION_PRESETS.includes(Number(f.durationMinutes));
+  const canSubmit = Boolean(f.name.trim());
+
+  if (step === 0) {
+    return (
+      <div>
+        <p className="text-sm text-slate-500 mb-4">Pick a category to get started.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {SERVICE_CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => pickCategory(cat)}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 bg-white hover:border-matcha-400 hover:bg-matcha-50 transition-all cursor-pointer group"
+            >
+              <span className="text-2xl leading-none">{CATEGORY_EMOJI[cat]}</span>
+              <span className="text-xs font-semibold text-slate-600 group-hover:text-matcha-700 text-center leading-snug">
+                {CATEGORY_LABEL[cat]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => setStep(0)}
+          className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+        >
+          ← Change
+        </button>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-matcha-50 border border-matcha-200 text-xs font-semibold text-matcha-700">
+          {CATEGORY_EMOJI[f.category]} {CATEGORY_LABEL[f.category]}
+        </span>
+      </div>
+
+      <div className="mb-4">
+        <label className={fieldLabel}>Service name <span className="text-red-500">*</span></label>
+        <input
+          autoFocus
+          className={inputCls}
+          placeholder={CATEGORY_NAME_HINT[f.category] || "e.g. Haircut"}
+          value={f.name}
+          onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className={fieldLabel}>Duration</label>
+        <div className="flex flex-wrap gap-2 items-center">
+          {DURATION_PRESETS.map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setF((p) => ({ ...p, durationMinutes: String(d) }))}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
+                f.durationMinutes === String(d) && !isCustomDuration
+                  ? "bg-matcha-600 text-white border-matcha-600"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-matcha-400 hover:text-matcha-700"
+              }`}
+            >
+              {d} min
+            </button>
+          ))}
+          <input
+            type="number"
+            min="5"
+            step="5"
+            placeholder="Custom"
+            value={isCustomDuration ? f.durationMinutes : ""}
+            onChange={(e) => setF((p) => ({ ...p, durationMinutes: e.target.value }))}
+            className="w-20 px-2 py-1.5 rounded-lg border border-slate-200 text-xs outline-none focus:border-matcha-500 text-slate-700 placeholder:text-slate-300"
+          />
+          <span className="text-xs text-slate-400">min</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className={fieldLabel}>Price <span className="text-xs font-normal text-slate-400">(leave blank for pay as you go)</span></label>
+          <input
+            className={inputCls}
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Pay as you go"
+            value={f.price}
+            onChange={(e) => setF((p) => ({ ...p, price: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className={fieldLabel}>Currency</label>
+          <CurrencySelect currencies={currencies} value={f.currency} onChange={(v) => setF((p) => ({ ...p, currency: v }))} />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowExtra(!showExtra)}
+        className="flex items-center gap-1 text-xs text-slate-400 hover:text-matcha-600 cursor-pointer transition-colors mb-3"
+      >
+        {showExtra ? <ChevronDown className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+        {showExtra ? "Hide options" : "Description & staff assignment"}
+      </button>
+      {showExtra && (
+        <div className="mb-4 space-y-3">
+          <div>
+            <label className={fieldLabel}>Description</label>
+            <textarea
+              className={`${inputCls} resize-none`}
+              rows={2}
+              placeholder="Brief description shown to customers"
+              value={f.description}
+              onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
+            />
+          </div>
+          <StaffToggle
+            staff={staff}
+            ids={f.assignedStaffIds}
+            onChange={(ids) => setF((p) => ({ ...p, assignedStaffIds: ids }))}
+          />
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={!canSubmit || busy}
+        onClick={() => onSubmit(f)}
+        className="w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer mt-1"
+      >
+        {busy ? "Adding…" : "Add Service →"}
+      </button>
+    </div>
+  );
+}
+
+// ── Edit form (all fields, used in edit modal) ────────────────────────────────
+
+function ServiceForm({ f, setF, staff, currencies }: {
   f: ServiceFormFields;
   setF: React.Dispatch<React.SetStateAction<ServiceFormFields>>;
   staff: StaffMember[];
@@ -118,7 +295,6 @@ function ServiceForm({
           onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
         />
       </div>
-
       <div className="mb-4">
         <label className={fieldLabel}>Description</label>
         <textarea
@@ -129,32 +305,26 @@ function ServiceForm({
           onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
         />
       </div>
-
       <div className="mb-4">
         <label className={fieldLabel}>Category</label>
         <select className={inputCls} value={f.category} onChange={(e) => setF((p) => ({ ...p, category: e.target.value }))}>
           {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
         </select>
       </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div>
-          <label className={fieldLabel}>Price <span className="text-red-500">*</span></label>
+          <label className={fieldLabel}>Price</label>
           <input
             className={inputCls}
             type="number" min="0" step="0.01"
-            placeholder="0.00"
+            placeholder="Pay as you go"
             value={f.price}
             onChange={(e) => setF((p) => ({ ...p, price: e.target.value }))}
           />
         </div>
         <div>
           <label className={fieldLabel}>Currency</label>
-          <CurrencySelect
-            currencies={currencies}
-            value={f.currency}
-            onChange={(v) => setF((p) => ({ ...p, currency: v }))}
-          />
+          <CurrencySelect currencies={currencies} value={f.currency} onChange={(v) => setF((p) => ({ ...p, currency: v }))} />
         </div>
         <div>
           <label className={fieldLabel}>Duration (min)</label>
@@ -166,25 +336,20 @@ function ServiceForm({
           />
         </div>
       </div>
-
-      <StaffToggle
-        staff={staff}
-        ids={f.assignedStaffIds}
-        onChange={(ids) => setF((p) => ({ ...p, assignedStaffIds: ids }))}
-      />
+      <StaffToggle staff={staff} ids={f.assignedStaffIds} onChange={(ids) => setF((p) => ({ ...p, assignedStaffIds: ids }))} />
     </>
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function defaultCurrency(saloonCountry: string | undefined, countries: Country[]): string {
+function defaultCurrencyCode(saloonCountry: string | undefined, countries: Country[]): string {
   if (!saloonCountry || !countries.length) return "USD";
   const country = countries.find((c) => c.name === saloonCountry);
   return country?.currencyCode ?? "USD";
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function Services() {
   const { saloon } = useOutletContext<LayoutContext>();
@@ -192,39 +357,37 @@ export default function Services() {
   const currencies = currenciesFromCountries(countries);
   const [services, setServices] = useState<ServiceItem[]>(init);
   const [busy,     setBusy]     = useState(false);
-  const [toast,    setToast]    = useState<{ msg: string; type: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast, notify } = useToast();
   const [target, setTarget] = useState<ServiceItem | null>(null);
   const [modal,  setModal]  = useState({ add: false, edit: false, del: false });
 
-  const detectedCurrency = defaultCurrency(saloon.location?.country, countries);
+  const detectedCurrency = defaultCurrencyCode(saloon.location?.country, countries);
+  const hasBooking = saloon.features?.includes("BOOKING") ?? false;
+  const [alertDismissed, setAlertDismissed] = useState(
+    () => Boolean(localStorage.getItem(`setup-alert-dismissed:services:${saloon.id}`))
+  );
 
-  const blankSvc = (): ServiceFormFields => ({
+  const blankEditFields = (): ServiceFormFields => ({
     name: "", description: "", price: "", currency: detectedCurrency,
     durationMinutes: "30", category: "HAIR", assignedStaffIds: [],
   });
-  const [af, setAf] = useState<ServiceFormFields>(blankSvc);
   const [ef, setEf] = useState<ServiceFormFields & { active: boolean }>({
-    ...blankSvc(), active: true,
+    ...blankEditFields(), active: true,
   });
 
   const sid = saloon.id;
 
-  function notify(msg: string, type = "success") {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  }
-
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
-  function openAdd() { setAf(blankSvc()); setModal((m) => ({ ...m, add: true })); }
+  function openAdd() { setModal((m) => ({ ...m, add: true })); }
 
   function openEdit(item: ServiceItem) {
     setTarget(item);
     setEf({
       name: item.name, description: item.description ?? "",
-      price: String(item.price), currency: item.currency ?? detectedCurrency,
-      durationMinutes: String(item.durationMinutes), category: item.category,
+      price: item.price != null ? String(item.price) : "",
+      currency: item.currency ?? detectedCurrency,
+      durationMinutes: item.durationMinutes != null ? String(item.durationMinutes) : "30",
+      category: item.category,
       active: item.active, assignedStaffIds: [...(item.assignedStaffIds ?? [])],
     });
     setModal((m) => ({ ...m, edit: true }));
@@ -232,17 +395,19 @@ export default function Services() {
 
   function openDel(item: ServiceItem) { setTarget(item); setModal((m) => ({ ...m, del: true })); }
 
-  async function submitAdd() {
-    if (!af.name || !af.price) return;
+  async function submitAdd(fields: ServiceFormFields) {
+    if (!fields.name) return;
     setBusy(true);
     try {
       const item = await apiFetch<ServiceItem>(`${ADMIN_API}/${sid}/services`, {
         method: "POST",
         body: JSON.stringify({
-          name: af.name, description: af.description,
-          price: parseFloat(af.price), currency: af.currency,
-          durationMinutes: parseInt(af.durationMinutes) || 30, category: af.category,
-          assignedStaffIds: af.assignedStaffIds,
+          name: fields.name, description: fields.description,
+          price: fields.price ? parseFloat(fields.price) : null,
+          currency: fields.price ? fields.currency : null,
+          durationMinutes: parseInt(fields.durationMinutes) || null,
+          category: fields.category,
+          assignedStaffIds: fields.assignedStaffIds,
         }),
       });
       setServices((p) => [item, ...p]);
@@ -260,8 +425,10 @@ export default function Services() {
         method: "PUT",
         body: JSON.stringify({
           name: ef.name, description: ef.description,
-          price: parseFloat(ef.price), currency: ef.currency,
-          durationMinutes: parseInt(ef.durationMinutes) || 30, category: ef.category,
+          price: ef.price ? parseFloat(ef.price) : null,
+          currency: ef.price ? ef.currency : null,
+          durationMinutes: parseInt(ef.durationMinutes) || null,
+          category: ef.category,
           active: ef.active, assignedStaffIds: ef.assignedStaffIds,
         }),
       });
@@ -290,108 +457,132 @@ export default function Services() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Services</h1>
+        <h1 className="text-xl font-bold text-slate-900">Saloon Services</h1>
         <InfoBar>
           Define everything your saloon offers — name, price, duration, category, and assigned staff.
           Customers see these on your public website.
         </InfoBar>
       </div>
 
-      {services.length > 0 && (
-        <p className="text-sm text-slate-500 font-medium mb-4">
-          {services.length} service{services.length !== 1 ? "s" : ""}
-        </p>
-      )}
-
-      {!services.length ? (
-        <div className="text-center py-20 px-8">
-          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-            <Scissors className="w-6 h-6 text-slate-400" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-500 mb-1">No services yet</h3>
-          <p className="text-xs text-slate-400 mb-6">Add your first service to get started.</p>
+      {/* ── Setup alert (booking enabled, no services yet, not dismissed) ─ */}
+      {!services.length && hasBooking && !alertDismissed && (
+        <div className="max-w-xl mx-auto mb-4 flex items-center gap-2.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          </span>
+          <span className="flex-1 leading-snug">Online booking won't work until you add at least one service.</span>
           <button
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
-            onClick={openAdd}
+            type="button"
+            onClick={() => {
+              localStorage.setItem(`setup-alert-dismissed:services:${saloon.id}`, "1");
+              setAlertDismissed(true);
+            }}
+            className="shrink-0 text-amber-400 hover:text-amber-700 transition-colors cursor-pointer"
+            title="Ignore"
           >
-            Add Service
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
-      ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
-          {services.map((sv) => (
-            <div key={sv.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
-
-              {/* Name + badges */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-slate-900 truncate">{sv.name}</span>
-                  {!sv.active && (
-                    <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 shrink-0">
-                      Inactive
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1 text-[0.67rem] font-semibold text-slate-500">
-                    <Tag className="w-2.5 h-2.5" />
-                    {CATEGORY_LABEL[sv.category] ?? sv.category}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
-                    <Clock className="w-2.5 h-2.5" />
-                    {sv.durationMinutes} min
-                  </span>
-                  {sv.assignedStaffIds?.length ? (
-                    <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
-                      <Users className="w-2.5 h-2.5" />
-                      {sv.assignedStaffIds.map(staffName).join(", ")}
-                    </span>
-                  ) : null}
-                </div>
-                {sv.description && (
-                  <p className="text-xs text-slate-400 mt-0.5 truncate max-w-sm">{sv.description}</p>
-                )}
-              </div>
-
-              {/* Price */}
-              <div className="shrink-0 text-right hidden sm:block">
-                <span className="text-base font-extrabold text-matcha-600 tracking-tight">
-                  {formatPrice(sv.price, sv.currency)}
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
-                  onClick={() => openEdit(sv)}
-                >
-                  <Pencil className="w-3 h-3" /> Edit
-                </button>
-                <button
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
-                  onClick={() => openDel(sv)}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-
-              {/* Mobile chevron hint */}
-              <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
-            </div>
-          ))}
-          <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
-            <button
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
-              onClick={openAdd}
-            >
-              Add Service
-            </button>
-          </div>
-        </div>
       )}
 
-      {/* Add modal */}
+      {/* ── Empty state: inline onboarding ──────────────────────────────── */}
+      {!services.length ? (
+        <div className="max-w-xl mx-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center shrink-0">
+                <Scissors className="w-5 h-5 text-matcha-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-800">What services do you offer?</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Pick a category to add your first service.</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <AddServiceFlow
+                staff={staff}
+                currencies={currencies}
+                defaultCurrency={detectedCurrency}
+                onSubmit={submitAdd}
+                busy={busy}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-slate-500 font-medium mb-4">
+            {services.length} service{services.length !== 1 ? "s" : ""}
+          </p>
+
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
+            {services.map((sv) => (
+              <div key={sv.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-slate-900 truncate">{sv.name}</span>
+                    {!sv.active && (
+                      <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 shrink-0">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-[0.67rem] font-semibold text-slate-500">
+                      <Tag className="w-2.5 h-2.5" />
+                      {CATEGORY_LABEL[sv.category] ?? sv.category}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
+                      <Clock className="w-2.5 h-2.5" />
+                      {sv.durationMinutes ?? 30} min
+                    </span>
+                    {sv.assignedStaffIds?.length ? (
+                      <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
+                        <Users className="w-2.5 h-2.5" />
+                        {sv.assignedStaffIds.map(staffName).join(", ")}
+                      </span>
+                    ) : null}
+                  </div>
+                  {sv.description && (
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-sm">{sv.description}</p>
+                  )}
+                </div>
+                <div className="shrink-0 text-right hidden sm:block">
+                  <span className={`font-extrabold tracking-tight ${sv.price != null ? "text-base text-matcha-600" : "text-base text-slate-400"}`}>
+                    {formatPrice(sv.price, sv.currency)}
+                  </span>
+                </div>
+                <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+                    onClick={() => openEdit(sv)}
+                  >
+                    <Pencil className="w-3 h-3" /> Edit
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
+                    onClick={() => openDel(sv)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
+              </div>
+            ))}
+            <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
+              <button
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
+                onClick={openAdd}
+              >
+                Add Service
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Add modal (same flow) ────────────────────────────────────────── */}
       {modal.add && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -404,27 +595,18 @@ export default function Services() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <ServiceForm f={af} setF={setAf} staff={staff} currencies={currencies} />
-            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-              <button
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
-                onClick={() => closeModal("add")}
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-                disabled={busy || !af.name || !af.price}
-                onClick={submitAdd}
-              >
-                {busy ? "Saving…" : "Add Service"}
-              </button>
-            </div>
+            <AddServiceFlow
+              staff={staff}
+              currencies={currencies}
+              defaultCurrency={detectedCurrency}
+              onSubmit={submitAdd}
+              busy={busy}
+            />
           </div>
         </div>
       )}
 
-      {/* Edit modal */}
+      {/* ── Edit modal ───────────────────────────────────────────────────── */}
       {modal.edit && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -466,7 +648,7 @@ export default function Services() {
         </div>
       )}
 
-      {/* Delete modal */}
+      {/* ── Delete modal ─────────────────────────────────────────────────── */}
       {modal.del && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -501,11 +683,7 @@ export default function Services() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm font-medium text-white shadow-lg z-[1000] animate-[slide-up_0.16s_ease] ${toast.type === "error" ? "bg-red-600" : "bg-matcha-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
     </>
   );
 }

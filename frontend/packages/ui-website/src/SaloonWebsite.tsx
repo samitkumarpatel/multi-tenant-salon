@@ -197,6 +197,36 @@ export function SalonErrorPage({ is404 }: { is404: boolean }) {
   );
 }
 
+export function SaloonDisabledPage({ saloonName }: { saloonName?: string }) {
+  return (
+    <div
+      className="min-h-[100dvh] relative flex flex-col items-center justify-center px-6 text-center overflow-hidden select-none"
+      style={{ backgroundColor: "#0F172A", fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <style>{`
+        @keyframes comb-sway { 0%,100% { transform: rotate(-8deg) scale(1); } 50% { transform: rotate(8deg) scale(1.05); } }
+        @keyframes comb-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        .comb-sway { animation: comb-sway 3s ease-in-out infinite; }
+        .comb-float { animation: comb-float 4s ease-in-out infinite; }
+      `}</style>
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ opacity: 0.035, backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "28px 28px" }}
+      />
+      <div className="comb-float mb-8">
+        <div className="comb-sway text-6xl leading-none">💈</div>
+      </div>
+      <h1 className="text-2xl sm:text-3xl font-black text-white mb-3 leading-snug">
+        {saloonName ? `${saloonName} is coming soon` : "We're getting ready"}
+      </h1>
+      <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
+        This salon's website hasn't been published yet. Check back soon — good things take a little time to set up.
+      </p>
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">my-saloon.online</p>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export interface SaloonWebsiteProps {
@@ -204,11 +234,17 @@ export interface SaloonWebsiteProps {
   staff: StaffMember[];
   services: ServiceItem[];
   theme: WebsiteTheme;
+  /** Current page key: "book" | "shop" | "membership" | "loyalty" | undefined (home) */
+  activePage?: string;
+  /** Navigate to a page ("book", "shop", etc.) or null to go home */
+  onNavigate?: (page: string | null) => void;
+  /** Build the href for a given page key */
+  getPagePath?: (page: string) => string;
 }
 
-export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: SaloonWebsiteProps) {
+export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activePage, onNavigate, getPagePath }: SaloonWebsiteProps) {
   const theme = { ...DEFAULT_THEME, ...themeProp };
-  const bookUrl = "#book";
+  const bookUrl = getPagePath ? getPagePath("book") : "/book";
 
   const [selectedCat, setSelectedCat]     = useState<string | null>(null);
   const [expandedStaff, setExpandedStaff] = useState<Set<number>>(new Set());
@@ -216,7 +252,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
   const [heroVisible, setHeroVisible]     = useState(true);
   const [bookServiceId, setBookServiceId] = useState<number | null>(null);
   const [bookStaffId, setBookStaffId]     = useState<number | null>(null);
-  const [featureHash, setFeatureHash]     = useState<string>(() => typeof window !== "undefined" ? window.location.hash.slice(1) : "");
   const [mounted, setMounted]             = useState(false);
   const heroRef = useRef<HTMLElement>(null);
 
@@ -224,12 +259,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
     setMounted(true);
     document.documentElement.style.scrollBehavior = "smooth";
     return () => { document.documentElement.style.scrollBehavior = ""; };
-  }, []);
-
-  useEffect(() => {
-    const onHash = () => setFeatureHash(window.location.hash.slice(1));
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   useEffect(() => {
@@ -254,8 +283,22 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
   const hasBooking = saloon.features?.includes("BOOKING");
   const featureBadges = (saloon.features ?? []).filter((f) => f !== "STATIC_WEBSITE" && f !== "ANALYTICS");
   const statusDetail = openStatusDetail(saloon.operatingHours);
+  const currentPage = activePage ?? "";
   const featurePages = (saloon.features ?? []).filter((f) => FEATURE_NAV[f]).map((f) => FEATURE_NAV[f]);
-  const rotatingWords = grouped.map(([cat]) => (CATEGORY_LABEL[cat] ?? cat).toLowerCase());
+  const rotatingWords = (() => {
+    const catWords = grouped
+      .filter(([cat]) => cat !== "OTHER")
+      .map(([cat]) => (CATEGORY_LABEL[cat] ?? cat).toLowerCase());
+    if (catWords.length > 0) return catWords;
+    // Fall back to comma-separated description terms (e.g. "Haircut, Coloring, Facial and more")
+    return activeServices
+      .flatMap((s) =>
+        s.description
+          ? s.description.split(",").map((t) => t.replace(/\s*and\s+more\s*$/i, "").trim()).filter((t) => t.length > 2)
+          : []
+      )
+      .map((w) => w.toLowerCase());
+  })();
 
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
@@ -286,24 +329,26 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
     });
   }
 
-  if (featureHash === "book" && hasBooking) {
+  if (currentPage === "book" && hasBooking) {
     return (
       <div style={{ fontFamily: fontStack }}>
         <BookingWizard
           saloon={saloon} services={activeServices} staff={activeStaff} theme={theme}
           initialServiceId={bookServiceId} initialStaffId={bookStaffId}
-          onExit={() => { setBookServiceId(null); setBookStaffId(null); window.location.hash = ""; }}
+          getPagePath={getPagePath}
+          onExit={() => { setBookServiceId(null); setBookStaffId(null); onNavigate?.(null); }}
         />
       </div>
     );
   }
 
-  const featureViewKey = featurePages.some((fp) => fp.hash === featureHash) && FEATURE_VIEWS[featureHash] ? featureHash : null;
+  const featureViewKey = featurePages.some((fp) => fp.path === currentPage) && FEATURE_VIEWS[currentPage] ? currentPage : null;
   if (featureViewKey) {
     return (
       <FeatureView
         saloon={saloon} theme={theme} pageKey={featureViewKey} bookUrl={bookUrl}
-        onBack={() => { window.location.hash = ""; }}
+        getPagePath={getPagePath}
+        onBack={() => onNavigate?.(null)}
       />
     );
   }
@@ -324,7 +369,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
             {featurePages.length > 0 && (
               <nav className="hidden md:flex items-center gap-6 text-sm">
                 {featurePages.map((fp) => (
-                  <a key={fp.hash} href={`#${fp.hash}`} className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900">{fp.label}</a>
+                  <a key={fp.path} href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`} className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900">{fp.label}</a>
                 ))}
               </nav>
             )}
@@ -531,11 +576,11 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
                           <span className="flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
-                            <Timer className="w-3 h-3" /> {s.durationMinutes} min
+                            <Timer className="w-3 h-3" /> {s.durationMinutes ?? 30} min
                           </span>
                           <span className="text-sm font-bold text-slate-900 min-w-[60px] text-right tabular-nums">{formatPrice(s.price, s.currency)}</span>
                           {hasBooking && (
-                            <a href={bookUrl} onClick={() => setBookServiceId(s.id)}
+                            <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
                               className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-0 group-hover/svc:opacity-100 transition-opacity"
                               style={{ backgroundColor: theme.accentColor, color: accentText }}>
                               Book <ChevronRight className="w-3 h-3" />
@@ -580,7 +625,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
                               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
                             </div>
                             {hasBooking && (
-                              <a href={bookUrl} onClick={(e) => { e.stopPropagation(); setBookStaffId(m.id!); }}
+                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBookStaffId(m.id!); onNavigate?.("book"); }}
                                 className="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full no-underline transition-opacity hover:opacity-85"
                                 style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}>
                                 Book with me
@@ -616,12 +661,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
                       );
                     })}
                   </div>
-                  {hasBooking && (
-                    <a href={bookUrl} className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold px-4 py-2.5 rounded-xl no-underline transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                      Book with our team <ChevronRight className="w-3.5 h-3.5" />
-                    </a>
-                  )}
                 </FadeIn>
               </aside>
             )}
@@ -630,7 +669,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
       )}
 
       {/* ── Floating actions ─────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3" style={{
+      <div className="fixed bottom-6 right-6 z-[100]" style={{
         opacity: heroVisible ? 0 : 1, transform: heroVisible ? "translateY(12px) scale(0.95)" : "translateY(0) scale(1)",
         pointerEvents: heroVisible ? "none" : "auto", transition: "opacity 0.3s ease, transform 0.3s ease",
       }}>
@@ -639,12 +678,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
           aria-label="Back to top">
           <ArrowUp className="w-4 h-4" />
         </button>
-        {hasBooking && (
-          <a href={bookUrl} className="inline-flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-full shadow-xl no-underline hover:opacity-90 hover:scale-105 transition-all"
-            style={{ backgroundColor: theme.accentColor, color: accentText }}>
-            <CalendarCheck className="w-4 h-4" /> Book now
-          </a>
-        )}
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
@@ -660,12 +693,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp }: Sal
                 <span className="text-sm font-bold" style={{ color: footerBright }}>{saloon.name}</span>
               </div>
               {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
-              {hasBooking && (
-                <a href={bookUrl} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg no-underline hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                  <CalendarCheck className="w-3.5 h-3.5" /> Book now
-                </a>
-              )}
             </div>
 
             {openHours.length > 0 && (

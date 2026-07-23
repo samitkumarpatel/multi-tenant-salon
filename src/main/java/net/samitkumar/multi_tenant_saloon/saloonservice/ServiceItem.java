@@ -18,7 +18,7 @@ public record ServiceItem(
         String description,
         BigDecimal price,
         String currency,
-        int durationMinutes,
+        Integer durationMinutes,
         ServiceCategory category,
         boolean active,
         @MappedCollection(idColumn = "service_item_id") List<AssignedStaff> assignedStaffIds,

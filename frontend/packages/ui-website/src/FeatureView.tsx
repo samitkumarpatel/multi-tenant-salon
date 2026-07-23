@@ -29,13 +29,14 @@ function initials(name: string) {
 }
 
 export function FeatureView({
-  saloon, theme, pageKey, bookUrl, onBack,
+  saloon, theme, pageKey, bookUrl, onBack, getPagePath,
 }: {
   saloon: Saloon;
   theme: WebsiteTheme;
   pageKey: string;
   bookUrl: string;
   onBack: () => void;
+  getPagePath?: (page: string) => string;
 }) {
   const page = FEATURE_VIEWS[pageKey] ?? FEATURE_VIEWS.shop;
   const Icon = page.icon;
@@ -48,7 +49,7 @@ export function FeatureView({
 
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStack, backgroundColor: theme.heroBg }}>
-      <SiteHeader saloon={saloon} theme={theme} current={pageKey} onBack={onBack} />
+      <SiteHeader saloon={saloon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
 
       <main className="flex-1 flex items-center">
         <div className="max-w-5xl mx-auto px-6 py-16 w-full text-center">
@@ -100,7 +101,7 @@ export function FeatureView({
         </div>
       </main>
 
-      <SiteFooter saloon={saloon} theme={theme} current={pageKey} onBack={onBack} />
+      <SiteFooter saloon={saloon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
     </div>
   );
 }

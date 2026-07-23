@@ -30,7 +30,7 @@ public class SaloonServiceManager implements SaloonServiceApi {
     }
 
     ServiceItem add(UUID saloonId, String name, String description, BigDecimal price, String currency,
-                    int durationMinutes, ServiceCategory category, List<String> assignedStaffIds) {
+                    Integer durationMinutes, ServiceCategory category, List<String> assignedStaffIds) {
         var staffList = assignedStaffIds != null
                 ? assignedStaffIds.stream().map(ServiceItem.AssignedStaff::new).toList()
                 : List.<ServiceItem.AssignedStaff>of();
@@ -40,7 +40,7 @@ public class SaloonServiceManager implements SaloonServiceApi {
     }
 
     Optional<ServiceItem> update(UUID saloonId, Long serviceId, String name, String description,
-                                 BigDecimal price, String currency, int durationMinutes,
+                                 BigDecimal price, String currency, Integer durationMinutes,
                                  ServiceCategory category, boolean active, List<String> assignedStaffIds) {
         var staffList = assignedStaffIds != null
                 ? assignedStaffIds.stream().map(ServiceItem.AssignedStaff::new).toList()

@@ -62,6 +62,7 @@ export default function Edit() {
   function goBack() { setErrors({}); setStep((s) => s - 1); }
 
   async function handleSave() {
+    if (!name.trim()) { setErrors({ name: "Saloon name is required." }); setStep(0); return; }
     setSaveError(null);
     setSaving(true);
     try {

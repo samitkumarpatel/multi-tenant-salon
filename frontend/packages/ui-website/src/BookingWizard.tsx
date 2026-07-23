@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, Maximize2, Minimize2,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
 } from "lucide-react";
 import { apiFetch } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -29,6 +29,12 @@ import type {
 const CUSTOMER_API = "/api/saloon";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+type ClosureRange = { startDate: string; endDate: string };
+
+function isClosedByRange(iso: string, ranges: ClosureRange[]): boolean {
+  return ranges.some((r) => iso >= r.startDate && iso <= r.endDate);
+}
 
 function fmt12(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -147,12 +153,11 @@ function SelectionSummary({
 // ── Step 1: Service selection ─────────────────────────────────────────────────
 
 function StepService({
-  services, selected, accent, expanded, onSelect, onNext,
+  services, selected, accent, onSelect, onNext,
 }: {
   services: ServiceItem[];
   selected: ServiceItem | null;
   accent: Accent;
-  expanded: boolean;
   onSelect: (s: ServiceItem) => void;
   onNext: () => void;
 }) {
@@ -197,7 +202,7 @@ function StepService({
               No services match “{query}”.
             </p>
           ) : (
-            <div className={`space-y-2 mb-6 overflow-y-auto pr-1 ${expanded ? "" : "max-h-[420px]"}`}>
+            <div className="space-y-2 mb-6 overflow-y-auto pr-1 max-h-[420px]">
               {filtered.map((s) => {
                 const isSel = selected?.id === s.id;
                 return (
@@ -309,7 +314,7 @@ function defaultBookingDate(hours: OperatingHours[]): string {
 }
 
 function WeekGrid({
-  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, maxDate, onPick,
+  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, closedDateRanges, maxDate, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -320,6 +325,7 @@ function WeekGrid({
   accent: Accent;
   /** Weekday names (e.g. "MONDAY") on which the saloon is closed */
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   maxDate: Date;
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
@@ -343,7 +349,7 @@ function WeekGrid({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const fetchable = days.filter((d) => d >= today && !closedDays.has(JS_DAY_NAME[d.getDay()]));
+    const fetchable = days.filter((d) => d >= today && !closedDays.has(JS_DAY_NAME[d.getDay()]) && !isClosedByRange(toISODate(d), closedDateRanges));
     Promise.all(
       fetchable.map((d) => {
         const iso = toISODate(d);
@@ -389,12 +395,13 @@ function WeekGrid({
       </div>
 
       {/* Day columns */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="overflow-x-auto -mx-3 px-3">
+      <div className="grid grid-cols-7 gap-1 min-w-[280px]">
         {days.map((d) => {
           const iso      = toISODate(d);
           const isPast   = d < today;
           const isBeyond = d > maxDate;
-          const isClosed = closedDays.has(JS_DAY_NAME[d.getDay()]);
+          const isClosed = closedDays.has(JS_DAY_NAME[d.getDay()]) || isClosedByRange(iso, closedDateRanges);
           const isToday  = d.getTime() === today.getTime();
           const isSelDay = date === iso;
           const slots     = slotsByDate[iso] ?? [];
@@ -433,6 +440,7 @@ function WeekGrid({
             </div>
           );
         })}
+      </div>
       </div>
 
       {loading && (
@@ -490,12 +498,13 @@ function WeekGrid({
 // ── Month calendar (compact date picker) ─────────────────────────────────────
 
 function MonthCalendar({
-  date, setDate, accent, closedDays, maxDate,
+  date, setDate, accent, closedDays, closedDateRanges, maxDate,
 }: {
   date: string;
   setDate: (d: string) => void;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   maxDate: Date;
 }) {
   const today = new Date();
@@ -543,7 +552,7 @@ function MonthCalendar({
         {Array.from({ length: daysInMonth }, (_, i) => {
           const d = new Date(month.getFullYear(), month.getMonth(), i + 1);
           const iso = toISODate(d);
-          const disabled = d < today || d > maxDate || closedDays.has(JS_DAY_NAME[d.getDay()]);
+          const disabled = d < today || d > maxDate || closedDays.has(JS_DAY_NAME[d.getDay()]) || isClosedByRange(iso, closedDateRanges);
           const isSel = date === iso;
           const isToday = d.getTime() === today.getTime();
           return (
@@ -575,7 +584,7 @@ function MonthCalendar({
 // ── Designer/day grid (X axis = time, Y axis = designer) ─────────────────────
 
 function DesignerGrid({
-  saloonId, serviceId, staff, date, selectedSlot, accent, closedDays, onPick,
+  saloonId, serviceId, staff, date, selectedSlot, accent, closedDays, closedDateRanges, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -584,6 +593,7 @@ function DesignerGrid({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
   const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
@@ -591,7 +601,7 @@ function DesignerGrid({
   const [error, setError] = useState<string | null>(null);
 
   const isClosed = date
-    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()])
+    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()]) || isClosedByRange(date, closedDateRanges)
     : false;
 
   useEffect(() => {
@@ -632,7 +642,8 @@ function DesignerGrid({
           times.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-6">No available times on {fmtDate(date)} — try another date.</p>
           ) : (
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div style={{ minWidth: `calc(3.25rem + ${staff.length} * 5rem)` }}>
               {/* Header: time gutter + one column per designer, stretching full width */}
               <div
                 className="grid bg-slate-50/70 border-b border-slate-200"
@@ -723,6 +734,7 @@ function DesignerGrid({
                 </div>
               ))}
             </div>
+            </div>
           )
         )}
     </div>
@@ -732,7 +744,7 @@ function DesignerGrid({
 // ── Inline day slots (auto-loads for the picked date + staff) ────────────────
 
 function DaySlots({
-  saloonId, serviceId, date, staffId, staff, selectedSlot, accent, closedDays, onPick,
+  saloonId, serviceId, date, staffId, staff, selectedSlot, accent, closedDays, closedDateRanges, onPick,
 }: {
   saloonId: string;
   serviceId: number;
@@ -742,6 +754,7 @@ function DaySlots({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
   const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
@@ -750,7 +763,7 @@ function DaySlots({
   const staffMap = new Map(staff.map((s) => [s.id, s]));
 
   const isClosed = date
-    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()])
+    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()]) || isClosedByRange(date, closedDateRanges)
     : false;
 
   useEffect(() => {
@@ -841,7 +854,7 @@ function DaySlots({
 // ── Step 2: Date + staff selection ────────────────────────────────────────────
 
 function StepDate({
-  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
+  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
 }: {
   saloonId: string;
   serviceId: number;
@@ -853,6 +866,7 @@ function StepDate({
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   maxDate: Date;
   /** Initial view — "week" when a stylist was preselected via "Book with me" */
   defaultMode?: "input" | "week" | "designer";
@@ -970,6 +984,7 @@ function StepDate({
               selectedSlot={selectedSlot}
               accent={accent}
               closedDays={closedDays}
+              closedDateRanges={closedDateRanges}
               maxDate={maxDate}
               onPick={onPickSlot}
             />
@@ -980,6 +995,7 @@ function StepDate({
                 setDate={setDate}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 maxDate={maxDate}
               />
               <DesignerGrid
@@ -990,6 +1006,7 @@ function StepDate({
                 selectedSlot={selectedSlot}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 onPick={onPickSlot}
               />
             </div>
@@ -1000,6 +1017,7 @@ function StepDate({
                 setDate={setDate}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 maxDate={maxDate}
               />
               <DaySlots
@@ -1011,6 +1029,7 @@ function StepDate({
                 selectedSlot={selectedSlot}
                 accent={accent}
                 closedDays={closedDays}
+                closedDateRanges={closedDateRanges}
                 onPick={onPickSlot}
               />
             </div>
@@ -1033,7 +1052,7 @@ function StepDate({
 // ── Step 3: Slot selection ────────────────────────────────────────────────────
 
 function StepSlots({
-  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, expanded, onSelect, onBack, onNext,
+  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, onSelect, onBack, onNext,
 }: {
   saloonId: string;
   serviceId: number;
@@ -1042,7 +1061,6 @@ function StepSlots({
   staffMap: Map<number, StaffMember>;
   selectedSlot: AvailableSlot | null;
   accent: Accent;
-  expanded: boolean;
   onSelect: (s: AvailableSlot) => void;
   onBack: () => void;
   onNext: () => void;
@@ -1099,7 +1117,7 @@ function StepSlots({
             <p className="text-xs text-slate-400 mt-1">Try a different date or staff member.</p>
           </div>
         ) : (
-          <div className={`space-y-5 mb-6 overflow-y-auto pr-1 ${expanded ? "" : "max-h-[380px]"}`}>
+          <div className="space-y-5 mb-6 overflow-y-auto pr-1 max-h-[380px]">
             {groups.map(([label, list]) => (
               <div key={label}>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
@@ -1283,7 +1301,7 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit,
+  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath,
 }: {
   saloon: Saloon;
   services: ServiceItem[];
@@ -1296,12 +1314,14 @@ export function BookingWizard({
   initialStaffId?: number | null;
   /** Called when the visitor leaves the wizard (logo / back after confirmation) */
   onExit: () => void;
+  /** Builds a path for a given page key (e.g. "shop" → "/shop") */
+  getPagePath?: (page: string) => string;
 }) {
   const preselected = services.find((s) => s.id === initialServiceId) ?? null;
   const preStaff    = staff.find((s) => s.id === initialStaffId) ?? null;
 
+  const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
   const [step, setStep] = useState(preselected ? 2 : 1);
-  const [expanded, setExpanded] = useState(false);
   const [fetchedCountries, setFetchedCountries] = useState<Country[]>([]);
   const countries = countriesProp.length > 0 ? countriesProp : fetchedCountries;
   const [service, setService] = useState<ServiceItem | null>(preselected);
@@ -1324,6 +1344,12 @@ export function BookingWizard({
       .then(setFetchedCountries)
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    apiFetch<ClosureRange[]>(`${CUSTOMER_API}/${saloon.id}/closures`)
+      .then(setClosedDateRanges)
+      .catch(() => {});
+  }, [saloon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fontStack  = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
   const accent: Accent = {
@@ -1393,7 +1419,7 @@ export function BookingWizard({
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 
       {/* Header — same chrome as the saloon website (Book link swapped for Back) */}
-      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} />
+      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} />
 
       {/* Body */}
       <main
@@ -1401,7 +1427,7 @@ export function BookingWizard({
         style={{ background: `radial-gradient(80% 50% at 50% 0%, ${accent.color}0a, transparent 70%)` }}
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}
-        <div className={`w-full transition-all duration-300 ${expanded || step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
+        <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
           {step < 5 && <StepBar current={step} accent={accent} />}
           {step < 5 && (
             <SelectionSummary
@@ -1427,23 +1453,11 @@ export function BookingWizard({
             className={`relative ${step < 5 ? "bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6" : ""}`}
             style={{ animation: "fade-in 0.3s ease-out both" }}
           >
-            {/* Expand / collapse button — shown on all content steps */}
-            {step < 5 && (
-              <button
-                onClick={() => setExpanded((v) => !v)}
-                title={expanded ? "Collapse" : "Expand view"}
-                className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer z-10"
-              >
-                {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </button>
-            )}
-
           {step === 1 && (
             <StepService
               services={services}
               selected={service}
               accent={accent}
-              expanded={expanded}
               onSelect={(s) => { setService(s); setSlot(null); }}
               onNext={() => setStep(2)}
             />
@@ -1461,6 +1475,7 @@ export function BookingWizard({
               selectedSlot={slot}
               accent={accent}
               closedDays={closedDays}
+              closedDateRanges={closedDateRanges}
               maxDate={maxDate}
               defaultMode={preStaff ? "week" : "designer"}
               onBack={() => setStep(1)}
@@ -1478,7 +1493,6 @@ export function BookingWizard({
               staffMap={staffMap}
               selectedSlot={slot}
               accent={accent}
-              expanded={expanded}
               onSelect={setSlot}
               onBack={() => setStep(2)}
               onNext={() => { setViaWeek(false); setStep(4); }}
@@ -1513,7 +1527,7 @@ export function BookingWizard({
       </main>
 
       {/* Footer — same chrome as the saloon website */}
-      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} />
+      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} />
     </div>
   );
 }
