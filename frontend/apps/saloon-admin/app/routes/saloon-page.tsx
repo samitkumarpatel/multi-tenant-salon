@@ -203,6 +203,7 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
   saloonId: string; theme: WebsiteTheme; onChange: (t: WebsiteTheme) => void; onClose: () => void;
 }) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const isGenUI = theme.websiteType === "GENERATIVE_UI";
 
   useEffect(() => { Object.keys(FONTS).forEach(loadGoogleFont); }, []);
 
@@ -225,6 +226,11 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
     }
   }
 
+  const accentRing = isGenUI ? "focus:border-violet-400 focus:ring-violet-400/20" : "focus:border-amber-400 focus:ring-amber-400/20";
+  const saveBtn    = isGenUI
+    ? "bg-violet-600 hover:bg-violet-700"
+    : "bg-amber-500 hover:bg-amber-600";
+
   return (
     <div
       className="fixed inset-x-0 bottom-0 max-h-[85dvh] md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:w-72 md:max-h-none bg-white border-t md:border-t-0 md:border-l border-slate-200 shadow-2xl z-[200] flex flex-col rounded-t-2xl md:rounded-none"
@@ -235,8 +241,13 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
       </div>
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50 shrink-0">
         <div className="flex items-center gap-2">
-          <Palette className="w-4 h-4 text-amber-500" />
-          <h2 className="text-sm font-bold text-slate-900">Website Design</h2>
+          {isGenUI
+            ? <Wand2 className="w-4 h-4 text-violet-500" />
+            : <Palette className="w-4 h-4 text-amber-500" />
+          }
+          <h2 className="text-sm font-bold text-slate-900">
+            {isGenUI ? "Chat Window Design" : "Website Design"}
+          </h2>
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5 rounded hover:bg-slate-100">
           <X className="w-4 h-4" />
@@ -244,76 +255,116 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
-        <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Hero Section</p>
-          <div className="space-y-4">
-            <ColorPicker label="Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
-            <ColorPicker label="Text Color" value={theme.heroTextColor} onChange={(v) => onChange({ ...theme, heroTextColor: v })} />
-            <ColorPicker label="Accent / CTA" value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
-            {(() => {
-              const suggested = contrastText(theme.heroBg);
-              const isOptimal = suggested.toLowerCase() === theme.heroTextColor.toLowerCase();
-              return (
-                <button
-                  onClick={() => onChange({ ...theme, heroTextColor: suggested })} disabled={isOptimal}
-                  className={`w-full flex items-center gap-2 text-xs px-3 py-2 rounded-lg border transition-all ${
-                    isOptimal
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-600 cursor-default"
-                      : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer"
-                  }`}
-                >
-                  {isOptimal
-                    ? <><Check className="w-3.5 h-3.5 shrink-0" /> Text contrast looks great</>
-                    : <><Wand2 className="w-3.5 h-3.5 shrink-0" /> Auto-fix text contrast for this background</>
-                  }
-                </button>
-              );
-            })()}
-          </div>
-        </section>
+        {isGenUI ? (
+          // ── Generative UI palette — only what affects the chat shell ────
+          <>
+            <p className="text-[11px] text-slate-400 leading-relaxed bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5">
+              These settings style the <span className="font-semibold text-violet-700">chat window shell</span>. Most visual design will come from your connected MCP apps.
+            </p>
 
-        <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Branding</p>
-          <ColorPicker label="Logo Background" value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
-        </section>
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Chat Window</p>
+              <div className="space-y-4">
+                <ColorPicker label="Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
+                <ColorPicker label="Accent Color" value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
+                <ColorPicker label="Avatar Color" value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
+              </div>
+            </section>
 
-        <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Header &amp; Footer</p>
-          <div className="space-y-4">
-            <ColorPicker label="Header Background" value={theme.headerBg} onChange={(v) => onChange({ ...theme, headerBg: v })} />
-            <ColorPicker label="Footer Background" value={theme.footerBg} onChange={(v) => onChange({ ...theme, footerBg: v })} />
-            <div>
-              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1.5">Maps link URL</p>
-              <input
-                type="url"
-                className="w-full font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/20"
-                placeholder="https://maps.google.com/…"
-                value={theme.mapsUrl ?? ""}
-                onChange={(e) => onChange({ ...theme, mapsUrl: e.target.value || undefined })}
-              />
-              <p className="text-[10px] text-slate-400 mt-1">Leave empty to use auto-generated Google Maps link.</p>
-            </div>
-          </div>
-        </section>
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(FONTS).map(([id, font]) => (
+                  <button
+                    key={id} onClick={() => onChange({ ...theme, fontFamily: id })}
+                    className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
+                      theme.fontFamily === id
+                        ? "border-violet-400 bg-violet-50 text-violet-800 font-semibold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                    style={{ fontFamily: font.stack }}
+                  >
+                    {font.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          // ── Static website palette — full controls ───────────────────────
+          <>
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Hero Section</p>
+              <div className="space-y-4">
+                <ColorPicker label="Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
+                <ColorPicker label="Text Color" value={theme.heroTextColor} onChange={(v) => onChange({ ...theme, heroTextColor: v })} />
+                <ColorPicker label="Accent / CTA" value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
+                {(() => {
+                  const suggested = contrastText(theme.heroBg);
+                  const isOptimal = suggested.toLowerCase() === theme.heroTextColor.toLowerCase();
+                  return (
+                    <button
+                      onClick={() => onChange({ ...theme, heroTextColor: suggested })} disabled={isOptimal}
+                      className={`w-full flex items-center gap-2 text-xs px-3 py-2 rounded-lg border transition-all ${
+                        isOptimal
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-600 cursor-default"
+                          : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer"
+                      }`}
+                    >
+                      {isOptimal
+                        ? <><Check className="w-3.5 h-3.5 shrink-0" /> Text contrast looks great</>
+                        : <><Wand2 className="w-3.5 h-3.5 shrink-0" /> Auto-fix text contrast for this background</>
+                      }
+                    </button>
+                  );
+                })()}
+              </div>
+            </section>
 
-        <section>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(FONTS).map(([id, font]) => (
-              <button
-                key={id} onClick={() => onChange({ ...theme, fontFamily: id })}
-                className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
-                  theme.fontFamily === id
-                    ? "border-amber-400 bg-amber-50 text-amber-800 font-semibold"
-                    : "border-slate-200 hover:border-slate-300 text-slate-600"
-                }`}
-                style={{ fontFamily: font.stack }}
-              >
-                {font.label}
-              </button>
-            ))}
-          </div>
-        </section>
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Branding</p>
+              <ColorPicker label="Logo Background" value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
+            </section>
+
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Header &amp; Footer</p>
+              <div className="space-y-4">
+                <ColorPicker label="Header Background" value={theme.headerBg} onChange={(v) => onChange({ ...theme, headerBg: v })} />
+                <ColorPicker label="Footer Background" value={theme.footerBg} onChange={(v) => onChange({ ...theme, footerBg: v })} />
+                <div>
+                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1.5">Maps link URL</p>
+                  <input
+                    type="url"
+                    className={`w-full font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:ring-1 ${accentRing}`}
+                    placeholder="https://maps.google.com/…"
+                    value={theme.mapsUrl ?? ""}
+                    onChange={(e) => onChange({ ...theme, mapsUrl: e.target.value || undefined })}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Leave empty to use auto-generated Google Maps link.</p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(FONTS).map(([id, font]) => (
+                  <button
+                    key={id} onClick={() => onChange({ ...theme, fontFamily: id })}
+                    className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
+                      theme.fontFamily === id
+                        ? "border-amber-400 bg-amber-50 text-amber-800 font-semibold"
+                        : "border-slate-200 hover:border-slate-300 text-slate-600"
+                    }`}
+                    style={{ fontFamily: font.stack }}
+                  >
+                    {font.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
 
         <button
           onClick={() => onChange(DEFAULT_THEME)}
@@ -326,10 +377,10 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
       <div className="px-4 py-4 border-t border-slate-100 bg-slate-50 shrink-0">
         <button
           onClick={handleSave} disabled={saveState === "saving"}
-          className={`w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-all cursor-pointer disabled:cursor-default ${
+          className={`w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-all cursor-pointer disabled:cursor-default disabled:opacity-50 ${
             saveState === "saved" ? "bg-emerald-500 text-white"
             : saveState === "error" ? "bg-red-500 text-white"
-            : "bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white"
+            : `${saveBtn} text-white`
           }`}
         >
           {saveState === "saving"
@@ -433,14 +484,19 @@ export default function SaloonPreviewPage() {
   const activePage = location.hash ? location.hash.replace(/^#/, "") : undefined;
 
   return (
-    <>
-      <PreviewBanner
-        handler={handler}
-        saloonId={saloonId}
-        onDesign={() => setShowDesign((v) => !v)}
-        hasChanges={hasChanges}
-        onPublished={() => setBaseTheme(theme)}
-      />
+    <div className="flex flex-col" style={{ height: "100dvh", overflow: "hidden" }}>
+      {/* Banner — always visible, never scrolls */}
+      <div className="shrink-0">
+        <PreviewBanner
+          handler={handler}
+          saloonId={saloonId}
+          onDesign={() => setShowDesign((v) => !v)}
+          hasChanges={hasChanges}
+          onPublished={() => setBaseTheme(theme)}
+        />
+      </div>
+
+      {/* Theme panel — fixed overlay, unaffected by flex layout */}
       {showDesign && (
         <ThemePanel
           saloonId={saloonId}
@@ -449,20 +505,26 @@ export default function SaloonPreviewPage() {
           onClose={() => setShowDesign(false)}
         />
       )}
-      {theme.websiteType === "GENERATIVE_UI" ? (
-        <GenerativeUIWebsite
-          saloon={saloon} staff={staff} services={services} theme={theme}
-          getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
-          onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
-        />
-      ) : (
-        <SaloonWebsite
-          saloon={saloon} staff={staff} services={services} theme={theme}
-          activePage={activePage}
-          getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
-          onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
-        />
-      )}
-    </>
+
+      {/* Preview content — fills remaining height; only this area scrolls */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {theme.websiteType === "GENERATIVE_UI" ? (
+          <GenerativeUIWebsite
+            saloon={saloon} staff={staff} services={services} theme={theme}
+            getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+            onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+          />
+        ) : (
+          <div className="h-full overflow-y-auto">
+            <SaloonWebsite
+              saloon={saloon} staff={staff} services={services} theme={theme}
+              activePage={activePage}
+              getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+              onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

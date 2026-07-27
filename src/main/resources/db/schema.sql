@@ -132,6 +132,7 @@ WHERE website_mode IN ('static', 'ai', 'contact');
 ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS header_bg VARCHAR(50) NOT NULL DEFAULT '#FFFFFF';
 ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS footer_bg VARCHAR(50) NOT NULL DEFAULT '#1E293B';
 ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS maps_url TEXT;
+ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS chat_layout VARCHAR(20) NOT NULL DEFAULT 'app';
 
 ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS available_for_booking BOOLEAN NOT NULL DEFAULT TRUE;

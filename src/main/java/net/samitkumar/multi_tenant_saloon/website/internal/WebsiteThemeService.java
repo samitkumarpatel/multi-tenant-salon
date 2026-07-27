@@ -23,7 +23,7 @@ class WebsiteThemeService {
     WebsiteTheme getTheme(UUID saloonId) {
         return repository.findById(saloonId)
                 .orElse(new WebsiteTheme(saloonId, "#F8FAFC", "#0F172A", "#1D4ED8", "system", "#10B981",
-                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, null));
+                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, "app", null));
     }
 
     WebsiteType getWebsiteType(UUID saloonId) {
@@ -34,12 +34,12 @@ class WebsiteThemeService {
 
     WebsiteTheme saveTheme(UUID saloonId, String heroBg, String heroTextColor,
                            String accentColor, String fontFamily, String logoBgColor,
-                           String headerBg, String footerBg, String mapsUrl) {
+                           String headerBg, String footerBg, String mapsUrl, String chatLayout) {
         jdbc.update("""
                 INSERT INTO saloon_website_theme
-                  (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color, header_bg, footer_bg, maps_url, updated_at)
+                  (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color, header_bg, footer_bg, maps_url, chat_layout, updated_at)
                 VALUES
-                  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (saloon_id) DO UPDATE SET
                   hero_bg         = EXCLUDED.hero_bg,
                   hero_text_color = EXCLUDED.hero_text_color,
@@ -49,10 +49,11 @@ class WebsiteThemeService {
                   header_bg       = EXCLUDED.header_bg,
                   footer_bg       = EXCLUDED.footer_bg,
                   maps_url        = EXCLUDED.maps_url,
+                  chat_layout     = EXCLUDED.chat_layout,
                   updated_at      = EXCLUDED.updated_at
                 """,
                 saloonId, heroBg, heroTextColor, accentColor, fontFamily, logoBgColor,
-                headerBg, footerBg, mapsUrl, Timestamp.from(Instant.now()));
+                headerBg, footerBg, mapsUrl, chatLayout != null ? chatLayout : "app", Timestamp.from(Instant.now()));
 
         return repository.findById(saloonId).orElseThrow();
     }

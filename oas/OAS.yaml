@@ -348,7 +348,9 @@ paths:
       summary: Get website theme for a saloon (public)
       description: |
         Returns the visual theme used to render the saloon's public-facing website.
-        If no theme has been saved yet, sensible defaults are returned without touching the DB.
+        If no theme has been saved yet, sensible defaults are returned without touching the DB:
+        `heroBg="#F8FAFC"`, `heroTextColor="#0F172A"`, `accentColor="#1D4ED8"`, `fontFamily="system"`,
+        `logoBgColor="#10B981"`, `headerBg="#E2E8F0"`, `footerBg="#E2E8F0"`, `chatLayout="app"`, `updatedAt=null`.
       operationId: getTheme
       responses:
         "200":
@@ -1796,6 +1798,10 @@ components:
         mapsUrl:
           type: string
           description: Google Maps embed URL for the saloon location
+        chatLayout:
+          type: string
+          description: Generative UI chat widget layout (e.g. "app"); defaults to "app"
+          example: "app"
         websiteType:
           $ref: "#/components/schemas/WebsiteType"
         updatedAt:
@@ -1824,6 +1830,10 @@ components:
         mapsUrl:
           type: string
           description: Google Maps embed URL for the saloon location
+        chatLayout:
+          type: string
+          description: Generative UI chat widget layout (e.g. "app"); defaults to "app" when omitted
+          example: "app"
 
     WebsiteType:
       type: string

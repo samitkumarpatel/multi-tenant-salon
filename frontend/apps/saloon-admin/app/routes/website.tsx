@@ -4,6 +4,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { Monitor, Wand2, ExternalLink, Eye, Handshake, Mail } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
 import { ADMIN_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
+import { SALOON_DOMAIN } from "~/lib/config";
 
 type Mode = WebsiteMode;
 
@@ -44,13 +45,14 @@ interface ModeCardProps {
   title: string;
   badge: string;
   betaTag?: boolean;
+  isLive?: boolean;
   description: string;
   features: string[];
   disabled?: boolean;
   children: React.ReactNode;
 }
 
-function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, description, features, disabled, children }: ModeCardProps) {
+function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, isLive, description, features, disabled, children }: ModeCardProps) {
   const selected = active === id;
   const a = ACCENT[accent];
 
@@ -97,6 +99,11 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, d
               <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${a.badge}`}>
                 {badge}
               </span>
+              {isLive && (
+                <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
+                  Live
+                </span>
+              )}
               {betaTag && (
                 <span className="text-[9px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full text-white"
                   style={{ background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)" }}>
@@ -149,6 +156,11 @@ export default function WebsiteManagement() {
   const previewUrl = `/${saloon.handler ?? saloon.id}/website-preview`;
   const designUrl  = `${previewUrl}?design=1`;
 
+  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+  const liveUrl = isLocal
+    ? `http://localhost:5174/?slug=${saloon.handler ?? saloon.id}`
+    : `https://${saloon.handler}.${SALOON_DOMAIN}`;
+
   return (
     <div className="max-w-2xl">
       <div className="mb-7 flex items-start justify-between gap-4">
@@ -180,7 +192,8 @@ export default function WebsiteManagement() {
           accent="amber"
           icon={<Monitor className="w-5 h-5 text-amber-600" />}
           title="Static Website"
-          badge="Live"
+          badge="Standard"
+          isLive={mode === "STATIC_WEBSITE"}
           description="A clean, customisable page with your salon's services, team, hours, and contact details."
           features={["Services & pricing", "Team profiles", "Location & hours", "Design customisation"]}
         >
@@ -194,7 +207,7 @@ export default function WebsiteManagement() {
               <ExternalLink className="w-3.5 h-3.5" /> Open &amp; Customise
             </a>
             <a
-              href={previewUrl}
+              href={liveUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-slate-400 hover:text-slate-600 hover:underline no-underline"
@@ -217,6 +230,7 @@ export default function WebsiteManagement() {
           icon={<Wand2 className="w-5 h-5 text-violet-600" />}
           title="Generative UI"
           badge="MCP Apps"
+          isLive={mode === "GENERATIVE_UI"}
           description="Delivers an AI-crafted experience to every visitor — served as an interactive chat powered by your saloon's data."
           features={[
             "Personalised content per visitor",
@@ -235,7 +249,7 @@ export default function WebsiteManagement() {
               <ExternalLink className="w-3.5 h-3.5" /> Open &amp; Customise
             </a>
             <a
-              href={previewUrl}
+              href={liveUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-slate-400 hover:text-slate-600 hover:underline no-underline"
