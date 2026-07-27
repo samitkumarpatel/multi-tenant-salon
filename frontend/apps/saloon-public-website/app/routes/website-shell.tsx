@@ -82,15 +82,6 @@ export function shouldRevalidate({
   );
 }
 
-export function HydrateFallback() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
-      <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
-      <p className="text-sm">Loading…</p>
-    </div>
-  );
-}
-
 export default function WebsiteShell() {
   const data = useLoaderData<typeof clientLoader>();
 

@@ -373,20 +373,21 @@ Returns **all** slots within each eligible staff member's working window — bot
 ```json
 {
   "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "heroBg": "#0F172A",
-  "heroTextColor": "#FFFFFF",
-  "accentColor": "#F59E0B",
-  "fontFamily": "inter",
-  "logoBgColor": "#F59E0B",
-  "headerBg": "#0F172A",
-  "footerBg": "#0F172A",
+  "heroBg": "#F8FAFC",
+  "heroTextColor": "#0F172A",
+  "accentColor": "#1D4ED8",
+  "fontFamily": "system",
+  "logoBgColor": "#10B981",
+  "headerBg": "#E2E8F0",
+  "footerBg": "#E2E8F0",
   "mapsUrl": null,
+  "chatLayout": "app",
   "websiteType": "STATIC_WEBSITE",
   "updatedAt": null
 }
 ```
 
-`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory). `mapsUrl` is `null` until the admin sets a Google Maps embed URL.
+`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory). `mapsUrl` is `null` until the admin sets a Google Maps embed URL. `chatLayout` defaults to `"app"` and controls the Generative UI chat widget layout.
 
 **Flow**
 
@@ -518,7 +519,8 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
   "logoBgColor": "#6366F1",
   "headerBg": "#0F172A",
   "footerBg": "#0F172A",
-  "mapsUrl": "https://www.google.com/maps/embed?pb=..."
+  "mapsUrl": "https://www.google.com/maps/embed?pb=...",
+  "chatLayout": "app"
 }
 ```
 
@@ -527,11 +529,12 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 | `heroBg` | string | CSS color for the hero section background |
 | `heroTextColor` | string | CSS color for hero text |
 | `accentColor` | string | Primary accent / CTA color |
-| `fontFamily` | string | Font family slug (e.g. `"inter"`, `"poppins"`) |
+| `fontFamily` | string | Font family slug (e.g. `"system"`, `"poppins"`) |
 | `logoBgColor` | string | Background color behind the saloon logo |
 | `headerBg` | string | Navigation bar background color |
 | `footerBg` | string | Footer background color |
 | `mapsUrl` | string | Google Maps embed URL for the saloon location |
+| `chatLayout` | string | Generative UI chat widget layout; defaults to `"app"` |
 
 **Response** `200 OK`
 
@@ -546,6 +549,7 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
   "headerBg": "#0F172A",
   "footerBg": "#0F172A",
   "mapsUrl": "https://www.google.com/maps/embed?pb=...",
+  "chatLayout": "app",
   "websiteType": "STATIC_WEBSITE",
   "updatedAt": "2026-07-08T12:00:00Z"
 }

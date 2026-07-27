@@ -14,14 +14,16 @@ export default function PublicWebsitePage() {
 
   if (data.theme.websiteType === "GENERATIVE_UI") {
     return (
-      <GenerativeUIWebsite
-        saloon={data.saloon}
-        staff={data.staff}
-        services={data.services}
-        theme={data.theme}
-        getPagePath={(page) => `/${page}${search}`}
-        onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
-      />
+      <div style={{ height: "100dvh", overflow: "hidden" }}>
+        <GenerativeUIWebsite
+          saloon={data.saloon}
+          staff={data.staff}
+          services={data.services}
+          theme={data.theme}
+          getPagePath={(page) => `/${page}${search}`}
+          onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
+        />
+      </div>
     );
   }
 

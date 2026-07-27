@@ -19,5 +19,6 @@ public record WebsiteTheme(
         String headerBg,
         String footerBg,
         String mapsUrl,
+        @Column("chat_layout") String chatLayout,
         Instant updatedAt
 ) {}

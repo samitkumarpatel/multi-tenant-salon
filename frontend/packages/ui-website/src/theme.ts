@@ -8,6 +8,7 @@ export const DEFAULT_THEME: WebsiteTheme = {
   logoBgColor: "#7C3AED",
   headerBg: "#FFFFFF",
   footerBg: "#1E293B",
+  chatLayout: "app",
 };
 
 export const FONTS: Record<string, { label: string; stack: string; google?: string }> = {

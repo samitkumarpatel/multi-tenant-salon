@@ -83,6 +83,7 @@ export interface WebsiteTheme {
   footerBg: string;
   mapsUrl?: string;
   websiteType?: string;
+  chatLayout?: "fullscreen" | "app";
   updatedAt?: string;
 }
 
