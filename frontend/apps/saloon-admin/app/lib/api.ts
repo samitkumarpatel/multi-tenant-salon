@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 export const ONBOARDING_API = `${API_BASE}/api/saloon-onboarding`;
 export const CUSTOMER_API   = `${API_BASE}/api/saloon`;
 export const ADMIN_API      = `${API_BASE}/api/saloon-admin`;

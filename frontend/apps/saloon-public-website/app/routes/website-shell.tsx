@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { SalonErrorPage, SaloonDisabledPage, DEFAULT_THEME, apiFetch } from "@saloon/ui-website";
+import { SalonErrorPage, SaloonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE } from "@saloon/ui-website";
 import type { Saloon, StaffMember, ServiceItem, WebsiteTheme } from "@saloon/ui-website";
 
 function initials(name: string) {
@@ -52,11 +52,11 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
   if (!slug) return { status: "not_found" };
 
   try {
-    const saloon = await apiFetch<Saloon>(`/api/saloon/${slug}`);
+    const saloon = await apiFetch<Saloon>(`${API_BASE}/api/saloon/${slug}`);
     const [staff, services, theme] = await Promise.all([
-      apiFetch<StaffMember[]>(`/api/saloon/${saloon.id}/staff`).catch((): StaffMember[] => []),
-      apiFetch<ServiceItem[]>(`/api/saloon/${saloon.id}/services`).catch((): ServiceItem[] => []),
-      apiFetch<WebsiteTheme>(`/api/saloon/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
+      apiFetch<StaffMember[]>(`${API_BASE}/api/saloon/${saloon.id}/staff`).catch((): StaffMember[] => []),
+      apiFetch<ServiceItem[]>(`${API_BASE}/api/saloon/${saloon.id}/services`).catch((): ServiceItem[] => []),
+      apiFetch<WebsiteTheme>(`${API_BASE}/api/saloon/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
     if (!saloon.features?.includes("STATIC_WEBSITE")) {

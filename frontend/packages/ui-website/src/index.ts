@@ -9,7 +9,7 @@ export { SiteHeader, SiteFooter, FEATURE_NAV } from "./SiteChrome";
 
 export { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText, relLuminance } from "./theme";
 export { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice, formatDate, openDays } from "./constants";
-export { apiFetch } from "./api";
+export { apiFetch, API_BASE } from "./api";
 
 export type {
   Saloon, Owner, Location, ContactInfo, OperatingHours,
