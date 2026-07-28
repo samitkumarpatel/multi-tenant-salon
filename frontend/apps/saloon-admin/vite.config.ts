@@ -18,6 +18,7 @@ const wellKnownBypass = {
 };
 
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH ?? "/",
   plugins: [wellKnownBypass, tailwindcss(), reactRouter()],
   resolve: {
     alias: {

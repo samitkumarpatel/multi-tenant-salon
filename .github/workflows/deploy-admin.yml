@@ -29,6 +29,7 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://localhost:8080' }}
           VITE_SALOON_DOMAIN: ${{ vars.VITE_SALOON_DOMAIN || 'my-saloon.online' }}
+          VITE_BASE_PATH: /admin/
         run: npm run build:admin
 
       - name: Upload build artifact
