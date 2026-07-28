@@ -574,14 +574,14 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
                         </div>
-                        <div className="flex items-center gap-4 shrink-0">
-                          <span className="flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
-                            <Timer className="w-3 h-3" /> {s.durationMinutes ?? 30} min
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="inline-flex items-center justify-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full w-[5.5rem] shrink-0">
+                            <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                           </span>
-                          <span className="text-sm font-bold text-slate-900 min-w-[60px] text-right tabular-nums">{formatPrice(s.price, s.currency)}</span>
+                          <span className="text-sm font-bold text-slate-900 w-16 text-right tabular-nums shrink-0">{formatPrice(s.price, s.currency)}</span>
                           {hasBooking && (
                             <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
-                              className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-0 group-hover/svc:opacity-100 transition-opacity"
+                              className="hidden sm:inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-0 group-hover/svc:opacity-100 transition-opacity w-[4.5rem] shrink-0"
                               style={{ backgroundColor: theme.accentColor, color: accentText }}>
                               Book <ChevronRight className="w-3 h-3" />
                             </a>
@@ -631,7 +631,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                                 Book with me
                               </a>
                             )}
-                            {hasDetails && <ChevronRight className={`w-4 h-4 text-slate-300 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} />}
+                            <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${hasDetails ? "text-slate-300" : "invisible"}`} />
                           </div>
                           {isExpanded && hasDetails && (
                             <div className="mt-2.5 pl-[52px]">
