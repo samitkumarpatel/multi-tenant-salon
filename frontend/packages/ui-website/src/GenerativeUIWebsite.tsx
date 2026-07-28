@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Calendar, Clock, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, ChevronDown, Clock, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
 import { FONTS, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import type { Saloon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
@@ -138,11 +138,14 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
   const [input, setInput]         = useState("");
   const [thinking, setThinking]   = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const bottomRef  = useRef<HTMLDivElement>(null);
+  const inputRef   = useRef<HTMLTextAreaElement>(null);
+  const moreRef    = useRef<HTMLDivElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  // Typewriter animation
-  const fullTitle = `Welcome to ${saloon.name}`;
+  // Typewriter animation — "Welcome to" fades in, then the saloon name types
+  const fullTitle = saloon.name;
+  const [labelVisible, setLabelVisible] = useState(false);
   const [typedTitle, setTypedTitle]     = useState("");
   const [titleDone, setTitleDone]       = useState(false);
   const [cursorHidden, setCursorHidden] = useState(false);
@@ -158,26 +161,43 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     }
   }, [hasStarted]);
 
-  // Typewriter effect — runs once on mount (or if saloon name changes)
+  // Typewriter effect — "Welcome to" fades in first, then the name types after a beat
   useEffect(() => {
     let i = 0;
     let iv: ReturnType<typeof setInterval>;
+    let nameStart: ReturnType<typeof setTimeout>;
+    setLabelVisible(false);
     setTypedTitle("");
     setTitleDone(false);
     setCursorHidden(false);
-    const start = setTimeout(() => {
-      iv = setInterval(() => {
-        i++;
-        setTypedTitle(fullTitle.slice(0, i));
-        if (i >= fullTitle.length) {
-          clearInterval(iv);
-          setTitleDone(true);
-          setTimeout(() => setCursorHidden(true), 2500);
-        }
-      }, 55);
+    const labelTimer = setTimeout(() => {
+      setLabelVisible(true);
+      // brief pause so "Welcome to" registers before the name starts typing
+      nameStart = setTimeout(() => {
+        iv = setInterval(() => {
+          i++;
+          setTypedTitle(fullTitle.slice(0, i));
+          if (i >= fullTitle.length) {
+            clearInterval(iv);
+            setTitleDone(true);
+            setTimeout(() => setCursorHidden(true), 2500);
+          }
+        }, 60);
+      }, 300);
     }, 350);
-    return () => { clearTimeout(start); clearInterval(iv); };
+    return () => { clearTimeout(labelTimer); clearTimeout(nameStart); clearInterval(iv); };
   }, [fullTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [moreOpen]);
 
   function startInteraction() {
     if (!hasStarted) setHasStarted(true);
@@ -284,6 +304,16 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     },
   ].filter(Boolean) as ActionButton[];
 
+  // Shuffle once on mount; first 2 shown as buttons, rest in "More" dropdown
+  const [visibleButtons, dropdownButtons] = useMemo(() => {
+    const arr = [...actionButtons];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return [arr.slice(0, 3), arr.slice(3)];
+  }, [actionButtons.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const inputCard = (
     <div
       className="flex items-end gap-3 px-4 py-3 rounded-2xl"
@@ -318,25 +348,64 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     </div>
   );
 
-  const actionButtonsPanel = actionButtons.length > 0 ? (
-    <div className="flex gap-2 mb-3">
-      {actionButtons.map((btn) => (
+  const btnStyle = {
+    backgroundColor: `${theme.accentColor}10`,
+    borderColor: `${theme.accentColor}35`,
+    color: theme.accentColor,
+    boxShadow: `0 1px 3px ${theme.accentColor}15`,
+  };
+
+  const actionButtonsPanel = visibleButtons.length > 0 ? (
+    <div className="flex gap-1.5 mb-3 w-full">
+      {visibleButtons.map((btn) => (
         <button
           key={btn.label}
           onClick={() => dispatch(btn.question)}
           title={btn.label}
-          className="group flex-1 inline-flex items-center justify-center gap-1.5 p-2 sm:py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 hover:scale-105 hover:shadow-md active:scale-95 cursor-pointer"
-          style={{
-            backgroundColor: `${theme.accentColor}10`,
-            borderColor: `${theme.accentColor}35`,
-            color: theme.accentColor,
-            boxShadow: `0 1px 3px ${theme.accentColor}15`,
-          }}
+          className="group flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer overflow-hidden"
+          style={btnStyle}
         >
           <btn.icon className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${btn.iconAnim}`} />
-          <span className="hidden sm:inline">{btn.label}</span>
+          <span className="truncate hidden sm:inline">{btn.label}</span>
         </button>
       ))}
+
+      {dropdownButtons.length > 0 && (
+        <div ref={moreRef} className="relative flex-1 min-w-0">
+          <button
+            onClick={() => setMoreOpen((o) => !o)}
+            title="More"
+            className="group w-full inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer overflow-hidden"
+            style={btnStyle}
+          >
+            <span className="truncate hidden sm:inline">More</span>
+            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {moreOpen && (
+            <div
+              className="absolute bottom-full mb-1.5 right-0 z-50 min-w-[140px] rounded-xl border py-1 shadow-lg"
+              style={{
+                backgroundColor: topBg,
+                borderColor: `${theme.accentColor}35`,
+                boxShadow: `0 4px 16px ${theme.accentColor}20`,
+              }}
+            >
+              {dropdownButtons.map((btn) => (
+                <button
+                  key={btn.label}
+                  onClick={() => { dispatch(btn.question); setMoreOpen(false); }}
+                  className="group w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors duration-150 hover:opacity-80 cursor-pointer"
+                  style={{ color: theme.accentColor }}
+                >
+                  <btn.icon className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${btn.iconAnim}`} />
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   ) : null;
 
@@ -370,10 +439,10 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
       className="flex flex-col items-start justify-center px-8 py-12"
       style={{ minHeight: "100%", maxWidth: 680, margin: "0 auto", width: "100%" }}
     >
-      {/* Avatar + typewriter title — side by side */}
-      <div className="flex items-center gap-4 mb-3">
+      {/* Avatar (fixed width) + text column — subtitle aligns with title */}
+      <div className="flex items-start gap-4 mb-10">
         <div
-          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
+          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0 mt-1"
           style={{
             backgroundColor: avatarBg,
             color: avatarText,
@@ -385,37 +454,53 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
           {initials(saloon.name)}
         </div>
 
-        <h1 className="text-3xl font-bold" style={{ color: msgText, minHeight: "2.5rem" }}>
-        {typedTitle || " "}
-        {!cursorHidden && (
-          <span
-            aria-hidden
-            className="inline-block w-[2px] h-7 ml-0.5 rounded-sm"
+        <div className="flex-1 min-w-0">
+          {/* "Welcome to" — slides in before the name starts typing */}
+          <p
+            className="text-sm font-medium tracking-wide"
             style={{
-              backgroundColor: msgText,
-              animation: "gai-cursor-blink 0.65s ease-in-out infinite",
-              verticalAlign: "middle",
+              color: msgDim,
+              opacity: labelVisible ? 1 : 0,
+              transform: labelVisible ? "translateY(0)" : "translateY(6px)",
+              transition: "opacity 0.4s ease, transform 0.4s ease",
             }}
-          />
-        )}
-        </h1>
-      </div>
+          >
+            Welcome to
+          </p>
 
-      {/* Subtitle + status — cascade in after typing finishes */}
-      <div
-        style={{
-          opacity: titleDone ? 1 : 0,
-          transform: titleDone ? "translateY(0)" : "translateY(10px)",
-          transition: "opacity 0.5s ease, transform 0.5s ease",
-        }}
-      >
-        <p className="text-base mb-1" style={{ color: msgText, opacity: 0.8 }}>
-          I'm your AI assistant — here to help with anything you need.
-        </p>
-        <p className="flex items-center gap-2 text-sm mb-8 justify-start" style={{ color: msgDim }}>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-          Online · How can I help you today?
-        </p>
+          {/* Saloon name — types in after "Welcome to" appears */}
+          <h1 className="text-3xl font-bold leading-tight mb-3" style={{ color: msgText, minHeight: "2.25rem" }}>
+            {typedTitle || "​"}
+            {!cursorHidden && (
+              <span
+                aria-hidden
+                className="inline-block w-[2px] h-7 ml-0.5 rounded-sm"
+                style={{
+                  backgroundColor: theme.accentColor,
+                  animation: "gai-cursor-blink 0.65s ease-in-out infinite",
+                  verticalAlign: "middle",
+                }}
+              />
+            )}
+          </h1>
+
+          {/* Subtitle + status — cascade in after typing, aligned with title */}
+          <div
+            style={{
+              opacity: titleDone ? 1 : 0,
+              transform: titleDone ? "translateY(0)" : "translateY(10px)",
+              transition: "opacity 0.5s ease, transform 0.5s ease",
+            }}
+          >
+            <p className="text-base mb-1" style={{ color: msgText, opacity: 0.8 }}>
+              I'm your AI assistant — here to help with anything you need.
+            </p>
+            <p className="flex items-center gap-2 text-sm" style={{ color: msgDim }}>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
+              Online · How can I help you today?
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Input + action buttons — slide up after typing, only before user has started */}

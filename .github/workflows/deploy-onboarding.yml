@@ -23,9 +23,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build
-        working-directory: frontend/apps/saloon-onboarding
-        run: npx react-router build
+      - name: Build saloon-onboarding
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://localhost:8080' }}
+          VITE_SALOON_DOMAIN: ${{ vars.VITE_SALOON_DOMAIN || 'my-saloon.online' }}
+          VITE_ADMIN_APP_URL: ${{ vars.VITE_ADMIN_APP_URL || 'http://localhost:5173' }}
+        run: npm run build:onboarding
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -35,17 +39,16 @@ jobs:
           retention-days: 7
 
 #      - name: Deploy to S3
-#        working-directory: frontend/apps/saloon-onboarding
 #        env:
 #          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 #          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 #          AWS_REGION: ${{ secrets.AWS_REGION }}
 #        run: |
-#          aws s3 sync build/client s3://${{ secrets.S3_BUCKET }}/onboarding/ \
+#          aws s3 sync frontend/apps/saloon-onboarding/build/client s3://${{ secrets.S3_BUCKET }}/onboarding/ \
 #            --delete \
 #            --cache-control "public,max-age=31536000,immutable" \
 #            --exclude "index.html"
-#          aws s3 cp build/client/index.html \
+#          aws s3 cp frontend/apps/saloon-onboarding/build/client/index.html \
 #            s3://${{ secrets.S3_BUCKET }}/onboarding/index.html \
 #            --cache-control "no-cache,no-store,must-revalidate"
 

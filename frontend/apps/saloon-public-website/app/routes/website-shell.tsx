@@ -24,10 +24,13 @@ function buildFaviconHref(name: string, bgColor: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+const SALOON_DOMAIN = import.meta.env.VITE_SALOON_DOMAIN || "my-saloon.online";
+
 function slugFromRequest(request: Request): string | null {
   const url = new URL(request.url);
-  const parts = url.hostname.split(".");
-  if (parts.length >= 3) return parts[0];
+  if (url.hostname.endsWith(`.${SALOON_DOMAIN}`)) {
+    return url.hostname.slice(0, -(SALOON_DOMAIN.length + 1)) || null;
+  }
   return url.searchParams.get("slug");
 }
 
@@ -56,11 +59,9 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
       apiFetch<WebsiteTheme>(`/api/saloon/${saloon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
-    // Website is accessible if STATIC_WEBSITE feature is enabled OR a website mode is configured
-    const isEnabled =
-      saloon.features?.includes("STATIC_WEBSITE") ||
-      Boolean(resolvedTheme.websiteType);
-    if (!isEnabled) return { status: "disabled", saloonName: saloon.name };
+    if (!saloon.features?.includes("STATIC_WEBSITE")) {
+      return { status: "disabled", saloonName: saloon.name };
+    }
     return { status: "ok", saloon, staff, services, theme: resolvedTheme };
   } catch (err) {
     const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
