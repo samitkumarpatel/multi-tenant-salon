@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
 } from "lucide-react";
-import { apiFetch } from "./api";
+import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "./constants";
 import { FONTS, loadGoogleFont, contrastText } from "./theme";
@@ -26,7 +26,7 @@ import type {
   Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country,
 } from "./types";
 
-const CUSTOMER_API = "/api/saloon";
+const CUSTOMER_API = `${API_BASE}/api/saloon`;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -1340,7 +1340,7 @@ export function BookingWizard({
 
   useEffect(() => {
     if (countriesProp.length > 0) return;
-    apiFetch<Country[]>("/api/saloon-utility/countries")
+    apiFetch<Country[]>(`${API_BASE}/api/saloon-utility/countries`)
       .then(setFetchedCountries)
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
