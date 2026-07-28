@@ -26,6 +26,9 @@ jobs:
 
       - name: Build saloon-admin
         working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://localhost:8080' }}
+          VITE_SALOON_DOMAIN: ${{ vars.VITE_SALOON_DOMAIN || 'my-saloon.online' }}
         run: npm run build:admin
 
       - name: Upload build artifact
@@ -36,17 +39,16 @@ jobs:
           retention-days: 7
 
 #      - name: Deploy to S3
-#        working-directory: frontend/apps/saloon-admin
 #        env:
 #          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 #          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 #          AWS_REGION: ${{ secrets.AWS_REGION }}
 #        run: |
-#          aws s3 sync build/client s3://${{ secrets.S3_BUCKET }}/admin/ \
+#          aws s3 sync frontend/apps/saloon-admin/build/client s3://${{ secrets.S3_BUCKET }}/admin/ \
 #            --delete \
 #            --cache-control "public,max-age=31536000,immutable" \
 #            --exclude "index.html"
-#          aws s3 cp build/client/index.html \
+#          aws s3 cp frontend/apps/saloon-admin/build/client/index.html \
 #            s3://${{ secrets.S3_BUCKET }}/admin/index.html \
 #            --cache-control "no-cache,no-store,must-revalidate"
 
