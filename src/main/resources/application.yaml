@@ -17,3 +17,6 @@ spring:
       jdbc:
         schema-initialization:
           enabled: true
+  threads:
+    virtual:
+      enabled: true

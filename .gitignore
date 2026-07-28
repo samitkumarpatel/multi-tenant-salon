@@ -47,14 +47,24 @@ frontend/.env.*.local
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
-*.tfvars
-!*.tfvars.example
+# Ignore secret var files but allow the standard terraform.tfvars (no secrets in it)
+*.secret.tfvars
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 crash.log
 crash.*.log
+# Lambda@Edge build artefact produced by the cloudfront module
+infrastructure/modules/cloudfront/wildcard-router.zip
+
+### Infrastructure secrets ###
+# .env holds real credentials — never commit it
+infrastructure/environments/**/.env
+!infrastructure/environments/**/.env.example
+# Legacy path (stacks/dev/ being removed)
+infrastructure/stacks/**/.env
+!infrastructure/stacks/**/.env.example
 .claude
 .claude/**
 **/.claude/**
