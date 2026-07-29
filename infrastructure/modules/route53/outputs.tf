@@ -3,9 +3,9 @@ output "zone_id" {
 }
 
 output "apex_fqdn" {
-  value = aws_route53_record.apex.fqdn
+  value = length(aws_route53_record.apex) > 0 ? aws_route53_record.apex[0].fqdn : null
 }
 
 output "api_fqdn" {
-  value = aws_route53_record.api.fqdn
+  value = length(aws_route53_record.api) > 0 ? aws_route53_record.api[0].fqdn : null
 }

@@ -1,20 +1,23 @@
 locals {
+  stack_version = "1.0.0"
+
   common_tags = {
     Project     = "multi-tenant-saloon"
     Environment = var.environment
     ManagedBy   = "terraform"
-    Stack       = "frontend"
+    Version     = local.stack_version
   }
 
-  # Stable keys used to address each bucket instance throughout this stack.
-  frontend_buckets = {
-    main-web        = "${var.name}-main-web"
-    public-web      = "${var.name}-public-web"
-    super-admin-web = "${var.name}-super-admin-web"
+  # One module.s3 instance per content bucket — for_each keeps them independently addressable.
+  # See wiki/frontend-deployment.md for bucket → app mapping.
+  content_buckets = {
+    main-web        = "${var.name}-main-web"        # onboarding + admin (separate prefixes)
+    public-web      = "${var.name}-public-web"       # per-saloon public website
+    super-admin-web = "${var.name}-super-admin-web"  # super-admin dashboard
   }
 
-  # Maps each content bucket to the CloudFront distribution that serves it.
-  bucket_policy_map = {
+  # Which CloudFront distribution's OAC is allowed to read each bucket.
+  bucket_distribution_map = {
     main-web        = module.cloudfront.main_distribution_arn
     public-web      = module.cloudfront.wildcard_distribution_arn
     super-admin-web = module.cloudfront.wildcard_distribution_arn
@@ -24,7 +27,7 @@ locals {
 # ── S3 Content Buckets ────────────────────────────────────────────────────────
 
 module "s3" {
-  for_each = local.frontend_buckets
+  for_each = local.content_buckets
   source   = "../../modules/s3"
 
   name          = each.value
@@ -32,7 +35,7 @@ module "s3" {
   tags          = local.common_tags
 }
 
-# CloudFront access logs — different config (log-delivery ACL, no OAC).
+# CloudFront access logs bucket — needs log-delivery ACL, not OAC.
 resource "aws_s3_bucket" "cf_logs" {
   bucket        = "${var.name}-cf-logs"
   force_destroy = var.environment == "dev"
@@ -52,7 +55,9 @@ resource "aws_s3_bucket_acl" "cf_logs" {
   depends_on = [aws_s3_bucket_ownership_controls.cf_logs]
 }
 
-# ── CloudFront ─────────────────────────────────────────────────────────────────
+# ── CloudFront ────────────────────────────────────────────────────────────────
+# Distribution #1: my-saloon.online  (onboarding + admin via CF Function routing)
+# Distribution #2: *.my-saloon.online (public website + super-admin via Lambda@Edge)
 
 module "cloudfront" {
   source = "../../modules/cloudfront"
@@ -75,11 +80,11 @@ module "cloudfront" {
 }
 
 # ── S3 Bucket Policies (OAC) ──────────────────────────────────────────────────
-# Kept here — not inside the s3 module — so they can reference both
-# module.s3[*] and module.cloudfront without a circular dependency.
+# Kept here rather than inside the s3 module to avoid a circular dependency
+# between module.s3 and module.cloudfront.
 
 data "aws_iam_policy_document" "s3_oac" {
-  for_each = local.bucket_policy_map
+  for_each = local.bucket_distribution_map
 
   statement {
     sid    = "AllowCloudFrontOAC"
@@ -99,47 +104,20 @@ data "aws_iam_policy_document" "s3_oac" {
 }
 
 resource "aws_s3_bucket_policy" "s3_oac" {
-  for_each = local.bucket_policy_map
+  for_each = local.bucket_distribution_map
   bucket   = module.s3[each.key].bucket_id
   policy   = data.aws_iam_policy_document.s3_oac[each.key].json
 }
 
-# ── Route 53 — CloudFront DNS records ─────────────────────────────────────────
+# ── Route 53 ──────────────────────────────────────────────────────────────────
+# apex (my-saloon.online), www, and wildcard (*.my-saloon.online) → CloudFront
 
-data "aws_route53_zone" "this" {
-  name         = var.domain
-  private_zone = false
-}
+module "route53" {
+  source = "../../modules/route53"
 
-resource "aws_route53_record" "apex" {
-  zone_id = data.aws_route53_zone.this.zone_id
-  name    = var.domain
-  type    = "A"
-  alias {
-    name                   = module.cloudfront.main_distribution_domain
-    zone_id                = module.cloudfront.main_distribution_zone_id
-    evaluate_target_health = false
-  }
-}
-
-resource "aws_route53_record" "www" {
-  zone_id = data.aws_route53_zone.this.zone_id
-  name    = "www.${var.domain}"
-  type    = "A"
-  alias {
-    name                   = module.cloudfront.main_distribution_domain
-    zone_id                = module.cloudfront.main_distribution_zone_id
-    evaluate_target_health = false
-  }
-}
-
-resource "aws_route53_record" "wildcard" {
-  zone_id = data.aws_route53_zone.this.zone_id
-  name    = "*.${var.domain}"
-  type    = "A"
-  alias {
-    name                   = module.cloudfront.wildcard_distribution_domain
-    zone_id                = module.cloudfront.wildcard_distribution_zone_id
-    evaluate_target_health = false
-  }
+  domain              = var.domain
+  cf_main_domain      = module.cloudfront.main_distribution_domain
+  cf_main_zone_id     = module.cloudfront.main_distribution_zone_id
+  cf_wildcard_domain  = module.cloudfront.wildcard_distribution_domain
+  cf_wildcard_zone_id = module.cloudfront.wildcard_distribution_zone_id
 }

@@ -16,5 +16,5 @@ variable "aws_region" {
 variable "domain" {
   type        = string
   default     = "my-saloon.online"
-  description = "Root domain. ACM cert for this + *.this must exist in us-east-1."
+  description = "Root domain. ACM cert for this + *.this must exist in us-east-1 before apply."
 }
