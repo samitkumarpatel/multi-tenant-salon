@@ -39,6 +39,18 @@ variable "oac_super_admin_id" {
   type = string
 }
 
+variable "cf_function_arn" {
+  type        = string
+  default     = null
+  description = "ARN of a CloudFront Function to attach at viewer-request on Distribution #1's default behavior. Null skips the association."
+}
+
+variable "lambda_edge_qualified_arn" {
+  type        = string
+  default     = null
+  description = "Qualified ARN of a Lambda@Edge function to attach at origin-request on Distribution #2. Must be deployed in us-east-1. Null skips the association."
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
