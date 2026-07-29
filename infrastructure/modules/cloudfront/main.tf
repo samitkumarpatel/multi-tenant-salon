@@ -1,13 +1,3 @@
-# ── ACM Certificate (us-east-1) ───────────────────────────────────────────────
-
-data "aws_acm_certificate" "this" {
-  provider    = aws.us_east_1
-  domain      = var.domain
-  types       = ["AMAZON_ISSUED"]
-  most_recent = true
-  statuses    = ["ISSUED"]
-}
-
 # ── Distribution #1: my-saloon.online ────────────────────────────────────────
 
 resource "aws_cloudfront_distribution" "main" {
@@ -82,7 +72,7 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = data.aws_acm_certificate.this.arn
+    acm_certificate_arn      = var.certificate_arn
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }
@@ -154,7 +144,7 @@ resource "aws_cloudfront_distribution" "wildcard" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = data.aws_acm_certificate.this.arn
+    acm_certificate_arn      = var.certificate_arn
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }

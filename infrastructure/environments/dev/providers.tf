@@ -13,12 +13,19 @@ terraform {
   }
 
   backend "s3" {
-    # Populated at init time via -backend-config or TF_BACKEND_* env vars in environments/<env>/.env:
-    #   bucket         = "my-saloon-terraform-state"
-    #   key            = "dev/1.0.0/terraform.tfstate"
-    #   region         = "ap-south-1"
-    #   dynamodb_table = "terraform-locks"
-    #   encrypt        = true
+    #Populated at init time via -backend-config or TF_BACKEND_* env vars in .env:
+      bucket         = "tfpocbucket001"
+      key            = "dev/1.0.0/terraform.tfstate"
+      region         = "eu-north-1"
+      encrypt        = true
+  }
+}
+
+locals {
+  default_tags = {
+    Project     = "multi-tenant-saloon"
+    Environment = var.environment
+    ManagedBy   = "terraform"
   }
 }
 
@@ -26,7 +33,7 @@ provider "aws" {
   region = var.aws_region
 
   default_tags {
-    tags = local.common_tags
+    tags = local.default_tags
   }
 }
 
@@ -36,6 +43,6 @@ provider "aws" {
   region = "us-east-1"
 
   default_tags {
-    tags = local.common_tags
+    tags = local.default_tags
   }
 }

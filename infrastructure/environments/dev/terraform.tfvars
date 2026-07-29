@@ -1,4 +1,4 @@
 environment = "dev"
 name        = "my-saloon"
-aws_region  = "ap-south-1"
+aws_region  = "eu-north-1"
 domain      = "my-saloon.online"

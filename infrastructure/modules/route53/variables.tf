@@ -1,29 +1,30 @@
 variable "domain" {
   type        = string
-  description = "Root domain, e.g. my-saloon.online (must exist as a Route 53 hosted zone)"
+  description = "Root domain, e.g. my-saloon.online"
+}
+
+variable "zone_id" {
+  type        = string
+  description = "Route 53 hosted zone ID for the domain"
 }
 
 variable "cf_main_domain" {
   type        = string
-  default     = null
-  description = "CloudFront Distribution #1 domain name (apex + www). Null skips those records."
+  description = "CloudFront Distribution #1 domain name (apex + www)"
 }
 
 variable "cf_main_zone_id" {
   type        = string
-  default     = null
   description = "CloudFront Distribution #1 hosted zone ID"
 }
 
 variable "cf_wildcard_domain" {
   type        = string
-  default     = null
-  description = "CloudFront Distribution #2 domain name (wildcard *.domain). Null skips that record."
+  description = "CloudFront Distribution #2 domain name (wildcard *.domain)"
 }
 
 variable "cf_wildcard_zone_id" {
   type        = string
-  default     = null
   description = "CloudFront Distribution #2 hosted zone ID"
 }
 

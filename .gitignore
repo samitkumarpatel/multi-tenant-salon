@@ -57,6 +57,8 @@ crash.log
 crash.*.log
 # Lambda@Edge build artefact produced by the cloudfront module
 infrastructure/modules/cloudfront/wildcard-router.zip
+plan.out
+**/plan.out/**
 
 ### Infrastructure secrets ###
 # .env holds real credentials — never commit it

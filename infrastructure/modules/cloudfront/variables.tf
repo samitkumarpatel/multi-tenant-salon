@@ -51,6 +51,11 @@ variable "lambda_edge_qualified_arn" {
   description = "Qualified ARN of a Lambda@Edge function to attach at origin-request on Distribution #2. Must be deployed in us-east-1. Null skips the association."
 }
 
+variable "certificate_arn" {
+  type        = string
+  description = "ARN of a validated ACM certificate in us-east-1 covering the domain and *.domain"
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

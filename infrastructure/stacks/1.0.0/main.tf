@@ -164,13 +164,9 @@ resource "aws_lambda_function" "wildcard_router" {
 module "cloudfront" {
   source = "../../modules/cloudfront"
 
-  providers = {
-    aws           = aws
-    aws.us_east_1 = aws.us_east_1
-  }
-
   name                      = "${var.name}-${var.environment}"
   domain                    = var.domain
+  certificate_arn           = var.certificate_arn
   main_web_bucket_domain    = module.s3["main-web"].bucket_regional_domain
   public_web_bucket_domain  = module.s3["public-web"].bucket_regional_domain
   super_admin_bucket_domain = module.s3["super-admin-web"].bucket_regional_domain
@@ -211,12 +207,32 @@ resource "aws_s3_bucket_policy" "s3_oac" {
   policy   = data.aws_iam_policy_document.s3_oac[each.key].json
 }
 
+# ── Resource Group ────────────────────────────────────────────────────────────
+
+resource "aws_resourcegroups_group" "env" {
+  name        = "${var.name}-${var.environment}"
+  description = "All resources for the ${var.environment} environment of ${var.name}"
+
+  resource_query {
+    query = jsonencode({
+      ResourceTypeFilters = ["AWS::AllSupported"]
+      TagFilters = [
+        { Key = "Project", Values = ["multi-tenant-saloon"] },
+        { Key = "Environment", Values = [var.environment] },
+      ]
+    })
+  }
+
+  tags = local.common_tags
+}
+
 # ── Route 53 ─────────────────────────────────────────────────────────────────
 
 module "route53" {
   source = "../../modules/route53"
 
   domain              = var.domain
+  zone_id             = var.zone_id
   cf_main_domain      = module.cloudfront.main_distribution_domain
   cf_main_zone_id     = module.cloudfront.main_distribution_zone_id
   cf_wildcard_domain  = module.cloudfront.wildcard_distribution_domain

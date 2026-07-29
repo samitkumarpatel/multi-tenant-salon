@@ -1,12 +1,6 @@
-data "aws_route53_zone" "this" {
-  name         = var.domain
-  private_zone = false
-}
-
 # my-saloon.online → CloudFront Distribution #1
 resource "aws_route53_record" "apex" {
-  count   = var.cf_main_domain != null ? 1 : 0
-  zone_id = data.aws_route53_zone.this.zone_id
+  zone_id = var.zone_id
   name    = var.domain
   type    = "A"
 
@@ -19,8 +13,7 @@ resource "aws_route53_record" "apex" {
 
 # www.my-saloon.online → same distribution
 resource "aws_route53_record" "www" {
-  count   = var.cf_main_domain != null ? 1 : 0
-  zone_id = data.aws_route53_zone.this.zone_id
+  zone_id = var.zone_id
   name    = "www.${var.domain}"
   type    = "A"
 
@@ -33,8 +26,7 @@ resource "aws_route53_record" "www" {
 
 # *.my-saloon.online → CloudFront Distribution #2
 resource "aws_route53_record" "wildcard" {
-  count   = var.cf_wildcard_domain != null ? 1 : 0
-  zone_id = data.aws_route53_zone.this.zone_id
+  zone_id = var.zone_id
   name    = "*.${var.domain}"
   type    = "A"
 
@@ -45,10 +37,10 @@ resource "aws_route53_record" "wildcard" {
   }
 }
 
-# api.my-saloon.online → ALB
+# api.my-saloon.online → ALB (optional)
 resource "aws_route53_record" "api" {
   count   = var.alb_dns_name != null ? 1 : 0
-  zone_id = data.aws_route53_zone.this.zone_id
+  zone_id = var.zone_id
   name    = "api.${var.domain}"
   type    = "A"
 
