@@ -2,15 +2,19 @@ name: Deploy saloon-admin
 
 on:
   push:
-    branches: [main]
+    branches: [main, infrastructure]
     paths:
       - "frontend/apps/saloon-admin/**"
       - "frontend/packages/ui-website/**"
       - "frontend/package.json"
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +31,8 @@ jobs:
       - name: Build saloon-admin
         working-directory: frontend
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://localhost:8080' }}
-          VITE_SALOON_DOMAIN: ${{ vars.VITE_SALOON_DOMAIN || 'my-saloon.online' }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_SALOON_DOMAIN: ${{ vars.VITE_SALOON_DOMAIN }}
           VITE_BASE_PATH: /admin/
         run: npm run build:admin
 
@@ -39,26 +43,26 @@ jobs:
           path: frontend/apps/saloon-admin/build/client
           retention-days: 7
 
-#      - name: Deploy to S3
-#        env:
-#          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#          AWS_REGION: ${{ secrets.AWS_REGION }}
-#        run: |
-#          aws s3 sync frontend/apps/saloon-admin/build/client s3://${{ secrets.S3_BUCKET }}/admin/ \
-#            --delete \
-#            --cache-control "public,max-age=31536000,immutable" \
-#            --exclude "index.html"
-#          aws s3 cp frontend/apps/saloon-admin/build/client/index.html \
-#            s3://${{ secrets.S3_BUCKET }}/admin/index.html \
-#            --cache-control "no-cache,no-store,must-revalidate"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-#      - name: Invalidate CloudFront
-#        env:
-#          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#          AWS_REGION: ${{ secrets.AWS_REGION }}
-#        run: |
-#          aws cloudfront create-invalidation \
-#            --distribution-id ${{ secrets.CF_DIST_ADMIN }} \
-#            --paths "/*"
+      - name: Deploy to S3
+        run: |
+          aws s3 sync frontend/apps/saloon-admin/build/client \
+            s3://my-saloon-main-web/admin/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+          aws s3 cp frontend/apps/saloon-admin/build/client/index.html \
+            s3://my-saloon-main-web/admin/index.html \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CF_MAIN_DIST_ID }} \
+            --paths "/admin/*"
