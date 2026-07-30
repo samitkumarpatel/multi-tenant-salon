@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
 import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { SALOON_DOMAIN, ADMIN_APP_URL } from "~/lib/config";
+import { SALOON_DOMAIN } from "~/lib/config";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
 import { HoursTable, TileGrid, CountrySelect, PhoneInput, Toast, useToast } from "@saloon/ui-shared";
@@ -209,8 +209,8 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
     );
   }
 
-  const adminHandlerUrl = `${ADMIN_APP_URL}/${handler}`;
-  const adminIdUrl      = `${ADMIN_APP_URL}/${id}`;
+  const adminHandlerUrl = `https://${SALOON_DOMAIN}/${handler}`;
+  const adminIdUrl      = `https://${SALOON_DOMAIN}/${id}`;
   const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
 
   // ── Processing phase ────────────────────────────────────────────────────────
@@ -312,7 +312,7 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
 
           {/* CTA */}
           <a
-            href={`${ADMIN_APP_URL}/${id}`}
+            href={`https://${SALOON_DOMAIN}/${id}`}
             className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
           >
             Go to admin panel &amp; sign in →
