@@ -1,7 +1,7 @@
 import { Mail, Phone, MessageCircle, ExternalLink, BookOpen, Lightbulb, Bug, Shield } from "lucide-react";
 import { InfoBar } from "@saloon/ui-shared";
+import { SUPPORT_EMAIL } from "~/lib/config";
 
-const SUPPORT_EMAIL = "support@my-saloon.app";
 const SUPPORT_PHONE = "+1 (800) 123-4567";
 
 export default function Help() {

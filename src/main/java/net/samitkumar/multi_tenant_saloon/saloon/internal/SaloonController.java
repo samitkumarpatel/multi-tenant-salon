@@ -31,26 +31,36 @@ class SaloonController {
             Saloon.Location location,
             Saloon.ContactInfo contact,
             List<Saloon.OperatingHours> operatingHours,
-            List<SaloonFeature> features) {}
+            List<SaloonFeature> features,
+            String businessRegistrationId,
+            Boolean showBusinessId) {}
 
-    record CreateSaloonResponse(UUID id, String handler) {}
+    record CreateSaloonResponse(UUID saloonId, String saloonHandler, String emailId, String message) {}
 
     record UpdateSaloonRequest(@NotBlank String name,
                                Saloon.Location location,
                                Saloon.ContactInfo contact,
                                List<Saloon.OperatingHours> operatingHours,
-                               Integer bookingAdvanceDays) {}
+                               Integer bookingAdvanceDays,
+                               String businessRegistrationId,
+                               Boolean showBusinessId) {}
 
     @PostMapping("/api/saloon-onboarding")
     ResponseEntity<CreateSaloonResponse> create(@Valid @RequestBody CreateSaloonRequest request) {
         var owner = new Saloon.Owner(request.ownerName(), request.ownerEmail(), request.ownerPhone());
         var saloon = service.create(request.name(), owner, request.location(), request.contact(),
-                request.operatingHours(), request.features());
+                request.operatingHours(), request.features(),
+                request.businessRegistrationId(), request.showBusinessId());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .replacePath("/api/saloon/{id}")
                 .buildAndExpand(saloon.id())
                 .toUri();
-        return ResponseEntity.created(location).body(new CreateSaloonResponse(saloon.id(), saloon.handler()));
+        return ResponseEntity.created(location).body(new CreateSaloonResponse(
+                saloon.id(),
+                saloon.handler(),
+                owner.email(),
+                "Welcome! We've sent a login link and setup guide to " + owner.email() + ". Use your email to sign in to the admin panel."
+        ));
     }
 
     @GetMapping("/api/saloon-onboarding")
@@ -74,7 +84,8 @@ class SaloonController {
 
     @PutMapping("/api/saloon-admin/{id}")
     ResponseEntity<Saloon> update(@PathVariable UUID id, @Valid @RequestBody UpdateSaloonRequest request) {
-        return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours(), request.bookingAdvanceDays())
+        return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours(), request.bookingAdvanceDays(),
+                        request.businessRegistrationId(), request.showBusinessId())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

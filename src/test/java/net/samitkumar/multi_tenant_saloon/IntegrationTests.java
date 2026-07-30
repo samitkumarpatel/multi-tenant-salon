@@ -69,8 +69,10 @@ class IntegrationTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.handler").isEqualTo("integration-saloon")
+                .jsonPath("$.saloonId").isNotEmpty()
+                .jsonPath("$.saloonHandler").isEqualTo("integration-saloon")
+                .jsonPath("$.emailId").isEqualTo("owner@integration.com")
+                .jsonPath("$.message").isNotEmpty()
                 .returnResult();
 
         saloonId = result.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");

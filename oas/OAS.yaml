@@ -1295,11 +1295,20 @@ components:
     CreateSaloonResponse:
       type: object
       properties:
-        id:
+        saloonId:
           type: string
           format: uuid
-        handler:
+          description: The newly created saloon's UUID
+        saloonHandler:
           type: string
+          description: URL-friendly slug derived from the saloon name
+        emailId:
+          type: string
+          format: email
+          description: The owner's email address to use when signing in to the admin panel
+        message:
+          type: string
+          description: Human-readable confirmation that a welcome email has been sent with the login link and setup guide
 
     UpdateSaloonRequest:
       type: object

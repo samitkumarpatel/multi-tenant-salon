@@ -752,7 +752,12 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
           </div>
 
           <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
-            <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {saloon.name} · All rights reserved.</p>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {saloon.name} · All rights reserved.</p>
+              {saloon.showBusinessId && saloon.businessRegistrationId && (
+                <p className="text-[11px]" style={{ color: footerDim }}>Reg. No. {saloon.businessRegistrationId}</p>
+              )}
+            </div>
             <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
               Back to top <ArrowUp className="w-3 h-3" />
             </button>

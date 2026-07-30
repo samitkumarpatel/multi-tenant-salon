@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 @Service
 class CountryService {
 
-    private record RawCountry(String name, String code, String dialCode, String currencyCode) {}
+    private record RawCountry(String name, String code, String dialCode, String currencyCode, String businessIdLabel, String businessIdPlaceholder) {}
     private record RawCurrency(String code, String name, String symbol) {}
 
     private final List<Country> countries;
@@ -39,7 +39,8 @@ class CountryService {
                         return new Country(
                                 c.name(), c.code(), c.dialCode(), c.currencyCode(),
                                 currency != null ? currency.name() : null,
-                                currency != null ? currency.symbol() : null
+                                currency != null ? currency.symbol() : null,
+                                c.businessIdLabel(), c.businessIdPlaceholder()
                         );
                     })
                     .toList();

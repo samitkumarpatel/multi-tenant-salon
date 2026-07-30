@@ -38,8 +38,10 @@ class SaloonModuleTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.handler").isEqualTo("glam-saloon");
+                .jsonPath("$.saloonId").isNotEmpty()
+                .jsonPath("$.saloonHandler").isEqualTo("glam-saloon")
+                .jsonPath("$.emailId").isEqualTo("jane@glamsaloon.com")
+                .jsonPath("$.message").isNotEmpty();
     }
 
     @Test
@@ -123,7 +125,7 @@ class SaloonModuleTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.handler").value(handler -> {
+                .jsonPath("$.saloonHandler").value(handler -> {
                     client.get()
                             .uri("/api/saloon/" + handler)
                             .exchange()

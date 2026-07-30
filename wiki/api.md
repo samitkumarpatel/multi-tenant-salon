@@ -72,12 +72,21 @@ Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/w
 
 ```json
 {
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "handler": "glam-saloon"
+  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "saloonHandler": "glam-saloon",
+  "emailId": "jane@glamsaloon.com",
+  "message": "Welcome! We've sent a login link and setup guide to jane@glamsaloon.com. Use your email to sign in to the admin panel."
 }
 ```
 
-The `handler` is derived from the saloon name: lowercased, spaces replaced with `-`, special characters stripped. Duplicate base handlers get a numeric suffix (`"glam-saloon"` → `"glam-saloon-2"`, etc.).
+| Field | Type | Description |
+|---|---|---|
+| `saloonId` | UUID | The newly created saloon's unique identifier |
+| `saloonHandler` | string | URL-friendly slug derived from the saloon name |
+| `emailId` | string | The owner's email to use when signing in to the admin panel |
+| `message` | string | Confirmation that a welcome email has been sent |
+
+The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced with `-`, special characters stripped. Duplicate base handlers get a numeric suffix (`"glam-saloon"` → `"glam-saloon-2"`, etc.).
 
 **Flow**
 
@@ -85,7 +94,7 @@ The `handler` is derived from the saloon name: lowercased, spaces replaced with 
 2. `SaloonService.create()` calls `deriveUniqueHandler(name)`: checks `SaloonRepository.existsByHandler(base)` and increments a suffix until a free handler is found. Builds a `Saloon` with `id = null`.
 3. `SaloonRepository.save(Saloon)` → **DB**: `INSERT INTO saloon`, `INSERT INTO saloon_operating_hours`, `INSERT INTO saloon_feature` — all in one transaction. Database assigns UUID via `DEFAULT gen_random_uuid()`.
 4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` — Spring Modulith writes the event to `event_publication` before the transaction commits.
-5. Returns `201 Created` with `CreateSaloonResponse(id, handler)` and a `Location` header.
+5. Returns `201 Created` with `CreateSaloonResponse(saloonId, saloonHandler, emailId, message)` and a `Location` header.
 6. After commit → **Events** (async):
    - `SaloonNotificationListener.onSaloonCreated(SaloonCreatedEvent)` logs the registration notice.
    - `OwnerStaffListener.onSaloonCreated(SaloonCreatedEvent)` auto-creates a `StaffMember` for the owner (`isOwner = true`, `role = MANAGER`, `status = ACTIVE`, `availableForBooking = true`).

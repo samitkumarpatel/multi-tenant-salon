@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, clearAdminSession } from "~/routes/login";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks } from "lucide-react";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
@@ -68,6 +69,99 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: undefined },
   { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: undefined },
 ];
+
+// ── Saloon switcher ───────────────────────────────────────────────────────────
+
+function SaloonSwitcher({ current, saloonId }: { current: Saloon; saloonId: string }) {
+  const navigate = useNavigate();
+  const session  = getAdminSession();
+  const saloons  = session?.saloons ?? [];
+  const [open, setOpen] = useState(false);
+  const [panelPos, setPanelPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const multiple  = saloons.length > 1;
+  const currentId = String(current.id);
+
+  if (!multiple) return null;
+
+  function openDropdown() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => open ? setOpen(false) : openDropdown()}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+      >
+        <span className="truncate max-w-[100px] sm:max-w-[160px]">{current.name}</span>
+        <ChevronDown className={`w-3 h-3 text-slate-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && createPortal(
+        <>
+          <div className="fixed inset-0 z-[59]" onClick={() => setOpen(false)} />
+          <div
+            role="listbox"
+            aria-label="Switch saloon"
+            style={{ position: "fixed", top: panelPos.top, right: panelPos.right }}
+            className="z-[60] bg-white border border-slate-200 rounded-xl shadow-lg w-64 overflow-hidden"
+          >
+            <div className="px-3 py-2 border-b border-slate-100">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch saloon</p>
+            </div>
+            {saloons.map((s) => {
+              const isActive = String(s.id) === currentId;
+              return (
+                <button
+                  key={String(s.id)}
+                  role="option"
+                  aria-selected={isActive}
+                  onClick={() => { setOpen(false); if (!isActive) navigate(`/${s.id}`); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                    isActive ? "bg-matcha-50 text-matcha-700" : "hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <div className="w-7 h-7 rounded-md bg-matcha-100 border border-matcha-200 flex items-center justify-center shrink-0">
+                    <span className="text-[11px] font-bold text-matcha-600">
+                      {s.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{s.name}</p>
+                    {s.location?.city && (
+                      <p className="text-[11px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5">
+                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                        {s.location.city}{s.location.country ? `, ${s.location.country}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  {isActive && <Check className="w-3.5 h-3.5 text-matcha-600 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+    </>
+  );
+}
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 
@@ -231,6 +325,7 @@ export default function Layout() {
         <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{saloon.name}</span>
 
         <div className="ml-auto flex items-center gap-2">
+          <SaloonSwitcher current={saloon} saloonId={saloonId} />
           <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
             <button
               onClick={handleLogout}

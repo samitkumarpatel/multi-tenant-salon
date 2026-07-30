@@ -45,13 +45,17 @@
     "name": "Australia",
     "code": "AU",
     "dialCode": "+61",
-    "currencyCode": "AUD"
+    "currencyCode": "AUD",
+    "businessIdLabel": "ABN",
+    "businessIdPlaceholder": "12 345 678 901"
   },
   {
     "name": "Austria",
     "code": "AT",
     "dialCode": "+43",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "Firmenbuchnummer",
+    "businessIdPlaceholder": "FN 123456w"
   },
   {
     "name": "Azerbaijan",
@@ -81,7 +85,9 @@
     "name": "Belgium",
     "code": "BE",
     "dialCode": "+32",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "BE Number",
+    "businessIdPlaceholder": "0123.456.789"
   },
   {
     "name": "Belize",
@@ -165,7 +171,9 @@
     "name": "Canada",
     "code": "CA",
     "dialCode": "+1",
-    "currencyCode": "CAD"
+    "currencyCode": "CAD",
+    "businessIdLabel": "Business Number (BN)",
+    "businessIdPlaceholder": "123456789"
   },
   {
     "name": "Cape Verde",
@@ -249,7 +257,9 @@
     "name": "Denmark",
     "code": "DK",
     "dialCode": "+45",
-    "currencyCode": "DKK"
+    "currencyCode": "DKK",
+    "businessIdLabel": "CVR Number",
+    "businessIdPlaceholder": "12345678"
   },
   {
     "name": "Djibouti",
@@ -321,13 +331,17 @@
     "name": "Finland",
     "code": "FI",
     "dialCode": "+358",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "Y-tunnus",
+    "businessIdPlaceholder": "1234567-8"
   },
   {
     "name": "France",
     "code": "FR",
     "dialCode": "+33",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "SIRET",
+    "businessIdPlaceholder": "12345678900012"
   },
   {
     "name": "Gabon",
@@ -351,7 +365,9 @@
     "name": "Germany",
     "code": "DE",
     "dialCode": "+49",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "Handelsregisternummer",
+    "businessIdPlaceholder": "HRB 12345"
   },
   {
     "name": "Ghana",
@@ -417,7 +433,9 @@
     "name": "India",
     "code": "IN",
     "dialCode": "+91",
-    "currencyCode": "INR"
+    "currencyCode": "INR",
+    "businessIdLabel": "GST Number",
+    "businessIdPlaceholder": "22AAAAA0000A1Z5"
   },
   {
     "name": "Indonesia",
@@ -441,7 +459,9 @@
     "name": "Ireland",
     "code": "IE",
     "dialCode": "+353",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "CRO Number",
+    "businessIdPlaceholder": "123456"
   },
   {
     "name": "Israel",
@@ -453,7 +473,9 @@
     "name": "Italy",
     "code": "IT",
     "dialCode": "+39",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "Partita IVA",
+    "businessIdPlaceholder": "12345678901"
   },
   {
     "name": "Jamaica",
@@ -663,13 +685,17 @@
     "name": "Netherlands",
     "code": "NL",
     "dialCode": "+31",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "KvK Number",
+    "businessIdPlaceholder": "12345678"
   },
   {
     "name": "New Zealand",
     "code": "NZ",
     "dialCode": "+64",
-    "currencyCode": "NZD"
+    "currencyCode": "NZD",
+    "businessIdLabel": "NZBN",
+    "businessIdPlaceholder": "9429000000000"
   },
   {
     "name": "Nicaragua",
@@ -705,7 +731,9 @@
     "name": "Norway",
     "code": "NO",
     "dialCode": "+47",
-    "currencyCode": "NOK"
+    "currencyCode": "NOK",
+    "businessIdLabel": "Org.nr",
+    "businessIdPlaceholder": "123456789"
   },
   {
     "name": "Oman",
@@ -759,13 +787,17 @@
     "name": "Poland",
     "code": "PL",
     "dialCode": "+48",
-    "currencyCode": "PLN"
+    "currencyCode": "PLN",
+    "businessIdLabel": "NIP",
+    "businessIdPlaceholder": "1234567890"
   },
   {
     "name": "Portugal",
     "code": "PT",
     "dialCode": "+351",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "NIF",
+    "businessIdPlaceholder": "123456789"
   },
   {
     "name": "Qatar",
@@ -819,7 +851,9 @@
     "name": "Singapore",
     "code": "SG",
     "dialCode": "+65",
-    "currencyCode": "SGD"
+    "currencyCode": "SGD",
+    "businessIdLabel": "UEN",
+    "businessIdPlaceholder": "123456789A"
   },
   {
     "name": "Slovakia",
@@ -843,7 +877,9 @@
     "name": "South Africa",
     "code": "ZA",
     "dialCode": "+27",
-    "currencyCode": "ZAR"
+    "currencyCode": "ZAR",
+    "businessIdLabel": "CIPC Reg. No.",
+    "businessIdPlaceholder": "2020/123456/07"
   },
   {
     "name": "South Korea",
@@ -861,7 +897,9 @@
     "name": "Spain",
     "code": "ES",
     "dialCode": "+34",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "NIF / CIF",
+    "businessIdPlaceholder": "A12345678"
   },
   {
     "name": "Sri Lanka",
@@ -885,13 +923,17 @@
     "name": "Sweden",
     "code": "SE",
     "dialCode": "+46",
-    "currencyCode": "SEK"
+    "currencyCode": "SEK",
+    "businessIdLabel": "Organisationsnummer",
+    "businessIdPlaceholder": "556000-0000"
   },
   {
     "name": "Switzerland",
     "code": "CH",
     "dialCode": "+41",
-    "currencyCode": "CHF"
+    "currencyCode": "CHF",
+    "businessIdLabel": "UID",
+    "businessIdPlaceholder": "CHE-123.456.789"
   },
   {
     "name": "Syria",
@@ -975,19 +1017,25 @@
     "name": "United Arab Emirates",
     "code": "AE",
     "dialCode": "+971",
-    "currencyCode": "AED"
+    "currencyCode": "AED",
+    "businessIdLabel": "TRN",
+    "businessIdPlaceholder": "100123456700003"
   },
   {
     "name": "United Kingdom",
     "code": "GB",
     "dialCode": "+44",
-    "currencyCode": "GBP"
+    "currencyCode": "GBP",
+    "businessIdLabel": "Company Number",
+    "businessIdPlaceholder": "12345678"
   },
   {
     "name": "United States",
     "code": "US",
     "dialCode": "+1",
-    "currencyCode": "USD"
+    "currencyCode": "USD",
+    "businessIdLabel": "EIN",
+    "businessIdPlaceholder": "12-3456789"
   },
   {
     "name": "Uruguay",

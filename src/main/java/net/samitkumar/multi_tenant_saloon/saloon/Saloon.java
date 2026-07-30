@@ -23,12 +23,15 @@ public record Saloon(
         @MappedCollection(idColumn = "saloon_id", keyColumn = "saloon_key") List<OperatingHours> operatingHours,
         @MappedCollection(idColumn = "saloon_id", keyColumn = "saloon_key") List<SaloonFeatureRef> features,
         Integer bookingAdvanceDays,
+        String businessRegistrationId,
+        Boolean showBusinessId,
         Instant createdAt
 ) {
     public Saloon {
         features = features != null ? List.copyOf(features) : List.of();
         operatingHours = operatingHours != null ? List.copyOf(operatingHours) : List.of();
         if (bookingAdvanceDays == null) bookingAdvanceDays = 60;
+        if (showBusinessId == null) showBusinessId = false;
     }
 
     public record Owner(

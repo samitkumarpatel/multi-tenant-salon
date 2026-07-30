@@ -422,6 +422,9 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
             <Phone className="w-2.5 h-2.5" /> {saloon.contact.phone}
           </a>
         )}
+        {saloon.showBusinessId && saloon.businessRegistrationId && (
+          <span className="text-[9px]" style={{ color: msgDim }}>· Reg. {saloon.businessRegistrationId}</span>
+        )}
         <span className="text-[9px]" style={{ color: msgDim }}>AI responses are for guidance only.</span>
       </div>
       <div className="flex items-center gap-2">
