@@ -78,6 +78,24 @@ class IntegrationTests {
 
     @Test
     @Order(2)
+    void getMySaloonsByEmail() {
+        client.get()
+                .uri("/api/saloon-admin/my-saloons?email=owner@integration.com")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$").isArray()
+                .jsonPath("$[0].id").isEqualTo(saloonId)
+                .jsonPath("$[0].owner.email").isEqualTo("owner@integration.com");
+
+        client.get()
+                .uri("/api/saloon-admin/my-saloons?email=nobody@unknown.com")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    @Order(3)
     void listSaloons() {
         client.get()
                 .uri("/api/saloon-onboarding")

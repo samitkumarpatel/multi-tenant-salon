@@ -397,6 +397,41 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 ---
 
+## Admin — Login / Session
+
+### Look up saloons by owner email
+
+`GET /api/saloon-admin/my-saloons?email={email}`
+
+Used by the admin login flow. The owner enters the email they used during saloon onboarding. The backend resolves which saloon(s) are tied to that email.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `email` | string (email) | yes | The email address used during saloon onboarding |
+
+**Responses**
+
+- `200 OK` — Array of `Saloon` objects (one or more found)
+- `404 Not Found` — No saloon registered with that email
+
+**Login flow logic**
+
+| Result | Frontend action |
+|---|---|
+| 1 saloon | Store session, navigate to `/:saloonId` |
+| 2+ saloons | Store session, navigate to `/saloons` picker |
+| 0 saloons | Show "no saloon found" error |
+
+**Example**
+
+```
+GET /api/saloon-admin/my-saloons?email=owner@example.com
+```
+
+---
+
 ## Admin — Saloon Management
 
 ### Get saloon (admin)

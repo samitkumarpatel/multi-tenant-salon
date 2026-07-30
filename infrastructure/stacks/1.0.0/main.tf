@@ -65,6 +65,16 @@ resource "aws_cloudfront_function" "main_router" {
       var request = event.request;
       var uri = request.uri;
 
+      // admin.my-saloon.online → always serve the saloon-admin SPA (assets pass through)
+      var host = request.headers.host ? request.headers.host.value : '';
+      if (host === 'admin.${var.domain}') {
+        if (!uri.match(/\.(js|css|png|jpg|jpeg|svg|ico|woff2?|json|map|webp|gif)$/)) {
+          request.uri = '/admin/index.html';
+        }
+        return request;
+      }
+
+      // my-saloon.online / www. → route between onboarding and admin SPAs
       var onboardingPaths = ['/', '/login', '/signup', '/forgot-password', '/verify'];
       var isOnboarding = onboardingPaths.indexOf(uri) !== -1
         || uri.startsWith('/onboard')
@@ -87,8 +97,8 @@ resource "aws_cloudfront_function" "main_router" {
 
 # ── Lambda@Edge — Distribution #2 origin-request routing ─────────────────────
 # Switches S3 origin based on Host header:
-#   admin.<domain>  → super-admin-web bucket
-#   <slug>.<domain> → public-web bucket (default)
+#   super-admin.<domain> → super-admin-web bucket
+#   <slug>.<domain>      → public-web bucket (default)
 # Must be deployed in us-east-1 (Lambda@Edge requirement).
 
 data "aws_iam_policy_document" "lambda_edge_assume" {
@@ -125,7 +135,7 @@ data "archive_file" "wildcard_router" {
         const request = event.Records[0].cf.request;
         const host = (request.headers['host'] || [{}])[0].value || '';
 
-        if (host === 'admin.${var.domain}') {
+        if (host === 'super-admin.${var.domain}') {
           request.origin.s3.domainName = '${module.s3["super-admin-web"].bucket_regional_domain}';
           request.origin.s3.path = '';
           request.headers['host'] = [{ key: 'Host', value: '${module.s3["super-admin-web"].bucket_regional_domain}' }];

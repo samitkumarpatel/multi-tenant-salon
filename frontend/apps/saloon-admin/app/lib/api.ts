@@ -1,9 +1,10 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
-export const ONBOARDING_API = `${API_BASE}/api/saloon-onboarding`;
-export const CUSTOMER_API   = `${API_BASE}/api/saloon`;
-export const ADMIN_API      = `${API_BASE}/api/saloon-admin`;
-export const COUNTRIES_API  = `${API_BASE}/api/saloon-utility/countries`;
-export const CURRENCIES_API = `${API_BASE}/api/saloon-utility/currencies`;
+export const ONBOARDING_API  = `${API_BASE}/api/saloon-onboarding`;
+export const CUSTOMER_API    = `${API_BASE}/api/saloon`;
+export const ADMIN_API       = `${API_BASE}/api/saloon-admin`;
+export const MY_SALOONS_API  = `${API_BASE}/api/saloon-admin/my-saloons`;
+export const COUNTRIES_API   = `${API_BASE}/api/saloon-utility/countries`;
+export const CURRENCIES_API  = `${API_BASE}/api/saloon-utility/currencies`;
 
 /** Maps raw URL segment (UUID or handler) → resolved UUID string. */
 const saloonUUIDCache = new Map<string, string>();

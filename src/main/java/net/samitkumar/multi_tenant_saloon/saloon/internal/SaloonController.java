@@ -58,6 +58,13 @@ class SaloonController {
         return service.findAll();
     }
 
+    @GetMapping("/api/saloon-admin/my-saloons")
+    ResponseEntity<List<Saloon>> findMysSaloons(@RequestParam String email) {
+        var saloons = service.findByOwnerEmail(email);
+        if (saloons.isEmpty()) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(saloons);
+    }
+
     @GetMapping({"/api/saloon/{id}", "/api/saloon-admin/{id}"})
     ResponseEntity<Saloon> findByIdOrHandler(@PathVariable String id) {
         return service.findByIdOrHandler(id)

@@ -362,6 +362,42 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ─── Admin — Login / Session ─────────────────────────────────────────────────
+
+  /api/saloon-admin/my-saloons:
+    get:
+      tags: [SaloonAdmin]
+      summary: Look up saloons by owner email (admin login)
+      description: |
+        Returns all saloons whose owner email matches the given address.
+        Used by the admin login flow to resolve the saloonId before entering the admin UI.
+        - **1 result** → proceed directly to the saloon-admin UI.
+        - **2+ results** → show a saloon-picker screen and let the owner choose.
+        - **0 results** → show "no saloon found" error.
+
+        No authentication is enforced on this endpoint (dummy login flow).
+      operationId: getMySaloons
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+          example: owner@example.com
+          description: The email address used during saloon onboarding
+      responses:
+        "200":
+          description: One or more saloons found for this email
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Saloon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Admin — Saloon Management ────────────────────────────────────────────────
 
   /api/saloon-admin/{saloonId}:

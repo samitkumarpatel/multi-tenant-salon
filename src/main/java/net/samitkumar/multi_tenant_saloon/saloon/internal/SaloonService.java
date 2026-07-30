@@ -59,6 +59,10 @@ class SaloonService implements SaloonApi {
         return repository.findAll();
     }
 
+    List<Saloon> findByOwnerEmail(String email) {
+        return repository.findByOwnerEmail(email);
+    }
+
     Optional<Saloon> findByIdOrHandler(String id) {
         try {
             return repository.findById(UUID.fromString(id));
