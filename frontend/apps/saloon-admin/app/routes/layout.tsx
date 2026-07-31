@@ -56,6 +56,12 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
 
   await Promise.all(fetchTasks);
 
+  const pathname = new URL(request.url).pathname;
+  const isIndex = pathname.endsWith(`/${saloonId}`) || pathname.endsWith(`/${saloonId}/`);
+  if (isIndex && (pendingServices || pendingStaff || pendingWebsite)) {
+    throw redirect(`/${saloonId}/setup`);
+  }
+
   return { saloon, saloonId, pendingServices, pendingStaff, pendingWebsite };
 }
 

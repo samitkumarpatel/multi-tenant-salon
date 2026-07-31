@@ -628,7 +628,7 @@ export default function NewSaloon() {
             <div className={fieldCls}>
               <label className={labelCls}>Phone</label>
               <PhoneInput
-                key={`contact-phone-${reuseOwnerContact}`}
+                key={`contact-phone-${reuseOwnerContact}-${form.location.country}`}
                 autoFocus
                 value={form.contact.phone ?? ""}
                 defaultCountry={form.location.country || undefined}
