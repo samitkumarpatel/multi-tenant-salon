@@ -4,7 +4,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { Monitor, Wand2, ExternalLink, Eye, Handshake, Mail } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
 import { ADMIN_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
-import { SALOON_DOMAIN } from "~/lib/config";
+import { CONTACT_EMAIL, websiteUrl } from "~/lib/config";
 
 type Mode = WebsiteMode;
 
@@ -156,10 +156,7 @@ export default function WebsiteManagement() {
   const previewUrl = `/${saloon.handler ?? saloon.id}/website-preview`;
   const designUrl  = `${previewUrl}?design=1`;
 
-  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
-  const liveUrl = isLocal
-    ? `http://localhost:5174/?slug=${saloon.handler ?? saloon.id}`
-    : `https://${saloon.handler}.${SALOON_DOMAIN}`;
+  const liveUrl = websiteUrl(saloon.handler ?? String(saloon.id));
 
   return (
     <div className="max-w-2xl">
@@ -286,7 +283,7 @@ export default function WebsiteManagement() {
             </p>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <a
-                href="mailto:contact@my-saloon.dk?subject=Custom website enquiry"
+                href={`mailto:${CONTACT_EMAIL}?subject=Custom website enquiry`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-matcha-600 hover:bg-matcha-700 text-white text-sm font-semibold transition-colors no-underline"
               >
                 <Mail className="w-3.5 h-3.5" /> Send us a message

@@ -162,6 +162,14 @@ function StepService({
   onNext: () => void;
 }) {
   const [query, setQuery] = useState("");
+
+  const single = services.length === 1;
+  const showSearch = services.length > 5;
+
+  useEffect(() => {
+    if (single) onSelect(services[0]);
+  }, [single, services, onSelect]);
+
   const q = query.trim().toLowerCase();
   const filtered = q
     ? services.filter((s) =>
@@ -179,27 +187,29 @@ function StepService({
         <p className="text-sm text-slate-400 text-center py-10">No services available yet.</p>
       ) : (
         <>
-          {/* Search */}
-          <div className="relative mb-3">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search services…"
-              className={`${inputCls} pl-9`}
-              style={{ ["--tw-ring-color" as string]: `${accent.color}33` }}
-            />
-            {q && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400">
-                {filtered.length} {filtered.length === 1 ? "match" : "matches"}
-              </span>
-            )}
-          </div>
+          {/* Search — only shown when more than 5 services */}
+          {showSearch && (
+            <div className="relative mb-3">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search services…"
+                className={`${inputCls} pl-9`}
+                style={{ ["--tw-ring-color" as string]: `${accent.color}33` }}
+              />
+              {q && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400">
+                  {filtered.length} {filtered.length === 1 ? "match" : "matches"}
+                </span>
+              )}
+            </div>
+          )}
 
           {filtered.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-10">
-              No services match “{query}”.
+              No services match "{query}".
             </p>
           ) : (
             <div className="space-y-2 mb-6 overflow-y-auto pr-1 max-h-[420px]">

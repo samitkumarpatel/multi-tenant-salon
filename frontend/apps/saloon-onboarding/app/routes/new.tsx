@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
-import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
+import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe } from "lucide-react";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { SALOON_DOMAIN } from "~/lib/config";
+import { SALOON_DOMAIN, ADMIN_APP_URL, websiteUrl } from "~/lib/config";
+import { SiteFooter } from "~/components/SiteFooter";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
 import { HoursTable, TileGrid, CountrySelect, PhoneInput, Toast, useToast } from "@saloon/ui-shared";
@@ -42,6 +43,8 @@ interface FormState {
   contact: ContactInfo;
   hours: OperatingHours[];
   features: string[];
+  businessRegistrationId: string;
+  showBusinessId: boolean;
 }
 
 function emptyForm(): FormState {
@@ -52,6 +55,8 @@ function emptyForm(): FormState {
     contact:  { phone: "", email: "", website: "" },
     hours:    defaultHours(),
     features: ["STATIC_WEBSITE"],
+    businessRegistrationId: "",
+    showBusinessId: false,
   };
 }
 
@@ -113,6 +118,12 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
               {form.location.country && <p>{form.location.country}</p>}
               {form.location.address && <p>{form.location.address}</p>}
               <p>{[form.location.zipCode, form.location.city].filter(Boolean).join(" ")}</p>
+              {form.businessRegistrationId && (
+                <p className="text-xs text-stone-400 mt-1">
+                  Reg. {form.businessRegistrationId}
+                  {form.showBusinessId && <span className="ml-1 text-matcha-600">· shown publicly</span>}
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-stone-400 text-sm">Not specified</p>
@@ -173,9 +184,9 @@ const PROCESSING_STEPS = [
 
 const STEP_DURATION = 900; // ms per step
 
-type CopyKey = "adminId" | "adminHandler";
+type CopyKey = "admin" | "website";
 
-function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; handler: string; ownerEmail: string; saloonName: string }) {
+function SuccessScreen({ saloonId, saloonHandler, emailId, saloonName, features }: { saloonId: string; saloonHandler: string; emailId: string; saloonName: string; features: string[] }) {
   const [completedSteps, setCompletedSteps] = useState(0);
   const [ready, setReady]                   = useState(false);
   const [copied, setCopied]                 = useState<CopyKey | null>(null);
@@ -209,14 +220,16 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
     );
   }
 
-  const adminHandlerUrl = `https://${SALOON_DOMAIN}/${handler}`;
-  const adminIdUrl      = `https://${SALOON_DOMAIN}/${id}`;
+  const adminUrl        = ADMIN_APP_URL;
+  const hasWebsite      = features.includes("STATIC_WEBSITE");
+  const saloonWebsiteUrl = websiteUrl(saloonHandler);
   const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
 
   // ── Processing phase ────────────────────────────────────────────────────────
   if (!ready) {
     return (
-      <div className="min-h-[100dvh] bg-cream flex flex-col items-center justify-center px-5 py-12">
+      <div className="min-h-[100dvh] bg-cream flex flex-col">
+        <div className="flex-1 flex items-center justify-center px-5 py-12">
         <div className="w-full max-w-sm">
           <div className="flex justify-center mb-7">
             <div className="w-16 h-16 rounded-full bg-matcha-100 border-2 border-matcha-300 flex items-center justify-center">
@@ -265,13 +278,16 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
             })}
           </div>
         </div>
+        </div>
+        <SiteFooter />
       </div>
     );
   }
 
   // ── Done phase ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-[100dvh] bg-cream flex flex-col items-center justify-center px-5 py-12">
+    <div className="min-h-[100dvh] bg-cream flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-5 py-12">
       <div className="w-full max-w-sm animate-[fade-in_0.4s_ease_both]">
 
         <div className="flex flex-col items-center mb-8">
@@ -286,43 +302,59 @@ function SuccessScreen({ id, handler, ownerEmail, saloonName }: { id: string; ha
         </div>
 
         <div className="flex flex-col gap-3">
-          {/* Admin URLs */}
+          {/* Admin panel */}
           <div className="bg-white border border-stone-200 rounded-2xl p-4">
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Your admin panel</p>
-            <div className="flex flex-col gap-3">
-              <div>
-                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By name</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminHandlerUrl}</span>
-                  <CopyBtn text={adminHandlerUrl} copyKey="adminHandler" />
-                </div>
-              </div>
-              <div className="border-t border-stone-100 pt-2">
-                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By ID</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminIdUrl}</span>
-                  <CopyBtn text={adminIdUrl} copyKey="adminId" />
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminUrl}</span>
+              <CopyBtn text={adminUrl} copyKey="admin" />
             </div>
-            <p className="text-xs text-stone-400 mt-3 pt-2 border-t border-stone-100">
-              Sign in with <span className="font-mono text-stone-600">{ownerEmail}</span>
+            <p className="text-xs text-stone-400 mt-3 pt-3 border-t border-stone-100">
+              Sign in with <span className="font-mono text-stone-600">{emailId}</span>
             </p>
           </div>
 
+          {/* Email sent hint */}
+          <div className="flex items-start gap-3 px-4 py-3 bg-matcha-50 border border-matcha-100 rounded-2xl">
+            <Mail className="w-4 h-4 text-matcha-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-matcha-800 leading-relaxed">
+              We've sent a welcome email to <span className="font-semibold">{emailId}</span> with your login link and a setup guide to get you started.
+            </p>
+          </div>
+
+          {/* Website URL — only when STATIC_WEBSITE feature selected */}
+          {hasWebsite && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Globe className="w-3.5 h-3.5 text-stone-400" />
+                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Your website</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-matcha-700 flex-1 truncate font-mono">{saloonWebsiteUrl}</span>
+                <CopyBtn text={saloonWebsiteUrl} copyKey="website" />
+              </div>
+              <p className="text-[10px] text-stone-400 mt-2">Your public website — share it with your customers.</p>
+            </div>
+          )}
+
           {/* CTA */}
           <a
-            href={`https://${SALOON_DOMAIN}/${id}`}
+            href={adminUrl}
             className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
           >
             Go to admin panel &amp; sign in →
           </a>
 
-          <p className="text-center text-xs text-stone-400">
-            Bookmark both URLs — either one takes you to your dashboard.
-          </p>
+          <a
+            href="/new"
+            className="block text-center py-2.5 rounded-xl border border-stone-200 bg-white text-stone-600 text-sm font-medium hover:border-stone-300 hover:bg-stone-50 active:scale-[0.97] transition-all no-underline"
+          >
+            Register another saloon →
+          </a>
         </div>
       </div>
+      </div>
+      <SiteFooter />
     </div>
   );
 }
@@ -334,7 +366,7 @@ export default function NewSaloon() {
   const [form,      setForm]      = useState<FormState>(emptyForm);
   const [errors,    setErrors]    = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
-  const [created,  setCreated]  = useState<{ id: string; handler: string } | null>(null);
+  const [created,  setCreated]  = useState<{ saloonId: string; saloonHandler: string; emailId: string } | null>(null);
   const { toast, notify }       = useToast();
 
   const [reuseOwnerContact,  setReuseOwnerContact]  = useState<boolean | null>(null);
@@ -408,7 +440,7 @@ export default function NewSaloon() {
   async function handleCreate() {
     setSaving(true);
     try {
-      const result = await apiFetch<{ id: string; handler: string }>(ONBOARDING_API, {
+      const result = await apiFetch<{ saloonId: string; saloonHandler: string; emailId: string; message: string }>(ONBOARDING_API, {
         method: "POST",
         body: JSON.stringify({
           name:       form.name.trim(),
@@ -429,9 +461,11 @@ export default function NewSaloon() {
           },
           operatingHours: form.hours,
           features:       form.features,
+          businessRegistrationId: form.businessRegistrationId?.trim() || null,
+          showBusinessId: form.showBusinessId,
         }),
       });
-      setCreated({ id: result.id, handler: result.handler });
+      setCreated({ saloonId: result.saloonId, saloonHandler: result.saloonHandler, emailId: result.emailId });
     } catch (e: unknown) {
       notify(e instanceof Error ? e.message : "Failed to create saloon", "error");
       setSaving(false);
@@ -439,7 +473,7 @@ export default function NewSaloon() {
   }
 
   if (created) {
-    return <SuccessScreen id={created.id} handler={created.handler} ownerEmail={form.owner.email} saloonName={form.name} />;
+    return <SuccessScreen saloonId={created.saloonId} saloonHandler={created.saloonHandler} emailId={created.emailId} saloonName={form.name} features={form.features} />;
   }
 
   function renderStep() {
@@ -500,14 +534,20 @@ export default function NewSaloon() {
           </div>
         );
 
-      case 2:
+      case 2: {
+        const selectedCountry = countries.find((c) => c.name === form.location.country);
+        const bizIdLabel       = selectedCountry?.businessIdLabel;
+        const bizIdPlaceholder = selectedCountry?.businessIdPlaceholder ?? "";
         return (
           <div>
             <div className={fieldCls}>
               <label className={labelCls}>Country / Region <span className="text-red-400">*</span></label>
               <CountrySelect
                 value={form.location.country ?? ""}
-                onChange={(v) => setLocation({ country: v })}
+                onChange={(v) => {
+                  setLocation({ country: v });
+                  setForm((f) => ({ ...f, businessRegistrationId: "", showBusinessId: false }));
+                }}
                 countries={countries}
                 className={errors.locationCountry ? "border-red-400 focus:border-red-400" : ""}
               />
@@ -527,8 +567,37 @@ export default function NewSaloon() {
                 <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
               </div>
             </div>
+            {bizIdLabel && (
+              <div className={fieldCls}>
+                <label className={labelCls}>
+                  {bizIdLabel}{" "}
+                  <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span>
+                </label>
+                <input
+                  className={inputCls}
+                  value={form.businessRegistrationId}
+                  onChange={(e) => setForm((f) => ({ ...f, businessRegistrationId: e.target.value }))}
+                  placeholder={bizIdPlaceholder}
+                />
+                {form.businessRegistrationId && (
+                  <label className="flex items-center gap-2.5 mt-2.5 cursor-pointer select-none">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.showBusinessId}
+                      onClick={() => setForm((f) => ({ ...f, showBusinessId: !f.showBusinessId }))}
+                      className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${form.showBusinessId ? "bg-matcha-600" : "bg-stone-200"}`}
+                    >
+                      <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${form.showBusinessId ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </button>
+                    <span className="text-xs text-stone-500">Show on public website</span>
+                  </label>
+                )}
+              </div>
+            )}
           </div>
         );
+      }
 
       case 3:
         return (
@@ -625,7 +694,7 @@ export default function NewSaloon() {
           ) : (
             <Link to="/" className="text-stone-400 hover:text-stone-700 no-underline text-sm shrink-0 transition-colors">←</Link>
           )}
-          <span className="text-sm font-semibold text-stone-800 flex-1">{STEPS[step].title}</span>
+          <span className="text-xs font-medium text-stone-400 flex-1 uppercase tracking-wide">{STEPS[step].title}</span>
           <span className="text-xs text-stone-400 shrink-0 tabular-nums">{step + 1} / {TOTAL}</span>
         </div>
 
@@ -660,9 +729,10 @@ export default function NewSaloon() {
         <div className="w-full max-w-lg">
           <div className={`bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm transition-transform ${formShaking ? "animate-[shake_0.45s_ease]" : ""}`}>
 
-            {/* Hint strip */}
-            <div className="px-6 pt-5 pb-4 border-b border-stone-100">
-              <p className="text-xs text-stone-400">{STEPS[step].hint}</p>
+            {/* Card header */}
+            <div className="px-6 pt-6 pb-5 border-b border-stone-100">
+              <h2 className="text-lg font-bold text-stone-900 mb-1">{STEPS[step].title}</h2>
+              <p className="text-sm text-stone-500 leading-relaxed">{STEPS[step].hint}</p>
             </div>
 
             {/* Sticky error banner — outside keyed div so it doesn't re-animate on step change */}
@@ -712,6 +782,7 @@ export default function NewSaloon() {
         </div>
       </main>
 
+      <SiteFooter />
       <Toast toast={toast} />
     </div>
   );

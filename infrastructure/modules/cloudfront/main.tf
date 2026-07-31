@@ -2,7 +2,7 @@
 
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
-  aliases             = [var.domain, "www.${var.domain}"]
+  aliases             = [var.domain, "www.${var.domain}", "admin.${var.domain}"]
   default_root_object = ""
   comment             = "${var.domain} — Distribution #1"
   price_class         = "PriceClass_100"

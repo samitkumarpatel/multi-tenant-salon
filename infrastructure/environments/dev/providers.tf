@@ -24,13 +24,13 @@ terraform {
 locals {
   default_tags = {
     Project     = "multi-tenant-saloon"
-    Environment = var.environment
+    Environment = "dev"
     ManagedBy   = "terraform"
   }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = "eu-north-1"
 
   default_tags {
     tags = local.default_tags

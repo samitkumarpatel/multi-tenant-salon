@@ -1,3 +1,8 @@
+output "name_servers" {
+  value       = module.dns_bootstrapping.name_servers
+  description = "Set these NS records at your domain registrar after Phase 1"
+}
+
 output "cloudfront_main_id" {
   value       = module.stack.cloudfront_main_id
   description = "Set as CF_MAIN_DIST_ID in GitHub Actions repository variables"
