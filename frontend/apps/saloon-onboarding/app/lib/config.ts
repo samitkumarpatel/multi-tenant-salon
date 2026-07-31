@@ -2,7 +2,10 @@ export const SALOON_DOMAIN =
   import.meta.env.VITE_SALOON_DOMAIN ?? "my-saloon.online";
 
 export const ADMIN_APP_URL =
-  import.meta.env.VITE_ADMIN_APP_URL ?? "http://localhost:5173";
+  import.meta.env.VITE_ADMIN_APP_URL ||
+  (import.meta.env.DEV
+    ? "http://localhost:5173"
+    : `https://admin.${SALOON_DOMAIN}`);
 
 export const CONTACT_EMAIL = `contact@${SALOON_DOMAIN}`;
 
