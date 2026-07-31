@@ -69,8 +69,10 @@ class IntegrationTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.handler").isEqualTo("integration-saloon")
+                .jsonPath("$.saloonId").isNotEmpty()
+                .jsonPath("$.saloonHandler").isEqualTo("integration-saloon")
+                .jsonPath("$.emailId").isEqualTo("owner@integration.com")
+                .jsonPath("$.message").isNotEmpty()
                 .returnResult();
 
         saloonId = result.getResponseHeaders().getLocation().getPath().replaceAll(".*/", "");
@@ -78,6 +80,24 @@ class IntegrationTests {
 
     @Test
     @Order(2)
+    void getMySaloonsByEmail() {
+        client.get()
+                .uri("/api/saloon-admin/my-saloons?email=owner@integration.com")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$").isArray()
+                .jsonPath("$[0].id").isEqualTo(saloonId)
+                .jsonPath("$[0].owner.email").isEqualTo("owner@integration.com");
+
+        client.get()
+                .uri("/api/saloon-admin/my-saloons?email=nobody@unknown.com")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    @Order(3)
     void listSaloons() {
         client.get()
                 .uri("/api/saloon-onboarding")

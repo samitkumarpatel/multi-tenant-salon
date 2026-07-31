@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail, Phone } from "lucide-react";
 import { AppLogo } from "@saloon/ui-shared";
+import { CONTACT_EMAIL } from "~/lib/config";
 
 type CookieChoice = "all" | "essential";
 
@@ -68,8 +69,8 @@ export default function Home() {
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <AppLogo size={24} textColor="#1c1917" />
           <div className="flex gap-4">
-          <a href="mailto:contact@my-saloon.dk" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
-            <Mail className="w-3 h-3" /> contact@my-saloon.dk
+          <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
+            <Mail className="w-3 h-3" /> {CONTACT_EMAIL}
           </a>
           <a href="tel:+4500000000" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
             <Phone className="w-3 h-3" /> +45 00 00 00 00

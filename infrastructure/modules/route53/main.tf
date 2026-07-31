@@ -37,6 +37,20 @@ resource "aws_route53_record" "wildcard" {
   }
 }
 
+# admin.my-saloon.online → CloudFront Distribution #1 (saloon-admin SPA)
+# Specific record overrides the *.my-saloon.online wildcard in DNS resolution.
+resource "aws_route53_record" "admin" {
+  zone_id = var.zone_id
+  name    = "admin.${var.domain}"
+  type    = "A"
+
+  alias {
+    name                   = var.cf_main_domain
+    zone_id                = var.cf_main_zone_id
+    evaluate_target_health = false
+  }
+}
+
 # api.my-saloon.online → ALB (optional)
 resource "aws_route53_record" "api" {
   count   = var.alb_dns_name != null ? 1 : 0

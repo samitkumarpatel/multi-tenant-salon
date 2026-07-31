@@ -11,9 +11,12 @@ interface Props {
 }
 
 export default function CountrySelect({ value, onChange, countries, className = "" }: Props) {
-  const [open, setOpen]   = useState(false);
-  const [query, setQuery] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen]             = useState(false);
+  const [query, setQuery]           = useState("");
+  const [highlighted, setHighlight] = useState(-1);
+  const searchRef  = useRef<HTMLInputElement>(null);
+  const listRef    = useRef<HTMLUListElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (value || !countries.length) return;
@@ -22,8 +25,22 @@ export default function CountrySelect({ value, onChange, countries, className = 
   }, [countries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (open) searchRef.current?.focus();
-  }, [open]);
+    if (open) {
+      const idx = filtered.findIndex((c) => c.name === value);
+      setHighlight(idx >= 0 ? idx : 0);
+      searchRef.current?.focus();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setHighlight(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (!open || highlighted < 0) return;
+    const item = listRef.current?.children[highlighted] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [highlighted, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +54,8 @@ export default function CountrySelect({ value, onChange, countries, className = 
   function close() {
     setOpen(false);
     setQuery("");
+    setHighlight(-1);
+    triggerRef.current?.focus();
   }
 
   function select(c: Country) {
@@ -51,13 +70,41 @@ export default function CountrySelect({ value, onChange, countries, className = 
       })
     : countries;
 
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlight((h) => (h + 1 < filtered.length ? h + 1 : 0));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlight((h) => (h - 1 >= 0 ? h - 1 : filtered.length - 1));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (highlighted >= 0 && filtered[highlighted]) select(filtered[highlighted]);
+        break;
+    }
+  }
+
+  function handleTriggerKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setOpen(true);
+    }
+  }
+
   const inputCls = "w-full px-4 py-3 border border-stone-200 rounded-xl text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white transition-all text-left flex items-center justify-between";
 
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
+        onKeyDown={handleTriggerKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={`${inputCls} ${!value ? "text-stone-300" : "text-stone-900"} ${className}`}
       >
         <span>{value || "Select country…"}</span>
@@ -85,7 +132,11 @@ export default function CountrySelect({ value, onChange, countries, className = 
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Search country…"
+                aria-label="Search countries"
+                aria-controls="country-listbox"
+                aria-activedescendant={highlighted >= 0 ? `country-opt-${highlighted}` : undefined}
                 className="flex-1 text-sm outline-none text-stone-900 placeholder:text-stone-400"
               />
               {query && (
@@ -99,16 +150,24 @@ export default function CountrySelect({ value, onChange, countries, className = 
               )}
             </div>
 
-            <ul className="overflow-y-auto flex-1 overscroll-contain">
-              {filtered.map((c) => (
-                <li key={c.code}>
+            <ul
+              id="country-listbox"
+              ref={listRef}
+              role="listbox"
+              aria-label="Countries"
+              className="overflow-y-auto flex-1 overscroll-contain"
+            >
+              {filtered.map((c, i) => (
+                <li key={c.code} role="option" aria-selected={c.name === value} id={`country-opt-${i}`}>
                   <button
                     type="button"
                     onClick={() => select(c)}
                     className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-stone-100 ${
-                      c.name === value
-                        ? "bg-matcha-50 text-matcha-700"
-                        : "hover:bg-stone-50 text-stone-800"
+                      i === highlighted
+                        ? "bg-matcha-100 text-matcha-800"
+                        : c.name === value
+                          ? "bg-matcha-50 text-matcha-700"
+                          : "hover:bg-stone-50 text-stone-800"
                     }`}
                   >
                     <span className="text-sm flex-1">{c.name}</span>
@@ -120,6 +179,10 @@ export default function CountrySelect({ value, onChange, countries, className = 
                 <li className="py-12 text-center text-sm text-stone-400">No countries found</li>
               )}
             </ul>
+
+            <p className="text-center text-[10px] text-stone-300 py-2 border-t border-stone-100 select-none">
+              ↑ ↓ navigate · Enter select · Esc close
+            </p>
           </div>
         </>,
         document.body

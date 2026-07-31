@@ -10,7 +10,7 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 
-@ApplicationModuleTest
+@ApplicationModuleTest(extraIncludes = "utility")
 @Import(TestcontainersConfiguration.class)
 class SaloonModuleTests {
 
@@ -38,8 +38,10 @@ class SaloonModuleTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.handler").isEqualTo("glam-saloon");
+                .jsonPath("$.saloonId").isNotEmpty()
+                .jsonPath("$.saloonHandler").isEqualTo("glam-saloon")
+                .jsonPath("$.emailId").isEqualTo("jane@glamsaloon.com")
+                .jsonPath("$.message").isNotEmpty();
     }
 
     @Test
@@ -123,7 +125,7 @@ class SaloonModuleTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.handler").value(handler -> {
+                .jsonPath("$.saloonHandler").value(handler -> {
                     client.get()
                             .uri("/api/saloon/" + handler)
                             .exchange()

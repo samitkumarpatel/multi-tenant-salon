@@ -362,6 +362,42 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ─── Admin — Login / Session ─────────────────────────────────────────────────
+
+  /api/saloon-admin/my-saloons:
+    get:
+      tags: [SaloonAdmin]
+      summary: Look up saloons by owner email (admin login)
+      description: |
+        Returns all saloons whose owner email matches the given address.
+        Used by the admin login flow to resolve the saloonId before entering the admin UI.
+        - **1 result** → proceed directly to the saloon-admin UI.
+        - **2+ results** → show a saloon-picker screen and let the owner choose.
+        - **0 results** → show "no saloon found" error.
+
+        No authentication is enforced on this endpoint (dummy login flow).
+      operationId: getMySaloons
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+          example: owner@example.com
+          description: The email address used during saloon onboarding
+      responses:
+        "200":
+          description: One or more saloons found for this email
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Saloon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Admin — Saloon Management ────────────────────────────────────────────────
 
   /api/saloon-admin/{saloonId}:
@@ -1226,6 +1262,24 @@ components:
             $ref: "#/components/schemas/SaloonFeature"
           description: Serialized as a flat array of feature strings
           example: ["BOOKING", "ANALYTICS"]
+        bookingAdvanceDays:
+          type: integer
+          description: How many days in advance customers can book. Defaults to 60.
+          default: 60
+        businessRegistrationId:
+          type: string
+          description: Company/business registration number (e.g. CVR, EIN, Company Number).
+        showBusinessId:
+          type: boolean
+          description: Whether to display the registration number on the public website. Defaults to false.
+          default: false
+        businessIdLabel:
+          type: string
+          description: >
+            Country-specific label for the registration number (e.g. "CVR Number" for Denmark,
+            "EIN" for United States). Derived automatically from location.country on create/update;
+            read-only in responses.
+          readOnly: true
         createdAt:
           type: string
           format: date-time
@@ -1255,15 +1309,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SaloonFeature"
+        businessRegistrationId:
+          type: string
+          description: Company/business registration number.
+        showBusinessId:
+          type: boolean
+          description: Whether to show the registration number on the public website. Defaults to false.
+          default: false
 
     CreateSaloonResponse:
       type: object
       properties:
-        id:
+        saloonId:
           type: string
           format: uuid
-        handler:
+          description: The newly created saloon's UUID
+        saloonHandler:
           type: string
+          description: URL-friendly slug derived from the saloon name
+        emailId:
+          type: string
+          format: email
+          description: The owner's email address to use when signing in to the admin panel
+        message:
+          type: string
+          description: Human-readable confirmation that a welcome email has been sent with the login link and setup guide
 
     UpdateSaloonRequest:
       type: object
@@ -1278,6 +1348,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OperatingHours"
+        businessRegistrationId:
+          type: string
+          description: Business registration number (e.g. CVR for Denmark, EIN for USA). Displayed on the public website when showBusinessId is true.
+        showBusinessId:
+          type: boolean
+          default: false
+          description: Whether to display the business registration number on the public website. When updated alongside location.country, businessIdLabel is re-derived automatically.
 
     Owner:
       type: object

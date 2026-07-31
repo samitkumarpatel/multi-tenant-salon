@@ -5,6 +5,8 @@ export interface Country {
   currencyCode: string;
   currencyName: string | null;
   currencySymbol: string | null;
+  businessIdLabel?: string | null;
+  businessIdPlaceholder?: string | null;
 }
 
 export interface Currency {
@@ -50,6 +52,9 @@ export interface Saloon {
   operatingHours?: OperatingHours[];
   features?: string[];
   bookingAdvanceDays?: number;
+  businessRegistrationId?: string;
+  showBusinessId?: boolean;
+  businessIdLabel?: string;
   createdAt?: string;
 }
 

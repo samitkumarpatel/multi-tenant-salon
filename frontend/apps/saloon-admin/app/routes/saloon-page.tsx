@@ -8,6 +8,7 @@ import {
 } from "@saloon/ui-website";
 import type { WebsiteTheme, Saloon, StaffMember, ServiceItem } from "@saloon/ui-website";
 import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
+import { SALOON_DOMAIN } from "~/lib/config";
 import { useEffect, useRef } from "react";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -428,7 +429,7 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shrink-0" />
         <span className="text-slate-400 truncate">
           Admin preview — customers see this at{" "}
-          <span className="text-white font-mono font-medium">{handler}.my-saloon.dk</span>
+          <span className="text-white font-mono font-medium">{handler}.{SALOON_DOMAIN}</span>
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">

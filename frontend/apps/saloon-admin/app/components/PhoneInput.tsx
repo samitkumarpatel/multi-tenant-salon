@@ -31,15 +31,32 @@ function resolveDefaultDialCode(countries: Country[], defaultCountry?: string): 
 
 export default function PhoneInput({ value, onChange, countries, autoFocus, defaultCountry }: Props) {
   const parsed = parsePhone(value);
-  const [dialCode, setDialCode] = useState(() => parsed.dialCode || resolveDefaultDialCode(countries, defaultCountry));
-  const [local, setLocal]       = useState(parsed.local);
-  const [open, setOpen]         = useState(false);
-  const [query, setQuery]       = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [dialCode, setDialCode]     = useState(() => parsed.dialCode || resolveDefaultDialCode(countries, defaultCountry));
+  const [local, setLocal]           = useState(parsed.local);
+  const [open, setOpen]             = useState(false);
+  const [query, setQuery]           = useState("");
+  const [highlighted, setHighlight] = useState(-1);
+  const searchRef  = useRef<HTMLInputElement>(null);
+  const listRef    = useRef<HTMLUListElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (open) searchRef.current?.focus();
-  }, [open]);
+    if (open) {
+      const idx = filtered.findIndex((c) => c.dialCode === dialCode);
+      setHighlight(idx >= 0 ? idx : 0);
+      searchRef.current?.focus();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setHighlight(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (!open || highlighted < 0) return;
+    const item = listRef.current?.children[highlighted] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [highlighted, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,6 +70,8 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
   function close() {
     setOpen(false);
     setQuery("");
+    setHighlight(-1);
+    triggerRef.current?.focus();
   }
 
   function emit(dc: string, loc: string) {
@@ -72,15 +91,42 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
       })
     : countries;
 
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlight((h) => (h + 1 < filtered.length ? h + 1 : 0));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlight((h) => (h - 1 >= 0 ? h - 1 : filtered.length - 1));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (highlighted >= 0 && filtered[highlighted]) select(filtered[highlighted]);
+        break;
+    }
+  }
+
+  function handleTriggerKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setOpen(true);
+    }
+  }
+
   const selected = countries.find((c) => c.dialCode === dialCode);
 
   return (
     <>
       <div className="flex border border-stone-200 rounded-xl bg-white focus-within:border-matcha-500 focus-within:ring-2 focus-within:ring-matcha-500/10 transition-all">
-        {/* Dial code trigger */}
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen(true)}
+          onKeyDown={handleTriggerKeyDown}
+          aria-haspopup="listbox"
+          aria-expanded={open}
           className="shrink-0 flex items-center gap-1.5 px-3 py-3 border-r border-stone-200 bg-stone-50 rounded-l-xl text-sm font-mono text-stone-700 hover:bg-stone-100 active:bg-stone-200 transition-colors whitespace-nowrap select-none"
         >
           <span>{dialCode || "+"}</span>
@@ -90,7 +136,6 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
           </svg>
         </button>
 
-        {/* Local number input — digits, spaces, hyphens and parens only */}
         <input
           autoFocus={autoFocus}
           type="tel"
@@ -106,23 +151,16 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
         />
       </div>
 
-      {/* Portal — renders outside the animated container so `fixed` works correctly */}
       {open && createPortal(
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-black/30"
-            onClick={close}
-          />
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={close} />
 
-          {/* Sheet — full-height panel on mobile, constrained centered card on desktop */}
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Select country code"
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70vh]"
           >
-            {/* Search header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
               <svg className="w-4 h-4 text-stone-400 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="9" cy="9" r="6"/>
@@ -132,7 +170,11 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Search country or dial code…"
+                aria-label="Search countries"
+                aria-controls="dialcode-listbox"
+                aria-activedescendant={highlighted >= 0 ? `dialcode-opt-${highlighted}` : undefined}
                 className="flex-1 text-sm outline-none text-stone-900 placeholder:text-stone-400"
               />
               {query && (
@@ -146,17 +188,24 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
               )}
             </div>
 
-            {/* Country list */}
-            <ul className="overflow-y-auto flex-1 overscroll-contain">
-              {filtered.map((c) => (
-                <li key={c.code}>
+            <ul
+              id="dialcode-listbox"
+              ref={listRef}
+              role="listbox"
+              aria-label="Country dial codes"
+              className="overflow-y-auto flex-1 overscroll-contain"
+            >
+              {filtered.map((c, i) => (
+                <li key={c.code} role="option" aria-selected={c.dialCode === dialCode} id={`dialcode-opt-${i}`}>
                   <button
                     type="button"
                     onClick={() => select(c)}
                     className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-stone-100 ${
-                      c.dialCode === dialCode
-                        ? "bg-matcha-50 text-matcha-700"
-                        : "hover:bg-stone-50 text-stone-800"
+                      i === highlighted
+                        ? "bg-matcha-100 text-matcha-800"
+                        : c.dialCode === dialCode
+                          ? "bg-matcha-50 text-matcha-700"
+                          : "hover:bg-stone-50 text-stone-800"
                     }`}
                   >
                     <span className="font-mono text-sm text-stone-400 w-10 shrink-0">{c.dialCode}</span>
@@ -169,6 +218,10 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
                 <li className="py-12 text-center text-sm text-stone-400">No countries found</li>
               )}
             </ul>
+
+            <p className="text-center text-[10px] text-stone-300 py-2 border-t border-stone-100 select-none">
+              ↑ ↓ navigate · Enter select · Esc close
+            </p>
           </div>
         </>,
         document.body
