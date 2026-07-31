@@ -2,6 +2,7 @@ package net.samitkumar.multi_tenant_saloon.saloon.internal;
 
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
+import net.samitkumar.multi_tenant_saloon.utility.CountryApi;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonClosure;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
@@ -22,11 +23,31 @@ class SaloonService implements SaloonApi {
     private final SaloonRepository repository;
     private final SaloonClosureRepository closureRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CountryApi countryApi;
 
-    SaloonService(SaloonRepository repository, SaloonClosureRepository closureRepository, ApplicationEventPublisher eventPublisher) {
+    SaloonService(SaloonRepository repository, SaloonClosureRepository closureRepository,
+                  ApplicationEventPublisher eventPublisher, CountryApi countryApi) {
         this.repository = repository;
         this.closureRepository = closureRepository;
         this.eventPublisher = eventPublisher;
+        this.countryApi = countryApi;
+    }
+
+    private String deriveBusinessIdLabel(Saloon.Location location) {
+        if (location == null || location.country() == null) return null;
+        return countryApi.findByName(location.country())
+                .map(c -> c.businessIdLabel())
+                .orElse(null);
+    }
+
+    private Saloon withLabel(Saloon saloon) {
+        if (saloon.businessIdLabel() != null) return saloon;
+        var label = deriveBusinessIdLabel(saloon.location());
+        if (label == null) return saloon;
+        return new Saloon(saloon.id(), saloon.name(), saloon.handler(), saloon.owner(),
+                saloon.location(), saloon.contact(), saloon.operatingHours(), saloon.features(),
+                saloon.bookingAdvanceDays(), saloon.businessRegistrationId(), saloon.showBusinessId(),
+                label, saloon.createdAt());
     }
 
     private String deriveUniqueHandler(String name) {
@@ -50,7 +71,7 @@ class SaloonService implements SaloonApi {
                 ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
                 : List.<Saloon.SaloonFeatureRef>of();
         var saloon = new Saloon(null, name, handler, owner, location, contact, operatingHours, featureRefs, 60,
-                businessRegistrationId, showBusinessId, Instant.now());
+                businessRegistrationId, showBusinessId, deriveBusinessIdLabel(location), Instant.now());
         var saved = repository.save(saloon);
         var eventFeatures = saved.features().stream().map(Saloon.SaloonFeatureRef::feature).toList();
         eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
@@ -58,18 +79,18 @@ class SaloonService implements SaloonApi {
     }
 
     List<Saloon> findAll() {
-        return repository.findAll();
+        return repository.findAll().stream().map(this::withLabel).toList();
     }
 
     List<Saloon> findByOwnerEmail(String email) {
-        return repository.findByOwnerEmail(email);
+        return repository.findByOwnerEmail(email).stream().map(this::withLabel).toList();
     }
 
     Optional<Saloon> findByIdOrHandler(String id) {
         try {
-            return repository.findById(UUID.fromString(id));
+            return repository.findById(UUID.fromString(id)).map(this::withLabel);
         } catch (IllegalArgumentException e) {
-            return repository.findByHandler(id);
+            return repository.findByHandler(id).map(this::withLabel);
         }
     }
 
@@ -79,10 +100,11 @@ class SaloonService implements SaloonApi {
         return repository.findById(id).map(existing -> {
             var nameToSave = (name != null && !name.isBlank()) ? name : existing.name();
             var days = bookingAdvanceDays != null ? bookingAdvanceDays : existing.bookingAdvanceDays();
-            var bizId  = businessRegistrationId != null ? businessRegistrationId : existing.businessRegistrationId();
-            var showBiz = showBusinessId != null ? showBusinessId : existing.showBusinessId();
+            var bizId    = businessRegistrationId != null ? businessRegistrationId : existing.businessRegistrationId();
+            var showBiz  = showBusinessId != null ? showBusinessId : existing.showBusinessId();
+            var bizLabel = location != null ? deriveBusinessIdLabel(location) : existing.businessIdLabel();
             var updated = new Saloon(existing.id(), nameToSave, existing.handler(), existing.owner(), location, contact,
-                    operatingHours, existing.features(), days, bizId, showBiz, existing.createdAt());
+                    operatingHours, existing.features(), days, bizId, showBiz, bizLabel, existing.createdAt());
             return repository.save(updated);
         });
     }
@@ -94,7 +116,8 @@ class SaloonService implements SaloonApi {
                     : List.<Saloon.SaloonFeatureRef>of();
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), featureRefs,
-                    existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(), existing.createdAt());
+                    existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
+                    existing.businessIdLabel(), existing.createdAt());
             return repository.save(updated);
         });
     }

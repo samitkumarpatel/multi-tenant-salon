@@ -65,6 +65,8 @@ Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/w
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
 | `operatingHours` | array | no | See [OperatingHours](#operatinghours) |
 | `features` | array | no | See [SaloonFeature](#saloonfeature) values |
+| `businessRegistrationId` | string | no | Business reg. number (e.g. CVR, EIN) shown on the public website |
+| `showBusinessId` | boolean | no | Whether to display the registration number publicly; defaults to `false` |
 
 **Response** `201 Created`
 
@@ -91,7 +93,7 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
 **Flow**
 
 1. `SaloonController.create()` validates `@NotBlank` on `name`, `ownerName`, `ownerEmail` — returns `400` before reaching the service if any are blank.
-2. `SaloonService.create()` calls `deriveUniqueHandler(name)`: checks `SaloonRepository.existsByHandler(base)` and increments a suffix until a free handler is found. Builds a `Saloon` with `id = null`.
+2. `SaloonService.create()` calls `deriveUniqueHandler(name)`: checks `SaloonRepository.existsByHandler(base)` and increments a suffix until a free handler is found. Derives `businessIdLabel` from `location.country` using the countries reference data (e.g. `"Denmark"` → `"CVR Number"`). Builds a `Saloon` with `id = null`.
 3. `SaloonRepository.save(Saloon)` → **DB**: `INSERT INTO saloon`, `INSERT INTO saloon_operating_hours`, `INSERT INTO saloon_feature` — all in one transaction. Database assigns UUID via `DEFAULT gen_random_uuid()`.
 4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` — Spring Modulith writes the event to `event_publication` before the transaction commits.
 5. Returns `201 Created` with `CreateSaloonResponse(saloonId, saloonHandler, emailId, message)` and a `Location` header.
@@ -114,10 +116,14 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
     "name": "Glam Saloon",
     "handler": "glam-saloon",
     "owner": { "name": "Jane Doe", "email": "jane@glamsaloon.com", "phone": "+1234567890" },
-    "location": { "address": "123 Main St", "city": "New York", "state": "NY", "country": "USA", "zipCode": "10001" },
+    "location": { "address": "123 Main St", "city": "New York", "state": "NY", "country": "United States", "zipCode": "10001" },
     "contact": { "phone": "+1234567890", "email": "info@glamsaloon.com", "website": "https://glamsaloon.com" },
     "operatingHours": [],
     "features": ["BOOKING"],
+    "bookingAdvanceDays": 60,
+    "businessRegistrationId": "12-3456789",
+    "showBusinessId": true,
+    "businessIdLabel": "EIN",
     "createdAt": "2026-07-08T10:00:00Z"
   }
 ]
@@ -139,7 +145,9 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
 
 Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug (`glam-saloon`).
 
-**Response** `200 OK` — full saloon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `createdAt`)
+**Response** `200 OK` — full saloon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `bookingAdvanceDays`, `businessRegistrationId`, `showBusinessId`, `businessIdLabel`, `createdAt`)
+
+`businessIdLabel` is derived automatically from `location.country` (e.g. `"CVR Number"` for Denmark, `"EIN"` for United States). It is read-only — set `location.country` to update it.
 
 **Response** `404 Not Found` — if neither a saloon with that UUID nor a handler matches
 
@@ -457,7 +465,7 @@ GET /api/saloon-admin/my-saloons?email=owner@example.com
 
 `PUT /api/saloon-admin/{saloonId}`
 
-Updates name, location, contact, and operating hours. Owner, handler, and features are preserved.
+Updates name, location, contact, operating hours, and business registration details. Owner, handler, and features are preserved.
 
 **Request**
 
@@ -468,7 +476,7 @@ Updates name, location, contact, and operating hours. Owner, handler, and featur
     "address": "456 Park Ave",
     "city": "New York",
     "state": "NY",
-    "country": "USA",
+    "country": "United States",
     "zipCode": "10022"
   },
   "contact": {
@@ -478,9 +486,20 @@ Updates name, location, contact, and operating hours. Owner, handler, and featur
   },
   "operatingHours": [
     { "day": "MONDAY", "openTime": "10:00", "closeTime": "20:00", "closed": false }
-  ]
+  ],
+  "businessRegistrationId": "12-3456789",
+  "showBusinessId": true
 }
 ```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | no | Preserved if omitted |
+| `location` | object | no | See [Location](#location); `businessIdLabel` is re-derived when country changes |
+| `contact` | object | no | See [ContactInfo](#contactinfo) |
+| `operatingHours` | array | no | Replaces existing hours when provided |
+| `businessRegistrationId` | string | no | Preserved if omitted |
+| `showBusinessId` | boolean | no | Preserved if omitted |
 
 **Response** `200 OK` — updated saloon object
 
@@ -490,7 +509,7 @@ Updates name, location, contact, and operating hours. Owner, handler, and featur
 
 1. `SaloonController.update(UUID, UpdateSaloonRequest)` → `SaloonService.update(UUID, ...)`
 2. `SaloonRepository.findById(UUID)` → `404` if empty.
-3. Builds a new `Saloon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`.
+3. Builds a new `Saloon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`. `businessIdLabel` is re-derived from `location.country` when `location` is provided.
 4. `SaloonRepository.save(Saloon)` → **DB**: `UPDATE saloon SET ...` + `DELETE FROM saloon_operating_hours WHERE saloon_id = ?` + re-`INSERT`.
 5. Returns `200 OK`.
 
@@ -1215,8 +1234,9 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 
 ```json
 [
-  { "name": "United States", "code": "US", "dialCode": "+1",  "currencyCode": "USD", "currencyName": "United States Dollar", "currencySymbol": "$"  },
-  { "name": "India",         "code": "IN", "dialCode": "+91", "currencyCode": "INR", "currencyName": "Indian Rupee",         "currencySymbol": "₹" }
+  { "name": "United States", "code": "US", "dialCode": "+1",  "currencyCode": "USD", "currencyName": "United States Dollar", "currencySymbol": "$",  "businessIdLabel": "EIN" },
+  { "name": "Denmark",       "code": "DK", "dialCode": "+45", "currencyCode": "DKK", "currencyName": "Danish Krone",          "currencySymbol": "kr", "businessIdLabel": "CVR Number" },
+  { "name": "India",         "code": "IN", "dialCode": "+91", "currencyCode": "INR", "currencyName": "Indian Rupee",          "currencySymbol": "₹",  "businessIdLabel": "CIN" }
 ]
 ```
 
@@ -1228,6 +1248,7 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 | `currencyCode` | string | ISO 4217 currency code (e.g. `"USD"`) |
 | `currencyName` | string | Full currency name (e.g. `"United States Dollar"`) |
 | `currencySymbol` | string | Currency symbol (e.g. `"$"`) |
+| `businessIdLabel` | string | Country-specific label for the business registration number (e.g. `"CVR Number"`, `"EIN"`) |
 
 **Flow**
 

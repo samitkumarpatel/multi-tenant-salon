@@ -1,14 +1,13 @@
-module "bootstrap" {
-  source = "../../stacks/bootstrap"
+module "dns_bootstrapping" {
+  source = "../../stacks/dns-bootstrapping"
 
   providers = {
     aws           = aws
     aws.us_east_1 = aws.us_east_1
   }
 
-  environment = var.environment
-  name        = var.name
-  domain      = var.domain
+  environment = "dev"
+  domain      = "my-saloon.online"
 }
 
 module "stack" {
@@ -19,9 +18,9 @@ module "stack" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  environment     = var.environment
-  name            = var.name
-  domain          = var.domain
-  certificate_arn = module.bootstrap.certificate_arn
-  zone_id         = module.bootstrap.zone_id
+  environment     = "dev"
+  name            = "my-saloon"
+  domain          = "my-saloon.online"
+  certificate_arn = module.dns_bootstrapping.certificate_arn
+  zone_id         = module.dns_bootstrapping.zone_id
 }

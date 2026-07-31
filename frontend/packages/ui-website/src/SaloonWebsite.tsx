@@ -715,19 +715,6 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
               </div>
             )}
 
-            {saloon.contact && (saloon.contact.phone || saloon.contact.email || saloon.contact.website) && (
-              <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                  <Phone className="w-3.5 h-3.5" /> Contact
-                </h3>
-                <div className="flex flex-col gap-2.5">
-                  {saloon.contact.phone && <a href={`tel:${saloon.contact.phone}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}><Phone className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> {saloon.contact.phone}</a>}
-                  {saloon.contact.email && <a href={`mailto:${saloon.contact.email}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}><Mail className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{saloon.contact.email}</span></a>}
-                  {saloon.contact.website && <a href={saloon.contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}><Globe className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{saloon.contact.website}</span></a>}
-                </div>
-              </div>
-            )}
-
             {saloon.location && (saloon.location.address || saloon.location.city) && (
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
@@ -742,21 +729,21 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                 </address>
                 {saloon.location.address && (
                   <a href={theme.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([saloon.location.address, saloon.location.zipCode, saloon.location.city, saloon.location.country].filter(Boolean).join(", "))}`}
-                    target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold no-underline hover:opacity-80 transition-opacity"
+                    target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold no-underline hover:opacity-80 transition-opacity"
                     style={{ color: theme.accentColor }}>
                     Open in Maps <ChevronRight className="w-3 h-3" />
                   </a>
+                )}
+                {saloon.showBusinessId && saloon.businessRegistrationId && (
+                  <p className="text-[11px] mt-3" style={{ color: footerDim }}>{saloon.businessIdLabel ?? "Reg. No."} {saloon.businessRegistrationId}</p>
                 )}
               </div>
             )}
           </div>
 
           <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
-            <div className="flex flex-col gap-0.5">
+            <div>
               <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {saloon.name} · All rights reserved.</p>
-              {saloon.showBusinessId && saloon.businessRegistrationId && (
-                <p className="text-[11px]" style={{ color: footerDim }}>Reg. No. {saloon.businessRegistrationId}</p>
-              )}
             </div>
             <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
               Back to top <ArrowUp className="w-3 h-3" />

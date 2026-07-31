@@ -10,7 +10,7 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 
-@ApplicationModuleTest
+@ApplicationModuleTest(extraIncludes = "utility")
 @Import(TestcontainersConfiguration.class)
 class SaloonModuleTests {
 

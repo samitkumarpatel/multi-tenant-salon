@@ -64,10 +64,10 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
 const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.ElementType; route?: string }[] = [
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
   { key: "BOOKING",         label: "Booking Calendar", hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
-  { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: undefined },
-  { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: undefined },
-  { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: undefined },
-  { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: undefined },
+  { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: "coming-soon" },
+  { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "coming-soon" },
+  { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: "coming-soon" },
+  { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "coming-soon" },
 ];
 
 // ── Saloon switcher ───────────────────────────────────────────────────────────
@@ -443,6 +443,9 @@ export default function Layout() {
                         >
                           <f.icon className="w-4 h-4 shrink-0" />
                           {f.label}
+                          {f.route === "coming-soon" && (
+                            <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1">Soon</span>
+                          )}
                           {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
                             <span className="ml-auto relative flex h-2 w-2">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />

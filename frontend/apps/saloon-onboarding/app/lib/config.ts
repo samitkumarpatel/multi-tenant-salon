@@ -10,7 +10,8 @@ export const CONTACT_EMAIL = `contact@${SALOON_DOMAIN}`;
 // In production, it uses subdomain routing: {handler}.my-saloon.online.
 // Set VITE_WEBSITE_BASE_URL=http://localhost:5174 in .env.local for dev.
 const WEBSITE_BASE_URL: string =
-  import.meta.env.VITE_WEBSITE_BASE_URL ?? "";
+  import.meta.env.VITE_WEBSITE_BASE_URL ??
+  (import.meta.env.DEV ? "http://localhost:5174" : "");
 
 export function websiteUrl(handler: string): string {
   return WEBSITE_BASE_URL

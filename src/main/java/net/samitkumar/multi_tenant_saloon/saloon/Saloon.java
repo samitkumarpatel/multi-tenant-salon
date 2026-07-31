@@ -25,6 +25,7 @@ public record Saloon(
         Integer bookingAdvanceDays,
         String businessRegistrationId,
         Boolean showBusinessId,
+        String businessIdLabel,
         Instant createdAt
 ) {
     public Saloon {

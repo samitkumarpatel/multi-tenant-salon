@@ -345,10 +345,6 @@ function SuccessScreen({ saloonId, saloonHandler, emailId, saloonName, features 
             Go to admin panel &amp; sign in →
           </a>
 
-          <p className="text-center text-xs text-stone-400">
-            Check your inbox for the welcome email with your full login guide.
-          </p>
-
           <a
             href="/new"
             className="block text-center py-2.5 rounded-xl border border-stone-200 bg-white text-stone-600 text-sm font-medium hover:border-stone-300 hover:bg-stone-50 active:scale-[0.97] transition-all no-underline"

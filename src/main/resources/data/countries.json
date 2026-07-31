@@ -46,8 +46,12 @@
     "code": "AU",
     "dialCode": "+61",
     "currencyCode": "AUD",
-    "businessIdLabel": "ABN",
-    "businessIdPlaceholder": "12 345 678 901"
+    "businessIdLabel": "ACN",
+    "businessIdFullName": "Australian Company Number",
+    "businessIdPlaceholder": "123456789",
+    "businessIdFormat": "9 digits",
+    "businessIdAuthority": "ASIC",
+    "businessIdRegex": "^\\d{9}$"
   },
   {
     "name": "Austria",
@@ -55,7 +59,10 @@
     "dialCode": "+43",
     "currencyCode": "EUR",
     "businessIdLabel": "Firmenbuchnummer",
-    "businessIdPlaceholder": "FN 123456w"
+    "businessIdPlaceholder": "FN 123456a",
+    "businessIdFormat": "FN + digits + check letter",
+    "businessIdAuthority": "Firmenbuch (Commercial Register)",
+    "businessIdRegex": "^FN\\s?\\d{1,6}[a-z]$"
   },
   {
     "name": "Azerbaijan",
@@ -73,7 +80,12 @@
     "name": "Bangladesh",
     "code": "BD",
     "dialCode": "+880",
-    "currencyCode": "BDT"
+    "currencyCode": "BDT",
+    "businessIdLabel": "RJSC Reg. No.",
+    "businessIdFullName": "RJSC Registration Number",
+    "businessIdPlaceholder": "C-123456",
+    "businessIdFormat": "Varies",
+    "businessIdAuthority": "Registrar of Joint Stock Companies and Firms"
   },
   {
     "name": "Belarus",
@@ -86,8 +98,12 @@
     "code": "BE",
     "dialCode": "+32",
     "currencyCode": "EUR",
-    "businessIdLabel": "BE Number",
-    "businessIdPlaceholder": "0123.456.789"
+    "businessIdLabel": "Ondernemingsnummer",
+    "businessIdFullName": "Numéro d'entreprise / Ondernemingsnummer",
+    "businessIdPlaceholder": "0123.456.789",
+    "businessIdFormat": "10 digits (0XXX.XXX.XXX)",
+    "businessIdAuthority": "Crossroads Bank for Enterprises (CBE/KBO)",
+    "businessIdRegex": "^0\\d{3}\\.\\d{3}\\.\\d{3}$"
   },
   {
     "name": "Belize",
@@ -129,7 +145,13 @@
     "name": "Brazil",
     "code": "BR",
     "dialCode": "+55",
-    "currencyCode": "BRL"
+    "currencyCode": "BRL",
+    "businessIdLabel": "CNPJ",
+    "businessIdFullName": "Cadastro Nacional da Pessoa Jurídica",
+    "businessIdPlaceholder": "12.345.678/0001-90",
+    "businessIdFormat": "14 digits (XX.XXX.XXX/XXXX-XX)",
+    "businessIdAuthority": "Receita Federal",
+    "businessIdRegex": "^\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}$"
   },
   {
     "name": "Brunei",
@@ -141,7 +163,13 @@
     "name": "Bulgaria",
     "code": "BG",
     "dialCode": "+359",
-    "currencyCode": "BGN"
+    "currencyCode": "BGN",
+    "businessIdLabel": "UIC",
+    "businessIdFullName": "Unified Identification Code",
+    "businessIdPlaceholder": "123456789",
+    "businessIdFormat": "9 digits",
+    "businessIdAuthority": "Bulgarian Commercial Register",
+    "businessIdRegex": "^\\d{9}$"
   },
   {
     "name": "Burkina Faso",
@@ -172,8 +200,12 @@
     "code": "CA",
     "dialCode": "+1",
     "currencyCode": "CAD",
-    "businessIdLabel": "Business Number (BN)",
-    "businessIdPlaceholder": "123456789"
+    "businessIdLabel": "BN",
+    "businessIdFullName": "Business Number",
+    "businessIdPlaceholder": "123456789",
+    "businessIdFormat": "9 digits, optionally extended with program identifiers (e.g. RT0001 for GST/HST)",
+    "businessIdAuthority": "Canada Revenue Agency (CRA)",
+    "businessIdRegex": "^\\d{9}(RT|RC|RM|RP)?\\d{0,4}$"
   },
   {
     "name": "Cape Verde",
@@ -203,7 +235,13 @@
     "name": "China",
     "code": "CN",
     "dialCode": "+86",
-    "currencyCode": "CNY"
+    "currencyCode": "CNY",
+    "businessIdLabel": "USCC",
+    "businessIdFullName": "Unified Social Credit Code (统一社会信用代码)",
+    "businessIdPlaceholder": "91110000MA01ABCDE",
+    "businessIdFormat": "18-character alphanumeric",
+    "businessIdAuthority": "State Administration for Market Regulation",
+    "businessIdRegex": "^[0-9A-HJ-NPQRTUWXY]{2}\\d{6}[0-9A-HJ-NPQRTUWXY]{9}[0-9X]$"
   },
   {
     "name": "Colombia",
@@ -233,7 +271,13 @@
     "name": "Croatia",
     "code": "HR",
     "dialCode": "+385",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "OIB",
+    "businessIdFullName": "Osobni identifikacijski broj",
+    "businessIdPlaceholder": "12345678901",
+    "businessIdFormat": "11 digits",
+    "businessIdAuthority": "Croatian Tax Administration",
+    "businessIdRegex": "^\\d{11}$"
   },
   {
     "name": "Cuba",
@@ -245,21 +289,37 @@
     "name": "Cyprus",
     "code": "CY",
     "dialCode": "+357",
-    "currencyCode": "EUR"
+    "currencyCode": "EUR",
+    "businessIdLabel": "TIC",
+    "businessIdFullName": "Tax Identification Code",
+    "businessIdPlaceholder": "12345678A",
+    "businessIdFormat": "8 digits + 1 letter",
+    "businessIdAuthority": "Cyprus Tax Department",
+    "businessIdRegex": "^\\d{8}[A-Z]$"
   },
   {
     "name": "Czech Republic",
     "code": "CZ",
     "dialCode": "+420",
-    "currencyCode": "CZK"
+    "currencyCode": "CZK",
+    "businessIdLabel": "IČO",
+    "businessIdFullName": "Identifikační číslo osoby",
+    "businessIdPlaceholder": "12345678",
+    "businessIdFormat": "8 digits",
+    "businessIdAuthority": "Czech Business Register",
+    "businessIdRegex": "^\\d{8}$"
   },
   {
     "name": "Denmark",
     "code": "DK",
     "dialCode": "+45",
     "currencyCode": "DKK",
-    "businessIdLabel": "CVR Number",
-    "businessIdPlaceholder": "12345678"
+    "businessIdLabel": "CVR",
+    "businessIdFullName": "Central Virksomhedsregister (Central Business Register) number",
+    "businessIdPlaceholder": "12345678",
+    "businessIdFormat": "8 digits",
+    "businessIdAuthority": "Erhvervsstyrelsen (Danish Business Authority)",
+    "businessIdRegex": "^\\d{8}$"
   },
   {
     "name": "Djibouti",
@@ -283,7 +343,12 @@
     "name": "Egypt",
     "code": "EG",
     "dialCode": "+20",
-    "currencyCode": "EGP"
+    "currencyCode": "EGP",
+    "businessIdLabel": "CR Number",
+    "businessIdFullName": "Commercial Registration Number",
+    "businessIdPlaceholder": "123456",
+    "businessIdFormat": "Varies",
+    "businessIdAuthority": "General Authority for Investment (GAFI)"
   },
   {
     "name": "El Salvador",
@@ -333,15 +398,23 @@
     "dialCode": "+358",
     "currencyCode": "EUR",
     "businessIdLabel": "Y-tunnus",
-    "businessIdPlaceholder": "1234567-8"
+    "businessIdFullName": "Business ID",
+    "businessIdPlaceholder": "1234567-8",
+    "businessIdFormat": "7 digits + hyphen + 1 check digit",
+    "businessIdAuthority": "Finnish Patent and Registration Office (PRH)",
+    "businessIdRegex": "^\\d{7}-\\d$"
   },
   {
     "name": "France",
     "code": "FR",
     "dialCode": "+33",
     "currencyCode": "EUR",
-    "businessIdLabel": "SIRET",
-    "businessIdPlaceholder": "12345678900012"
+    "businessIdLabel": "SIREN / SIRET",
+    "businessIdFullName": "SIREN identifies the legal entity; SIRET identifies a specific establishment",
+    "businessIdPlaceholder": "12345678900012",
+    "businessIdFormat": "SIREN: 9 digits. SIRET: 14 digits (SIREN + 5-digit NIC establishment code)",
+    "businessIdAuthority": "INSEE / RCS (Registre du Commerce et des Sociétés)",
+    "businessIdRegex": "^\\d{9}(\\d{5})?$"
   },
   {
     "name": "Gabon",
@@ -367,7 +440,11 @@
     "dialCode": "+49",
     "currencyCode": "EUR",
     "businessIdLabel": "Handelsregisternummer",
-    "businessIdPlaceholder": "HRB 12345"
+    "businessIdFullName": "Commercial Register number",
+    "businessIdPlaceholder": "HRB 123456",
+    "businessIdFormat": "HRB (corporations: GmbH, AG) or HRA (partnerships) + sequential number",
+    "businessIdAuthority": "Amtsgericht (local court, Handelsregister)",
+    "businessIdRegex": "^HR[AB]\\s?\\d{1,6}$"
   },
   {
     "name": "Ghana",
@@ -434,14 +511,24 @@
     "code": "IN",
     "dialCode": "+91",
     "currencyCode": "INR",
-    "businessIdLabel": "GST Number",
-    "businessIdPlaceholder": "22AAAAA0000A1Z5"
+    "businessIdLabel": "CIN",
+    "businessIdFullName": "Corporate Identification Number",
+    "businessIdPlaceholder": "L01631KA2010PTC096843",
+    "businessIdFormat": "21-character alphanumeric",
+    "businessIdAuthority": "Registrar of Companies (Ministry of Corporate Affairs)",
+    "businessIdRegex": "^[LU]\\d{5}[A-Z]{2}\\d{4}[A-Z]{3}\\d{6}$"
   },
   {
     "name": "Indonesia",
     "code": "ID",
     "dialCode": "+62",
-    "currencyCode": "IDR"
+    "currencyCode": "IDR",
+    "businessIdLabel": "NIB",
+    "businessIdFullName": "Nomor Induk Berusaha",
+    "businessIdPlaceholder": "1234567890123",
+    "businessIdFormat": "13 digits",
+    "businessIdAuthority": "OSS (Online Single Submission) system",
+    "businessIdRegex": "^\\d{13}$"
   },
   {
     "name": "Iran",
@@ -461,21 +548,33 @@
     "dialCode": "+353",
     "currencyCode": "EUR",
     "businessIdLabel": "CRO Number",
-    "businessIdPlaceholder": "123456"
+    "businessIdPlaceholder": "123456",
+    "businessIdFormat": "6-7 digits",
+    "businessIdAuthority": "Companies Registration Office",
+    "businessIdRegex": "^\\d{6,7}$"
   },
   {
     "name": "Israel",
     "code": "IL",
     "dialCode": "+972",
-    "currencyCode": "ILS"
+    "currencyCode": "ILS",
+    "businessIdLabel": "Company Number",
+    "businessIdPlaceholder": "123456789",
+    "businessIdFormat": "9 digits",
+    "businessIdAuthority": "Registrar of Companies",
+    "businessIdRegex": "^\\d{9}$"
   },
   {
     "name": "Italy",
     "code": "IT",
     "dialCode": "+39",
     "currencyCode": "EUR",
-    "businessIdLabel": "Partita IVA",
-    "businessIdPlaceholder": "12345678901"
+    "businessIdLabel": "REA",
+    "businessIdFullName": "Business Register number (Registro delle Imprese)",
+    "businessIdPlaceholder": "MI-1234567",
+    "businessIdFormat": "Province code + numeric ID (e.g. MI-1234567)",
+    "businessIdAuthority": "Camera di Commercio (Chamber of Commerce)",
+    "businessIdRegex": "^[A-Z]{2}-\\d{6,7}$"
   },
   {
     "name": "Jamaica",
@@ -487,7 +586,13 @@
     "name": "Japan",
     "code": "JP",
     "dialCode": "+81",
-    "currencyCode": "JPY"
+    "currencyCode": "JPY",
+    "businessIdLabel": "Corporate Number",
+    "businessIdFullName": "法人番号 (Hōjin Bangō)",
+    "businessIdPlaceholder": "1234567890123",
+    "businessIdFormat": "13 digits",
+    "businessIdAuthority": "National Tax Agency",
+    "businessIdRegex": "^\\d{13}$"
   },
   {
     "name": "Jordan",
@@ -505,7 +610,12 @@
     "name": "Kenya",
     "code": "KE",
     "dialCode": "+254",
-    "currencyCode": "KES"
+    "currencyCode": "KES",
+    "businessIdLabel": "Co. Reg. No.",
+    "businessIdFullName": "Company Registration Number",
+    "businessIdPlaceholder": "PVT-A1B2C3D",
+    "businessIdFormat": "PVT-XXXXXX or CPR/XXXX/XXXX",
+    "businessIdAuthority": "Business Registration Service"
   },
   {
     "name": "Kuwait",
@@ -589,7 +699,13 @@
     "name": "Malaysia",
     "code": "MY",
     "dialCode": "+60",
-    "currencyCode": "MYR"
+    "currencyCode": "MYR",
+    "businessIdLabel": "SSM Reg. No.",
+    "businessIdFullName": "SSM Registration Number",
+    "businessIdPlaceholder": "202301012345",
+    "businessIdFormat": "XXXXXX-X or 12 digits (new format)",
+    "businessIdAuthority": "Suruhanjaya Syarikat Malaysia",
+    "businessIdRegex": "^\\d{6,12}(-[A-Z])?$"
   },
   {
     "name": "Maldives",
@@ -625,7 +741,13 @@
     "name": "Mexico",
     "code": "MX",
     "dialCode": "+52",
-    "currencyCode": "MXN"
+    "currencyCode": "MXN",
+    "businessIdLabel": "RFC",
+    "businessIdFullName": "Registro Federal de Contribuyentes",
+    "businessIdPlaceholder": "ABC120101XYZ",
+    "businessIdFormat": "12 chars (companies) or 13 chars (individuals), alphanumeric",
+    "businessIdAuthority": "SAT (tax authority)",
+    "businessIdRegex": "^[A-Z]{3,4}\\d{6}[A-Z0-9]{3}$"
   },
   {
     "name": "Moldova",
@@ -686,8 +808,12 @@
     "code": "NL",
     "dialCode": "+31",
     "currencyCode": "EUR",
-    "businessIdLabel": "KvK Number",
-    "businessIdPlaceholder": "12345678"
+    "businessIdLabel": "KvK-nummer",
+    "businessIdFullName": "Kamer van Koophandel number",
+    "businessIdPlaceholder": "12345678",
+    "businessIdFormat": "8 digits",
+    "businessIdAuthority": "Dutch Chamber of Commerce",
+    "businessIdRegex": "^\\d{8}$"
   },
   {
     "name": "New Zealand",
@@ -695,7 +821,11 @@
     "dialCode": "+64",
     "currencyCode": "NZD",
     "businessIdLabel": "NZBN",
-    "businessIdPlaceholder": "9429000000000"
+    "businessIdFullName": "New Zealand Business Number",
+    "businessIdPlaceholder": "9429000000000",
+    "businessIdFormat": "13-digit GS1 number",
+    "businessIdAuthority": "New Zealand Companies Office",
+    "businessIdRegex": "^\\d{13}$"
   },
   {
     "name": "Nicaragua",
@@ -713,7 +843,13 @@
     "name": "Nigeria",
     "code": "NG",
     "dialCode": "+234",
-    "currencyCode": "NGN"
+    "currencyCode": "NGN",
+    "businessIdLabel": "RC Number",
+    "businessIdFullName": "Registration/Company number",
+    "businessIdPlaceholder": "RC1234567",
+    "businessIdFormat": "RC + digits",
+    "businessIdAuthority": "Corporate Affairs Commission (CAC)",
+    "businessIdRegex": "^RC\\d{4,8}$"
   },
   {
     "name": "North Korea",
@@ -732,8 +868,11 @@
     "code": "NO",
     "dialCode": "+47",
     "currencyCode": "NOK",
-    "businessIdLabel": "Org.nr",
-    "businessIdPlaceholder": "123456789"
+    "businessIdLabel": "Organisasjonsnummer",
+    "businessIdPlaceholder": "123456789",
+    "businessIdFormat": "9 digits",
+    "businessIdAuthority": "Brønnøysund Register Centre",
+    "businessIdRegex": "^\\d{9}$"
   },
   {
     "name": "Oman",
@@ -745,7 +884,13 @@
     "name": "Pakistan",
     "code": "PK",
     "dialCode": "+92",
-    "currencyCode": "PKR"
+    "currencyCode": "PKR",
+    "businessIdLabel": "NTN",
+    "businessIdFullName": "National Tax Number / SECP registration",
+    "businessIdPlaceholder": "1234567",
+    "businessIdFormat": "7 digits",
+    "businessIdAuthority": "SECP / FBR",
+    "businessIdRegex": "^\\d{7}$"
   },
   {
     "name": "Palestine",
@@ -781,23 +926,36 @@
     "name": "Philippines",
     "code": "PH",
     "dialCode": "+63",
-    "currencyCode": "PHP"
+    "currencyCode": "PHP",
+    "businessIdLabel": "SEC Reg. No.",
+    "businessIdFullName": "SEC Registration Number",
+    "businessIdPlaceholder": "CS201812345",
+    "businessIdFormat": "CSXXXXXXXXX or 10-13 digits",
+    "businessIdAuthority": "Securities and Exchange Commission"
   },
   {
     "name": "Poland",
     "code": "PL",
     "dialCode": "+48",
     "currencyCode": "PLN",
-    "businessIdLabel": "NIP",
-    "businessIdPlaceholder": "1234567890"
+    "businessIdLabel": "KRS / REGON",
+    "businessIdFullName": "KRS: National Court Register number; REGON: statistical number",
+    "businessIdPlaceholder": "0000123456",
+    "businessIdFormat": "KRS: 10 digits. REGON: 9 or 14 digits",
+    "businessIdAuthority": "Krajowy Rejestr Sądowy",
+    "businessIdRegex": "^\\d{9,10}$"
   },
   {
     "name": "Portugal",
     "code": "PT",
     "dialCode": "+351",
     "currencyCode": "EUR",
-    "businessIdLabel": "NIF",
-    "businessIdPlaceholder": "123456789"
+    "businessIdLabel": "NIPC",
+    "businessIdFullName": "Número de Identificação de Pessoa Coletiva",
+    "businessIdPlaceholder": "123456789",
+    "businessIdFormat": "9 digits",
+    "businessIdAuthority": "Registo Nacional de Pessoas Coletivas",
+    "businessIdRegex": "^\\d{9}$"
   },
   {
     "name": "Qatar",
@@ -815,7 +973,13 @@
     "name": "Russia",
     "code": "RU",
     "dialCode": "+7",
-    "currencyCode": "RUB"
+    "currencyCode": "RUB",
+    "businessIdLabel": "OGRN",
+    "businessIdFullName": "Primary State Registration Number",
+    "businessIdPlaceholder": "1234567890123",
+    "businessIdFormat": "13 digits (companies) or 15 digits (sole proprietors, OGRNIP)",
+    "businessIdAuthority": "Federal Tax Service",
+    "businessIdRegex": "^\\d{13,15}$"
   },
   {
     "name": "Rwanda",
@@ -827,7 +991,13 @@
     "name": "Saudi Arabia",
     "code": "SA",
     "dialCode": "+966",
-    "currencyCode": "SAR"
+    "currencyCode": "SAR",
+    "businessIdLabel": "CR Number",
+    "businessIdFullName": "Commercial Registration number",
+    "businessIdPlaceholder": "1234567890",
+    "businessIdFormat": "10 digits",
+    "businessIdAuthority": "Ministry of Commerce",
+    "businessIdRegex": "^\\d{10}$"
   },
   {
     "name": "Senegal",
@@ -853,7 +1023,11 @@
     "dialCode": "+65",
     "currencyCode": "SGD",
     "businessIdLabel": "UEN",
-    "businessIdPlaceholder": "123456789A"
+    "businessIdFullName": "Unique Entity Number",
+    "businessIdPlaceholder": "201234567A",
+    "businessIdFormat": "9 or 10 characters, alphanumeric",
+    "businessIdAuthority": "ACRA",
+    "businessIdRegex": "^\\d{8,9}[A-Z]$"
   },
   {
     "name": "Slovakia",
@@ -879,13 +1053,23 @@
     "dialCode": "+27",
     "currencyCode": "ZAR",
     "businessIdLabel": "CIPC Reg. No.",
-    "businessIdPlaceholder": "2020/123456/07"
+    "businessIdFullName": "Enterprise/Company Registration Number",
+    "businessIdPlaceholder": "2015/123456/07",
+    "businessIdFormat": "YYYY/NNNNNN/NN",
+    "businessIdAuthority": "CIPC (Companies and Intellectual Property Commission)",
+    "businessIdRegex": "^\\d{4}/\\d{6}/\\d{2}$"
   },
   {
     "name": "South Korea",
     "code": "KR",
     "dialCode": "+82",
-    "currencyCode": "KRW"
+    "currencyCode": "KRW",
+    "businessIdLabel": "Business Reg. No.",
+    "businessIdFullName": "사업자등록번호",
+    "businessIdPlaceholder": "123-45-67890",
+    "businessIdFormat": "XXX-XX-XXXXX",
+    "businessIdAuthority": "National Tax Service",
+    "businessIdRegex": "^\\d{3}-\\d{2}-\\d{5}$"
   },
   {
     "name": "South Sudan",
@@ -898,8 +1082,12 @@
     "code": "ES",
     "dialCode": "+34",
     "currencyCode": "EUR",
-    "businessIdLabel": "NIF / CIF",
-    "businessIdPlaceholder": "A12345678"
+    "businessIdLabel": "CIF / NIF",
+    "businessIdFullName": "Código de Identificación Fiscal / Número de Identificación Fiscal",
+    "businessIdPlaceholder": "B12345674",
+    "businessIdFormat": "1 letter + 7 digits + 1 control character",
+    "businessIdAuthority": "Registro Mercantil",
+    "businessIdRegex": "^[A-Z]\\d{7}[A-Z0-9]$"
   },
   {
     "name": "Sri Lanka",
@@ -925,7 +1113,10 @@
     "dialCode": "+46",
     "currencyCode": "SEK",
     "businessIdLabel": "Organisationsnummer",
-    "businessIdPlaceholder": "556000-0000"
+    "businessIdPlaceholder": "556677-8899",
+    "businessIdFormat": "10 digits (XXXXXX-XXXX)",
+    "businessIdAuthority": "Bolagsverket",
+    "businessIdRegex": "^\\d{6}-\\d{4}$"
   },
   {
     "name": "Switzerland",
@@ -933,7 +1124,11 @@
     "dialCode": "+41",
     "currencyCode": "CHF",
     "businessIdLabel": "UID",
-    "businessIdPlaceholder": "CHE-123.456.789"
+    "businessIdFullName": "Unternehmens-Identifikationsnummer",
+    "businessIdPlaceholder": "CHE-123.456.789",
+    "businessIdFormat": "CHE + 3 groups of 3 digits separated by dots",
+    "businessIdAuthority": "Federal Statistical Office",
+    "businessIdRegex": "^CHE-\\d{3}\\.\\d{3}\\.\\d{3}$"
   },
   {
     "name": "Syria",
@@ -963,7 +1158,13 @@
     "name": "Thailand",
     "code": "TH",
     "dialCode": "+66",
-    "currencyCode": "THB"
+    "currencyCode": "THB",
+    "businessIdLabel": "Reg. Number",
+    "businessIdFullName": "Business Registration Number",
+    "businessIdPlaceholder": "0105561000000",
+    "businessIdFormat": "13 digits",
+    "businessIdAuthority": "Department of Business Development",
+    "businessIdRegex": "^\\d{13}$"
   },
   {
     "name": "Timor-Leste",
@@ -993,7 +1194,13 @@
     "name": "Turkey",
     "code": "TR",
     "dialCode": "+90",
-    "currencyCode": "TRY"
+    "currencyCode": "TRY",
+    "businessIdLabel": "VKN",
+    "businessIdFullName": "Vergi Kimlik Numarası (Tax Identification Number)",
+    "businessIdPlaceholder": "1234567890",
+    "businessIdFormat": "10 digits",
+    "businessIdAuthority": "Trade Registry Office",
+    "businessIdRegex": "^\\d{10}$"
   },
   {
     "name": "Turkmenistan",
@@ -1011,23 +1218,36 @@
     "name": "Ukraine",
     "code": "UA",
     "dialCode": "+380",
-    "currencyCode": "UAH"
+    "currencyCode": "UAH",
+    "businessIdLabel": "EDRPOU",
+    "businessIdFullName": "Unified State Register of Enterprises and Organizations code",
+    "businessIdPlaceholder": "12345678",
+    "businessIdFormat": "8 digits",
+    "businessIdAuthority": "State Registrar",
+    "businessIdRegex": "^\\d{8}$"
   },
   {
     "name": "United Arab Emirates",
     "code": "AE",
     "dialCode": "+971",
     "currencyCode": "AED",
-    "businessIdLabel": "TRN",
-    "businessIdPlaceholder": "100123456700003"
+    "businessIdLabel": "Trade License No.",
+    "businessIdFullName": "Trade License Number / Commercial Number",
+    "businessIdPlaceholder": "CN-1234567",
+    "businessIdFormat": "Varies by emirate",
+    "businessIdAuthority": "Department of Economic Development (per emirate)"
   },
   {
     "name": "United Kingdom",
     "code": "GB",
     "dialCode": "+44",
     "currencyCode": "GBP",
-    "businessIdLabel": "Company Number",
-    "businessIdPlaceholder": "12345678"
+    "businessIdLabel": "CRN",
+    "businessIdFullName": "Company Registration Number",
+    "businessIdPlaceholder": "12345678",
+    "businessIdFormat": "8 characters: digits (England/Wales), SC+6 digits (Scotland), NI+6 digits (Northern Ireland)",
+    "businessIdAuthority": "Companies House",
+    "businessIdRegex": "^(\\d{8}|SC\\d{6}|NI\\d{6}|OC\\d{6}|SO\\d{6}|NC\\d{6})$"
   },
   {
     "name": "United States",
@@ -1035,7 +1255,11 @@
     "dialCode": "+1",
     "currencyCode": "USD",
     "businessIdLabel": "EIN",
-    "businessIdPlaceholder": "12-3456789"
+    "businessIdFullName": "Employer Identification Number",
+    "businessIdPlaceholder": "12-3456789",
+    "businessIdFormat": "XX-XXXXXXX",
+    "businessIdAuthority": "IRS",
+    "businessIdRegex": "^\\d{2}-\\d{7}$"
   },
   {
     "name": "Uruguay",
@@ -1059,7 +1283,13 @@
     "name": "Vietnam",
     "code": "VN",
     "dialCode": "+84",
-    "currencyCode": "VND"
+    "currencyCode": "VND",
+    "businessIdLabel": "Enterprise Code",
+    "businessIdFullName": "Mã số doanh nghiệp",
+    "businessIdPlaceholder": "0123456789",
+    "businessIdFormat": "10 or 13 digits",
+    "businessIdAuthority": "Business Registration Office",
+    "businessIdRegex": "^\\d{10}(\\d{3})?$"
   },
   {
     "name": "Yemen",

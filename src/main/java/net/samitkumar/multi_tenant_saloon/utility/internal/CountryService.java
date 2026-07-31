@@ -11,10 +11,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-class CountryService {
+class CountryService implements net.samitkumar.multi_tenant_saloon.utility.CountryApi {
 
     private record RawCountry(String name, String code, String dialCode, String currencyCode, String businessIdLabel, String businessIdPlaceholder) {}
     private record RawCurrency(String code, String name, String symbol) {}
@@ -51,5 +52,13 @@ class CountryService {
 
     List<Country> findAll() {
         return countries;
+    }
+
+    @Override
+    public Optional<Country> findByName(String name) {
+        if (name == null) return Optional.empty();
+        return countries.stream()
+                .filter(c -> c.name().equalsIgnoreCase(name))
+                .findFirst();
     }
 }

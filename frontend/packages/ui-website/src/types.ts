@@ -54,6 +54,7 @@ export interface Saloon {
   bookingAdvanceDays?: number;
   businessRegistrationId?: string;
   showBusinessId?: boolean;
+  businessIdLabel?: string;
   createdAt?: string;
 }
 

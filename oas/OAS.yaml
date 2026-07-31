@@ -1262,6 +1262,24 @@ components:
             $ref: "#/components/schemas/SaloonFeature"
           description: Serialized as a flat array of feature strings
           example: ["BOOKING", "ANALYTICS"]
+        bookingAdvanceDays:
+          type: integer
+          description: How many days in advance customers can book. Defaults to 60.
+          default: 60
+        businessRegistrationId:
+          type: string
+          description: Company/business registration number (e.g. CVR, EIN, Company Number).
+        showBusinessId:
+          type: boolean
+          description: Whether to display the registration number on the public website. Defaults to false.
+          default: false
+        businessIdLabel:
+          type: string
+          description: >
+            Country-specific label for the registration number (e.g. "CVR Number" for Denmark,
+            "EIN" for United States). Derived automatically from location.country on create/update;
+            read-only in responses.
+          readOnly: true
         createdAt:
           type: string
           format: date-time
@@ -1291,6 +1309,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SaloonFeature"
+        businessRegistrationId:
+          type: string
+          description: Company/business registration number.
+        showBusinessId:
+          type: boolean
+          description: Whether to show the registration number on the public website. Defaults to false.
+          default: false
 
     CreateSaloonResponse:
       type: object
@@ -1323,6 +1348,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OperatingHours"
+        businessRegistrationId:
+          type: string
+          description: Business registration number (e.g. CVR for Denmark, EIN for USA). Displayed on the public website when showBusinessId is true.
+        showBusinessId:
+          type: boolean
+          default: false
+          description: Whether to display the business registration number on the public website. When updated alongside location.country, businessIdLabel is re-derived automatically.
 
     Owner:
       type: object
