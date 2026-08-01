@@ -89,6 +89,7 @@ export interface WebsiteTheme {
   mapsUrl?: string;
   websiteType?: string;
   chatLayout?: "fullscreen" | "app";
+  chatBg?: string;
   updatedAt?: string;
 }
 

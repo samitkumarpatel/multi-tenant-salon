@@ -30,6 +30,9 @@ export default defineConfig({
   plugins: [devMiddleware, tailwindcss(), reactRouter()],
   server: {
     port: 5174,
+    watch: {
+      ignored: ["!**/node_modules/@saloon/**"],
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8080",

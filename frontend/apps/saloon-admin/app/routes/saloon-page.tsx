@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { X, Palette, Check, Wand2, RotateCcw, Rocket } from "lucide-react";
+import { X, Palette, Check, Wand2, RotateCcw } from "lucide-react";
 import {
   SaloonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
 } from "@saloon/ui-website";
@@ -217,6 +217,7 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
           heroBg: theme.heroBg, heroTextColor: theme.heroTextColor, accentColor: theme.accentColor,
           fontFamily: theme.fontFamily, logoBgColor: theme.logoBgColor,
           headerBg: theme.headerBg, footerBg: theme.footerBg, mapsUrl: theme.mapsUrl ?? null,
+          chatBg: theme.chatBg ?? null,
         }),
       });
       setSaveState("saved");
@@ -264,9 +265,10 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
             </p>
 
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Chat Window</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Colours</p>
               <div className="space-y-4">
-                <ColorPicker label="Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
+                <ColorPicker label="Page Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
+                <ColorPicker label="Chat Background" value={theme.chatBg ?? theme.heroBg} onChange={(v) => onChange({ ...theme, chatBg: v })} />
                 <ColorPicker label="Accent Color" value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
                 <ColorPicker label="Avatar Color" value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
               </div>
@@ -391,7 +393,7 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
             : <>Save Changes</>
           }
         </button>
-        <p className="text-[10px] text-slate-400 text-center mt-2">Save then use "Publish" in the top bar to go live.</p>
+        <p className="text-[10px] text-slate-400 text-center mt-2">Changes are applied immediately to the customer website.</p>
       </div>
     </div>
   );
@@ -399,27 +401,9 @@ function ThemePanel({ saloonId, theme, onChange, onClose }: {
 
 // ── Admin-only: preview banner ────────────────────────────────────────────────
 
-type PublishState = "idle" | "loading" | "done" | "error";
-
-function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }: {
-  handler: string; saloonId: string; onDesign: () => void; hasChanges: boolean; onPublished: () => void;
+function PreviewBanner({ handler, onDesign }: {
+  handler: string; onDesign: () => void;
 }) {
-  const [publish, setPublish] = useState<PublishState>("idle");
-
-  async function handlePublish() {
-    setPublish("loading");
-    try {
-      const res = await fetch(`${ADMIN_API}/${saloonId}/website/publish`, { method: "POST" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setPublish("done");
-      onPublished();
-      setTimeout(() => setPublish("idle"), 2500);
-    } catch {
-      setPublish("error");
-      setTimeout(() => setPublish("idle"), 3000);
-    }
-  }
-
   return (
     <div
       className="bg-slate-950 text-white px-4 py-2.5 flex items-center justify-between gap-4 text-xs"
@@ -439,21 +423,6 @@ function PreviewBanner({ handler, saloonId, onDesign, hasChanges, onPublished }:
         >
           <Palette className="w-3 h-3" /> Design
         </button>
-        <button
-          onClick={handlePublish} disabled={!hasChanges || publish === "loading"}
-          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
-            publish === "done" ? "bg-emerald-600 text-white"
-            : publish === "error" ? "bg-red-600 text-white"
-            : "bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-white/40"
-          }`}
-        >
-          {publish === "loading"
-            ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Publishing…</>
-            : publish === "done" ? <><Rocket className="w-3 h-3" /> Published!</>
-            : publish === "error" ? <>Failed — retry</>
-            : <><Rocket className="w-3 h-3" /> Publish</>
-          }
-        </button>
       </div>
     </div>
   );
@@ -468,10 +437,7 @@ export default function SaloonPreviewPage() {
 
   const initialTheme = { ...DEFAULT_THEME, ...(loaderTheme ?? {}) };
   const [theme, setTheme]           = useState<WebsiteTheme>(initialTheme);
-  const [baseTheme, setBaseTheme]   = useState<WebsiteTheme>(initialTheme);
   const [showDesign, setShowDesign] = useState(true);
-
-  const hasChanges = JSON.stringify(theme) !== JSON.stringify(baseTheme);
 
   const handler =
     (saloon as Saloon & { handler?: string }).handler ??
@@ -490,10 +456,7 @@ export default function SaloonPreviewPage() {
       <div className="shrink-0">
         <PreviewBanner
           handler={handler}
-          saloonId={saloonId}
           onDesign={() => setShowDesign((v) => !v)}
-          hasChanges={hasChanges}
-          onPublished={() => setBaseTheme(theme)}
         />
       </div>
 
@@ -508,14 +471,23 @@ export default function SaloonPreviewPage() {
       )}
 
       {/* Preview content — fills remaining height; only this area scrolls */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {theme.websiteType === "GENERATIVE_UI" ? (
-          <GenerativeUIWebsite
-            saloon={saloon} staff={staff} services={services} theme={theme}
-            getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
-            onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
-          />
-        ) : (
+      {theme.websiteType === "GENERATIVE_UI" ? (
+        <div
+          className="flex-1 min-h-0 overflow-auto flex items-center justify-center p-6"
+          style={{
+            background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#1E293B"}`,
+          }}
+        >
+          <div style={{ width: "100%", maxWidth: "700px", height: "calc(100% - 48px)", flexShrink: 0 }}>
+            <GenerativeUIWebsite
+              saloon={saloon} staff={staff} services={services} theme={theme}
+              getPagePath={(page) => `/${saloonParam}/website-preview#${page}`}
+              onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-hidden">
           <div className="h-full overflow-y-auto">
             <SaloonWebsite
               saloon={saloon} staff={staff} services={services} theme={theme}
@@ -524,8 +496,8 @@ export default function SaloonPreviewPage() {
               onNavigate={(page) => navigate(`/${saloonParam}/website-preview${page ? `#${page}` : ""}`)}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

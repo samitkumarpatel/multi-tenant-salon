@@ -174,15 +174,6 @@ class IntegrationTests {
     }
 
     @Test
-    @Order(7)
-    void publishSaloon() {
-        client.post()
-                .uri("/api/saloon-admin/{id}/website/publish", saloonId)
-                .exchange()
-                .expectStatus().isAccepted();
-    }
-
-    @Test
     @Order(8)
     void saloonNotFound() {
         client.get()

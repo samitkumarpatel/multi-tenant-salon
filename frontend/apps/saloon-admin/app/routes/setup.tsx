@@ -25,6 +25,7 @@ type Step = {
   icon: React.ElementType;
   title: string;
   description: string;
+  doneDescription?: string;
   done: boolean;
   href: string;
   cta: string;
@@ -61,6 +62,7 @@ export default function Setup() {
       icon: Palette,
       title: "Design your website",
       description: "Choose how your public page looks — classic layout, AI-generated, or contact form.",
+      doneDescription: "We've automatically set up your website design. You can still customise it anytime from the Website tab.",
       done: websiteType !== null,
       href: "website",
       cta: "Go to Website",
@@ -182,6 +184,18 @@ export default function Setup() {
                       {!step.done && (
                         <p className="text-xs text-slate-500 leading-snug mt-0.5">
                           {step.description}
+                        </p>
+                      )}
+                      {step.done && step.doneDescription && (
+                        <p className="text-xs text-slate-500 leading-snug mt-0.5">
+                          {step.doneDescription}{" "}
+                          <Link
+                            to={`../${step.href}`}
+                            relative="path"
+                            className="text-matcha-600 hover:underline no-underline font-medium"
+                          >
+                            {step.cta} →
+                          </Link>
                         </p>
                       )}
                     </div>

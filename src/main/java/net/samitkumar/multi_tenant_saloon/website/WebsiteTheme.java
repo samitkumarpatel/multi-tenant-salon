@@ -20,5 +20,6 @@ public record WebsiteTheme(
         String footerBg,
         String mapsUrl,
         @Column("chat_layout") String chatLayout,
+        @Column("chat_bg") String chatBg,
         Instant updatedAt
 ) {}

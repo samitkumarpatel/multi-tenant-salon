@@ -213,8 +213,7 @@ export default function WebsiteManagement() {
             </a>
           </div>
           <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-            Remember to <span className="font-semibold">publish</span> once you are done customising. You can always come back, redesign, and publish again at any time.{" "}
-            <span className="font-semibold">Until you publish, changes will not be visible to customers.</span>
+            Changes are applied immediately. You can always come back and redesign at any time.
           </p>
         </ModeCard>
 

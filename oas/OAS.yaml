@@ -25,7 +25,7 @@ info:
     - `/api/saloon-admin/{saloonId}/services/...` — full CRUD on the service catalog
     - `/api/saloon-admin/{saloonId}/staff/...` — full CRUD + availability management
     - `/api/saloon-admin/{saloonId}/booking/...` — view, reschedule, and change booking status
-    - `/api/saloon-admin/{saloonId}/website` — website theme + publish trigger
+    - `/api/saloon-admin/{saloonId}/website` — website theme management
     - `/api/saloon-admin/{saloonId}/website-type` — get or update the active website presentation type
 
     ## Notification Events
@@ -517,26 +517,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebsiteTheme"
-
-  /api/saloon-admin/{saloonId}/website/publish:
-    parameters:
-      - $ref: "#/components/parameters/SaloonId"
-
-    post:
-      tags: [AdminWebsite]
-      summary: Publish the saloon website (admin)
-      description: |
-        Admin-only. Triggers the website publish pipeline. Requires the `STATIC_WEBSITE`
-        feature to be enabled. Returns immediately; actual deployment (S3, DNS) is handled
-        asynchronously by the `website` module.
-      operationId: publishSaloon
-      responses:
-        "202":
-          description: Publish request accepted
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          description: Saloon does not have the STATIC_WEBSITE feature enabled
 
   /api/saloon-admin/{saloonId}/website-type:
     parameters:

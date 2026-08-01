@@ -170,60 +170,6 @@ class SaloonModuleTests {
     }
 
     @Test
-    void publishSaloon() {
-        var created = client.post()
-                .uri("/api/saloon-onboarding")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body("""
-                        {
-                            "name": "Publish Me",
-                            "ownerName": "Dave",
-                            "ownerEmail": "dave@test.com",
-                            "features": ["STATIC_WEBSITE"]
-                        }
-                        """)
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Void.class)
-                .returnResult();
-
-        String location = created.getResponseHeaders().getLocation().getPath();
-        String id = location.substring(location.lastIndexOf('/') + 1);
-
-        client.post()
-                .uri("/api/saloon-admin/" + id + "/website/publish")
-                .exchange()
-                .expectStatus().isAccepted();
-    }
-
-    @Test
-    void publishSaloonWithoutWebsiteFeatureReturns422() {
-        var created = client.post()
-                .uri("/api/saloon-onboarding")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body("""
-                        {
-                            "name": "No Website",
-                            "ownerName": "Eve",
-                            "ownerEmail": "eve@test.com",
-                            "features": ["BOOKING"]
-                        }
-                        """)
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Void.class)
-                .returnResult();
-
-        String location = created.getResponseHeaders().getLocation().getPath();
-        String id = location.substring(location.lastIndexOf('/') + 1);
-
-        client.post()
-                .uri("/api/saloon-admin/" + id + "/website/publish")
-                .exchange()
-                .expectStatus().isEqualTo(422);
-    }
-
-    @Test
     void deleteSaloon() {
         var created = client.post()
                 .uri("/api/saloon-onboarding")

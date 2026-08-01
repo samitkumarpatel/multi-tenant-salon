@@ -174,7 +174,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
   sql:
     init:
-      mode: always   # schema.sql runs on startup; idempotent DDL (CREATE TABLE IF NOT EXISTS)
+      mode: always   # V1__schema.sql runs on startup; idempotent DDL (CREATE TABLE IF NOT EXISTS)
   jpa:
     open-in-view: false
 management:
@@ -345,7 +345,7 @@ Permissions the application itself needs at runtime (e.g., SES for email, S3 for
 ### Phase 2 — Code Changes
 
 - [ ] Add `src/main/resources/application-prod.yaml` with datasource env var references
-- [ ] Verify `spring.sql.init.mode: always` with idempotent DDL (`CREATE TABLE IF NOT EXISTS`) in `schema.sql`
+- [ ] Verify `spring.sql.init.mode: always` with idempotent DDL (`CREATE TABLE IF NOT EXISTS`) in `V1__schema.sql`
 - [ ] Add `.aws/task-definition.json` with base task definition (image placeholder)
 - [ ] Expose `GET /actuator/health` (already available via Spring Boot Actuator; verify it's on classpath)
 

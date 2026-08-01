@@ -55,7 +55,7 @@ Key conventions:
 
 ## Data Model
 
-Schema lives in `src/main/resources/db/schema.sql`. Spring Boot initializes it on startup (`spring.sql.init.mode: always`).
+Schema lives in `src/main/resources/db/V1__schema.sql`. Spring Boot initializes it on startup (`spring.sql.init.mode: always`).
 
 Spring Data JDBC conventions used throughout:
 - All aggregate roots use `@Id Long id` (auto-generated `BIGSERIAL`).
