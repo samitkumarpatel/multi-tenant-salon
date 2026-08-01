@@ -25,7 +25,8 @@ class WebsiteController {
             String headerBg,
             String footerBg,
             String mapsUrl,
-            String chatLayout
+            String chatLayout,
+            String chatBg
     ) {}
 
     record WebsiteTypeRequest(WebsiteType websiteType) {}
@@ -40,7 +41,7 @@ class WebsiteController {
     ResponseEntity<WebsiteTheme> saveTheme(@PathVariable UUID id, @RequestBody SaveThemeRequest req) {
         var theme = service.saveTheme(id, req.heroBg(), req.heroTextColor(),
                 req.accentColor(), req.fontFamily(), req.logoBgColor(),
-                req.headerBg(), req.footerBg(), req.mapsUrl(), req.chatLayout());
+                req.headerBg(), req.footerBg(), req.mapsUrl(), req.chatLayout(), req.chatBg());
         return ResponseEntity.ok(theme);
     }
 

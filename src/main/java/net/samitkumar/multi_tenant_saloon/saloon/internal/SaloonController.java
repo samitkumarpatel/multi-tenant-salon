@@ -103,15 +103,6 @@ class SaloonController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/api/saloon-admin/{id}/website/publish")
-    ResponseEntity<Void> publishWebsite(@PathVariable UUID id) {
-        return switch (service.publishWebsite(id)) {
-            case OK -> ResponseEntity.accepted().build();
-            case NOT_FOUND -> ResponseEntity.notFound().build();
-            case FEATURE_NOT_ENABLED -> ResponseEntity.unprocessableEntity().build();
-        };
-    }
-
     record AddClosureRequest(@NotNull LocalDate startDate, @NotNull LocalDate endDate, String reason) {}
 
     @GetMapping({"/api/saloon/{id}/closures", "/api/saloon-admin/{id}/closures"})

@@ -27,6 +27,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    watch: {
+      ignored: ["!**/node_modules/@saloon/**"],
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8080",

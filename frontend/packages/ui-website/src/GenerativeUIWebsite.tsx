@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Calendar, ChevronDown, Clock, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, ChevronDown, ChevronRight, Clock, MapPin, Mic, MessageCircle, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
 import { FONTS, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import type { Saloon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
@@ -60,39 +60,39 @@ function mockReply(input: string, saloon: Saloon, services: ServiceItem[], staff
   if (/service|treatment|offer|menu|price|cost/.test(lower)) {
     const names = services.filter((s) => s.active).slice(0, 5).map((s) => s.name);
     return names.length
-      ? `At ${name} we offer: **${names.join(", ")}** and more.\n\nFull AI-powered service search via MCP is coming soon! 🎉`
-      : `${name} offers a range of beauty & wellness services. AI browsing via MCP is coming soon!`;
+      ? `At ${name} we offer: **${names.join(", ")}** and more. Feel free to ask about any service in detail!`
+      : `${name} offers a range of beauty & wellness services. Feel free to ask me anything specific!`;
   }
   if (/book|appointment|schedule|slot|reserv/.test(lower))
-    return `To book at ${name}, please ${contact}.\n\nOur AI booking assistant via MCP is on its way — you'll book directly here soon! 📅`;
+    return `To book at ${name}, you can ${contact} and our team will get you set up. We'd love to see you! 📅`;
   if (/staff|stylist|team|who|person|employ/.test(lower)) {
     const names = staff.slice(0, 3).map((s) => s.name);
     return names.length
-      ? `Our team at ${name} includes **${names.join(", ")}** and more.\n\nAI staff matching via MCP is coming soon!`
-      : `${name} has a dedicated team. AI staff matching via MCP is coming soon!`;
+      ? `Our talented team at ${name} includes **${names.join(", ")}** and more talented professionals ready to help you look your best!`
+      : `${name} has a dedicated team of professionals. Reach out and we'll match you with the right person.`;
   }
   if (/hour|open|close|time|when/.test(lower)) {
     const h = todayHours(saloon);
     const currently = isOpenNow(saloon) ? "We're **currently open**." : "We're **currently closed**.";
     const line = h ? `\n\n${currently} Today: ${h === "Closed today" ? "**closed all day**" : `**${h}**`}.` : "";
-    return `You can find our full hours on our website.${line}\n\nReal-time availability via MCP is coming soon! 🕐`;
+    return `You can find our full hours on our website.${line}`;
   }
   if (/location|address|where|find|direction|map/.test(lower)) {
     const loc  = saloon.location;
     const parts = [loc?.address, loc?.city, loc?.country].filter(Boolean).join(", ");
     return parts
-      ? `Find us at **${parts}**.${phone ? ` Call ahead: ${phone}.` : ""}\n\nNavigation MCP coming soon!`
-      : `Please ${contact} for our address. Location MCP coming soon!`;
+      ? `You can find us at **${parts}**.${phone ? ` Give us a call at ${phone} if you need help finding us!` : ""}`
+      : `Please ${contact} and we'll share our exact location with you.`;
   }
   if (/contact|phone|email|reach|call/.test(lower)) {
     const lines: string[] = [];
     if (phone) lines.push(`📞 ${phone}`);
     if (email) lines.push(`📧 ${email}`);
     return lines.length
-      ? `You can reach ${name} at:\n\n${lines.join("\n")}\n\nMCP contact integration is coming soon!`
-      : `Visit our website for contact details. MCP integration coming soon!`;
+      ? `Here's how to reach **${name}**:\n\n${lines.join("\n")}\n\nWe're always happy to hear from you!`
+      : `Visit our website for full contact details — we'd love to connect!`;
   }
-  return `Thanks for reaching out to **${name}**! I'm your AI assistant (via MCP) and still being configured. For immediate help, please ${contact}.\n\nFull AI capabilities are coming soon! ✨`;
+  return `Thanks for reaching out to **${name}**! I'm here to help with anything — services, bookings, hours, location, or our team. What would you like to know?`;
 }
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -131,19 +131,25 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
   const openingMsg: Message = {
     role: "assistant",
     time: nowTime(),
-    text: `Hi! 👋 I'm the AI assistant for **${saloon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, or how to book.\n\n*(Full AI capabilities are coming soon — this is a preview.)*`,
+    text: `Hi! 👋 I'm the AI assistant for **${saloon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, location, or how to book. I'm here to help!`,
   };
 
   const [messages, setMessages]   = useState<Message[]>([openingMsg]);
   const [input, setInput]         = useState("");
   const [thinking, setThinking]   = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
   const bottomRef  = useRef<HTMLDivElement>(null);
   const inputRef   = useRef<HTMLTextAreaElement>(null);
   const moreRef    = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  // Typewriter animation — "Welcome to" fades in, then the saloon name types
+  // Intro phases: "playing" = full-page animation, "exiting" = fade out overlay, "done" = chat visible
+  const [introPhase, setIntroPhase] = useState<"playing" | "exiting" | "done">("playing");
+  // Question phase: "welcome" = initial stack, "answered" = Q clicked (no input), "chatting" = full conversation
+  const [questionPhase, setQuestionPhase] = useState<"welcome" | "answered" | "chatting">("welcome");
+  // Track which question cards have been asked
+  const [askedLabels, setAskedLabels] = useState<Set<string>>(new Set());
+
+  // Typewriter animation states (drive the full-page intro overlay)
   const fullTitle = saloon.name;
   const [labelVisible, setLabelVisible] = useState(false);
   const [typedTitle, setTypedTitle]     = useState("");
@@ -154,25 +160,25 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
-  // Refocus the input after it moves from center to bottom dock
   useEffect(() => {
-    if (hasStarted) {
-      inputRef.current?.focus();
-    }
-  }, [hasStarted]);
+    if (questionPhase === "chatting") inputRef.current?.focus();
+  }, [questionPhase]);
 
-  // Typewriter effect — "Welcome to" fades in first, then the name types after a beat
+  // Typewriter plays in the full-page overlay; once typing is done, transition to chat
   useEffect(() => {
     let i = 0;
     let iv: ReturnType<typeof setInterval>;
     let nameStart: ReturnType<typeof setTimeout>;
+    let exitTimer: ReturnType<typeof setTimeout>;
+    let doneTimer: ReturnType<typeof setTimeout>;
+    let cursorTimer: ReturnType<typeof setTimeout>;
     setLabelVisible(false);
     setTypedTitle("");
     setTitleDone(false);
     setCursorHidden(false);
+    setIntroPhase("playing");
     const labelTimer = setTimeout(() => {
       setLabelVisible(true);
-      // brief pause so "Welcome to" registers before the name starts typing
       nameStart = setTimeout(() => {
         iv = setInterval(() => {
           i++;
@@ -180,12 +186,20 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
           if (i >= fullTitle.length) {
             clearInterval(iv);
             setTitleDone(true);
-            setTimeout(() => setCursorHidden(true), 2500);
+            cursorTimer = setTimeout(() => setCursorHidden(true), 2000);
+            // After subtitle settles, begin cross-fade to chat layout
+            exitTimer = setTimeout(() => {
+              setIntroPhase("exiting");
+              doneTimer = setTimeout(() => setIntroPhase("done"), 600);
+            }, 1400);
           }
         }, 60);
       }, 300);
     }, 350);
-    return () => { clearTimeout(labelTimer); clearTimeout(nameStart); clearInterval(iv); };
+    return () => {
+      clearTimeout(labelTimer); clearTimeout(nameStart); clearInterval(iv);
+      clearTimeout(exitTimer); clearTimeout(doneTimer); clearTimeout(cursorTimer);
+    };
   }, [fullTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -199,8 +213,31 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [moreOpen]);
 
+  // Called from the input box — switches to full chat mode
   function startInteraction() {
-    if (!hasStarted) setHasStarted(true);
+    setQuestionPhase("chatting");
+  }
+
+  // Called when a question card is clicked — answers inline, stays in answered phase
+  function askQuestion(btn: ActionButton) {
+    if (thinking) return;
+    setAskedLabels(prev => new Set([...prev, btn.label]));
+    setQuestionPhase("answered");
+    setMessages(prev => [...prev, { role: "user", text: btn.question, time: nowTime() }]);
+    setThinking(true);
+    setTimeout(() => {
+      const tool: ToolCard = { name: "saloon-data", label: "Querying saloon data…", done: false };
+      setMessages(prev => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
+      setTimeout(() => {
+        const reply = mockReply(btn.question, saloon, services, staff);
+        setMessages(prev => {
+          const next = [...prev];
+          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime() };
+          return next;
+        });
+        setThinking(false);
+      }, 900);
+    }, 600);
   }
 
   function dispatch(text: string) {
@@ -233,7 +270,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
 
   // ── Colour tokens ──────────────────────────────────────────────────────
 
-  const chatBg      = theme.heroBg ?? "#F8FAFC";
+  const chatBg      = theme.chatBg ?? theme.heroBg ?? "#F8FAFC";
   const chatLight   = isLightColor(chatBg);
   const msgText     = chatLight ? "#1E293B" : "#F1F5F9";
   const msgDim      = chatLight ? "#94A3B8" : "#64748B";
@@ -251,9 +288,12 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     : "0 1px 8px rgba(0,0,0,0.3),  0 0 0 1px rgba(255,255,255,0.04)";
 
   const sendActive  = Boolean(input.trim()) && !thinking;
-  const isEmptyChat = messages.length === 1 && !thinking;
 
-  const chatBorder = isLightColor(chatBg) ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)";
+  const chatBorder  = chatLight ? "rgba(148,163,184,0.35)" : "rgba(255,255,255,0.12)";
+  const bubbleBorder = chatLight ? "rgba(148,163,184,0.3)" : "rgba(255,255,255,0.08)";
+  const bubbleShadow = chatLight
+    ? "0 1px 3px rgba(0,0,0,0.05), 0 0 0 1px rgba(148,163,184,0.15)"
+    : "0 1px 3px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04)";
 
   const pageBg = `radial-gradient(ellipse 80% 50% at 50% -10%, ${theme.accentColor}18 0%, transparent 60%), ${chatBg}`;
 
@@ -261,7 +301,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
 
   type ActionButton = {
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
     question: string;
     iconAnim: string;
   };
@@ -316,7 +356,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
 
   const inputCard = (
     <div
-      className="flex items-end gap-3 px-4 py-3 rounded-2xl"
+      className="flex items-end gap-2 px-4 py-3 rounded-2xl"
       style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, boxShadow: inputShadow }}
     >
       <textarea
@@ -333,6 +373,19 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
         }}
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
       />
+      {/* Mic — disabled, voice input not yet available */}
+      <button
+        disabled
+        title="Voice input coming soon"
+        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-not-allowed"
+        style={{
+          backgroundColor: "transparent",
+          border: `1.5px solid ${inputBorder}`,
+          opacity: 0.3,
+        }}
+      >
+        <Mic className="w-4 h-4" style={{ color: topDim }} />
+      </button>
       <button
         onClick={send}
         disabled={!sendActive}
@@ -425,7 +478,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
         {saloon.showBusinessId && saloon.businessRegistrationId && (
           <span className="text-[9px]" style={{ color: msgDim }}>· {saloon.businessIdLabel ?? "Reg. No."} {saloon.businessRegistrationId}</span>
         )}
-        <span className="text-[9px]" style={{ color: msgDim }}>AI responses are for guidance only.</span>
+        <span className="text-[9px]" style={{ color: msgDim }}>Powered by AI.</span>
       </div>
       <div className="flex items-center gap-2">
         <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Privacy</a>
@@ -435,93 +488,274 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     </div>
   );
 
-  // ── Welcome view (shown when no user messages yet) ─────────────────────
+  // ── Shared card for "start conversation" ──────────────────────────────
+
+  const startConversationCard = (animDelay: number) => (
+    <button
+      onClick={() => { setQuestionPhase("chatting"); setTimeout(() => inputRef.current?.focus(), 80); }}
+      className="group flex items-center gap-3 px-4 py-3.5 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
+      style={{
+        backgroundColor: `${theme.accentColor}12`,
+        borderColor: `${theme.accentColor}40`,
+        opacity: 0,
+        animation: `gai-question-in 0.4s ease forwards`,
+        animationDelay: `${animDelay}ms`,
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
+        style={{ backgroundColor: `${theme.accentColor}25` }}
+      >
+        <MessageCircle className="w-4 h-4" style={{ color: theme.accentColor }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold" style={{ color: theme.accentColor }}>
+          Want to start a conversation?
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: msgDim }}>
+          Type anything — I'm here to help.
+        </p>
+      </div>
+      <ChevronRight className="w-4 h-4 shrink-0 group-hover:translate-x-0.5 transition-transform" style={{ color: theme.accentColor }} />
+    </button>
+  );
+
+  // ── Welcome view (shown when no questions asked yet) ───────────────────
 
   const welcomeView = (
-    <div
-      className="flex flex-col items-start justify-center px-8 py-12"
-      style={{ minHeight: "100%", maxWidth: 680, margin: "0 auto", width: "100%" }}
-    >
-      {/* Avatar (fixed width) + text column — subtitle aligns with title */}
-      <div className="flex items-start gap-4 mb-10">
-        <div
-          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0 mt-1"
-          style={{
-            backgroundColor: avatarBg,
-            color: avatarText,
-            boxShadow: `0 0 0 4px ${theme.accentColor}20, 0 6px 20px ${theme.accentColor}30`,
-            animation: "gai-scale-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-            opacity: 0,
-          }}
-        >
-          {initials(saloon.name)}
+    <div className="flex flex-col" style={{ height: "100%", overflow: "hidden", maxWidth: 680, margin: "0 auto", width: "100%" }}>
+
+      {/* Upper: greeting centred in the remaining space above the input */}
+      <div className="flex-1 flex flex-col items-start justify-start min-h-0 overflow-y-auto px-8 pt-16 pb-4">
+        {/* Greeting */}
+        <div className="flex items-start gap-4 mb-8">
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold shrink-0 mt-0.5"
+            style={{
+              backgroundColor: avatarBg,
+              color: avatarText,
+              boxShadow: `0 0 0 4px ${theme.accentColor}20, 0 6px 20px ${theme.accentColor}30`,
+            }}
+          >
+            {initials(saloon.name)}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-sm font-medium tracking-wide"
+              style={{
+                color: msgDim,
+                opacity: labelVisible ? 1 : 0,
+                transform: labelVisible ? "translateY(0)" : "translateY(6px)",
+                transition: "opacity 0.4s ease, transform 0.4s ease",
+              }}
+            >
+              Welcome to
+            </p>
+
+            <h1 className="text-2xl font-bold leading-tight mb-2" style={{ color: msgText, minHeight: "1.9rem" }}>
+              {typedTitle || "​"}
+              {!cursorHidden && (
+                <span
+                  aria-hidden
+                  className="inline-block w-[2px] h-6 ml-0.5 rounded-sm"
+                  style={{
+                    backgroundColor: theme.accentColor,
+                    animation: "gai-cursor-blink 0.65s ease-in-out infinite",
+                    verticalAlign: "middle",
+                  }}
+                />
+              )}
+            </h1>
+
+            <div
+              style={{
+                opacity: titleDone ? 1 : 0,
+                transform: titleDone ? "translateY(0)" : "translateY(10px)",
+                transition: "opacity 0.5s ease, transform 0.5s ease",
+              }}
+            >
+              <p className="text-sm mb-1" style={{ color: msgText, opacity: 0.8 }}>
+                Your AI assistant — ask me anything about us.
+              </p>
+              <p className="flex items-center gap-2 text-xs" style={{ color: msgDim }}>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
+                Online · How can I help you today?
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 min-w-0">
-          {/* "Welcome to" — slides in before the name starts typing */}
-          <p
-            className="text-sm font-medium tracking-wide"
-            style={{
-              color: msgDim,
-              opacity: labelVisible ? 1 : 0,
-              transform: labelVisible ? "translateY(0)" : "translateY(6px)",
-              transition: "opacity 0.4s ease, transform 0.4s ease",
-            }}
-          >
-            Welcome to
-          </p>
+        {/* Question stack */}
+        <div className="flex flex-col gap-2.5 w-full">
+          {actionButtons.map((btn, i) => (
+            <button
+              key={btn.label}
+              onClick={() => askQuestion(btn)}
+              className="group flex items-center gap-3 px-4 py-3 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.98]"
+              style={{
+                backgroundColor: asBubbleBg,
+                borderColor: bubbleBorder,
+                opacity: 0,
+                animation: `gai-question-in 0.4s ease forwards`,
+                animationDelay: `${i * 70}ms`,
+              }}
+            >
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
+                style={{ backgroundColor: `${theme.accentColor}15` }}
+              >
+                <btn.icon className="w-4 h-4" style={{ color: theme.accentColor }} />
+              </div>
+              <span className="flex-1 text-sm font-medium" style={{ color: msgText }}>
+                {btn.question}
+              </span>
+              <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: theme.accentColor }} />
+            </button>
+          ))}
 
-          {/* Saloon name — types in after "Welcome to" appears */}
-          <h1 className="text-3xl font-bold leading-tight mb-3" style={{ color: msgText, minHeight: "2.25rem" }}>
-            {typedTitle || "​"}
-            {!cursorHidden && (
-              <span
-                aria-hidden
-                className="inline-block w-[2px] h-7 ml-0.5 rounded-sm"
-                style={{
-                  backgroundColor: theme.accentColor,
-                  animation: "gai-cursor-blink 0.65s ease-in-out infinite",
-                  verticalAlign: "middle",
-                }}
-              />
-            )}
-          </h1>
-
-          {/* Subtitle + status — cascade in after typing, aligned with title */}
-          <div
-            style={{
-              opacity: titleDone ? 1 : 0,
-              transform: titleDone ? "translateY(0)" : "translateY(10px)",
-              transition: "opacity 0.5s ease, transform 0.5s ease",
-            }}
-          >
-            <p className="text-base mb-1" style={{ color: msgText, opacity: 0.8 }}>
-              I'm your AI assistant — here to help with anything you need.
-            </p>
-            <p className="flex items-center gap-2 text-sm" style={{ color: msgDim }}>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-              Online · How can I help you today?
-            </p>
+          {/* Conversation starter — highlighted, always last */}
+          <div className="mt-1">
+            {startConversationCard(actionButtons.length * 70)}
           </div>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Input + action buttons — slide up after typing, only before user has started */}
-      {!hasStarted && (
-        <div
-          className="w-full"
-          style={{
-            maxWidth: 620,
-            opacity: titleDone ? 1 : 0,
-            transform: titleDone ? "translateY(0)" : "translateY(20px)",
-            transition: "opacity 0.6s ease 0.15s, transform 0.6s ease 0.15s",
-          }}
-        >
-          {actionButtonsPanel}
-          {inputCard}
-          {footerStrip}
+  // ── Answered view (question asked, reply shown, remaining questions below) ──
+
+  const unansweredButtons = actionButtons.filter(btn => !askedLabels.has(btn.label));
+
+  const answeredView = (
+    <div className="flex flex-col" style={{ height: "100%", overflow: "hidden", maxWidth: 680, margin: "0 auto", width: "100%" }}>
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-8 pt-8 pb-4">
+
+        {/* Q&A history (skip the opening assistant message) */}
+        <div className="space-y-3 mb-5">
+          {messages.slice(1).map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} className="flex justify-end">
+                <div
+                  className="max-w-[80%] px-4 py-2.5 text-sm leading-relaxed"
+                  style={{ backgroundColor: theme.accentColor, color: accentText, borderRadius: "1.2rem 0.2rem 1.2rem 1.2rem" }}
+                >
+                  {m.text}
+                </div>
+              </div>
+            ) : (
+              <div key={i} className="flex items-end gap-2.5">
+                <div
+                  className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
+                  style={{ backgroundColor: avatarBg, color: avatarText }}
+                >
+                  {initials(saloon.name)[0]}
+                </div>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  {m.tool && (
+                    <div
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-medium"
+                      style={{
+                        backgroundColor: m.tool.done ? `${theme.accentColor}10` : asBubbleBg,
+                        borderColor:     m.tool.done ? `${theme.accentColor}30` : inputBorder,
+                        color:           m.tool.done ? theme.accentColor : topDim,
+                      }}
+                    >
+                      <Wrench className={`w-3 h-3 ${!m.tool.done ? "animate-spin" : ""}`} />
+                      <span className="font-mono">{m.tool.name}</span>
+                      <span>{m.tool.done ? "✓ done" : m.tool.label}</span>
+                    </div>
+                  )}
+                  {m.text && (
+                    <div
+                      className="inline-block max-w-[90%] px-4 py-2.5"
+                      style={{
+                        backgroundColor: asBubbleBg,
+                        color: msgText,
+                        borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
+                        border: `1px solid ${bubbleBorder}`,
+                        boxShadow: bubbleShadow,
+                      }}
+                    >
+                      <MessageText text={m.text} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          )}
+
+          {/* Thinking indicator */}
+          {thinking && (
+            <div className="flex items-end gap-2.5">
+              <div
+                className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
+                style={{ backgroundColor: avatarBg, color: avatarText }}
+              >
+                {initials(saloon.name)[0]}
+              </div>
+              <div
+                className="px-4 py-3 flex items-center gap-1"
+                style={{
+                  backgroundColor: asBubbleBg,
+                  borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
+                  border: `1px solid ${bubbleBorder}`,
+                  boxShadow: bubbleShadow,
+                }}
+              >
+                {[0, 150, 300].map((delay) => (
+                  <span key={delay} className="w-2 h-2 rounded-full animate-bounce"
+                    style={{ backgroundColor: theme.accentColor, animationDelay: `${delay}ms` }} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Remaining questions + start conversation — shown after reply arrives */}
+        {!thinking && (
+          <div className="flex flex-col gap-2.5 w-full">
+            {unansweredButtons.length > 0 && (
+              <>
+                <p className="text-xs font-medium px-1 mb-0.5" style={{ color: msgDim }}>More questions</p>
+                {unansweredButtons.map((btn, i) => (
+                  <button
+                    key={btn.label}
+                    onClick={() => askQuestion(btn)}
+                    className="group flex items-center gap-3 px-4 py-3 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.98]"
+                    style={{
+                      backgroundColor: asBubbleBg,
+                      borderColor: bubbleBorder,
+                      opacity: 0,
+                      animation: `gai-question-in 0.4s ease forwards`,
+                      animationDelay: `${i * 50}ms`,
+                    }}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
+                      style={{ backgroundColor: `${theme.accentColor}15` }}
+                    >
+                      <btn.icon className="w-4 h-4" style={{ color: theme.accentColor }} />
+                    </div>
+                    <span className="flex-1 text-sm font-medium" style={{ color: msgText }}>{btn.question}</span>
+                    <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: theme.accentColor }} />
+                  </button>
+                ))}
+              </>
+            )}
+
+            <div className={unansweredButtons.length > 0 ? "mt-1" : ""}>
+              {startConversationCard(unansweredButtons.length * 50 + 80)}
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      <div className="shrink-0 px-8 pb-4 pt-1">
+        {footerStrip}
+      </div>
     </div>
   );
 
@@ -540,13 +774,112 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
         from { opacity: 0; transform: translateY(-100%); }
         to   { opacity: 1; transform: translateY(0); }
       }
+      @keyframes gai-card-in {
+        0%   { opacity: 0; transform: scale(0.94) translateY(20px); }
+        60%  { opacity: 1; transform: scale(1.01) translateY(-3px); }
+        100% { opacity: 1; transform: scale(1)    translateY(0); }
+      }
+      @keyframes gai-question-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @media (max-width: 639px) {
+        .gai-card-mobile { border-radius: 0 !important; }
+      }
     `}</style>
+
+    {/* ── Full-page intro overlay ── */}
+    {introPhase !== "done" && (
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: pageBg, fontFamily: font.stack,
+          opacity: introPhase === "exiting" ? 0 : 1,
+          transition: "opacity 0.6s ease",
+          pointerEvents: introPhase === "exiting" ? "none" : "auto",
+        }}
+      >
+        <div style={{ maxWidth: 640, width: "100%", padding: "0 40px" }}>
+          <div className="flex items-start gap-5">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shrink-0 mt-1"
+              style={{
+                backgroundColor: avatarBg, color: avatarText,
+                boxShadow: `0 0 0 5px ${theme.accentColor}20, 0 8px 28px ${theme.accentColor}35`,
+                animation: "gai-scale-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+                opacity: 0,
+              }}
+            >
+              {initials(saloon.name)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-base font-medium tracking-wide mb-1"
+                style={{
+                  color: msgDim,
+                  opacity: labelVisible ? 1 : 0,
+                  transform: labelVisible ? "translateY(0)" : "translateY(8px)",
+                  transition: "opacity 0.4s ease, transform 0.4s ease",
+                }}
+              >
+                Welcome to
+              </p>
+              <h1 className="text-4xl font-bold leading-tight" style={{ color: msgText, minHeight: "3rem" }}>
+                {typedTitle || "​"}
+                {!cursorHidden && (
+                  <span
+                    aria-hidden
+                    className="inline-block w-[3px] h-9 ml-1 rounded-sm"
+                    style={{
+                      backgroundColor: theme.accentColor,
+                      animation: "gai-cursor-blink 0.65s ease-in-out infinite",
+                      verticalAlign: "middle",
+                    }}
+                  />
+                )}
+              </h1>
+              <div
+                className="mt-3"
+                style={{
+                  opacity: titleDone ? 1 : 0,
+                  transform: titleDone ? "translateY(0)" : "translateY(10px)",
+                  transition: "opacity 0.5s ease, transform 0.5s ease",
+                }}
+              >
+                <p className="text-lg" style={{ color: msgText, opacity: 0.8 }}>
+                  Your AI assistant — ask me anything about us.
+                </p>
+                <p className="flex items-center gap-2 text-sm mt-1" style={{ color: msgDim }}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
+                  Online · Powered by MCP
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Chat card — fades in after intro exits ── */}
     <div
-      className="flex flex-col"
-      style={{ height: "100%", overflow: "hidden", background: pageBg, fontFamily: font.stack, border: `1px solid ${chatBorder}` }}
+      className="flex flex-col gai-card-mobile"
+      style={{
+        height: "100%",
+        overflow: "hidden",
+        background: pageBg,
+        fontFamily: font.stack,
+        border: `1px solid ${chatBorder}`,
+        borderRadius: "12px",
+        opacity: introPhase === "done" ? 1 : 0,
+        animation: introPhase === "done" ? "gai-card-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards" : "none",
+        boxShadow: chatLight
+          ? "0 0 0 1px rgba(148,163,184,0.12), 0 4px 24px rgba(0,0,0,0.06)"
+          : "0 0 0 1px rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.35)",
+      }}
     >
-      {/* ── Chat header — fixed in flow, slides in when chat starts ── */}
-      {hasStarted && (
+      {/* ── Chat header — only visible in chatting phase ── */}
+      {questionPhase === "chatting" && (
         <div
           className="shrink-0"
           style={{
@@ -599,7 +932,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
               </div>
             </div>
             <button
-              onClick={() => { setMessages([openingMsg]); setHasStarted(false); }}
+              onClick={() => { setMessages([openingMsg]); setQuestionPhase("welcome"); setAskedLabels(new Set()); }}
               title="Start new conversation"
               className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95"
               style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}
@@ -612,7 +945,8 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
 
       {/* ── Scrollable area ── */}
       <div className="flex-1 overflow-y-auto">
-        {isEmptyChat ? welcomeView : (
+        {questionPhase === "welcome" ? welcomeView :
+         questionPhase === "answered" ? answeredView : (
           // ── Active chat messages ─────────────────────────────────────
           <div className="mx-auto px-4 py-6 space-y-4" style={{ maxWidth: 720 }}>
             {messages.map((m, i) =>
@@ -652,7 +986,13 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                     {m.text && (
                       <div
                         className="inline-block max-w-[90%] px-4 py-2.5"
-                        style={{ backgroundColor: asBubbleBg, color: msgText, borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem" }}
+                        style={{
+                          backgroundColor: asBubbleBg,
+                          color: msgText,
+                          borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
+                          border: `1px solid ${bubbleBorder}`,
+                          boxShadow: bubbleShadow,
+                        }}
                       >
                         <MessageText text={m.text} />
                       </div>
@@ -675,7 +1015,12 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                 </div>
                 <div
                   className="px-4 py-3 flex items-center gap-1"
-                  style={{ backgroundColor: asBubbleBg, borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem" }}
+                  style={{
+                    backgroundColor: asBubbleBg,
+                    borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
+                    border: `1px solid ${bubbleBorder}`,
+                    boxShadow: bubbleShadow,
+                  }}
                 >
                   {[0, 150, 300].map((delay) => (
                     <span
@@ -693,11 +1038,10 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
         )}
       </div>
 
-      {/* ── Bottom input dock — visible only after user has started ── */}
-      {hasStarted && (
-        <div className="shrink-0 px-4 pb-5 pt-2">
+      {/* ── Bottom input dock — visible only in chatting phase ── */}
+      {questionPhase === "chatting" && (
+        <div className="shrink-0 px-4 pb-6 pt-8">
           <div className="mx-auto" style={{ maxWidth: 720 }}>
-            {actionButtonsPanel}
             {inputCard}
             {footerStrip}
           </div>

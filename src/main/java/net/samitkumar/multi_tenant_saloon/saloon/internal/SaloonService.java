@@ -6,7 +6,6 @@ import net.samitkumar.multi_tenant_saloon.utility.CountryApi;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonClosure;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
-import net.samitkumar.multi_tenant_saloon.saloon.WebsitePublishRequestedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -155,19 +154,4 @@ class SaloonService implements SaloonApi {
         repository.deleteById(id);
     }
 
-    enum PublishWebsiteResult { OK, NOT_FOUND, FEATURE_NOT_ENABLED }
-
-    @Transactional
-    PublishWebsiteResult publishWebsite(UUID id) {
-        var saloon = repository.findById(id).orElse(null);
-        if (saloon == null) return PublishWebsiteResult.NOT_FOUND;
-
-        boolean hasWebsiteFeature = saloon.features().stream()
-                .anyMatch(ref -> ref.feature() == SaloonFeature.STATIC_WEBSITE);
-        if (!hasWebsiteFeature) return PublishWebsiteResult.FEATURE_NOT_ENABLED;
-
-        eventPublisher.publishEvent(
-                new WebsitePublishRequestedEvent(saloon.id(), saloon.name(), saloon.handler(), saloon.owner().email()));
-        return PublishWebsiteResult.OK;
-    }
 }

@@ -11,7 +11,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/schema.sql
+      schema-locations: classpath:db/V1__schema.sql
   modulith:
     events:
       jdbc:
@@ -21,6 +21,9 @@ spring:
     virtual:
       enabled: true
   flyway:
-    enabled: false
+    enabled: true
     locations:
       - db
+    user: ${spring.datasource.username}
+    password: ${spring.datasource.password}
+    url: ${spring.datasource.url}

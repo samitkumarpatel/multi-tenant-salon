@@ -17,7 +17,7 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/website`, `/website/publish`, `/website-type`, `/features`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/website`, `/website-type`, `/features`
 
 ---
 
@@ -671,29 +671,6 @@ Updates the website presentation type. The rest of the theme is preserved. Creat
 1. `WebsiteController.updateWebsiteType(UUID, WebsiteTypeRequest)` → `WebsiteThemeService.updateWebsiteType(UUID, WebsiteType)`
 2. Upserts the row updating only the `website_mode` column.
 3. Returns the full updated `WebsiteTheme`.
-
----
-
-### Publish website
-
-`POST /api/saloon-admin/{saloonId}/website/publish`
-
-Triggers an asynchronous website deployment pipeline. The saloon must have the `STATIC_WEBSITE` feature enabled. Returns immediately; actual work (S3 deploy, subdomain, DNS) is handled asynchronously by the `website` module.
-
-**Response** `202 Accepted`
-
-**Response** `404 Not Found`
-
-**Response** `422 Unprocessable Entity` — saloon does not have `STATIC_WEBSITE` feature enabled
-
-**Flow**
-
-1. `SaloonController.publishWebsite(UUID)` → `SaloonService.publishWebsite(UUID)`
-2. `SaloonRepository.findById(UUID)` — `404` if not found.
-3. Checks `saloon.features()` for `STATIC_WEBSITE` — `422` if absent.
-4. `ApplicationEventPublisher.publishEvent(WebsitePublishRequestedEvent)` — Spring Modulith writes the event to `event_publication` before commit.
-5. Returns `202 Accepted`.
-6. After commit → **Event**: `WebsitePublishListener.onWebsitePublishRequested(...)` invoked asynchronously. Currently logs the intent; AWS pipeline integration is pending.
 
 ---
 
