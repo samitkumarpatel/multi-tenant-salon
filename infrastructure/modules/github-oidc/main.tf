@@ -42,13 +42,13 @@ resource "aws_iam_role" "github_actions" {
   tags               = var.tags
 }
 
-# ── Permissions — S3 deploy + CloudFront invalidation ────────────────────────
+# ── Permissions — S3 deploy + CloudFront invalidation + ECS deploy ────────────
 
 data "aws_iam_policy_document" "deploy" {
   statement {
-    sid     = "S3Objects"
-    effect  = "Allow"
-    actions = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+    sid       = "S3Objects"
+    effect    = "Allow"
+    actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
     resources = [for arn in var.s3_bucket_arns : "${arn}/*"]
   }
 
@@ -64,6 +64,45 @@ data "aws_iam_policy_document" "deploy" {
     effect    = "Allow"
     actions   = ["cloudfront:CreateInvalidation"]
     resources = var.cloudfront_distribution_arns
+  }
+
+  dynamic "statement" {
+    for_each = length(var.ecs_cluster_arns) > 0 ? [1] : []
+    content {
+      sid    = "ECSDeployDescribe"
+      effect = "Allow"
+      actions = [
+        "ecs:DescribeServices",
+        "ecs:DescribeTaskDefinition",
+        "ecs:DescribeTasks",
+        "ecs:ListTasks",
+      ]
+      resources = ["*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(var.ecs_cluster_arns) > 0 ? [1] : []
+    content {
+      sid       = "ECSDeployUpdate"
+      effect    = "Allow"
+      actions   = ["ecs:UpdateService", "ecs:RegisterTaskDefinition"]
+      resources = concat(
+        var.ecs_cluster_arns,
+        # task definition ARNs follow the same family name as the service
+        ["arn:aws:ecs:*:*:task-definition/*"],
+      )
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(var.ecs_task_execution_role_arns) > 0 ? [1] : []
+    content {
+      sid       = "ECSPassRole"
+      effect    = "Allow"
+      actions   = ["iam:PassRole"]
+      resources = var.ecs_task_execution_role_arns
+    }
   }
 }
 

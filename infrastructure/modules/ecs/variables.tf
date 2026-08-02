@@ -1,6 +1,6 @@
 variable "name" {
   type        = string
-  description = "Name prefix (used for cluster, service, task family, IAM roles)"
+  description = "Name prefix for all shared resources (cluster, ALB, log groups)"
 }
 
 variable "aws_region" {
@@ -13,18 +13,18 @@ variable "vpc_id" {
 
 variable "public_subnet_ids" {
   type        = list(string)
-  description = "Subnets for the ALB"
+  description = "Subnets for the ALB (and for tasks when assign_public_ip=true)"
 }
 
 variable "private_subnet_ids" {
   type        = list(string)
-  description = "Subnets for ECS tasks. Can be the same as public_subnet_ids when assign_public_ip=true"
+  description = "Subnets for ECS tasks when assign_public_ip=false"
 }
 
 variable "assign_public_ip" {
   type        = bool
   default     = false
-  description = "true = tasks get public IPs and can reach the internet directly (no NAT needed). Use for dev."
+  description = "true = tasks get public IPs so they can reach the internet directly (no NAT). Use in dev with default VPC subnets."
 }
 
 variable "alb_security_group_id" {
@@ -35,66 +35,16 @@ variable "ecs_security_group_id" {
   type = string
 }
 
+variable "internal" {
+  type        = bool
+  default     = false
+  description = "When true the ALB is internal (no public IP) with a plain HTTP/80 listener. Use when API Gateway sits in front via VPC Link."
+}
+
 variable "acm_certificate_arn" {
   type        = string
-  description = "ACM cert ARN for api.my-saloon.online in the ALB region"
-}
-
-variable "container_name" {
-  type    = string
-  default = "saloon-backend"
-}
-
-variable "container_image" {
-  type        = string
-  description = "Full image URI, e.g. ghcr.io/org/repo:sha (overwritten by CI at deploy time)"
-  default     = "ghcr.io/samitkumarpatel/multi-tenant-saloon:latest"
-}
-
-variable "ghcr_credentials_secret_arn" {
-  type        = string
-  default     = ""
-  description = "Secrets Manager ARN holding {username, password} for ghcr.io. Leave empty for public images."
-}
-
-variable "container_port" {
-  type    = number
-  default = 8080
-}
-
-variable "spring_profile" {
-  type    = string
-  default = "prod"
-}
-
-variable "task_cpu" {
-  type    = number
-  default = 512
-}
-
-variable "task_memory" {
-  type    = number
-  default = 1024
-}
-
-variable "desired_count" {
-  type    = number
-  default = 1
-}
-
-variable "min_tasks" {
-  type    = number
-  default = 1
-}
-
-variable "max_tasks" {
-  type    = number
-  default = 5
-}
-
-variable "log_retention_days" {
-  type    = number
-  default = 30
+  default     = null
+  description = "ACM cert ARN for the HTTPS listener. Required when internal=false; ignored when internal=true."
 }
 
 variable "enable_deletion_protection" {
@@ -102,21 +52,40 @@ variable "enable_deletion_protection" {
   default = false
 }
 
-variable "secrets_manager_arns" {
-  type        = list(string)
-  description = "ARNs of Secrets Manager secrets the task execution role can read"
-}
+# ── Services ──────────────────────────────────────────────────────────────────
+# Each key becomes the service name suffix and the ECS container name.
+# Services with path_prefix=null are workers — they run as ECS services but
+# are not attached to the ALB and receive no inbound traffic.
 
-variable "secret_arn_db_url" {
-  type = string
-}
+variable "services" {
+  type = map(object({
+    image   = string
+    image_tag = optional(string, "latest")
 
-variable "secret_arn_db_username" {
-  type = string
-}
+    container_port     = optional(number, 8080)
+    cpu                = optional(number, 512)
+    memory             = optional(number, 1024)
 
-variable "secret_arn_db_password" {
-  type = string
+    desired_count = optional(number, 1)
+    min_tasks     = optional(number, 1)
+    max_tasks     = optional(number, 5)
+
+    # null = worker (no ALB attachment); "/" = catch-all; "/prefix" = path-scoped
+    path_prefix       = optional(string, null)
+    health_check_path = optional(string, "/health")
+
+    log_retention_days = optional(number, 30)
+
+    # Plain (non-sensitive) environment variables
+    env_vars = optional(map(string), {})
+
+    # Secrets Manager ARNs injected as env vars at task start: { ENV_NAME = "arn:..." }
+    secret_arns = optional(map(string), {})
+
+    # Set to a Secrets Manager ARN if the image is on a private registry (e.g. ghcr.io)
+    ghcr_secret_arn = optional(string, "")
+  }))
+  description = "Map of services to deploy. Key is used as the service name suffix and container name."
 }
 
 variable "tags" {

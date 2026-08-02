@@ -62,6 +62,7 @@ Spring Data JDBC conventions used throughout:
 - Nested value objects (`Owner`, `Location`, `ContactInfo`) are `@Embedded` — flattened into the parent table. Columns that would clash (e.g., `owner_email` vs `contact_email`) are disambiguated with `@Column` on the inner record components.
 - Collection fields (`operatingHours`, `features`, `assignedStaffIds`, `specializations`) live in separate child tables via `@MappedCollection(idColumn = "...")`.
 - Wrapper records for collection elements (`SaloonFeatureRef`, `AssignedStaff`, `Specialization`) carry `@JsonValue` so they serialize transparently — e.g., `List<SaloonFeatureRef>` serializes as `["BOOKING"]`, not `[{"feature":"BOOKING"}]`.
+- any new changes related to db schema ha to be in a separate file with a versioned name like `V2__add_new_table.sql` and so on.
 
 ## Testing
 

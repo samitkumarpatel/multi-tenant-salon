@@ -8,7 +8,10 @@ output "name_servers" {
   description = "NS records to set at your domain registrar — required before Phase 2"
 }
 
-output "certificate_arn" {
-  value       = module.dns_cert.certificate_arn
-  description = "Validated ACM certificate ARN (us-east-1)"
+output "certificate_arns" {
+  value = merge(
+    { for k, v in aws_acm_certificate_validation.global : k => v.certificate_arn },
+    { for k, v in aws_acm_certificate_validation.regional : k => v.certificate_arn },
+  )
+  description = "Map of certificate key → validated ARN. Reference by the key you defined in var.certificates."
 }

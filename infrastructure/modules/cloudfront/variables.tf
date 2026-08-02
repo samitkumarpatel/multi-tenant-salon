@@ -1,59 +1,49 @@
 variable "name" {
-  type = string
-}
-
-variable "domain" {
   type        = string
-  description = "Root domain, e.g. my-saloon.online"
-}
-
-variable "main_web_bucket_domain" {
-  type        = string
-  description = "Regional domain of the main-web S3 bucket"
-}
-
-variable "public_web_bucket_domain" {
-  type        = string
-  description = "Regional domain of the public-web S3 bucket"
-}
-
-variable "super_admin_bucket_domain" {
-  type        = string
-  description = "Regional domain of the super-admin-web S3 bucket"
+  description = "Name prefix used for tagging and log bucket references"
 }
 
 variable "cf_logs_bucket" {
   type        = string
-  description = "Name (not domain) of the CloudFront logs S3 bucket"
+  description = "Name (not domain) of the S3 bucket that receives CloudFront access logs"
 }
 
-variable "oac_main_web_id" {
-  type = string
-}
+# ── Distributions ─────────────────────────────────────────────────────────────
+# Each key becomes one aws_cloudfront_distribution.
+# Origins, path behaviors, and error responses are per-distribution.
 
-variable "oac_public_web_id" {
-  type = string
-}
+variable "distributions" {
+  type = map(object({
+    aliases            = list(string)
+    certificate_arn    = string
+    default_origin_key = string
+    log_prefix         = optional(string, "")
 
-variable "oac_super_admin_id" {
-  type = string
-}
+    # Pre-computed origin objects keyed by bucket key. The stack builds this
+    # from module.s3 outputs so the module stays provider-agnostic.
+    origins = map(object({
+      domain_name = string
+      oac_id      = string
+    }))
 
-variable "cf_function_arn" {
-  type        = string
-  default     = null
-  description = "ARN of a CloudFront Function to attach at viewer-request on Distribution #1's default behavior. Null skips the association."
-}
+    # Ordered path-based cache behaviors (evaluated before the default)
+    path_behaviors = optional(list(object({
+      path_pattern = string
+      origin_key   = string
+    })), [])
 
-variable "lambda_edge_qualified_arn" {
-  type        = string
-  default     = null
-  description = "Qualified ARN of a Lambda@Edge function to attach at origin-request on Distribution #2. Must be deployed in us-east-1. Null skips the association."
-}
+    # SPA-friendly error handling: map 403/404 to an index page
+    custom_error_responses = optional(list(object({
+      error_code         = number
+      response_code      = optional(number, 200)
+      response_page_path = string
+    })), [])
 
-variable "certificate_arn" {
-  type        = string
-  description = "ARN of a validated ACM certificate in us-east-1 covering the domain and *.domain"
+    # Optional function attachments
+    cf_function_arn           = optional(string, null) # viewer-request CloudFront Function
+    lambda_edge_qualified_arn = optional(string, null) # origin-request Lambda@Edge (us-east-1)
+  }))
+  description = "Map of CloudFront distributions to create. One distribution per key."
 }
 
 variable "tags" {
