@@ -9,21 +9,13 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class StaffService implements StaffApi {
-
-    private static final LocalTime DEFAULT_START = LocalTime.of(9, 0);
-    private static final LocalTime DEFAULT_END   = LocalTime.of(18, 0);
-    private static final List<DayOfWeek> DEFAULT_DAYS =
-            List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
-                    DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY);
 
     private final StaffRepository repository;
     private final ApplicationEventPublisher eventPublisher;
@@ -60,9 +52,7 @@ public class StaffService implements StaffApi {
         var saved = repository.save(member);
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
                 ? schedule
-                : DEFAULT_DAYS.stream()
-                        .map(d -> new StaffOnboardedEvent.DaySchedule(d, DEFAULT_START, DEFAULT_END))
-                        .toList();
+                : List.<StaffOnboardedEvent.DaySchedule>of();
         eventPublisher.publishEvent(new StaffOnboardedEvent(saloonId, saved.id(), effectiveSchedule));
         return saved;
     }

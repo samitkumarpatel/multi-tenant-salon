@@ -27,7 +27,7 @@ class DefaultWebsiteThemeSeeder {
                   (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color,
                    header_bg, footer_bg, website_mode, updated_at)
                 VALUES
-                  (?, '#F8FAFC', '#0F172A', '#1D4ED8', 'system', '#10B981', '#E2E8F0', '#E2E8F0', ?, ?)
+                  (?, '#0F172A', '#F8FAFC', '#F59E0B', 'system', '#10B981', '#E2E8F0', '#E2E8F0', ?, ?)
                 ON CONFLICT (saloon_id) DO NOTHING
                 """,
                 event.saloonId(), WebsiteType.STATIC_WEBSITE.name(), Timestamp.from(Instant.now()));

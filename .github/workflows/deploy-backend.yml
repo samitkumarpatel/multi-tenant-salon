@@ -38,7 +38,7 @@ jobs:
 
       - name: Build and push image
         run: |
-          ./mvnw spring-boot:build-image \
+          ./mvnw -B spring-boot:build-image \
             -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
