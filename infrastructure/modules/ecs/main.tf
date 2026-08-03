@@ -1,4 +1,4 @@
-# ── IAM ──────────────────────────────────────────────────────────────────────
+# ── Shared IAM assume-role document ──────────────────────────────────────────
 
 data "aws_iam_policy_document" "ecs_assume_role" {
   statement {
@@ -10,56 +10,59 @@ data "aws_iam_policy_document" "ecs_assume_role" {
   }
 }
 
+# ── Per-service IAM ───────────────────────────────────────────────────────────
+
 resource "aws_iam_role" "task_execution" {
-  name               = "${var.name}-ecs-execution-role"
+  for_each           = var.services
+  name               = "${var.name}-${each.key}-exec-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
   tags               = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "task_execution_managed" {
-  role       = aws_iam_role.task_execution.name
+  for_each   = var.services
+  role       = aws_iam_role.task_execution[each.key].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-locals {
-  # Combine DB secret ARNs with the optional GHCR credentials secret
-  all_secret_arns = var.ghcr_credentials_secret_arn != "" ? concat(
-    var.secrets_manager_arns,
-    [var.ghcr_credentials_secret_arn]
-  ) : var.secrets_manager_arns
-}
-
 resource "aws_iam_role_policy" "secrets_read" {
-  name = "${var.name}-secrets-read"
-  role = aws_iam_role.task_execution.id
+  for_each = {
+    for k, v in var.services : k => v
+    if length(v.secret_arns) > 0 || v.ghcr_secret_arn != ""
+  }
+  name = "${var.name}-${each.key}-secrets"
+  role = aws_iam_role.task_execution[each.key].id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = local.all_secret_arns
-      }
-    ]
+    Statement = [{
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
+      Resource = concat(
+        values(each.value.secret_arns),
+        each.value.ghcr_secret_arn != "" ? [each.value.ghcr_secret_arn] : [],
+      )
+    }]
   })
 }
 
 resource "aws_iam_role" "task" {
-  name               = "${var.name}-ecs-task-role"
+  for_each           = var.services
+  name               = "${var.name}-${each.key}-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
   tags               = var.tags
 }
 
-# ── CloudWatch Log Group ──────────────────────────────────────────────────────
+# ── Per-service CloudWatch log groups ─────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "this" {
-  name              = "/ecs/${var.name}"
-  retention_in_days = var.log_retention_days
+  for_each          = var.services
+  name              = "/ecs/${var.name}/${each.key}"
+  retention_in_days = each.value.log_retention_days
   tags              = var.tags
 }
 
-# ── ECS Cluster ───────────────────────────────────────────────────────────────
+# ── Shared ECS cluster ────────────────────────────────────────────────────────
 
 resource "aws_ecs_cluster" "this" {
   name = "${var.name}-cluster"
@@ -89,40 +92,39 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
   }
 }
 
-# ── Task Definition ───────────────────────────────────────────────────────────
+# ── Per-service task definitions ──────────────────────────────────────────────
 
 resource "aws_ecs_task_definition" "this" {
-  family                   = var.name
-  cpu                      = var.task_cpu
-  memory                   = var.task_memory
+  for_each                 = var.services
+  family                   = "${var.name}-${each.key}"
+  cpu                      = each.value.cpu
+  memory                   = each.value.memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  execution_role_arn       = aws_iam_role.task_execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  execution_role_arn       = aws_iam_role.task_execution[each.key].arn
+  task_role_arn            = aws_iam_role.task[each.key].arn
 
   container_definitions = jsonencode([
     merge(
       {
-        name      = var.container_name
-        image     = var.container_image
+        name      = each.key
+        image     = "${each.value.image}:${each.value.image_tag}"
         essential = true
 
         portMappings = [
-          { containerPort = var.container_port, protocol = "tcp" }
+          { containerPort = each.value.container_port, protocol = "tcp" }
         ]
 
         environment = [
-          { name = "SPRING_PROFILES_ACTIVE", value = var.spring_profile }
+          for k, v in each.value.env_vars : { name = k, value = v }
         ]
 
         secrets = [
-          { name = "SPRING_DATASOURCE_URL",     valueFrom = var.secret_arn_db_url },
-          { name = "SPRING_DATASOURCE_USERNAME", valueFrom = var.secret_arn_db_username },
-          { name = "SPRING_DATASOURCE_PASSWORD", valueFrom = var.secret_arn_db_password }
+          for k, v in each.value.secret_arns : { name = k, valueFrom = v }
         ]
 
         healthCheck = {
-          command     = ["CMD-SHELL", "curl -f http://localhost:${var.container_port}/actuator/health || exit 1"]
+          command     = ["CMD-SHELL", "curl -f http://localhost:${each.value.container_port}${each.value.health_check_path} || exit 1"]
           interval    = 30
           timeout     = 5
           retries     = 3
@@ -132,58 +134,56 @@ resource "aws_ecs_task_definition" "this" {
         logConfiguration = {
           logDriver = "awslogs"
           options = {
-            "awslogs-group"         = aws_cloudwatch_log_group.this.name
+            "awslogs-group"         = aws_cloudwatch_log_group.this[each.key].name
             "awslogs-region"        = var.aws_region
             "awslogs-stream-prefix" = "ecs"
           }
         }
       },
-      # Inject repositoryCredentials only for private registries (e.g. ghcr.io)
-      var.ghcr_credentials_secret_arn != "" ? {
-        repositoryCredentials = {
-          credentialsParameter = var.ghcr_credentials_secret_arn
-        }
-      } : {}
+      each.value.ghcr_secret_arn != "" ? {
+        repositoryCredentials = { credentialsParameter = each.value.ghcr_secret_arn }
+      } : {},
     )
   ])
 
   tags = var.tags
 }
 
-# ── ALB ───────────────────────────────────────────────────────────────────────
+# ── Shared ALB ────────────────────────────────────────────────────────────────
 
 resource "aws_lb" "this" {
   name               = "${var.name}-alb"
-  internal           = false
+  internal           = var.internal
   load_balancer_type = "application"
   security_groups    = [var.alb_security_group_id]
-  subnets            = var.public_subnet_ids
+  subnets            = var.internal ? var.private_subnet_ids : var.public_subnet_ids
 
   enable_deletion_protection = var.enable_deletion_protection
 
   tags = var.tags
 }
 
-resource "aws_lb_target_group" "this" {
-  name        = "${var.name}-tg"
-  port        = var.container_port
-  protocol    = "HTTP"
-  vpc_id      = var.vpc_id
-  target_type = "ip"
+# Internal: single HTTP listener; default action returns 404 when no rule matches.
+# External: HTTP redirects to HTTPS; HTTPS listener carries the listener rules.
 
-  health_check {
-    path                = "/actuator/health"
-    healthy_threshold   = 2
-    unhealthy_threshold = 3
-    interval            = 30
-    timeout             = 5
-    matcher             = "200"
+resource "aws_lb_listener" "http" {
+  count             = var.internal ? 1 : 0
+  load_balancer_arn = aws_lb.this.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"message\":\"not found\"}"
+      status_code  = "404"
+    }
   }
-
-  tags = var.tags
 }
 
 resource "aws_lb_listener" "http_redirect" {
+  count             = var.internal ? 0 : 1
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
@@ -199,6 +199,7 @@ resource "aws_lb_listener" "http_redirect" {
 }
 
 resource "aws_lb_listener" "https" {
+  count             = var.internal ? 0 : 1
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
@@ -206,18 +207,79 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = var.acm_certificate_arn
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.this.arn
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"message\":\"not found\"}"
+      status_code  = "404"
+    }
   }
 }
 
-# ── ECS Service ───────────────────────────────────────────────────────────────
+locals {
+  # The listener that carries the per-service forward rules
+  active_listener_arn = var.internal ? aws_lb_listener.http[0].arn : aws_lb_listener.https[0].arn
+
+  # Unique service keys referenced in http_routes — each gets one target group
+  routed_service_keys = toset(values(var.http_routes))
+  routed_services = {
+    for k in local.routed_service_keys : k => var.services[k]
+  }
+
+  # Stable alphabetical priority per path pattern (lowest index = highest priority)
+  route_priorities = {
+    for idx, path in sort(keys(var.http_routes)) : path => idx + 1
+  }
+}
+
+# ── Per-service ALB target groups + listener rules ────────────────────────────
+
+resource "aws_lb_target_group" "this" {
+  for_each    = local.routed_services
+  name        = "${var.name}-${each.key}-tg"
+  port        = each.value.container_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    path                = each.value.health_check_path
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 30
+    timeout             = 5
+    matcher             = "200"
+  }
+
+  tags = var.tags
+}
+
+resource "aws_lb_listener_rule" "this" {
+  for_each     = var.http_routes
+  listener_arn = local.active_listener_arn
+  priority     = local.route_priorities[each.key]
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.this[each.value].arn
+  }
+
+  condition {
+    path_pattern {
+      # "/" is a catch-all; other prefixes match exactly and with a trailing wildcard
+      values = each.key == "/" ? ["/*", "/"] : [each.key, "${each.key}/*"]
+    }
+  }
+}
+
+# ── Per-service ECS services ──────────────────────────────────────────────────
 
 resource "aws_ecs_service" "this" {
-  name            = var.name
+  for_each        = var.services
+  name            = "${var.name}-${each.key}"
   cluster         = aws_ecs_cluster.this.id
-  task_definition = aws_ecs_task_definition.this.arn
-  desired_count   = var.desired_count
+  task_definition = aws_ecs_task_definition.this[each.key].arn
+  desired_count   = each.value.desired_count
 
   capacity_provider_strategy {
     capacity_provider = "FARGATE_SPOT"
@@ -232,15 +294,19 @@ resource "aws_ecs_service" "this" {
   }
 
   network_configuration {
-    subnets          = var.private_subnet_ids
+    subnets          = var.assign_public_ip ? var.public_subnet_ids : var.private_subnet_ids
     security_groups  = [var.ecs_security_group_id]
     assign_public_ip = var.assign_public_ip
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.this.arn
-    container_name   = var.container_name
-    container_port   = var.container_port
+  # Only attach to the ALB when the service is referenced in http_routes
+  dynamic "load_balancer" {
+    for_each = contains(values(var.http_routes), each.key) ? [1] : []
+    content {
+      target_group_arn = aws_lb_target_group.this[each.key].arn
+      container_name   = each.key
+      container_port   = each.value.container_port
+    }
   }
 
   deployment_minimum_healthy_percent = 100
@@ -250,27 +316,30 @@ resource "aws_ecs_service" "this" {
     ignore_changes = [task_definition, desired_count]
   }
 
-  depends_on = [aws_lb_listener.https]
+  # Wait for the listener infrastructure before registering the service
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https, aws_lb_listener_rule.this]
 
   tags = var.tags
 }
 
-# ── Auto-scaling ──────────────────────────────────────────────────────────────
+# ── Per-service auto-scaling ──────────────────────────────────────────────────
 
 resource "aws_appautoscaling_target" "this" {
-  max_capacity       = var.max_tasks
-  min_capacity       = var.min_tasks
-  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.this.name}"
+  for_each           = var.services
+  max_capacity       = each.value.max_tasks
+  min_capacity       = each.value.min_tasks
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.this[each.key].name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
 }
 
 resource "aws_appautoscaling_policy" "cpu" {
-  name               = "${var.name}-cpu-scaling"
+  for_each           = var.services
+  name               = "${var.name}-${each.key}-cpu-scaling"
   policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.this.resource_id
-  scalable_dimension = aws_appautoscaling_target.this.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.this.service_namespace
+  resource_id        = aws_appautoscaling_target.this[each.key].resource_id
+  scalable_dimension = aws_appautoscaling_target.this[each.key].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.this[each.key].service_namespace
 
   target_tracking_scaling_policy_configuration {
     predefined_metric_specification {

@@ -43,7 +43,7 @@ frontend/.env.*.local
 
 ### Terraform ###
 **/.terraform/
-**/.terraform.lock.hcl
+# .terraform.lock.hcl is committed — it pins provider versions for reproducibility
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
@@ -55,18 +55,12 @@ override.tf.json
 *_override.tf.json
 crash.log
 crash.*.log
-# Lambda@Edge build artefact produced by the cloudfront module
-infrastructure/modules/cloudfront/wildcard-router.zip
 plan.out
-**/plan.out/**
 
 ### Infrastructure secrets ###
 # .env holds real credentials — never commit it
 infrastructure/environments/**/.env
 !infrastructure/environments/**/.env.example
-# Legacy path (stacks/dev/ being removed)
-infrastructure/stacks/**/.env
-!infrastructure/stacks/**/.env.example
 .claude
 .claude/**
 **/.claude/**
