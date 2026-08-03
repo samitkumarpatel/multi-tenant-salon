@@ -121,16 +121,17 @@ module "rds" {
 }
 
 # ── GitHub Container Registry pull secret ────────────────────────────────────
-# Created empty by Terraform; populate once via CLI before first ECS deploy:
-#   aws secretsmanager put-secret-value \
-#     --secret-id <ghcr_secret_name output> \
-#     --secret-string '{"username":"<github-user>","password":"<PAT with read:packages>"}'
 
 resource "aws_secretsmanager_secret" "ghcr" {
   name                    = "/${var.name}/${var.environment}/ghcr-token"
   description             = "GitHub Container Registry pull credentials for ECS task execution"
   recovery_window_in_days = var.environment == "dev" ? 0 : 7
   tags                    = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "ghcr" {
+  secret_id     = aws_secretsmanager_secret.ghcr.id
+  secret_string = var.ghcr_token
 }
 
 # ── ECS (Fargate) ─────────────────────────────────────────────────────────────

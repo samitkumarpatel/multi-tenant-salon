@@ -61,6 +61,7 @@ plan.out
 # .env holds real credentials — never commit it
 infrastructure/environments/**/.env
 !infrastructure/environments/**/.env.example
+**/.env/**
 .claude
 .claude/**
 **/.claude/**
