@@ -1,0 +1,99 @@
+name: Schedule dev resources
+
+on:
+  schedule:
+    - cron: '58 21 * * *'  # 23:58 CEST (UTC+2) — shutdown
+    - cron: '0 6 * * *'    # 08:00 CEST (UTC+2) — startup
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/schedule-dev-resources.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options: [shutdown, startup]
+
+env:
+  AWS_REGION: eu-north-1
+  ECS_CLUSTER: my-saloon-dev-cluster
+  ECS_SERVICE: my-saloon-dev-api
+  RDS_INSTANCE: my-saloon-dev-postgres
+
+jobs:
+  shutdown:
+    name: Shutdown (scale down ECS + stop RDS)
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '58 21 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'shutdown')
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Scale ECS service to 0
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --desired-count 0
+          echo "ECS service scaled to 0"
+
+      - name: Stop RDS instance
+        run: |
+          STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier ${{ env.RDS_INSTANCE }} \
+            --query "DBInstances[0].DBInstanceStatus" \
+            --output text)
+          echo "RDS current status: $STATUS"
+          if [ "$STATUS" = "available" ]; then
+            aws rds stop-db-instance --db-instance-identifier ${{ env.RDS_INSTANCE }}
+            echo "RDS stop initiated"
+          else
+            echo "RDS is not in 'available' state, skipping stop (status: $STATUS)"
+          fi
+
+  startup:
+    name: Startup (start RDS + scale up ECS)
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Start RDS instance
+        run: |
+          STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier ${{ env.RDS_INSTANCE }} \
+            --query "DBInstances[0].DBInstanceStatus" \
+            --output text)
+          echo "RDS current status: $STATUS"
+          if [ "$STATUS" = "stopped" ]; then
+            aws rds start-db-instance --db-instance-identifier ${{ env.RDS_INSTANCE }}
+            echo "RDS start initiated"
+          else
+            echo "RDS is not in 'stopped' state, skipping start (status: $STATUS)"
+          fi
+
+      - name: Wait for RDS to be available
+        run: |
+          echo "Waiting for RDS to become available..."
+          aws rds wait db-instance-available \
+            --db-instance-identifier ${{ env.RDS_INSTANCE }}
+          echo "RDS is available"
+
+      - name: Scale ECS service to 1
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --desired-count 1
+          echo "ECS service scaled to 1"
