@@ -22,7 +22,7 @@ class WebsiteThemeService {
 
     WebsiteTheme getTheme(UUID saloonId) {
         return repository.findById(saloonId)
-                .orElse(new WebsiteTheme(saloonId, "#F8FAFC", "#0F172A", "#1D4ED8", "system", "#10B981",
+                .orElse(new WebsiteTheme(saloonId, "#0F172A", "#F8FAFC", "#F59E0B", "system", "#10B981",
                         WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, "app", null, null));
     }
 
@@ -55,7 +55,9 @@ class WebsiteThemeService {
                   updated_at      = EXCLUDED.updated_at
                 """,
                 saloonId, heroBg, heroTextColor, accentColor, fontFamily, logoBgColor,
-                headerBg, footerBg, mapsUrl, chatLayout != null ? chatLayout : "app",
+                headerBg != null ? headerBg : "#E2E8F0",
+                footerBg != null ? footerBg : "#E2E8F0",
+                mapsUrl, chatLayout != null ? chatLayout : "app",
                 chatBg, Timestamp.from(Instant.now()));
 
         return repository.findById(saloonId).orElseThrow();

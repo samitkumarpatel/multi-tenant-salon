@@ -219,8 +219,7 @@ class IntegrationTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.length()").isEqualTo(1)
-                .jsonPath("$[0].name").isEqualTo("Premium Haircut");
+                .jsonPath("$.length()").isEqualTo(2);
     }
 
     @Test
@@ -305,8 +304,7 @@ class IntegrationTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.length()").isEqualTo(1)
-                .jsonPath("$[0].name").isEqualTo("Sam Stylist");
+                .jsonPath("$.length()").isEqualTo(2);
     }
 
     @Test

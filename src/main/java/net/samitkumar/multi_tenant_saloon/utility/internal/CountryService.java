@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_saloon.utility.internal;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import net.samitkumar.multi_tenant_saloon.utility.Country;
+import net.samitkumar.multi_tenant_saloon.utility.Currency;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -21,16 +22,20 @@ class CountryService implements net.samitkumar.multi_tenant_saloon.utility.Count
     private record RawCurrency(String code, String name, String symbol) {}
 
     private final List<Country> countries;
+    private final List<Currency> currencies;
 
     CountryService(
             @Value("${spring.application.utility.static-geo-data}") Resource geoResource,
             @Value("${spring.application.utility.static-currency-data}") Resource currencyResource,
             ObjectMapper objectMapper) {
         try {
-            Map<String, RawCurrency> currencyMap = objectMapper
-                    .readValue(currencyResource.getInputStream(), new TypeReference<List<RawCurrency>>() {})
-                    .stream()
+            List<RawCurrency> rawCurrencies = objectMapper
+                    .readValue(currencyResource.getInputStream(), new TypeReference<List<RawCurrency>>() {});
+            Map<String, RawCurrency> currencyMap = rawCurrencies.stream()
                     .collect(Collectors.toMap(RawCurrency::code, c -> c));
+            currencies = rawCurrencies.stream()
+                    .map(c -> new Currency(c.code(), c.name(), c.symbol()))
+                    .toList();
 
             countries = objectMapper
                     .readValue(geoResource.getInputStream(), new TypeReference<List<RawCountry>>() {})
@@ -52,6 +57,10 @@ class CountryService implements net.samitkumar.multi_tenant_saloon.utility.Count
 
     List<Country> findAll() {
         return countries;
+    }
+
+    List<Currency> findAllCurrencies() {
+        return currencies;
     }
 
     @Override

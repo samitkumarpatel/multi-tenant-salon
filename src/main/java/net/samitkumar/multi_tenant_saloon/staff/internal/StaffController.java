@@ -25,7 +25,7 @@ class StaffController {
                           List<StaffOnboardedEvent.DaySchedule> schedule) {}
 
     record UpdateRequest(String name, String email, String phone, StaffRole role, StaffStatus status,
-                         boolean availableForBooking, List<String> specializations) {}
+                         Boolean availableForBooking, List<String> specializations) {}
 
     @GetMapping({"/api/saloon/{saloonId}/staff", "/api/saloon-admin/{saloonId}/staff"})
     List<StaffMember> findAll(@PathVariable UUID saloonId) {
@@ -54,7 +54,9 @@ class StaffController {
     ResponseEntity<StaffMember> update(@PathVariable UUID saloonId, @PathVariable Long staffId,
                                        @RequestBody UpdateRequest request) {
         return service.update(saloonId, staffId, request.name(), request.email(), request.phone(),
-                        request.role(), request.status(), request.availableForBooking(), request.specializations())
+                        request.role(), request.status(),
+                        request.availableForBooking() == null || request.availableForBooking(),
+                        request.specializations())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
