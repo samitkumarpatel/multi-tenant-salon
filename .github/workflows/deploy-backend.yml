@@ -12,6 +12,11 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: eu-north-1
+  ECS_SERVICE: my-saloon-dev-api
+  ECS_CLUSTER: my-saloon-dev-cluster
+  ECS_TASK_DEFINITION: .aws/task-definition.json
+  CONTAINER_NAME: api
 
 jobs:
   build-and-deploy:
@@ -22,10 +27,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: graalvm/setup-graalvm@v1
         with:
-          version: '25.1'         # or '25.0' for LTS; See 'Options' for more details
-          distribution: 'graalvm' # See 'Supported distributions' for available options
+          version: '25.1'
+          distribution: 'graalvm'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           cache: "maven"
 
@@ -36,44 +42,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Build and push image to GHCR
+        id: build-image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           ./mvnw -B spring-boot:build-image \
-            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          
-          docker tag  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-                      ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            -Dspring-boot.build-image.imageName=$REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          echo "image=$REGISTRY/$IMAGE_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
-
-      - name: Download current task definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ vars.ECS_TASK_FAMILY_API }} \
-            --query taskDefinition \
-            > task-definition.json
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Render updated task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: task-definition.json
-          container-name: multi-tenant-saloon
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ vars.ECS_SERVICE_API }}
-          cluster: ${{ vars.ECS_CLUSTER }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
