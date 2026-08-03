@@ -110,13 +110,23 @@ module "backend" {
     api = {
       image             = "ghcr.io/samitkumarpatel/multi-tenant-saloon"
       image_tag         = "latest"
-      path_prefix       = "/"
       health_check_path = "/actuator/health"
       cpu               = 512
       memory            = 1024
       env_vars = {
-        SPRING_PROFILES_ACTIVE = "prod"
+        "spring.sql.init.mode" = "never"
+        "spring.modulith.events.jdbc.schema-initialization.enabled" = "false"
+        "spring.flyway.enabled" = "true"
       }
+    }
+  }
+
+  routes = {
+    http = {
+      "/" = "api"
+    }
+    ws = {
+      "$default" = "api"
     }
   }
 }

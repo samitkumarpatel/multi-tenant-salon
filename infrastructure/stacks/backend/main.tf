@@ -154,8 +154,9 @@ module "ecs" {
 
   enable_deletion_protection = var.environment != "dev"
 
-  services = local.services_with_db
-  tags     = local.common_tags
+  services    = local.services_with_db
+  http_routes = var.routes.http
+  tags        = local.common_tags
 }
 
 # ── API Gateway v2 (HTTP + WebSocket) ─────────────────────────────────────────
@@ -170,5 +171,6 @@ module "api_gateway" {
   domain             = var.domain
   certificate_arn    = var.regional_certificate_arn
   zone_id            = var.zone_id
+  ws_routes          = var.routes.ws
   tags               = local.common_tags
 }

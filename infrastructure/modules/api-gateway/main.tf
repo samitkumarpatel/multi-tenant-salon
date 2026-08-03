@@ -97,21 +97,19 @@ resource "aws_apigatewayv2_integration" "ws" {
   connection_id      = aws_apigatewayv2_vpc_link.this.id
 }
 
-resource "aws_apigatewayv2_route" "ws_connect" {
-  api_id    = aws_apigatewayv2_api.ws.id
-  route_key = "$connect"
-  target    = "integrations/${aws_apigatewayv2_integration.ws.id}"
+locals {
+  # $connect and $disconnect are always required for WebSocket to function;
+  # merge user-defined routes on top so they can override or extend.
+  all_ws_routes = merge(
+    { "$connect" = "", "$disconnect" = "" },
+    var.ws_routes,
+  )
 }
 
-resource "aws_apigatewayv2_route" "ws_disconnect" {
+resource "aws_apigatewayv2_route" "ws" {
+  for_each  = local.all_ws_routes
   api_id    = aws_apigatewayv2_api.ws.id
-  route_key = "$disconnect"
-  target    = "integrations/${aws_apigatewayv2_integration.ws.id}"
-}
-
-resource "aws_apigatewayv2_route" "ws_default" {
-  api_id    = aws_apigatewayv2_api.ws.id
-  route_key = "$default"
+  route_key = each.key
   target    = "integrations/${aws_apigatewayv2_integration.ws.id}"
 }
 

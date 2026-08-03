@@ -32,6 +32,12 @@ variable "zone_id" {
   description = "Route 53 hosted zone ID for creating api.domain and ws.domain records"
 }
 
+variable "ws_routes" {
+  type        = map(string)
+  default     = { "$default" = "" }
+  description = "WebSocket route keys to create. Keys are route keys ($connect, $disconnect, $default, or custom action names); values are service names (informational). $connect and $disconnect are always included automatically."
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

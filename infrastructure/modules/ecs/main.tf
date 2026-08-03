@@ -220,14 +220,15 @@ locals {
   # The listener that carries the per-service forward rules
   active_listener_arn = var.internal ? aws_lb_listener.http[0].arn : aws_lb_listener.https[0].arn
 
-  # Only services with a path_prefix get ALB wiring
+  # Unique service keys referenced in http_routes — each gets one target group
+  routed_service_keys = toset(values(var.http_routes))
   routed_services = {
-    for k, v in var.services : k => v if v.path_prefix != null
+    for k in local.routed_service_keys : k => var.services[k]
   }
 
-  # Stable alphabetical priority assignment (lowest index = highest priority)
-  service_priorities = {
-    for idx, key in sort(keys(local.routed_services)) : key => idx + 1
+  # Stable alphabetical priority per path pattern (lowest index = highest priority)
+  route_priorities = {
+    for idx, path in sort(keys(var.http_routes)) : path => idx + 1
   }
 }
 
@@ -254,22 +255,19 @@ resource "aws_lb_target_group" "this" {
 }
 
 resource "aws_lb_listener_rule" "this" {
-  for_each     = local.routed_services
+  for_each     = var.http_routes
   listener_arn = local.active_listener_arn
-  priority     = local.service_priorities[each.key]
+  priority     = local.route_priorities[each.key]
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.this[each.key].arn
+    target_group_arn = aws_lb_target_group.this[each.value].arn
   }
 
   condition {
     path_pattern {
-      # "/" is a catch-all; other prefixes match exactly and with a trailing slash
-      values = each.value.path_prefix == "/" ? ["/*", "/"] : [
-        each.value.path_prefix,
-        "${each.value.path_prefix}/*",
-      ]
+      # "/" is a catch-all; other prefixes match exactly and with a trailing wildcard
+      values = each.key == "/" ? ["/*", "/"] : [each.key, "${each.key}/*"]
     }
   }
 }
@@ -301,9 +299,9 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = var.assign_public_ip
   }
 
-  # Only attach to the ALB when the service has a path_prefix
+  # Only attach to the ALB when the service is referenced in http_routes
   dynamic "load_balancer" {
-    for_each = each.value.path_prefix != null ? [1] : []
+    for_each = contains(values(var.http_routes), each.key) ? [1] : []
     content {
       target_group_arn = aws_lb_target_group.this[each.key].arn
       container_name   = each.key

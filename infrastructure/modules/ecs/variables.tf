@@ -59,33 +59,31 @@ variable "enable_deletion_protection" {
 
 variable "services" {
   type = map(object({
-    image   = string
+    image     = string
     image_tag = optional(string, "latest")
 
-    container_port     = optional(number, 8080)
-    cpu                = optional(number, 512)
-    memory             = optional(number, 1024)
+    container_port = optional(number, 8080)
+    cpu            = optional(number, 512)
+    memory         = optional(number, 1024)
 
     desired_count = optional(number, 1)
     min_tasks     = optional(number, 1)
     max_tasks     = optional(number, 5)
 
-    # null = worker (no ALB attachment); "/" = catch-all; "/prefix" = path-scoped
-    path_prefix       = optional(string, null)
-    health_check_path = optional(string, "/health")
-
+    health_check_path  = optional(string, "/health")
     log_retention_days = optional(number, 30)
 
-    # Plain (non-sensitive) environment variables
-    env_vars = optional(map(string), {})
-
-    # Secrets Manager ARNs injected as env vars at task start: { ENV_NAME = "arn:..." }
-    secret_arns = optional(map(string), {})
-
-    # Set to a Secrets Manager ARN if the image is on a private registry (e.g. ghcr.io)
+    env_vars        = optional(map(string), {})
+    secret_arns     = optional(map(string), {})
     ghcr_secret_arn = optional(string, "")
   }))
-  description = "Map of services to deploy. Key is used as the service name suffix and container name."
+  description = "Map of services to deploy. Key is used as the service name suffix and container name. Services not referenced in http_routes are workers with no ALB attachment."
+}
+
+variable "http_routes" {
+  type        = map(string)
+  default     = {}
+  description = "Path-to-service routing rules for the ALB. Keys are path prefixes (e.g. \"/api\"); values are service keys from var.services. A prefix of \"/\" is a catch-all. Multiple paths can route to the same service."
 }
 
 variable "tags" {

@@ -39,22 +39,30 @@ variable "services" {
     image     = string
     image_tag = optional(string, "latest")
 
-    container_port     = optional(number, 8080)
-    cpu                = optional(number, 512)
-    memory             = optional(number, 1024)
+    container_port = optional(number, 8080)
+    cpu            = optional(number, 512)
+    memory         = optional(number, 1024)
 
     desired_count = optional(number, 1)
     min_tasks     = optional(number, 1)
     max_tasks     = optional(number, 5)
 
-    path_prefix       = optional(string, null)
-    health_check_path = optional(string, "/health")
-
+    health_check_path  = optional(string, "/health")
     log_retention_days = optional(number, 30)
 
     env_vars        = optional(map(string), {})
     secret_arns     = optional(map(string), {})
     ghcr_secret_arn = optional(string, "")
   }))
-  description = "Services to run on ECS. DB credentials are injected automatically; set path_prefix=null for workers."
+  description = "Services to run on ECS. DB credentials are injected automatically. Services not referenced in routes.http are workers with no ALB attachment."
+}
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+variable "routes" {
+  type = object({
+    http = map(string)
+    ws   = optional(map(string), { "$default" = "" })
+  })
+  description = "Routing rules. http maps path prefixes to service keys (e.g. { \"/api\" = \"api\" }). ws maps WebSocket route keys to service keys; $connect and $disconnect are always created."
 }

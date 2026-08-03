@@ -21,7 +21,7 @@ spring:
     virtual:
       enabled: true
   flyway:
-    enabled: true
+    enabled: false
     locations:
       - db
     user: ${spring.datasource.username}
