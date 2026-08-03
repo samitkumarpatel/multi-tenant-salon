@@ -1,31 +1,19 @@
-output "main_distribution_id" {
-  value = aws_cloudfront_distribution.main.id
+output "distribution_ids" {
+  value       = { for k, v in aws_cloudfront_distribution.this : k => v.id }
+  description = "Map of distribution key → CloudFront distribution ID"
 }
 
-output "main_distribution_arn" {
-  value = aws_cloudfront_distribution.main.arn
+output "distribution_arns" {
+  value       = { for k, v in aws_cloudfront_distribution.this : k => v.arn }
+  description = "Map of distribution key → CloudFront distribution ARN"
 }
 
-output "main_distribution_domain" {
-  value = aws_cloudfront_distribution.main.domain_name
+output "distribution_domains" {
+  value       = { for k, v in aws_cloudfront_distribution.this : k => v.domain_name }
+  description = "Map of distribution key → CloudFront domain name (for Route 53 alias targets)"
 }
 
-output "main_distribution_zone_id" {
-  value = aws_cloudfront_distribution.main.hosted_zone_id
-}
-
-output "wildcard_distribution_id" {
-  value = aws_cloudfront_distribution.wildcard.id
-}
-
-output "wildcard_distribution_arn" {
-  value = aws_cloudfront_distribution.wildcard.arn
-}
-
-output "wildcard_distribution_domain" {
-  value = aws_cloudfront_distribution.wildcard.domain_name
-}
-
-output "wildcard_distribution_zone_id" {
-  value = aws_cloudfront_distribution.wildcard.hosted_zone_id
+output "distribution_zone_ids" {
+  value       = { for k, v in aws_cloudfront_distribution.this : k => v.hosted_zone_id }
+  description = "Map of distribution key → CloudFront hosted zone ID (for Route 53 alias targets)"
 }

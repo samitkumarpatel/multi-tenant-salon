@@ -1,19 +1,39 @@
+CREATE TABLE IF NOT EXISTS event_publication
+(
+    id                     UUID NOT NULL,
+    listener_id            TEXT NOT NULL,
+    event_type             TEXT NOT NULL,
+    serialized_event       TEXT NOT NULL,
+    publication_date       TIMESTAMP WITH TIME ZONE NOT NULL,
+    completion_date        TIMESTAMP WITH TIME ZONE,
+    status                 TEXT,
+    completion_attempts    INT,
+    last_resubmission_date TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS event_publication_serialized_event_hash_idx ON event_publication USING hash(serialized_event);
+CREATE INDEX IF NOT EXISTS event_publication_by_completion_date_idx ON event_publication (completion_date);
+
 CREATE TABLE IF NOT EXISTS saloon (
-  id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  name            VARCHAR(255) NOT NULL,
-  handler         VARCHAR(255) NOT NULL UNIQUE,
-  owner_name      VARCHAR(255),
-  owner_email     VARCHAR(255),
-  owner_phone     VARCHAR(50),
-  address         VARCHAR(500),
-  city            VARCHAR(100),
-  state           VARCHAR(100),
-  country         VARCHAR(100),
-  zip_code        VARCHAR(20),
-  contact_phone   VARCHAR(50),
-  contact_email   VARCHAR(255),
-  contact_website VARCHAR(500),
-  created_at      TIMESTAMPTZ  NOT NULL
+  id                       UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                     VARCHAR(255) NOT NULL,
+  handler                  VARCHAR(255) NOT NULL UNIQUE,
+  owner_name               VARCHAR(255),
+  owner_email              VARCHAR(255),
+  owner_phone              VARCHAR(50),
+  address                  VARCHAR(500),
+  city                     VARCHAR(100),
+  state                    VARCHAR(100),
+  country                  VARCHAR(100),
+  zip_code                 VARCHAR(20),
+  contact_phone            VARCHAR(50),
+  contact_email            VARCHAR(255),
+  contact_website          VARCHAR(500),
+  booking_advance_days     INTEGER      NOT NULL DEFAULT 60,
+  business_registration_id VARCHAR(100),
+  show_business_id         BOOLEAN      NOT NULL DEFAULT FALSE,
+  business_id_label        VARCHAR(100),
+  created_at               TIMESTAMPTZ  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS saloon_operating_hours (
@@ -51,14 +71,16 @@ CREATE TABLE IF NOT EXISTS service_item_assigned_staff (
 );
 
 CREATE TABLE IF NOT EXISTS staff_member (
-  id         BIGSERIAL    PRIMARY KEY,
-  saloon_id  UUID         NOT NULL REFERENCES saloon(id),
-  name       VARCHAR(255) NOT NULL,
-  email      VARCHAR(255),
-  phone      VARCHAR(50),
-  role       VARCHAR(50)  NOT NULL,
-  status     VARCHAR(50)  NOT NULL,
-  created_at TIMESTAMPTZ  NOT NULL
+  id                    BIGSERIAL    PRIMARY KEY,
+  saloon_id             UUID         NOT NULL REFERENCES saloon(id),
+  name                  VARCHAR(255) NOT NULL,
+  email                 VARCHAR(255),
+  phone                 VARCHAR(50),
+  role                  VARCHAR(50)  NOT NULL,
+  status                VARCHAR(50)  NOT NULL,
+  is_owner              BOOLEAN      NOT NULL DEFAULT FALSE,
+  available_for_booking BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at            TIMESTAMPTZ  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS staff_member_specialization (
@@ -114,34 +136,11 @@ CREATE TABLE IF NOT EXISTS saloon_website_theme (
   website_mode    VARCHAR(50)  NOT NULL DEFAULT 'STATIC_WEBSITE',
   header_bg       VARCHAR(50)  NOT NULL DEFAULT '#E2E8F0',
   footer_bg       VARCHAR(50)  NOT NULL DEFAULT '#E2E8F0',
+  chat_layout     VARCHAR(20)  NOT NULL DEFAULT 'app',
+  chat_bg         VARCHAR(50),
   maps_url        TEXT,
   updated_at      TIMESTAMPTZ
 );
-
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS website_mode VARCHAR(50) NOT NULL DEFAULT 'STATIC_WEBSITE';
-ALTER TABLE saloon_website_theme ALTER COLUMN website_mode SET DEFAULT 'STATIC_WEBSITE';
-
-UPDATE saloon_website_theme SET website_mode =
-  CASE website_mode
-    WHEN 'static'  THEN 'STATIC_WEBSITE'
-    WHEN 'ai'      THEN 'GENERATIVE_UI'
-    WHEN 'contact' THEN 'CUSTOMISE_WEBSITE_CONTACT_US'
-    ELSE website_mode
-  END
-WHERE website_mode IN ('static', 'ai', 'contact');
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS header_bg VARCHAR(50) NOT NULL DEFAULT '#FFFFFF';
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS footer_bg VARCHAR(50) NOT NULL DEFAULT '#1E293B';
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS maps_url TEXT;
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS chat_layout VARCHAR(20) NOT NULL DEFAULT 'app';
-ALTER TABLE saloon_website_theme ADD COLUMN IF NOT EXISTS chat_bg VARCHAR(50);
-
-ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE staff_member ADD COLUMN IF NOT EXISTS available_for_booking BOOLEAN NOT NULL DEFAULT TRUE;
-
-ALTER TABLE saloon ADD COLUMN IF NOT EXISTS booking_advance_days INTEGER NOT NULL DEFAULT 60;
-ALTER TABLE saloon ADD COLUMN IF NOT EXISTS business_registration_id VARCHAR(100);
-ALTER TABLE saloon ADD COLUMN IF NOT EXISTS show_business_id BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE saloon ADD COLUMN IF NOT EXISTS business_id_label VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS saloon_closure (
   id          BIGSERIAL    PRIMARY KEY,

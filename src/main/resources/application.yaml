@@ -5,9 +5,9 @@ spring:
       static-geo-data: classpath:data/countries.json
       static-currency-data: classpath:data/currencies.json
   datasource:
-    url: jdbc:postgresql://localhost:5432/saloon
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/saloon}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
   sql:
     init:
       mode: always
@@ -21,7 +21,7 @@ spring:
     virtual:
       enabled: true
   flyway:
-    enabled: true
+    enabled: false
     locations:
       - db
     user: ${spring.datasource.username}
