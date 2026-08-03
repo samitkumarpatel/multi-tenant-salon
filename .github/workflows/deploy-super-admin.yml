@@ -6,6 +6,7 @@ on:
     paths:
       - "frontend/apps/saloon-super-admin/**"
       - "frontend/package.json"
+      - ".github/workflows/deploy-super-admin.yml"
   workflow_dispatch:
 
 jobs:

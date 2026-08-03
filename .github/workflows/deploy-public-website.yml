@@ -7,6 +7,7 @@ on:
       - "frontend/apps/saloon-public-website/**"
       - "frontend/packages/ui-website/**"
       - "frontend/package.json"
+      - ".github/workflows/deploy-public-website.yml"
   workflow_dispatch:
 
 jobs:
