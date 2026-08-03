@@ -100,6 +100,7 @@ module "frontend" {
 module "backend" {
   source = "../../stacks/backend"
 
+  ghcr_token               = var.ghcr_token
   environment              = "dev"
   name                     = "my-saloon"
   domain                   = "my-saloon.online"

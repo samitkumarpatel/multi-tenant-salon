@@ -59,6 +59,12 @@ variable "services" {
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+variable "ghcr_token" {
+  type        = string
+  sensitive   = true
+  description = "GHCR pull credentials as JSON: {\"username\":\"...\",\"password\":\"<PAT with read:packages>\"}. Set via TF_VAR_ghcr_token."
+}
+
 variable "routes" {
   type = object({
     http = map(string)
