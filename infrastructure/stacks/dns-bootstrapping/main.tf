@@ -7,22 +7,6 @@ locals {
 
   global_certs   = { for k, v in var.certificates : k => v if v.global }
   regional_certs = { for k, v in var.certificates : k => v if !v.global }
-
-  # Deduplicated DNS validation CNAMEs across all certs.
-  # When two certs cover the same domain (e.g. both cloudfront and api-gateway use
-  # *.my-saloon.online), ACM produces identical CNAME names. Keying by
-  # resource_record_name collapses them to a single Route 53 record.
-  all_validation_records = {
-    for dvo in flatten([
-      for cert in concat(
-        values(aws_acm_certificate.global),
-        values(aws_acm_certificate.regional),
-      ) : [for option in cert.domain_validation_options : option]
-    ]) : dvo.resource_record_name => {
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
 }
 
 # Phase 1 — apply this target first, then update NS records at your registrar:
@@ -63,15 +47,36 @@ resource "aws_acm_certificate" "regional" {
   }
 }
 
-# ── DNS validation records (shared, deduplicated) ─────────────────────────────
-# Route 53 is a global service — records are written with the default provider
-# regardless of whether the cert is global or regional.
+# ── DNS validation records ─────────────────────────────────────────────────────
+# Derived from the global cert only — both global and regional certs cover the
+# same domains so ACM issues identical CNAMEs. The regional cert validation
+# below reuses these same Route 53 records.
+# for_each keys come from domain_validation_options.domain_name which mirrors
+# the configured domain_name / subject_alternative_names — known at plan time
+# once the global cert exists in state.
+#
+# Fresh environment: run once with -target first:
+#   terraform apply -target=module.dns_bootstrapping.aws_acm_certificate.global
 
 resource "aws_route53_record" "cert_validation" {
-  for_each = local.all_validation_records
+  for_each = {
+    for dvo in flatten([
+      for cert in values(aws_acm_certificate.global) :
+      [for o in cert.domain_validation_options : {
+        domain = o.domain_name
+        name   = o.resource_record_name
+        value  = o.resource_record_value
+        type   = o.resource_record_type
+      }]
+    ]) : dvo.domain => {
+      name   = dvo.name
+      record = dvo.value
+      type   = dvo.type
+    }
+  }
 
   allow_overwrite = true
-  name            = each.key
+  name            = each.value.name
   records         = [each.value.record]
   ttl             = 60
   type            = each.value.type
@@ -87,7 +92,7 @@ resource "aws_acm_certificate_validation" "global" {
   certificate_arn = aws_acm_certificate.global[each.key].arn
   validation_record_fqdns = [
     for dvo in aws_acm_certificate.global[each.key].domain_validation_options :
-    aws_route53_record.cert_validation[dvo.resource_record_name].fqdn
+    aws_route53_record.cert_validation[dvo.domain_name].fqdn
   ]
 }
 
@@ -97,6 +102,6 @@ resource "aws_acm_certificate_validation" "regional" {
   certificate_arn = aws_acm_certificate.regional[each.key].arn
   validation_record_fqdns = [
     for dvo in aws_acm_certificate.regional[each.key].domain_validation_options :
-    aws_route53_record.cert_validation[dvo.resource_record_name].fqdn
+    aws_route53_record.cert_validation[dvo.domain_name].fqdn
   ]
 }

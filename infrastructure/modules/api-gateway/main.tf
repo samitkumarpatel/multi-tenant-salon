@@ -1,6 +1,4 @@
-# ── VPC Link (shared between HTTP and WebSocket APIs) ─────────────────────────
-# Hyperplane ENIs are placed in the given private subnets and route traffic
-# from both API types to the internal ALB without traversing the internet.
+# ── VPC Link ──────────────────────────────────────────────────────────────────
 
 resource "aws_apigatewayv2_vpc_link" "this" {
   name               = "${var.name}-vpc-link"
@@ -77,75 +75,7 @@ resource "aws_route53_record" "api" {
   }
 }
 
-# ── WebSocket API ──────────────────────────────────────────────────────────────
-# The Spring Boot backend handles the WS upgrade on the same port 8080.
-# API Gateway forwards $connect/$disconnect/$default frames via the shared VPC Link.
-
-resource "aws_apigatewayv2_api" "ws" {
-  name                       = "${var.name}-ws"
-  protocol_type              = "WEBSOCKET"
-  route_selection_expression = "$request.body.action"
-  tags                       = var.tags
-}
-
-resource "aws_apigatewayv2_integration" "ws" {
-  api_id             = aws_apigatewayv2_api.ws.id
-  integration_type   = "HTTP_PROXY"
-  integration_method = "POST"
-  integration_uri    = var.alb_listener_arn
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.this.id
-}
-
-locals {
-  # $connect and $disconnect are always required for WebSocket to function;
-  # merge user-defined routes on top so they can override or extend.
-  all_ws_routes = merge(
-    { "$connect" = "", "$disconnect" = "" },
-    var.ws_routes,
-  )
-}
-
-resource "aws_apigatewayv2_route" "ws" {
-  for_each  = local.all_ws_routes
-  api_id    = aws_apigatewayv2_api.ws.id
-  route_key = each.key
-  target    = "integrations/${aws_apigatewayv2_integration.ws.id}"
-}
-
-resource "aws_apigatewayv2_stage" "ws" {
-  api_id      = aws_apigatewayv2_api.ws.id
-  name        = "prod"
-  auto_deploy = true
-  tags        = var.tags
-}
-
-resource "aws_apigatewayv2_domain_name" "ws" {
-  domain_name = "ws.${var.domain}"
-
-  domain_name_configuration {
-    certificate_arn = var.certificate_arn
-    endpoint_type   = "REGIONAL"
-    security_policy = "TLS_1_2"
-  }
-
-  tags = var.tags
-}
-
-resource "aws_apigatewayv2_api_mapping" "ws" {
-  api_id      = aws_apigatewayv2_api.ws.id
-  domain_name = aws_apigatewayv2_domain_name.ws.id
-  stage       = aws_apigatewayv2_stage.ws.id
-}
-
-resource "aws_route53_record" "ws" {
-  zone_id = var.zone_id
-  name    = "ws.${var.domain}"
-  type    = "A"
-
-  alias {
-    name                   = aws_apigatewayv2_domain_name.ws.domain_name_configuration[0].target_domain_name
-    zone_id                = aws_apigatewayv2_domain_name.ws.domain_name_configuration[0].hosted_zone_id
-    evaluate_target_health = false
-  }
-}
+# ── WebSocket ──────────────────────────────────────────────────────────────────
+# NOTE: API Gateway v2 WebSocket APIs do not support VPC Link integration.
+# WebSocket support will be added when the Spring Boot app implements WS endpoints,
+# using a public NLB or a separate integration approach.

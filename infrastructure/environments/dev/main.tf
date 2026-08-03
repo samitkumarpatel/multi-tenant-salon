@@ -125,8 +125,5 @@ module "backend" {
     http = {
       "/" = "api"
     }
-    ws = {
-      "$default" = "api"
-    }
   }
 }

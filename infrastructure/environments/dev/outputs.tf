@@ -54,11 +54,6 @@ output "api_endpoint" {
   description = "REST API endpoint — set as API_BASE_URL in the frontend apps"
 }
 
-output "ws_endpoint" {
-  value       = module.backend.ws_endpoint
-  description = "WebSocket endpoint — set as WS_URL in the frontend apps"
-}
-
 output "ecs_cluster_name" {
   value       = module.backend.ecs_cluster_name
   description = "Set as ECS_CLUSTER in GitHub Actions repository variables"
