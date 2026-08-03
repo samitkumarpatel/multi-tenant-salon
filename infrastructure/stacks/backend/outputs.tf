@@ -8,11 +8,6 @@ output "api_endpoint" {
   description = "REST API endpoint — set as API_BASE_URL in the frontend apps"
 }
 
-output "ws_endpoint" {
-  value       = "wss://${module.api_gateway.ws_custom_domain}"
-  description = "WebSocket endpoint — set as WS_URL in the frontend apps"
-}
-
 output "ecs_cluster_name" {
   value       = module.ecs.cluster_name
   description = "Set as ECS_CLUSTER in GitHub Actions repository variables"

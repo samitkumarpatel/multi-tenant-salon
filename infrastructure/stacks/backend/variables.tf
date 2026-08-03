@@ -62,7 +62,6 @@ variable "services" {
 variable "routes" {
   type = object({
     http = map(string)
-    ws   = optional(map(string), { "$default" = "" })
   })
-  description = "Routing rules. http maps path prefixes to service keys (e.g. { \"/api\" = \"api\" }). ws maps WebSocket route keys to service keys; $connect and $disconnect are always created."
+  description = "Routing rules. http maps path prefixes to service keys (e.g. { \"/\" = \"api\" })."
 }

@@ -52,7 +52,7 @@ resource "aws_vpc_security_group_egress_rule" "vpc_link_all" {
 
 resource "aws_security_group" "alb" {
   name        = "${local.backend_name}-alb"
-  description = "Internal ALB — accepts traffic from API Gateway VPC Link"
+  description = "Internal ALB - accepts traffic from API Gateway VPC Link"
   vpc_id      = data.aws_vpc.default.id
   tags        = merge(local.common_tags, { Name = "${local.backend_name}-alb" })
 }
@@ -73,7 +73,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_all" {
 
 resource "aws_security_group" "ecs" {
   name        = "${local.backend_name}-ecs"
-  description = "ECS tasks — accepts traffic from internal ALB"
+  description = "ECS tasks - accepts traffic from internal ALB"
   vpc_id      = data.aws_vpc.default.id
   tags        = merge(local.common_tags, { Name = "${local.backend_name}-ecs" })
 }
@@ -94,7 +94,7 @@ resource "aws_vpc_security_group_egress_rule" "ecs_all" {
 
 resource "aws_security_group" "rds" {
   name        = "${local.backend_name}-rds"
-  description = "RDS PostgreSQL — accepts connections from ECS tasks only"
+  description = "RDS PostgreSQL - accepts connections from ECS tasks only"
   vpc_id      = data.aws_vpc.default.id
   tags        = merge(local.common_tags, { Name = "${local.backend_name}-rds" })
 }
@@ -171,6 +171,5 @@ module "api_gateway" {
   domain             = var.domain
   certificate_arn    = var.regional_certificate_arn
   zone_id            = var.zone_id
-  ws_routes          = var.routes.ws
   tags               = local.common_tags
 }
