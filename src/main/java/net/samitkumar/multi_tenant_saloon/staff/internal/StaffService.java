@@ -9,7 +9,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,10 +54,19 @@ public class StaffService implements StaffApi {
         var saved = repository.save(member);
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
                 ? schedule
-                : List.<StaffOnboardedEvent.DaySchedule>of();
+                : DEFAULT_SCHEDULE;
         eventPublisher.publishEvent(new StaffOnboardedEvent(saloonId, saved.id(), effectiveSchedule));
         return saved;
     }
+
+    private static final List<StaffOnboardedEvent.DaySchedule> DEFAULT_SCHEDULE = List.of(
+            new StaffOnboardedEvent.DaySchedule(DayOfWeek.MONDAY,    LocalTime.of(9, 0), LocalTime.of(18, 0)),
+            new StaffOnboardedEvent.DaySchedule(DayOfWeek.TUESDAY,   LocalTime.of(9, 0), LocalTime.of(18, 0)),
+            new StaffOnboardedEvent.DaySchedule(DayOfWeek.WEDNESDAY, LocalTime.of(9, 0), LocalTime.of(18, 0)),
+            new StaffOnboardedEvent.DaySchedule(DayOfWeek.THURSDAY,  LocalTime.of(9, 0), LocalTime.of(18, 0)),
+            new StaffOnboardedEvent.DaySchedule(DayOfWeek.FRIDAY,    LocalTime.of(9, 0), LocalTime.of(18, 0)),
+            new StaffOnboardedEvent.DaySchedule(DayOfWeek.SATURDAY,  LocalTime.of(9, 0), LocalTime.of(14, 0))
+    );
 
     StaffMember onboardOwner(UUID saloonId, String name, String email, String phone) {
         return onboard(saloonId, name, email, phone, StaffRole.MANAGER, true, List.of(), null);

@@ -4,8 +4,11 @@ import net.samitkumar.multi_tenant_saloon.booking.StaffAvailability;
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffOnboardedEvent;
-import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -24,8 +27,11 @@ class StaffOnboardedListener {
         this.saloonApi = saloonApi;
     }
 
-    @ApplicationModuleListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     void onStaffOnboarded(StaffOnboardedEvent event) {
+        if (event.schedule().isEmpty()) return;
+
         List<Saloon.OperatingHours> operatingHours = saloonApi.findOperatingHours(event.saloonId());
 
         var entries = event.schedule().stream()
