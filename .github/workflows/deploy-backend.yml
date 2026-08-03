@@ -6,7 +6,7 @@ on:
     paths:
       - "src/**"
       - "pom.xml"
-      - ".mvn/**"
+      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
 env:
