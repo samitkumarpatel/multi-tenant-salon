@@ -27,6 +27,8 @@ class BookingModuleTests {
 
     // Fixed Monday in the future for deterministic availability tests
     static final String TEST_DATE = "2027-01-04";
+    // Sunday — outside the default Mon–Sat seeded schedule
+    static final String TEST_DATE_SUNDAY = "2027-01-10";
 
     @BeforeEach
     void setUp(@Autowired WebApplicationContext context) {
@@ -257,10 +259,11 @@ class BookingModuleTests {
 
     @Test
     void getAvailableSlotsReturnsEmptyWhenNoAvailability() {
+        // Sunday is outside the default Mon–Sat seeded schedule, so 0 slots regardless
         client.get()
                 .uri(u -> u.path("/api/saloon/{saloonId}/slots")
                         .queryParam("serviceId", serviceId)
-                        .queryParam("date", TEST_DATE)
+                        .queryParam("date", TEST_DATE_SUNDAY)
                         .queryParam("staffId", staffId)
                         .build(saloonId))
                 .exchange()

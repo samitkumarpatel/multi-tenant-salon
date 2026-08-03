@@ -361,8 +361,8 @@ class IntegrationTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.saloonId").isEqualTo(saloonId)
-                .jsonPath("$.heroBg").isEqualTo("#0F172A")
-                .jsonPath("$.accentColor").isEqualTo("#F59E0B");
+                .jsonPath("$.heroBg").isEqualTo("#F8FAFC")
+                .jsonPath("$.accentColor").isEqualTo("#059669");
     }
 
     @Test
