@@ -63,7 +63,4 @@ jobs:
 
       - name: Invalidate CloudFront
         run: |
-          DIST_ID=$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?Aliases.Items[?@=='admin.my-saloon.online']].Id | [0]" \
-            --output text)
-          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+          aws cloudfront create-invalidation --distribution-id E20WDQABJM1OZA --paths "/*"
