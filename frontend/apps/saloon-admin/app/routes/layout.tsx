@@ -5,7 +5,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, clearAdminSession } from "~/routes/login";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks } from "lucide-react";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, PowerOff, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
@@ -232,6 +232,7 @@ export default function Layout() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]         = useState(false);
   const [deleteError, setDeleteError]   = useState<string | null>(null);
+  const [enabling, setEnabling]         = useState(false);
   const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(null);
   const { toast, notify } = useToast();
 
@@ -298,15 +299,28 @@ export default function Layout() {
     navigate("/login");
   }
 
-  async function handleDelete() {
+  async function handleDisable() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await apiFetch(`${ADMIN_API}/${saloon!.id}`, { method: "DELETE" });
-      navigate("/customer");
+      const updated = await apiFetch<Saloon>(`${ADMIN_API}/${saloon!.id}`, { method: "DELETE" });
+      setSaloon(updated);
+      setShowDeleteModal(false);
     } catch (e: unknown) {
-      setDeleteError(e instanceof Error ? e.message : "Delete failed");
+      setDeleteError(e instanceof Error ? e.message : "Disable failed");
       setDeleting(false);
+    }
+  }
+
+  async function handleEnable() {
+    setEnabling(true);
+    try {
+      const updated = await apiFetch<Saloon>(`${ADMIN_API}/${saloon!.id}/enable`, { method: "PUT" });
+      setSaloon(updated);
+    } catch (e: unknown) {
+      notify(e instanceof Error ? e.message : "Enable failed", "error");
+    } finally {
+      setEnabling(false);
     }
   }
 
@@ -324,8 +338,12 @@ export default function Layout() {
         </button>
 
         <div className="pr-3 border-r border-slate-200">
-          <AppLogo size={24} textColor="#374151" className="hidden sm:inline-flex" />
-          <AppLogo size={24} showText={false} className="sm:hidden" />
+          <span className="hidden sm:inline-flex">
+            <AppLogo size={24} textColor="#374151" />
+          </span>
+          <span className="sm:hidden">
+            <AppLogo size={24} showText={false} />
+          </span>
         </div>
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:block" />
         <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{saloon.name}</span>
@@ -500,12 +518,12 @@ export default function Layout() {
                 <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support
               </NavLink>
             </Tooltip>
-            <Tooltip content="Permanently remove this saloon and all its data. This action cannot be undone.">
+            <Tooltip content="Disable this saloon. It will no longer accept bookings or appear publicly, but all data is preserved and it can be re-enabled later.">
               <button
                 onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer w-full text-left"
               >
-                <Trash2 className="w-4 h-4 shrink-0" /> Delete saloon
+                <PowerOff className="w-4 h-4 shrink-0" /> Disable saloon
               </button>
             </Tooltip>
           </div>
@@ -514,12 +532,32 @@ export default function Layout() {
         {/* ── Main content ──────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-            <Outlet context={ctx} />
+            {saloon.status === "DISABLED" ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-14 h-14 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mb-5">
+                  <AlertTriangle className="w-6 h-6 text-amber-500" />
+                </div>
+                <h2 className="text-lg font-bold text-slate-800 mb-2">This saloon is disabled</h2>
+                <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-6">
+                  <strong className="text-slate-700">{saloon.name}</strong> is currently disabled. It won't accept new bookings or appear publicly. All data is intact — enable it to restore full access.
+                </p>
+                <button
+                  onClick={handleEnable}
+                  disabled={enabling}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-matcha-600 hover:bg-matcha-700 text-white transition-colors cursor-pointer disabled:opacity-45"
+                >
+                  <Power className="w-4 h-4" />
+                  {enabling ? "Enabling…" : "Enable saloon"}
+                </button>
+              </div>
+            ) : (
+              <Outlet context={ctx} />
+            )}
           </div>
         </main>
       </div>
 
-      {/* ── Delete modal ────────────────────────────────────────────────── */}
+      {/* ── Disable modal ───────────────────────────────────────────────── */}
       {showDeleteModal && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -530,13 +568,13 @@ export default function Layout() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 className="w-4 h-4 text-red-600" />
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <PowerOff className="w-4 h-4 text-amber-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Delete saloon</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Disable saloon</h2>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  This will permanently remove <strong className="text-slate-700">{saloon.name}</strong> and all its data. This cannot be undone.
+                  <strong className="text-slate-700">{saloon.name}</strong> will be disabled — it won't accept bookings or appear publicly. All data is preserved and you can re-enable it at any time.
                 </p>
               </div>
             </div>
@@ -552,12 +590,12 @@ export default function Layout() {
                 Cancel
               </button>
               <button
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-45"
-                onClick={handleDelete}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-45"
+                onClick={handleDisable}
                 disabled={deleting}
               >
-                <Trash2 className="w-3 h-3" />
-                {deleting ? "Deleting…" : "Delete"}
+                <PowerOff className="w-3 h-3" />
+                {deleting ? "Disabling…" : "Disable"}
               </button>
             </div>
           </div>

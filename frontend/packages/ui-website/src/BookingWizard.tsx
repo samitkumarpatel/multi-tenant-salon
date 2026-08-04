@@ -1433,7 +1433,7 @@ export function BookingWizard({
 
       {/* Body */}
       <main
-        className="flex-1 flex items-start justify-center px-6 py-6 overflow-y-auto"
+        className="flex-1 flex items-start justify-center px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto"
         style={{ background: `radial-gradient(80% 50% at 50% 0%, ${accent.color}0a, transparent 70%)` }}
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}

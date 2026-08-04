@@ -32,11 +32,13 @@ export default function Edit() {
   const initialStep = Math.min(Math.max(0, Number(searchParams.get("step") ?? 0)), TOTAL - 1);
   const [step, setStep] = useState(initialStep);
 
-  const [name,     setName]     = useState(saloon.name);
-  const [location, setLoc]      = useState<Location>(saloon.location  ? { ...saloon.location }  : {});
-  const [contact,  setContact]  = useState<ContactInfo>(saloon.contact ? { ...saloon.contact }  : {});
-  const [hours,    setHours]    = useState(cloneHours(saloon.operatingHours));
-  const [features, setFeatures] = useState<string[]>([...(saloon.features ?? [])]);
+  const [name,      setName]      = useState(saloon.name);
+  const [location,  setLoc]       = useState<Location>(saloon.location  ? { ...saloon.location }  : {});
+  const [contact,   setContact]   = useState<ContactInfo>(saloon.contact ? { ...saloon.contact }  : {});
+  const [hours,     setHours]     = useState(cloneHours(saloon.operatingHours));
+  const [features,  setFeatures]  = useState<string[]>([...(saloon.features ?? [])]);
+  const [bizRegId,  setBizRegId]  = useState(saloon.businessRegistrationId ?? "");
+  const [showBizId, setShowBizId] = useState(saloon.showBusinessId ?? false);
 
   const [errors,    setErrors]    = useState<Record<string, string>>({});
   const [saving,    setSaving]    = useState(false);
@@ -83,6 +85,8 @@ export default function Edit() {
             website: contact.website?.trim() || null,
           },
           operatingHours: hours,
+          businessRegistrationId: bizRegId.trim() || null,
+          showBusinessId: showBizId,
         }),
       });
       const withFeatures = await apiFetch<Saloon>(`${ADMIN_API}/${saloon.id}/features`, {
@@ -116,12 +120,19 @@ export default function Edit() {
           </div>
         );
 
-      case 1:
+      case 1: {
+        const selectedCountry  = countries.find((c) => c.name === location.country);
+        const bizIdLabel       = selectedCountry?.businessIdLabel ?? saloon.businessIdLabel ?? null;
+        const bizIdPlaceholder = selectedCountry?.businessIdPlaceholder ?? "";
         return (
           <div>
             <div className={fieldCls}>
               <label className={labelCls}>Country / Region</label>
-              <CountrySelect value={location.country ?? ""} onChange={(v) => patchLoc({ country: v })} countries={countries} />
+              <CountrySelect
+                value={location.country ?? ""}
+                onChange={(v) => { patchLoc({ country: v }); setBizRegId(""); setShowBizId(false); }}
+                countries={countries}
+              />
             </div>
             <div className={fieldCls}>
               <label className={labelCls}>Address</label>
@@ -137,8 +148,37 @@ export default function Edit() {
                 <input className={inputCls} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder="San Francisco" />
               </div>
             </div>
+            {bizIdLabel && (
+              <div className={fieldCls}>
+                <label className={labelCls}>
+                  {bizIdLabel}{" "}
+                  <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span>
+                </label>
+                <input
+                  className={inputCls}
+                  value={bizRegId}
+                  onChange={(e) => setBizRegId(e.target.value)}
+                  placeholder={bizIdPlaceholder}
+                />
+                {bizRegId && (
+                  <label className="flex items-center gap-2.5 mt-2.5 cursor-pointer select-none">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={showBizId}
+                      onClick={() => setShowBizId((v) => !v)}
+                      className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${showBizId ? "bg-matcha-600" : "bg-stone-200"}`}
+                    >
+                      <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${showBizId ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </button>
+                    <span className="text-xs text-stone-500">Show on public website</span>
+                  </label>
+                )}
+              </div>
+            )}
           </div>
         );
+      }
 
       case 2:
         return (

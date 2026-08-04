@@ -358,7 +358,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
-        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-8 min-w-0">
             <a href="#top" className="flex items-center gap-2 no-underline group shrink-0">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center group-hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.logoBgColor }}>
@@ -392,7 +392,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section ref={heroRef} id="top" style={{ backgroundColor: theme.heroBg }}>
-        <div className="max-w-5xl mx-auto px-6 py-10 sm:py-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-10 items-start">
 
             <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(18px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
@@ -537,7 +537,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
 
       {/* ── Services + Team ─────────────────────────────────────────────── */}
       {(activeServices.length > 0 || activeStaff.length > 0) && (
-        <section id="services" className="max-w-5xl mx-auto px-6 py-6 sm:py-10 w-full scroll-mt-16">
+        <section id="services" className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 w-full scroll-mt-16">
           <div className={`grid grid-cols-1 gap-10 lg:gap-12 items-start ${activeServices.length > 0 && activeStaff.length > 0 ? "lg:grid-cols-[1fr_300px]" : ""}`}>
 
             {activeServices.length > 0 && (
@@ -574,14 +574,14 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="inline-flex items-center justify-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full w-[5.5rem] shrink-0">
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                          <span className="hidden sm:inline-flex items-center justify-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full w-[5.5rem] shrink-0">
                             <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                           </span>
                           <span className="text-sm font-bold text-slate-900 w-16 text-right tabular-nums shrink-0">{formatPrice(s.price, s.currency)}</span>
                           {hasBooking && (
                             <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
-                              className="hidden sm:inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-0 group-hover/svc:opacity-100 transition-opacity w-[4.5rem] shrink-0"
+                              className="inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline sm:opacity-0 sm:group-hover/svc:opacity-100 transition-opacity w-[4.5rem] shrink-0"
                               style={{ backgroundColor: theme.accentColor, color: accentText }}>
                               Book <ChevronRight className="w-3 h-3" />
                             </a>
@@ -682,7 +682,7 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer id="contact" className="mt-auto scroll-mt-16" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
-        <div className="max-w-5xl mx-auto px-6 py-10 sm:py-12">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
             <div className="lg:max-w-[220px]">

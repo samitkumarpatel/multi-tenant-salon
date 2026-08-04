@@ -724,20 +724,20 @@ export default function NewSaloon() {
         </div>
       </header>
 
-      {/* Content area — pt-12 controls gap from header to card; adjust as needed */}
-      <main className="flex-1 flex items-start justify-center px-4 pt-12 pb-8">
+      {/* Content area */}
+      <main className="flex-1 flex items-start justify-center px-4 pt-6 sm:pt-12 pb-8">
         <div className="w-full max-w-lg">
           <div className={`bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm transition-transform ${formShaking ? "animate-[shake_0.45s_ease]" : ""}`}>
 
             {/* Card header */}
-            <div className="px-6 pt-6 pb-5 border-b border-stone-100">
+            <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 sm:pb-5 border-b border-stone-100">
               <h2 className="text-lg font-bold text-stone-900 mb-1">{STEPS[step].title}</h2>
               <p className="text-sm text-stone-500 leading-relaxed">{STEPS[step].hint}</p>
             </div>
 
             {/* Sticky error banner — outside keyed div so it doesn't re-animate on step change */}
             {countriesError && (
-              <div className="px-6 pt-4">
+              <div className="px-4 sm:px-6 pt-4">
                 <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                   <p className="text-sm text-red-700">We are experiencing an error — please try again later.</p>
@@ -746,12 +746,12 @@ export default function NewSaloon() {
             )}
 
             {/* Step content — keyed so it fades in on each transition */}
-            <div key={step} className="px-6 py-5 animate-[fade-in_0.18s_ease]">
+            <div key={step} className="px-4 sm:px-6 py-4 sm:py-5 animate-[fade-in_0.18s_ease]">
               {renderStep()}
             </div>
 
             {/* Navigation footer */}
-            <div className="px-6 py-4 border-t border-stone-100 flex justify-between items-center bg-stone-50/60">
+            <div className="px-4 sm:px-6 py-4 border-t border-stone-100 flex justify-between items-center bg-stone-50/60">
               {step > 0 ? (
                 <button
                   onClick={goBack}

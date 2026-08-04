@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, UserCircle, ChevronRight, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle, Plus, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, X, UserCircle, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle, Plus, ChevronDown } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
@@ -795,12 +795,12 @@ export default function Staff() {
                   ) : null}
                 </div>
 
-                <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => openEdit(m)}
                   >
-                    <Pencil className="w-3 h-3" /> Edit
+                    <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">Edit</span>
                   </button>
                   {!m.isOwner && (
                     <button
@@ -811,8 +811,6 @@ export default function Staff() {
                     </button>
                   )}
                 </div>
-
-                <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
               </div>
             ))}
             <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">

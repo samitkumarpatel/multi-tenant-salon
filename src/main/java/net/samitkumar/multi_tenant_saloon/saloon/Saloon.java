@@ -26,13 +26,17 @@ public record Saloon(
         String businessRegistrationId,
         Boolean showBusinessId,
         String businessIdLabel,
-        Instant createdAt
+        Instant createdAt,
+        SaloonStatus status
 ) {
+    public enum SaloonStatus { ACTIVE, DISABLED }
+
     public Saloon {
         features = features != null ? List.copyOf(features) : List.of();
         operatingHours = operatingHours != null ? List.copyOf(operatingHours) : List.of();
         if (bookingAdvanceDays == null) bookingAdvanceDays = 60;
         if (showBusinessId == null) showBusinessId = false;
+        if (status == null) status = SaloonStatus.ACTIVE;
     }
 
     public record Owner(

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, ChevronRight, Plus, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, Plus, ChevronDown } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSaloonUUID } from "~/lib/api";
 import { SERVICE_CATEGORIES, CATEGORY_LABEL, formatPrice, toggleList } from "~/lib/constants";
 import type { LayoutContext, StaffMember, ServiceItem, Country } from "~/lib/types";
@@ -553,12 +553,12 @@ export default function Services() {
                     {formatPrice(sv.price, sv.currency)}
                   </span>
                 </div>
-                <div className="shrink-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => openEdit(sv)}
                   >
-                    <Pencil className="w-3 h-3" /> Edit
+                    <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">Edit</span>
                   </button>
                   <button
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
@@ -567,7 +567,6 @@ export default function Services() {
                     <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 sm:hidden" />
               </div>
             ))}
             <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
