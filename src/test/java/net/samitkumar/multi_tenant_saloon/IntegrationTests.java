@@ -361,8 +361,8 @@ class IntegrationTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.saloonId").isEqualTo(saloonId)
-                .jsonPath("$.heroBg").isEqualTo("#F8FAFC")
-                .jsonPath("$.accentColor").isEqualTo("#059669");
+                .jsonPath("$.heroBg").isEqualTo("#EEF2F4")
+                .jsonPath("$.accentColor").isEqualTo("#7C3AED");
     }
 
     @Test
@@ -805,11 +805,15 @@ class IntegrationTests {
         client.delete()
                 .uri("/api/saloon-admin/{id}", saloonId)
                 .exchange()
-                .expectStatus().isNoContent();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("DISABLED");
 
         client.get()
                 .uri("/api/saloon/{id}", saloonId)
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("DISABLED");
     }
 }

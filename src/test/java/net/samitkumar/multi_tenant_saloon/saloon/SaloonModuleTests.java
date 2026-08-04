@@ -194,11 +194,15 @@ class SaloonModuleTests {
         client.delete()
                 .uri("/api/saloon-admin/" + id)
                 .exchange()
-                .expectStatus().isNoContent();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("DISABLED");
 
         client.get()
                 .uri("/api/saloon/" + id)
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("DISABLED");
     }
 }
