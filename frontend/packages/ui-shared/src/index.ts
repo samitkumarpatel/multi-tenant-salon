@@ -7,3 +7,4 @@ export { InfoBar } from "./InfoBar";
 export { detectCountry } from "./locale";
 export { Toast, useToast } from "./Toast";
 export type { ToastType } from "./Toast";
+export { NavProgress } from "./NavProgress";

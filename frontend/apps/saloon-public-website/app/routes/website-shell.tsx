@@ -53,6 +53,9 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
 
   try {
     const saloon = await apiFetch<Saloon>(`${API_BASE}/api/saloon/${slug}`);
+    if (saloon.status === "DISABLED") {
+      return { status: "disabled", saloonName: saloon.name };
+    }
     const [staff, services, theme] = await Promise.all([
       apiFetch<StaffMember[]>(`${API_BASE}/api/saloon/${saloon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<ServiceItem[]>(`${API_BASE}/api/saloon/${saloon.id}/services`).catch((): ServiceItem[] => []),

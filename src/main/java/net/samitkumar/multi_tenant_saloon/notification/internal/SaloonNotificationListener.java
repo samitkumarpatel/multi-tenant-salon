@@ -2,7 +2,7 @@ package net.samitkumar.multi_tenant_saloon.notification.internal;
 
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
-import org.springframework.context.event.EventListener;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonDisabledEvent;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
@@ -23,5 +23,16 @@ class SaloonNotificationListener {
                 event.ownerName(), event.ownerEmail(),
                 event.saloonId(),
                 event.features().isEmpty() ? "none" : event.features());
+    }
+
+    @ApplicationModuleListener
+    void onSaloonDisabled(SaloonDisabledEvent event) {
+        log.info("""
+                [NOTIFICATION] Saloon disabled — owner notification queued.
+                  Saloon : {} (id: {})
+                  Owner  : {} <{}>
+                """,
+                event.saloonName(), event.saloonId(),
+                event.ownerName(), event.ownerEmail());
     }
 }

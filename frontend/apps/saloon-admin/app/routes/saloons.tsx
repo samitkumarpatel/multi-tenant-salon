@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Building2, MapPin, ArrowRight, LogOut } from "lucide-react";
+import { Building2, MapPin, ArrowRight, LogOut, Power } from "lucide-react";
 import { AppLogo } from "@saloon/ui-shared";
 import { getAdminSession, clearAdminSession } from "~/routes/login";
+import { ADMIN_API, apiFetch } from "~/lib/api";
 import type { Saloon } from "~/lib/types";
 
 export default function SaloonPicker() {
   const navigate = useNavigate();
   const [saloons, setSaloons] = useState<Saloon[]>([]);
   const [email, setEmail]     = useState("");
+  const [enablingId, setEnablingId] = useState<string | null>(null);
 
   useEffect(() => {
     const session = getAdminSession();
@@ -22,6 +24,16 @@ export default function SaloonPicker() {
 
   function handlePick(saloon: Saloon) {
     navigate(`/${saloon.id}`);
+  }
+
+  async function handleEnable(saloon: Saloon) {
+    setEnablingId(String(saloon.id));
+    try {
+      await apiFetch<Saloon>(`${ADMIN_API}/${saloon.id}/enable`, { method: "PUT" });
+      navigate(`/${saloon.id}`);
+    } finally {
+      setEnablingId(null);
+    }
   }
 
   function handleSignOut() {
@@ -63,32 +75,77 @@ export default function SaloonPicker() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {saloons.map((saloon) => (
-              <button
-                key={String(saloon.id)}
-                onClick={() => handlePick(saloon)}
-                className="group flex items-center gap-4 bg-white border border-slate-200 rounded-xl p-4 text-left hover:border-matcha-400 hover:shadow-[0_0_0_3px_rgba(86,115,48,0.08)] transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 rounded-lg bg-matcha-50 border border-matcha-100 flex items-center justify-center shrink-0 group-hover:bg-matcha-100 transition-colors">
-                  <span className="text-sm font-bold text-matcha-600">
-                    {saloon.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
-                  </span>
-                </div>
+            {saloons.map((saloon) => {
+              const isDisabled = saloon.status === "DISABLED";
+              const isEnabling = enablingId === String(saloon.id);
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{saloon.name}</p>
-                  {saloon.location?.city && (
-                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                      <MapPin className="w-2.5 h-2.5" />
-                      {saloon.location.city}
-                      {saloon.location.country ? `, ${saloon.location.country}` : ""}
-                    </p>
-                  )}
-                </div>
+              if (isDisabled) {
+                return (
+                  <div
+                    key={String(saloon.id)}
+                    className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 opacity-70"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                      <span className="text-sm font-bold text-slate-400">
+                        {saloon.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                      </span>
+                    </div>
 
-                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-matcha-500 transition-colors shrink-0" />
-              </button>
-            ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-400 truncate line-through">{saloon.name}</p>
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-red-500 border border-red-200 rounded px-1.5 py-0.5 bg-red-50">
+                          Deleted
+                        </span>
+                      </div>
+                      {saloon.location?.city && (
+                        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-2.5 h-2.5" />
+                          {saloon.location.city}
+                          {saloon.location.country ? `, ${saloon.location.country}` : ""}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleEnable(saloon)}
+                      disabled={isEnabling}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-matcha-700 border border-matcha-300 bg-white hover:bg-matcha-50 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      <Power className="w-3 h-3" />
+                      {isEnabling ? "Restoring…" : "Restore"}
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={String(saloon.id)}
+                  onClick={() => handlePick(saloon)}
+                  className="group flex items-center gap-4 bg-white border border-slate-200 rounded-xl p-4 text-left hover:border-matcha-400 hover:shadow-[0_0_0_3px_rgba(86,115,48,0.08)] transition-all cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-matcha-50 border border-matcha-100 flex items-center justify-center shrink-0 group-hover:bg-matcha-100 transition-colors">
+                    <span className="text-sm font-bold text-matcha-600">
+                      {saloon.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{saloon.name}</p>
+                    {saloon.location?.city && (
+                      <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-2.5 h-2.5" />
+                        {saloon.location.city}
+                        {saloon.location.country ? `, ${saloon.location.country}` : ""}
+                      </p>
+                    )}
+                  </div>
+
+                  <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-matcha-500 transition-colors shrink-0" />
+                </button>
+              );
+            })}
           </div>
 
         </div>

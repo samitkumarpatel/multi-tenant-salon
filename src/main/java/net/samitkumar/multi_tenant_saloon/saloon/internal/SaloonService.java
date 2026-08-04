@@ -5,6 +5,7 @@ import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.utility.CountryApi;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonClosure;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonCreatedEvent;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonDisabledEvent;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -156,7 +157,9 @@ class SaloonService implements SaloonApi {
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
                     existing.businessIdLabel(), existing.createdAt(), Saloon.SaloonStatus.DISABLED);
-            return repository.save(updated);
+            var saved = repository.save(updated);
+            eventPublisher.publishEvent(new SaloonDisabledEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email()));
+            return saved;
         });
     }
 
