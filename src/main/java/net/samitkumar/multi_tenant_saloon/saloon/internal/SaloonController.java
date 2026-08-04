@@ -98,9 +98,17 @@ class SaloonController {
     }
 
     @DeleteMapping("/api/saloon-admin/{id}")
-    ResponseEntity<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
-        return ResponseEntity.noContent().build();
+    ResponseEntity<Saloon> disable(@PathVariable UUID id) {
+        return service.disable(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/api/saloon-admin/{id}/enable")
+    ResponseEntity<Saloon> enable(@PathVariable UUID id) {
+        return service.enable(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     record AddClosureRequest(@NotNull LocalDate startDate, @NotNull LocalDate endDate, String reason) {}

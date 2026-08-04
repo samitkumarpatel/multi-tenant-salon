@@ -987,77 +987,78 @@ function BookingsPanel({
       { mode: "list"  as const, icon: <List          className="w-3.5 h-3.5" />, label: "List"  },
     ];
     return (
-      <div className="flex items-center gap-2 min-w-0">
-        {/* Prev / Next */}
-        <Tooltip content={`Previous ${viewMode}`} side="bottom">
-          <button onClick={() => go(-1)}
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        </Tooltip>
-        <Tooltip content={`Next ${viewMode}`} side="bottom">
-          <button onClick={() => go(1)}
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </Tooltip>
-
-        {/* Period label */}
-        <span className="text-sm font-semibold text-slate-800 truncate min-w-0">{periodLabel}</span>
-
-        <span className="flex-1" />
-
-        {/* View switcher */}
-        <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0">
-          {VIEW_TABS.map(({ mode, icon, label }, i) => {
-            const VIEW_HINTS: Record<string, string> = {
-              day:   "Single-day timeline split by staff member",
-              week:  "7-day overview with all bookings across the week",
-              month: "Full month grid — click a day to drill into it",
-              list:  "Flat list of appointments for the selected day with filters",
-            };
-            return (
-              <Tooltip key={mode} content={VIEW_HINTS[mode]} side="bottom">
-                <button onClick={() => setViewMode(mode)}
-                  className={`px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
-                    i > 0 ? "border-l border-slate-200" : ""
-                  } ${viewMode === mode ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
-                  {icon}
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              </Tooltip>
-            );
-          })}
-        </div>
-
-        {/* Refresh */}
-        <Tooltip content="Reload the latest bookings from the server" side="bottom">
-          <button
-            onClick={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }}
-            disabled={refreshing}
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0 disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-          </button>
-        </Tooltip>
-
-        {/* Expand / Collapse */}
-        {onClose ? (
-          <Tooltip content="Collapse back to the page" side="bottom">
-            <button onClick={onClose}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
-              <Minimize2 className="w-4 h-4" />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        {/* Row 1 (mobile) / left (desktop): Prev / Next + period label */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Tooltip content={`Previous ${viewMode}`} side="bottom">
+            <button onClick={() => go(-1)}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
+              <ChevronLeft className="w-4 h-4" />
             </button>
           </Tooltip>
-        ) : (
-          canExpand && (
-            <Tooltip content="Expand the calendar to full screen" side="bottom">
-              <button onClick={() => setExpanded(true)}
+          <Tooltip content={`Next ${viewMode}`} side="bottom">
+            <button onClick={() => go(1)}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer transition-colors shrink-0">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <span className="text-sm font-semibold text-slate-800 truncate min-w-0">{periodLabel}</span>
+        </div>
+
+        {/* Row 2 (mobile) / right (desktop): view switcher + refresh + expand */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* View switcher */}
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+            {VIEW_TABS.map(({ mode, icon, label }, i) => {
+              const VIEW_HINTS: Record<string, string> = {
+                day:   "Single-day timeline split by staff member",
+                week:  "7-day overview with all bookings across the week",
+                month: "Full month grid — click a day to drill into it",
+                list:  "Flat list of appointments for the selected day with filters",
+              };
+              return (
+                <Tooltip key={mode} content={VIEW_HINTS[mode]} side="bottom">
+                  <button onClick={() => setViewMode(mode)}
+                    className={`px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                      i > 0 ? "border-l border-slate-200" : ""
+                    } ${viewMode === mode ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+                    {icon}
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                </Tooltip>
+              );
+            })}
+          </div>
+
+          {/* Refresh */}
+          <Tooltip content="Reload the latest bookings from the server" side="bottom">
+            <button
+              onClick={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }}
+              disabled={refreshing}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0 disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
+          </Tooltip>
+
+          {/* Expand / Collapse */}
+          {onClose ? (
+            <Tooltip content="Collapse back to the page" side="bottom">
+              <button onClick={onClose}
                 className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
-                <Maximize2 className="w-4 h-4" />
+                <Minimize2 className="w-4 h-4" />
               </button>
             </Tooltip>
-          )
-        )}
+          ) : (
+            canExpand && (
+              <Tooltip content="Expand the calendar to full screen" side="bottom">
+                <button onClick={() => setExpanded(true)}
+                  className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors shrink-0">
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            )
+          )}
+        </div>
       </div>
     );
   }
@@ -1159,16 +1160,16 @@ function BookingsPanel({
     <div className="space-y-4">
 
       {/* ── Summary stats ── */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {STAT_CARDS.map(({ label, value, colorCls, status }) => {
           const isActive = viewMode === "list" && filterStatus === status;
           return (
             <button key={label}
               onClick={() => { setFilterStatus(status); setViewMode("list"); }}
-              className={`bg-white rounded-xl border px-4 py-3 text-center cursor-pointer transition-all hover:shadow-sm ${
+              className={`bg-white rounded-xl border px-3 sm:px-4 py-3 text-center cursor-pointer transition-all hover:shadow-sm ${
                 isActive ? "border-matcha-400 ring-1 ring-matcha-200 bg-matcha-50/30" : "border-slate-200 hover:border-slate-300"
               }`}>
-              <p className={`text-2xl font-bold leading-none ${colorCls}`}>{value}</p>
+              <p className={`text-xl sm:text-2xl font-bold leading-none ${colorCls}`}>{value}</p>
               <p className="text-[11px] font-medium text-slate-500 mt-1.5">{label}</p>
             </button>
           );

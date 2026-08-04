@@ -22,7 +22,7 @@ class WebsiteThemeService {
 
     WebsiteTheme getTheme(UUID saloonId) {
         return repository.findById(saloonId)
-                .orElse(new WebsiteTheme(saloonId, "#0F172A", "#F8FAFC", "#F59E0B", "system", "#10B981",
+                .orElse(new WebsiteTheme(saloonId, "#EEF2F4", "#0F172A", "#7C3AED", "nunito", "#7C3AED",
                         WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, "app", null, null));
     }
 

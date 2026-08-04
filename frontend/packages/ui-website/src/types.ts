@@ -56,6 +56,7 @@ export interface Saloon {
   showBusinessId?: boolean;
   businessIdLabel?: string;
   createdAt?: string;
+  status?: "ACTIVE" | "DISABLED";
 }
 
 export type WebsiteMode = "STATIC_WEBSITE" | "GENERATIVE_UI" | "CUSTOMISE_WEBSITE_CONTACT_US";

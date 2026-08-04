@@ -105,6 +105,14 @@ export default function Manage() {
           {saloon.location.state   && <InfoRow label="State">{saloon.location.state}</InfoRow>}
           {saloon.location.country && <InfoRow label="Country">{saloon.location.country}</InfoRow>}
           {saloon.location.zipCode && <InfoRow label="ZIP">{saloon.location.zipCode}</InfoRow>}
+          {saloon.businessRegistrationId && (
+            <InfoRow label={saloon.businessIdLabel ?? "Reg. ID"}>
+              {saloon.businessRegistrationId}
+              {saloon.showBusinessId && (
+                <span className="ml-2 text-[10px] font-medium text-matcha-600">· shown publicly</span>
+              )}
+            </InfoRow>
+          )}
         </div>
       )}
 

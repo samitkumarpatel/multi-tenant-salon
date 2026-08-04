@@ -53,7 +53,7 @@ export function SiteHeader({
 
   return (
     <header className="sticky top-0 z-30 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
-      <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
         <div className="flex items-center gap-4 sm:gap-8 min-w-0">
           <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group shrink-0">
             <div
@@ -149,7 +149,7 @@ export function SiteFooter({
           borderColor: footerBorder,
         }}
       >
-        <div className="max-w-5xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4 flex-wrap">
             <p className="text-[11px]" style={{ color: footerDim }}>
               © {new Date().getFullYear()} {saloon.name} · All rights reserved.
@@ -178,7 +178,7 @@ export function SiteFooter({
 
   return (
     <footer className="mt-auto" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
-      <div className="max-w-5xl mx-auto px-6 py-10 sm:py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
           <div className="lg:max-w-[220px]">

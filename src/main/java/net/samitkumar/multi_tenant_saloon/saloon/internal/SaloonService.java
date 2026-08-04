@@ -46,7 +46,7 @@ class SaloonService implements SaloonApi {
         return new Saloon(saloon.id(), saloon.name(), saloon.handler(), saloon.owner(),
                 saloon.location(), saloon.contact(), saloon.operatingHours(), saloon.features(),
                 saloon.bookingAdvanceDays(), saloon.businessRegistrationId(), saloon.showBusinessId(),
-                label, saloon.createdAt());
+                label, saloon.createdAt(), saloon.status());
     }
 
     private String deriveUniqueHandler(String name) {
@@ -70,7 +70,7 @@ class SaloonService implements SaloonApi {
                 ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
                 : List.<Saloon.SaloonFeatureRef>of();
         var saloon = new Saloon(null, name, handler, owner, location, contact, operatingHours, featureRefs, 60,
-                businessRegistrationId, showBusinessId, deriveBusinessIdLabel(location), Instant.now());
+                businessRegistrationId, showBusinessId, deriveBusinessIdLabel(location), Instant.now(), Saloon.SaloonStatus.ACTIVE);
         var saved = repository.save(saloon);
         var eventFeatures = saved.features().stream().map(Saloon.SaloonFeatureRef::feature).toList();
         eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
@@ -103,7 +103,7 @@ class SaloonService implements SaloonApi {
             var showBiz  = showBusinessId != null ? showBusinessId : existing.showBusinessId();
             var bizLabel = location != null ? deriveBusinessIdLabel(location) : existing.businessIdLabel();
             var updated = new Saloon(existing.id(), nameToSave, existing.handler(), existing.owner(), location, contact,
-                    operatingHours, existing.features(), days, bizId, showBiz, bizLabel, existing.createdAt());
+                    operatingHours, existing.features(), days, bizId, showBiz, bizLabel, existing.createdAt(), existing.status());
             return repository.save(updated);
         });
     }
@@ -116,7 +116,7 @@ class SaloonService implements SaloonApi {
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), featureRefs,
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
-                    existing.businessIdLabel(), existing.createdAt());
+                    existing.businessIdLabel(), existing.createdAt(), existing.status());
             return repository.save(updated);
         });
     }
@@ -150,8 +150,24 @@ class SaloonService implements SaloonApi {
                 .ifPresent(c -> closureRepository.deleteById(closureId));
     }
 
-    void delete(UUID id) {
-        repository.deleteById(id);
+    Optional<Saloon> disable(UUID id) {
+        return repository.findById(id).map(existing -> {
+            var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
+                    existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
+                    existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
+                    existing.businessIdLabel(), existing.createdAt(), Saloon.SaloonStatus.DISABLED);
+            return repository.save(updated);
+        });
+    }
+
+    Optional<Saloon> enable(UUID id) {
+        return repository.findById(id).map(existing -> {
+            var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
+                    existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
+                    existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
+                    existing.businessIdLabel(), existing.createdAt(), Saloon.SaloonStatus.ACTIVE);
+            return repository.save(updated);
+        });
     }
 
 }
