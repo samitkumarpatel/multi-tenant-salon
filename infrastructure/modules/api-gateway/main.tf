@@ -14,9 +14,14 @@ resource "aws_apigatewayv2_api" "http" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["*"]
+    allow_origins = [
+      "https://${var.domain}",       # apex  (onboarding / marketing)
+      "https://www.${var.domain}",   # www   (onboarding / marketing)
+      "https://*.${var.domain}",     # all subdomains: admin, super-admin, tenant websites
+    ]
     allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
     allow_headers = ["Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key", "X-Requested-With"]
+    expose_headers = ["Content-Type"]
     max_age       = 300
   }
 

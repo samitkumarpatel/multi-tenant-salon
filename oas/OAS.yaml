@@ -85,8 +85,42 @@ tags:
       creation returns HTTP 400. Use this for vacations, public holidays, or emergency shutdowns.
   - name: Utility
     description: Reference data — countries with embedded currency info. Loaded from static classpath resources.
+  - name: Internal
+    description: |
+      Service-to-service endpoints — consumed by internal ECS services only (e.g. the Authorization Server).
+      These paths are NOT exposed through the public API Gateway and must be protected at the network/IAM layer.
 
 paths:
+
+  # ─── Internal ─────────────────────────────────────────────────────────────────
+
+  /internal/user-identity:
+    get:
+      tags: [Internal]
+      summary: Resolve user identity by email
+      description: |
+        Returns all `user_identity` view rows for the given email address.
+        Used by the Authorization Server to load roles and saloon associations for JWT issuance.
+        Returns 404 when the email is not registered as an owner or active staff member.
+      operationId: getUserIdentity
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Identity rows found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserIdentity"
+        "404":
+          description: No identity found for the given email
 
   # ─── Saloon Onboarding ────────────────────────────────────────────────────────
 
@@ -1932,3 +1966,20 @@ components:
         currencySymbol:
           type: string
           example: "₹"
+
+    UserIdentity:
+      type: object
+      description: One row from the user_identity view — a resolved email + role + saloon association.
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [OWNER, STAFF]
+        saloonId:
+          type: string
+          format: uuid
+        active:
+          type: boolean
+          description: True when both the saloon and the staff/owner record are active.

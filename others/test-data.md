@@ -27,12 +27,21 @@ curl -s -X POST localhost:8080/api/saloon-onboarding \
 **HTTPie**
 ```bash
 http POST localhost:8080/api/saloon-onboarding \
-  name="Luxe Hair Studio" \
+  name="Luxe Hair Studio F" \
   ownerName="Sophia Bennett" ownerEmail="sophia@luxehair.com" ownerPhone="+1 212 555 0101" \
   location:='{"address":"142 W 57th St","city":"New York","state":"NY","country":"USA","zipCode":"10019"}' \
   contact:='{"phone":"+1 212 555 0100","email":"info@luxehair.com","website":"www.luxehair.com"}' \
   features:='["BOOKING","STATIC_WEBSITE"]' \
   operatingHours:='[{"day":"MONDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"TUESDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"WEDNESDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"THURSDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"FRIDAY","openTime":"09:00","closeTime":"20:00","closed":false},{"day":"SATURDAY","openTime":"10:00","closeTime":"18:00","closed":false},{"day":"SUNDAY","openTime":"00:00","closeTime":"00:00","closed":true}]'
+
+http POST localhost:8080/api/saloon-onboarding \
+  name="Luxe Hair Studio G" \
+  ownerName="Sophia Bennett" ownerEmail="sophia@luxehair.com" ownerPhone="+1 212 555 0101" \
+  location:='{"address":"148 W 59th St","city":"New York","state":"NY","country":"USA","zipCode":"10020"}' \
+  contact:='{"phone":"+1 212 555 0100","email":"info@luxehair.com","website":"www.luxehair.com"}' \
+  features:='["BOOKING","STATIC_WEBSITE"]' \
+  operatingHours:='[{"day":"MONDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"TUESDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"WEDNESDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"THURSDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"FRIDAY","openTime":"09:00","closeTime":"20:00","closed":false},{"day":"SATURDAY","openTime":"10:00","closeTime":"18:00","closed":false},{"day":"SUNDAY","openTime":"00:00","closeTime":"00:00","closed":true}]'
+
 ```
 
 ---

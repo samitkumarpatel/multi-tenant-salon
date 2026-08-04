@@ -5,7 +5,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, clearAdminSession } from "~/routes/login";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, PowerOff, Power, AlertTriangle } from "lucide-react";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
@@ -27,6 +27,10 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
 
   const saloon = await apiFetch<Saloon>(`${ADMIN_API}/${saloonId}`);
   cacheSaloonUUID(saloonId, String(saloon.id));
+
+  if (saloon.status === "DISABLED") {
+    return { saloon, saloonId, pendingServices: false, pendingStaff: false, pendingWebsite: false };
+  }
 
   let pendingServices = false;
   let pendingStaff = false;
@@ -78,12 +82,13 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
 
 // ── Saloon switcher ───────────────────────────────────────────────────────────
 
-function SaloonSwitcher({ current, saloonId }: { current: Saloon; saloonId: string }) {
+function SaloonSwitcher({ current, saloonId, onSaloonEnabled }: { current: Saloon; saloonId: string; onSaloonEnabled: (s: Saloon) => void }) {
   const navigate = useNavigate();
   const session  = getAdminSession();
   const saloons  = session?.saloons ?? [];
   const [open, setOpen] = useState(false);
   const [panelPos, setPanelPos] = useState({ top: 0, right: 0 });
+  const [enablingId, setEnablingId] = useState<string | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const multiple  = saloons.length > 1;
@@ -105,6 +110,22 @@ function SaloonSwitcher({ current, saloonId }: { current: Saloon; saloonId: stri
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+
+  async function handleEnable(e: React.MouseEvent, s: Saloon) {
+    e.stopPropagation();
+    setEnablingId(String(s.id));
+    try {
+      const updated = await apiFetch<Saloon>(`${ADMIN_API}/${s.id}/enable`, { method: "PUT" });
+      setOpen(false);
+      if (String(s.id) === currentId) {
+        onSaloonEnabled(updated);
+      } else {
+        navigate(`/${s.id}`);
+      }
+    } finally {
+      setEnablingId(null);
+    }
+  }
 
   return (
     <>
@@ -132,7 +153,34 @@ function SaloonSwitcher({ current, saloonId }: { current: Saloon; saloonId: stri
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch saloon</p>
             </div>
             {saloons.map((s) => {
-              const isActive = String(s.id) === currentId;
+              const isActive  = String(s.id) === currentId;
+              const isDisabled = s.status === "DISABLED";
+              const isEnabling = enablingId === String(s.id);
+              if (isDisabled) {
+                return (
+                  <div
+                    key={String(s.id)}
+                    className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 opacity-60"
+                  >
+                    <div className="w-7 h-7 rounded-md bg-slate-200 border border-slate-300 flex items-center justify-center shrink-0">
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {s.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-400 truncate line-through">{s.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Deleted</p>
+                    </div>
+                    <button
+                      onClick={(e) => handleEnable(e, s)}
+                      disabled={isEnabling}
+                      className="shrink-0 text-[10px] font-semibold text-matcha-600 hover:text-matcha-700 border border-matcha-200 rounded px-1.5 py-0.5 bg-white hover:bg-matcha-50 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {isEnabling ? "…" : "Restore"}
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <button
                   key={String(s.id)}
@@ -349,7 +397,7 @@ export default function Layout() {
         <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{saloon.name}</span>
 
         <div className="ml-auto flex items-center gap-2">
-          <SaloonSwitcher current={saloon} saloonId={saloonId} />
+          <SaloonSwitcher current={saloon} saloonId={saloonId} onSaloonEnabled={(s) => setSaloon(s)} />
           <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
             <button
               onClick={handleLogout}
@@ -518,12 +566,12 @@ export default function Layout() {
                 <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support
               </NavLink>
             </Tooltip>
-            <Tooltip content="Disable this saloon. It will no longer accept bookings or appear publicly, but all data is preserved and it can be re-enabled later.">
+            <Tooltip content="Delete this saloon. It will no longer accept bookings or appear publicly, but all data is preserved and it can be re-enabled later.">
               <button
                 onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer w-full text-left"
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
               >
-                <PowerOff className="w-4 h-4 shrink-0" /> Disable saloon
+                <Trash2 className="w-4 h-4 shrink-0" /> Delete saloon
               </button>
             </Tooltip>
           </div>
@@ -557,7 +605,7 @@ export default function Layout() {
         </main>
       </div>
 
-      {/* ── Disable modal ───────────────────────────────────────────────── */}
+      {/* ── Delete modal ────────────────────────────────────────────────── */}
       {showDeleteModal && (
         <div
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -568,13 +616,13 @@ export default function Layout() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <PowerOff className="w-4 h-4 text-amber-600" />
+              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Disable saloon</h2>
+                <h2 className="text-sm font-semibold text-slate-900">Delete saloon</h2>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  <strong className="text-slate-700">{saloon.name}</strong> will be disabled — it won't accept bookings or appear publicly. All data is preserved and you can re-enable it at any time.
+                  <strong className="text-slate-700">{saloon.name}</strong> will be deleted — it won't accept bookings or appear publicly. All data is preserved and you can restore it at any time.
                 </p>
               </div>
             </div>
@@ -590,12 +638,12 @@ export default function Layout() {
                 Cancel
               </button>
               <button
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-45"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-45"
                 onClick={handleDisable}
                 disabled={deleting}
               >
-                <PowerOff className="w-3 h-3" />
-                {deleting ? "Disabling…" : "Disable"}
+                <Trash2 className="w-3 h-3" />
+                {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>
