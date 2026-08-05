@@ -2,10 +2,9 @@ name: Deploy saloon-onboarding
 
 on:
   push:
-    branches: [main, infrastructure]
+    branches: [main]
     paths:
-      - "frontend/apps/saloon-onboarding/**"
-      - "frontend/package.json"
+      - "frontend/**"
       - ".github/workflows/deploy-onboarding.yml"
   workflow_dispatch:
 

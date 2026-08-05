@@ -1,4 +1,4 @@
-name: Schedule dev resources
+name: on-n-off Scheduler
 
 on:
   schedule:

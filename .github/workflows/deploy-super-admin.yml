@@ -2,10 +2,9 @@ name: Deploy saloon-super-admin
 
 on:
   push:
-    branches: [main, infrastructure]
+    branches: [main]
     paths:
-      - "frontend/apps/saloon-super-admin/**"
-      - "frontend/package.json"
+      - "frontend/**"
       - ".github/workflows/deploy-super-admin.yml"
   workflow_dispatch:
 
