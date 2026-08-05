@@ -952,7 +952,24 @@ function StepDate({
 
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-900 mb-0.5">Pick a date</h2>
+      <div className="flex items-start justify-between gap-3 mb-0.5">
+        <h2 className="text-lg font-bold text-slate-900">Pick a date</h2>
+        <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 shrink-0">
+          {(["designer", "week", "input"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setDateMode(m)}
+              className="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
+              style={dateMode === m
+                ? { backgroundColor: "#ffffff", color: accent.color, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }
+                : { color: "#64748b" }}
+            >
+              {MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </div>
       <p className="text-sm text-slate-500 mb-3">
         {dateMode === "week"
           ? "Pick an available time straight from the week overview."
@@ -966,23 +983,8 @@ function StepDate({
         {dateMode !== "designer" && staffPicker}
 
         <div>
-          <div className="flex flex-wrap items-center justify-between gap-y-1.5 mb-1.5">
+          <div className="mb-1.5">
             <label className="block text-sm font-medium text-slate-700">Date &amp; time <span className="text-red-500">*</span></label>
-            <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-              {(["designer", "week", "input"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setDateMode(m)}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
-                  style={dateMode === m
-                    ? { backgroundColor: "#ffffff", color: accent.color, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }
-                    : { color: "#64748b" }}
-                >
-                  {MODE_LABEL[m]}
-                </button>
-              ))}
-            </div>
           </div>
           {dateMode === "week" ? (
             <WeekGrid
