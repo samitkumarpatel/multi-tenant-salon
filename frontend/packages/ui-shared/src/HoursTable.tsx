@@ -1,24 +1,69 @@
 import type { OperatingHours } from "@saloon/ui-website";
 import { DAY_SHORT } from "@saloon/ui-website";
+import { ChevronDown } from "lucide-react";
 
 interface Props {
   hours: OperatingHours[];
   onChange: (hours: OperatingHours[]) => void;
 }
 
-const timeInputCls = "w-full px-3 py-2 border border-stone-200 rounded-xl text-sm outline-none focus:border-stone-400 text-stone-900 disabled:bg-stone-50 disabled:text-stone-300 disabled:border-stone-100 transition-colors";
+// 06:00–23:30 in 30-min increments
+const TIME_OPTIONS: { value: string; label: string }[] = [];
+for (let h = 6; h < 24; h++) {
+  for (const m of [0, 30]) {
+    const hh = String(h).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    const hour12 = h === 12 ? 12 : h > 12 ? h - 12 : h;
+    const ampm = h < 12 ? "AM" : "PM";
+    TIME_OPTIONS.push({ value: `${hh}:${mm}`, label: `${hour12}:${mm} ${ampm}` });
+  }
+}
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function TimeSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={`w-full pl-3 pr-8 py-2.5 border rounded-xl text-sm outline-none transition-colors appearance-none
+          ${disabled
+            ? "border-stone-100 bg-stone-50 text-stone-300 cursor-default"
+            : "bg-white border-stone-200 text-stone-800 focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 cursor-pointer"
+          }`}
+      >
+        {TIME_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      <ChevronDown
+        className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none ${
+          disabled ? "text-stone-200" : "text-stone-400"
+        }`}
+      />
+    </div>
+  );
+}
+
+function Toggle({ isOpen, onChange }: { isOpen: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="relative inline-flex items-center cursor-pointer select-none">
       <input
         type="checkbox"
         className="sr-only"
-        checked={checked}
+        checked={isOpen}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <div className={`w-9 h-5 rounded-full transition-colors ${checked ? "bg-stone-400" : "bg-stone-200"}`} />
-      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-4" : ""}`} />
+      <div className={`w-9 h-5 rounded-full transition-colors ${isOpen ? "bg-matcha-500" : "bg-stone-200"}`} />
+      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isOpen ? "translate-x-4" : ""}`} />
     </label>
   );
 }
@@ -29,88 +74,68 @@ export function HoursTable({ hours, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2.5">
       {/* Desktop column headers */}
-      <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_auto] gap-3 px-1">
-        {["Day", "Open", "Close", "Closed?"].map((h) => (
-          <span key={h} className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{h}</span>
+      <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_120px] gap-3 px-1">
+        {["Day", "Open", "Close", "Status"].map((label) => (
+          <span key={label} className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{label}</span>
         ))}
       </div>
 
-      {hours.map((h, idx) => (
-        <div
-          key={h.day}
-          className={`rounded-xl border transition-colors ${
-            h.closed ? "bg-stone-50 border-stone-100" : "bg-white border-stone-200"
-          }`}
-        >
-          {/* Mobile layout */}
-          <div className="sm:hidden p-3">
-            <div className="flex items-center justify-between">
-              <span className={`text-sm font-semibold ${h.closed ? "text-stone-300 line-through" : "text-stone-700"}`}>
-                {DAY_SHORT[h.day] ?? h.day}
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-stone-500">Closed</span>
-                <Toggle checked={h.closed} onChange={(v) => update(idx, "closed", v)} />
+      {hours.map((h, idx) => {
+        const isOpen = !h.closed;
+        return (
+          <div
+            key={h.day}
+            className={`rounded-2xl border transition-all duration-200 ${
+              isOpen ? "bg-white border-stone-200 shadow-sm" : "bg-stone-50 border-stone-100"
+            }`}
+          >
+            {/* Mobile */}
+            <div className="sm:hidden">
+              <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
+                <span className={`text-sm font-bold ${isOpen ? "text-stone-800" : "text-stone-300"}`}>
+                  {DAY_SHORT[h.day] ?? h.day}
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <span className={`text-xs font-semibold ${isOpen ? "text-matcha-600" : "text-stone-400"}`}>
+                    {isOpen ? "Open" : "Closed"}
+                  </span>
+                  <Toggle isOpen={isOpen} onChange={(v) => update(idx, "closed", !v)} />
+                </div>
               </div>
+
+              {isOpen && (
+                <div className="grid grid-cols-2 gap-3 px-4 pb-4">
+                  <div>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">Open</p>
+                    <TimeSelect value={h.openTime} onChange={(v) => update(idx, "openTime", v)} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">Close</p>
+                    <TimeSelect value={h.closeTime} onChange={(v) => update(idx, "closeTime", v)} />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {!h.closed && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <div>
-                  <p className="text-xs text-stone-400 mb-1 font-medium">Open</p>
-                  <input
-                    type="time"
-                    className={timeInputCls}
-                    value={h.openTime}
-                    onChange={(e) => update(idx, "openTime", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <p className="text-xs text-stone-400 mb-1 font-medium">Close</p>
-                  <input
-                    type="time"
-                    className={timeInputCls}
-                    value={h.closeTime}
-                    onChange={(e) => update(idx, "closeTime", e.target.value)}
-                  />
-                </div>
+            {/* Desktop */}
+            <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_120px] gap-3 items-center px-4 py-3">
+              <span className={`text-sm font-semibold ${isOpen ? "text-stone-700" : "text-stone-300 line-through"}`}>
+                {DAY_SHORT[h.day] ?? h.day}
+              </span>
+              <TimeSelect value={h.openTime} onChange={(v) => update(idx, "openTime", v)} disabled={!isOpen} />
+              <TimeSelect value={h.closeTime} onChange={(v) => update(idx, "closeTime", v)} disabled={!isOpen} />
+              <div className="flex items-center gap-2">
+                <Toggle isOpen={isOpen} onChange={(v) => update(idx, "closed", !v)} />
+                <span className={`text-xs font-semibold ${isOpen ? "text-matcha-600" : "text-stone-400"}`}>
+                  {isOpen ? "Open" : "Closed"}
+                </span>
               </div>
-            )}
+            </div>
           </div>
-
-          {/* Desktop layout */}
-          <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_auto] gap-3 items-center p-3">
-            <span className={`text-sm font-semibold ${h.closed ? "text-stone-300 line-through" : "text-stone-700"}`}>
-              {DAY_SHORT[h.day] ?? h.day}
-            </span>
-            <input
-              type="time"
-              className={timeInputCls}
-              value={h.openTime}
-              disabled={h.closed}
-              onChange={(e) => update(idx, "openTime", e.target.value)}
-            />
-            <input
-              type="time"
-              className={timeInputCls}
-              value={h.closeTime}
-              disabled={h.closed}
-              onChange={(e) => update(idx, "closeTime", e.target.value)}
-            />
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="w-4 h-4 cursor-pointer"
-                checked={h.closed}
-                onChange={(e) => update(idx, "closed", e.target.checked)}
-              />
-              <span className="text-xs text-stone-500">Closed</span>
-            </label>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
