@@ -2,11 +2,9 @@ name: Deploy saloon-public-website
 
 on:
   push:
-    branches: [main, infrastructure]
+    branches: [main]
     paths:
-      - "frontend/apps/saloon-public-website/**"
-      - "frontend/packages/ui-website/**"
-      - "frontend/package.json"
+      - "frontend/**"
       - ".github/workflows/deploy-public-website.yml"
   workflow_dispatch:
 
