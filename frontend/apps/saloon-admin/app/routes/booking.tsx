@@ -1675,7 +1675,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Blocked Dates</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Closures</h3>
             <p className="text-xs text-slate-400 mt-0.5">
               Mark days or date ranges when the saloon won't accept any bookings — public holidays, vacation, emergency closures, or special occasions.
             </p>
@@ -1683,7 +1683,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
           <Tooltip content="Mark a day or date range when the whole saloon won't accept any bookings" side="left">
             <button onClick={() => { setShowAdd(true); setFormErr(""); }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-              <Plus className="w-3 h-3" /> Block dates
+              <Plus className="w-3 h-3" /> Add Holiday
             </button>
           </Tooltip>
         </div>
@@ -1695,7 +1695,7 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
           </div>
         ) : upcoming.length === 0 && past.length === 0 ? (
           <p className="text-xs text-slate-400 px-5 py-6 text-center">
-            No blocked dates yet. Add one to mark vacation time, public holidays, or any day when the saloon won't accept bookings.
+            No closures yet. Add one to mark public holidays, vacation, or any day the saloon won't accept bookings.
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -1984,7 +1984,7 @@ export default function BookingPage() {
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
         <InfoBar>
-          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark days when the entire saloon won't accept bookings — holidays, vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
+          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to mark days when the entire saloon won't accept bookings — holidays, vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
         </InfoBar>
       </div>
 
@@ -2001,7 +2001,7 @@ export default function BookingPage() {
         </Tooltip>
         <Tooltip content="Mark days or date ranges when the saloon won't accept any bookings — holidays, vacation, emergencies." side="bottom">
           <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
-            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Blocked Dates</span>
+            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Closures</span>
           </button>
         </Tooltip>
         <Tooltip content="Control how far ahead customers can book appointments." side="bottom">
