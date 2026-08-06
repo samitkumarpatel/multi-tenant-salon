@@ -1,5 +1,10 @@
 name: Deploy backend
 
+# Renders the ECS task definition and deploys to Fargate using:
+# https://github.com/aws-actions/amazon-ecs-render-task-definition
+# The task definition is fetched live from AWS (by family name) so no
+# static .aws/task-definition.json file needs to be maintained in the repo.
+
 on:
   push:
     branches: [main]
@@ -15,12 +20,14 @@ env:
   AWS_REGION: eu-north-1
   ECS_SERVICE: my-saloon-dev-api
   ECS_CLUSTER: my-saloon-dev-cluster
-  ECS_TASK_DEFINITION: .aws/task-definition.json
+  # Terraform sets family = "${name}-${service_key}" → my-saloon-dev-api
+  ECS_TASK_DEFINITION_FAMILY: my-saloon-dev-api
   CONTAINER_NAME: api
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: dev
     permissions:
       contents: read
       packages: write
@@ -49,26 +56,35 @@ jobs:
         run: |
           ./mvnw -B spring-boot:build-image \
             -Dspring-boot.build-image.imageName=$REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          
           docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          
           echo "image=$REGISTRY/$IMAGE_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@0e613a0980cbf65ed5b322eb7a1e075d28913a83  # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_DEFINITION_FAMILY }} \
+            --query taskDefinition > task-definition.json
+
       - name: Render updated task definition
         id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        # https://github.com/aws-actions/amazon-ecs-render-task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@c804dfbdd57f713b6c079302a4c01db7017a36fc  # v1.5.0
         with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          task-definition: task-definition.json            # downloaded in the prior step
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
 
       - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a  # v2.2.0
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
