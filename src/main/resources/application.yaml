@@ -33,6 +33,11 @@ spring:
     password: ${spring.datasource.password}
     url: ${spring.datasource.url}
 
+cors:
+  # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
+  # e.g. https://my-saloon.online,https://www.my-saloon.online,https://*.my-saloon.online
+  allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+
 management:
   endpoints:
     web:

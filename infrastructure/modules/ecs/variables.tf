@@ -80,10 +80,10 @@ variable "services" {
   description = "Map of services to deploy. Key is used as the service name suffix and container name. Services not referenced in http_routes are workers with no ALB attachment."
 }
 
-variable "http_routes" {
+variable "ingress" {
   type        = map(string)
   default     = {}
-  description = "Path-to-service routing rules for the ALB. Keys are path prefixes (e.g. \"/api\"); values are service keys from var.services. A prefix of \"/\" is a catch-all. Multiple paths can route to the same service."
+  description = "Hostname-to-service routing rules for the ALB. Keys are full hostnames (e.g. \"api.my-saloon.online\"); values are service keys from var.services."
 }
 
 variable "tags" {

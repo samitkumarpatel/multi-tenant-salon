@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_saloon;
 
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -17,17 +18,17 @@ public class MultiTenantSaloonApplication {
 	}
 
 	@Bean
-	WebMvcConfigurer corsConfigurer() {
+	WebMvcConfigurer corsConfigurer(@Value("${cors.allowed-origin-patterns:*}") String[] allowedOriginPatterns) {
 		return new WebMvcConfigurer() {
 			@Override
 			public void addCorsMappings(@NonNull CorsRegistry registry) {
-				registry.addMapping("/api/**")
-						.allowedOriginPatterns("*")
-						.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-						.allowedHeaders("*")
-						.exposedHeaders("x-tenant-id")
+				registry.addMapping("/**")
+						.allowedOriginPatterns(allowedOriginPatterns)
+						.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
+						.allowedHeaders("Content-Type", "Authorization", "X-Requested-With")
+						.exposedHeaders("Content-Type", "x-tenant-id")
 						.allowCredentials(false)
-						.maxAge(3600);
+						.maxAge(300);
 			}
 		};
 	}

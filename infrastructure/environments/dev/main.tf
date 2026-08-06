@@ -16,8 +16,8 @@ module "dns_bootstrapping" {
       subject_alternative_names = ["*.my-saloon.online"]
       global                    = true
     }
-    # API Gateway v2 custom domains require a certificate in the deployment region
-    api-gateway = {
+    # ALB requires a certificate in the deployment region
+    alb = {
       domain                    = "my-saloon.online"
       subject_alternative_names = ["*.my-saloon.online"]
       global                    = false
@@ -104,7 +104,7 @@ module "backend" {
   environment              = "dev"
   name                     = "my-saloon"
   domain                   = "my-saloon.online"
-  regional_certificate_arn = module.dns_bootstrapping.certificate_arns["api-gateway"]
+  regional_certificate_arn = module.dns_bootstrapping.certificate_arns["alb"]
   zone_id                  = module.dns_bootstrapping.zone_id
 
   services = {
@@ -118,13 +118,20 @@ module "backend" {
         "spring.sql.init.mode" = "never"
         "spring.modulith.events.jdbc.schema-initialization.enabled" = "false"
         "spring.flyway.enabled" = "true"
+        CORS_ALLOWED_ORIGIN_PATTERNS = "https://my-saloon.online,https://www.my-saloon.online,https://*.my-saloon.online"
       }
+    }
+    auth = {
+      image             = "nginx"
+      container_port    = 80
+      health_check_path = "/"
+      cpu               = 256
+      memory            = 512
     }
   }
 
-  routes = {
-    http = {
-      "/" = "api"
-    }
+  ingress = {
+    "api.my-saloon.online"  = "api"
+    "auth.my-saloon.online" = "auth"
   }
 }
