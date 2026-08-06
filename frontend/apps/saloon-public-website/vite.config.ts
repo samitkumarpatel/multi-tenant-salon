@@ -28,6 +28,9 @@ const devMiddleware = {
 
 export default defineConfig({
   plugins: [devMiddleware, tailwindcss(), reactRouter()],
+  resolve: {
+    dedupe: ["react", "react-dom", "react-router"],
+  },
   server: {
     port: 5174,
     watch: {

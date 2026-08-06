@@ -21,6 +21,7 @@ export default defineConfig({
   base: process.env.VITE_BASE_PATH ?? "/",
   plugins: [wellKnownBypass, tailwindcss(), reactRouter()],
   resolve: {
+    dedupe: ["react", "react-dom", "react-router"],
     alias: {
       "~": resolve(__dirname, "./app"),
     },

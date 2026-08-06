@@ -1,5 +1,5 @@
 import { useOutletContext, useLocation, useNavigate } from "react-router";
-import { SaloonWebsite, GenerativeUIWebsite } from "@saloon/ui-website";
+import { SaloonWebsite, GenerativeUIWebsite, BookingWizard } from "@saloon/ui-website";
 import type { TenantData } from "./website-shell";
 
 export default function PublicWebsitePage() {
@@ -14,6 +14,21 @@ export default function PublicWebsitePage() {
 
   if (data.theme.websiteType === "GENERATIVE_UI") {
     const { theme } = data;
+
+    // When the visitor navigates to /book, show the wizard (same UX as a regular website)
+    if (activePage === "book" && data.saloon.features?.includes("BOOKING")) {
+      return (
+        <BookingWizard
+          saloon={data.saloon}
+          staff={data.staff}
+          services={data.services}
+          theme={theme}
+          onExit={() => navigate(`/${search}`)}
+          getPagePath={(page) => `/${page}${search}`}
+        />
+      );
+    }
+
     return (
       <div
         className="flex min-h-[100dvh] sm:items-center sm:justify-center sm:p-6"
