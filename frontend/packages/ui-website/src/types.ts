@@ -52,6 +52,7 @@ export interface Saloon {
   operatingHours?: OperatingHours[];
   features?: string[];
   bookingAdvanceDays?: number;
+  bookingRequiresConfirmation?: boolean;
   businessRegistrationId?: string;
   showBusinessId?: boolean;
   businessIdLabel?: string;
@@ -160,4 +161,17 @@ export interface SaloonClosure {
   startDate: string;
   endDate: string;
   reason?: string;
+  holidayId?: number | null;
+}
+
+/** A named holiday. When {@code year} is null/undefined it repeats every year. */
+export interface SaloonHoliday {
+  id: number;
+  saloonId: string;
+  name: string;
+  month: number;
+  day: number;
+  endMonth?: number | null;
+  endDay?: number | null;
+  year?: number | null;
 }

@@ -16,7 +16,13 @@ interface StaffAvailabilityRepository extends ListCrudRepository<StaffAvailabili
 
     Optional<StaffAvailability> findBySaloonIdAndStaffIdAndDayOfWeek(UUID saloonId, Long staffId, DayOfWeek dayOfWeek);
 
+    List<StaffAvailability> findBySaloonId(UUID saloonId);
+
     @Modifying
     @Query("DELETE FROM staff_availability WHERE saloon_id = :saloonId AND staff_id = :staffId")
     void deleteBySaloonIdAndStaffId(UUID saloonId, Long staffId);
+
+    @Modifying
+    @Query("DELETE FROM staff_availability WHERE saloon_id = :saloonId AND staff_id = :staffId AND day_of_week = :dayOfWeek")
+    void deleteBySaloonIdAndStaffIdAndDayOfWeek(UUID saloonId, Long staffId, DayOfWeek dayOfWeek);
 }

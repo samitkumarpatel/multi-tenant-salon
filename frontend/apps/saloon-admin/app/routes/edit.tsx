@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
+import { useOutletContext, useLoaderData, useSearchParams, useRevalidator } from "react-router";
 import { ADMIN_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Saloon, Location, ContactInfo, Country } from "~/lib/types";
@@ -28,6 +28,7 @@ export default function Edit() {
   const { saloon, setSaloon } = useOutletContext<LayoutContext>();
   const { countries }         = useLoaderData<typeof clientLoader>();
   const [searchParams]        = useSearchParams();
+  const { revalidate }        = useRevalidator();
 
   const initialStep = Math.min(Math.max(0, Number(searchParams.get("step") ?? 0)), TOTAL - 1);
   const [step, setStep] = useState(initialStep);
@@ -94,6 +95,7 @@ export default function Edit() {
         body: JSON.stringify(features),
       });
       setSaloon({ ...updated, features: withFeatures.features ?? features });
+      revalidate();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {

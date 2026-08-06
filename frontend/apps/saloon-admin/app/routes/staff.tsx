@@ -425,6 +425,8 @@ function AddStaffFlow({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>(() => defaultSchedule(operatingHours));
 
+  useEffect(() => { setSchedule(defaultSchedule(operatingHours)); }, [operatingHours]);
+
   const scheduleHasErrors = schedule.some((entry) => {
     if (!entry.enabled) return false;
     const oh = operatingHours?.find((h) => h.day === entry.dayOfWeek);

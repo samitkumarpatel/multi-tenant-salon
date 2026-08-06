@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonClosure;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonFeature;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonHoliday;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -43,7 +45,8 @@ class SaloonController {
                                List<Saloon.OperatingHours> operatingHours,
                                Integer bookingAdvanceDays,
                                String businessRegistrationId,
-                               Boolean showBusinessId) {}
+                               Boolean showBusinessId,
+                               Boolean bookingRequiresConfirmation) {}
 
     @PostMapping("/api/saloon-onboarding")
     ResponseEntity<CreateSaloonResponse> create(@Valid @RequestBody CreateSaloonRequest request) {
@@ -85,7 +88,16 @@ class SaloonController {
     @PutMapping("/api/saloon-admin/{id}")
     ResponseEntity<Saloon> update(@PathVariable UUID id, @Valid @RequestBody UpdateSaloonRequest request) {
         return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours(), request.bookingAdvanceDays(),
-                        request.businessRegistrationId(), request.showBusinessId())
+                        request.businessRegistrationId(), request.showBusinessId(), request.bookingRequiresConfirmation())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    record PatchBookingSettingsRequest(Integer bookingAdvanceDays, Boolean bookingRequiresConfirmation) {}
+
+    @PatchMapping("/api/saloon-admin/{id}/booking-settings")
+    ResponseEntity<Saloon> patchBookingSettings(@PathVariable UUID id, @RequestBody PatchBookingSettingsRequest request) {
+        return service.updateBookingSettings(id, request.bookingAdvanceDays(), request.bookingRequiresConfirmation())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -126,7 +138,35 @@ class SaloonController {
 
     @DeleteMapping("/api/saloon-admin/{id}/closures/{closureId}")
     ResponseEntity<Void> removeClosure(@PathVariable UUID id, @PathVariable Long closureId) {
-        service.removeClosure(id, closureId);
+        boolean deleted = service.removeClosure(id, closureId);
+        return deleted
+                ? ResponseEntity.noContent().<Void>build()
+                : ResponseEntity.status(HttpStatus.CONFLICT).<Void>build();
+    }
+
+    record AddHolidayRequest(
+            @NotBlank String name,
+            @NotNull Integer month,
+            @NotNull Integer day,
+            Integer endMonth,
+            Integer endDay,
+            Integer year) {}
+
+    @GetMapping({"/api/saloon/{id}/holidays", "/api/saloon-admin/{id}/holidays"})
+    List<SaloonHoliday> listHolidays(@PathVariable UUID id) {
+        return service.findHolidays(id);
+    }
+
+    @PostMapping("/api/saloon-admin/{id}/holidays")
+    ResponseEntity<SaloonHoliday> addHoliday(@PathVariable UUID id, @Valid @RequestBody AddHolidayRequest request) {
+        var holiday = service.addHoliday(id, request.name(), request.month(), request.day(),
+                request.endMonth(), request.endDay(), request.year());
+        return ResponseEntity.ok(holiday);
+    }
+
+    @DeleteMapping("/api/saloon-admin/{id}/holidays/{holidayId}")
+    ResponseEntity<Void> removeHoliday(@PathVariable UUID id, @PathVariable Long holidayId) {
+        service.removeHoliday(id, holidayId);
         return ResponseEntity.noContent().build();
     }
 }

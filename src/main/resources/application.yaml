@@ -15,7 +15,8 @@ spring:
         classpath:db/V1__schema.sql,
         classpath:db/V2__add_cascade_deletes.sql,
         classpath:db/V3__add_saloon_status.sql,
-        classpath:db/V4__user_identity_view.sql
+        classpath:db/V4__user_identity_view.sql,
+        classpath:db/V5__add_saloon_holiday.sql
   modulith:
     events:
       jdbc:

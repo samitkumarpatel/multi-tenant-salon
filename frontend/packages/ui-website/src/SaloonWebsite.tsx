@@ -8,7 +8,8 @@ import { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText } from
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
 import { FEATURE_NAV } from "./SiteChrome";
-import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme } from "./types";
+import { apiFetch } from "./api";
+import type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, SaloonHoliday } from "./types";
 
 export type { Saloon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme };
 
@@ -253,7 +254,14 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
   const [bookServiceId, setBookServiceId] = useState<number | null>(null);
   const [bookStaffId, setBookStaffId]     = useState<number | null>(null);
   const [mounted, setMounted]             = useState(false);
+  const [holidays, setHolidays]           = useState<SaloonHoliday[]>([]);
   const heroRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    apiFetch<SaloonHoliday[]>(`/api/saloon/${saloon.id}/holidays`)
+      .then(setHolidays)
+      .catch(() => {});
+  }, [saloon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setMounted(true);
@@ -281,6 +289,30 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
   const visibleServices = selectedCat ? activeServices.filter((s) => s.category === selectedCat) : activeServices;
   const openHours = saloon.operatingHours?.filter((h) => !h.closed) ?? [];
   const hasBooking = saloon.features?.includes("BOOKING");
+
+  const todayDate = new Date();
+  const todayHoliday = holidays.find((h) =>
+    h.month === todayDate.getMonth() + 1 &&
+    h.day === todayDate.getDate() &&
+    (h.year == null || h.year === todayDate.getFullYear())
+  ) ?? null;
+
+  const upcomingHolidays = (() => {
+    const now = todayDate.getTime();
+    const windowEnd = now + 90 * 24 * 60 * 60 * 1000;
+    const yr = todayDate.getFullYear();
+    return holidays
+      .flatMap((h) => {
+        const years = h.year != null ? [h.year] : [yr, yr + 1];
+        return years.map((y) => {
+          const d = new Date(y, h.month - 1, h.day);
+          return { h, ts: d.getTime() };
+        });
+      })
+      .filter(({ ts }) => ts >= now && ts <= windowEnd)
+      .sort((a, b) => a.ts - b.ts)
+      .map(({ h }) => h);
+  })();
   const featureBadges = (saloon.features ?? []).filter((f) => f !== "STATIC_WEBSITE" && f !== "ANALYTICS");
   const statusDetail = openStatusDetail(saloon.operatingHours);
   const currentPage = activePage ?? "";
@@ -465,8 +497,13 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                       className="flex items-start gap-3 w-full text-left cursor-pointer group/hrs" aria-expanded={hoursExpanded}>
                       <Clock className="w-4 h-4 mt-0.5 shrink-0" style={{ color: theme.accentColor }} />
                       <div className="flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: `${theme.heroTextColor}70` }}>Today · {DAY_SHORT[today.day] ?? today.day}</p>
-                        <p className="font-semibold" style={{ color: theme.heroTextColor }}>{today.closed ? "Closed today" : `${today.openTime} – ${today.closeTime}`}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: `${theme.heroTextColor}70` }}>
+                          Today · {DAY_SHORT[today.day] ?? today.day}
+                          {todayHoliday && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold" style={{ backgroundColor: `${theme.accentColor}30`, color: theme.accentColor }}>Holiday</span>}
+                        </p>
+                        <p className="font-semibold" style={{ color: theme.heroTextColor }}>
+                          {todayHoliday ? `Closed — ${todayHoliday.name}` : today.closed ? "Closed today" : `${today.openTime} – ${today.closeTime}`}
+                        </p>
                       </div>
                       <ChevronRight className="w-4 h-4 mt-1 shrink-0 transition-transform" style={{ color: `${theme.heroTextColor}70`, transform: hoursExpanded ? "rotate(-90deg)" : "rotate(90deg)" }} />
                     </button>
@@ -474,11 +511,29 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                       <div className="pt-2 pl-7 space-y-0.5">
                         {week.map((h) => {
                           const isToday = h.day === todayName;
+                          const dayIdx = DAY_ORDER.indexOf(h.day);
+                          const offset = dayIdx - todayDate.getDay();
+                          const slotDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + offset);
+                          const dayHoliday = holidays.find(
+                            (hol) =>
+                              hol.month === slotDate.getMonth() + 1 &&
+                              hol.day === slotDate.getDate() &&
+                              (hol.year == null || hol.year === slotDate.getFullYear())
+                          ) ?? null;
                           return (
                             <div key={h.day} className="flex items-center gap-3 text-xs py-0.5"
                               style={{ color: isToday ? theme.accentColor : `${theme.heroTextColor}90`, fontWeight: isToday ? 700 : 400 }}>
                               <span className="w-8 shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
-                              <span className="font-mono">{h.closed ? "Closed" : `${h.openTime}–${h.closeTime}`}</span>
+                              {dayHoliday ? (
+                                <>
+                                  <span className="font-mono opacity-40 line-through">{h.closed ? "Closed" : `${h.openTime}–${h.closeTime}`}</span>
+                                  <span className="px-1 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide" style={{ backgroundColor: `${theme.accentColor}25`, color: theme.accentColor }}>
+                                    {dayHoliday.name}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-mono">{h.closed ? "Closed" : `${h.openTime}–${h.closeTime}`}</span>
+                              )}
                             </div>
                           );
                         })}
@@ -703,15 +758,55 @@ export function SaloonWebsite({ saloon, staff, services, theme: themeProp, activ
                 <div className="space-y-1">
                   {openHours.map((h) => {
                     const isToday = h.day === todayName;
+                    const dayIdx = DAY_ORDER.indexOf(h.day);
+                    const offset = dayIdx - todayDate.getDay();
+                    const slotDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + offset);
+                    const dayHoliday = holidays.find(
+                      (hol) =>
+                        hol.month === slotDate.getMonth() + 1 &&
+                        hol.day === slotDate.getDate() &&
+                        (hol.year == null || hol.year === slotDate.getFullYear())
+                    ) ?? null;
                     return (
                       <div key={h.day} className={`flex items-center gap-3 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
                         <span className="w-8 shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
-                        <span className="font-mono">{h.openTime}–{h.closeTime}</span>
-                        {isToday && <span className="text-[9px] font-bold uppercase tracking-wider">today</span>}
+                        {dayHoliday ? (
+                          <>
+                            <span className="font-mono opacity-40 line-through">{h.openTime}–{h.closeTime}</span>
+                            <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded" style={{ backgroundColor: `${theme.accentColor}25`, color: theme.accentColor }}>{dayHoliday.name}</span>
+                          </>
+                        ) : (
+                          <span className="font-mono">{h.openTime}–{h.closeTime}</span>
+                        )}
+                        {isToday && !dayHoliday && <span className="text-[9px] font-bold uppercase tracking-wider">today</span>}
                       </div>
                     );
                   })}
                 </div>
+                {upcomingHolidays.length > 0 && (
+                  <div className="mt-3 pt-2 space-y-1" style={{ borderTop: `1px solid ${footerBorder}` }}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: footerDim }}>Upcoming holidays</p>
+                    {upcomingHolidays.map((h, i) => {
+                      const yr = h.year ?? new Date().getFullYear();
+                      const start = new Date(yr, h.month - 1, h.day);
+                      const startLabel = start.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                      const isRange = h.endMonth != null && h.endDay != null && (h.endMonth !== h.month || h.endDay !== h.day);
+                      let dateLabel = startLabel;
+                      if (isRange) {
+                        const endYr = (h.endMonth! < h.month || (h.endMonth === h.month && h.endDay! < h.day)) ? yr + 1 : yr;
+                        const end = new Date(endYr, h.endMonth! - 1, h.endDay!);
+                        dateLabel = `${startLabel} – ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+                      }
+                      return (
+                        <div key={`${h.id}-${i}`} className="flex items-center gap-2 text-xs" style={{ color: footerDim }}>
+                          <span className="font-mono shrink-0">{dateLabel}</span>
+                          <span>·</span>
+                          <span className="truncate">{h.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

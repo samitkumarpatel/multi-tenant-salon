@@ -83,6 +83,11 @@ tags:
       Admin saloon-closure management — define date ranges when the entire saloon is closed.
       When a closure covers the requested date, slot discovery returns an empty list and booking
       creation returns HTTP 400. Use this for vacations, public holidays, or emergency shutdowns.
+  - name: AdminHolidays
+    description: |
+      Admin recurring/one-off holiday management. Adding a holiday automatically generates
+      saloon-closure rows for the current year and up to 4 years ahead so the booking engine
+      blocks those dates without manual closure entry each year.
   - name: Utility
     description: Reference data — countries with embedded currency info. Loaded from static classpath resources.
   - name: Internal
@@ -330,6 +335,9 @@ paths:
         Customer-facing. Books an available slot for a service. `staffId` is optional — the
         system auto-assigns the first available staff member if omitted.
         Returns HTTP 400 when `appointmentDate` falls within a saloon closure.
+        The initial booking status depends on the saloon's `bookingRequiresConfirmation` setting:
+        - `false` (default) → status is **CONFIRMED** immediately.
+        - `true` → status is **PENDING**; an admin must confirm before the appointment is active.
         Emits **BookingCreatedEvent** → customer receives a booking confirmation notification.
       operationId: createBooking
       requestBody:
@@ -512,6 +520,99 @@ paths:
                 $ref: "#/components/schemas/Saloon"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/saloon-admin/{saloonId}/booking-settings:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    patch:
+      tags: [SaloonAdmin]
+      summary: Update booking settings (admin)
+      description: |
+        Admin-only. Partially updates only the booking-related saloon settings —
+        `bookingAdvanceDays` and `bookingRequiresConfirmation`. All other saloon fields
+        are preserved. Either field may be omitted; omitted fields keep their current value.
+      operationId: patchBookingSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchBookingSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated; full saloon object returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Holidays ────────────────────────────────────────────────────────
+
+  /api/saloon-admin/{saloonId}/holidays:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [AdminHolidays]
+      summary: List saloon holidays (admin)
+      operationId: listHolidays
+      responses:
+        "200":
+          description: List of holidays
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SaloonHoliday"
+
+    post:
+      tags: [AdminHolidays]
+      summary: Add a holiday (admin)
+      description: |
+        Admin-only. Creates a holiday record and automatically generates saloon-closure rows
+        for the current year through currentYear+4 (for recurring holidays) or for the
+        specified year only (for one-off holidays). Invalid dates (e.g. Feb 29 on a non-leap
+        year) are skipped silently.
+      operationId: addHoliday
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddHolidayRequest"
+      responses:
+        "200":
+          description: Holiday created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaloonHoliday"
+
+  /api/saloon-admin/{saloonId}/holidays/{holidayId}:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+      - name: holidayId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+        description: Holiday ID
+
+    delete:
+      tags: [AdminHolidays]
+      summary: Remove a holiday (admin)
+      description: |
+        Admin-only. Deletes the holiday record. All associated saloon-closure rows are
+        removed automatically via ON DELETE CASCADE.
+      operationId: removeHoliday
+      responses:
+        "204":
+          description: Holiday removed
 
   # ─── Admin — Website ──────────────────────────────────────────────────────────
 
@@ -1046,6 +1147,29 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ─── Customer — Holidays (read-only) ─────────────────────────────────────────
+
+  /api/saloon/{saloonId}/holidays:
+    parameters:
+      - $ref: "#/components/parameters/SaloonId"
+
+    get:
+      tags: [Booking]
+      summary: List saloon holidays (customer)
+      description: >
+        Returns all holidays defined for this saloon. The public website uses this
+        to label days as holidays in the opening-hours display.
+      operationId: listHolidaysPublic
+      responses:
+        "200":
+          description: List of holidays
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SaloonHoliday"
+
   # ─── Customer — Closures (read-only) ─────────────────────────────────────────
 
   /api/saloon/{saloonId}/closures:
@@ -1053,7 +1177,7 @@ paths:
       - $ref: "#/components/parameters/SaloonId"
 
     get:
-      tags: [CustomerBooking]
+      tags: [Booking]
       summary: List saloon closures (customer)
       description: >
         Returns all closures defined for this saloon. The booking wizard uses this
@@ -1230,6 +1354,67 @@ components:
         reason:
           type: string
           example: "Annual vacation"
+        holidayId:
+          type: integer
+          format: int64
+          nullable: true
+          description: >
+            Set when this closure was auto-generated from a holiday record.
+            Holiday-backed closures cannot be deleted directly — delete the parent holiday instead.
+
+    SaloonHoliday:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        saloonId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Christmas Day"
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Month of the holiday (1 = January)
+        day:
+          type: integer
+          minimum: 1
+          maximum: 31
+          description: Day-of-month of the holiday
+        year:
+          type: integer
+          nullable: true
+          description: >
+            Specific year for a one-off holiday; null for an annually recurring holiday.
+        createdAt:
+          type: string
+          format: date-time
+
+    AddHolidayRequest:
+      type: object
+      required: [name, month, day]
+      properties:
+        name:
+          type: string
+          description: Human-readable holiday name
+          example: "Christmas Day"
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        day:
+          type: integer
+          minimum: 1
+          maximum: 31
+        year:
+          type: integer
+          nullable: true
+          description: >
+            Omit (or send null) for an annually recurring holiday.
+            Provide a specific year for a one-off occurrence.
 
     AddClosureRequest:
       type: object
@@ -1287,6 +1472,12 @@ components:
           type: boolean
           description: Whether to display the registration number on the public website. Defaults to false.
           default: false
+        bookingRequiresConfirmation:
+          type: boolean
+          description: >
+            When true, new bookings are created with status PENDING and must be manually confirmed
+            by an admin. When false (default), bookings are auto-confirmed immediately (status CONFIRMED).
+          default: false
         businessIdLabel:
           type: string
           description: >
@@ -1297,6 +1488,10 @@ components:
         createdAt:
           type: string
           format: date-time
+        status:
+          type: string
+          enum: [ACTIVE, DISABLED]
+          description: Saloon lifecycle status. Defaults to ACTIVE on creation.
 
     CreateSaloonRequest:
       type: object
@@ -1351,6 +1546,7 @@ components:
 
     UpdateSaloonRequest:
       type: object
+      required: [name]
       properties:
         name:
           type: string
@@ -1362,6 +1558,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OperatingHours"
+        bookingAdvanceDays:
+          type: integer
+          description: How many days ahead customers can book. Preserved if omitted.
         businessRegistrationId:
           type: string
           description: Business registration number (e.g. CVR for Denmark, EIN for USA). Displayed on the public website when showBusinessId is true.
@@ -1369,6 +1568,25 @@ components:
           type: boolean
           default: false
           description: Whether to display the business registration number on the public website. When updated alongside location.country, businessIdLabel is re-derived automatically.
+        bookingRequiresConfirmation:
+          type: boolean
+          description: >
+            When true, new bookings require manual admin confirmation (created as PENDING).
+            When false, bookings are auto-confirmed. Preserved if omitted.
+
+    PatchBookingSettingsRequest:
+      type: object
+      description: Partial update for booking-related saloon settings. Omitted fields are preserved.
+      properties:
+        bookingAdvanceDays:
+          type: integer
+          description: How many days ahead customers can book.
+          example: 60
+        bookingRequiresConfirmation:
+          type: boolean
+          description: >
+            When true, new bookings are created as PENDING and must be manually confirmed.
+            When false, bookings are auto-confirmed immediately.
 
     Owner:
       type: object

@@ -1329,6 +1329,10 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
     overrideDate: "", startTime: "09:00", endTime: "17:00", available: true, reason: "",
   });
 
+  // Stable key derived from operating hours content — triggers re-fetch when hours change
+  // (the backend sync listener has already updated staff_availability by the time this fires)
+  const ohKey = JSON.stringify(operatingHours);
+
   useEffect(() => {
     if (!selectedStaff) return;
     apiFetch<StaffAvailability[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability`)
@@ -1346,7 +1350,7 @@ function AvailabilityPanel({ saloonId, staff, operatingHours }: { saloonId: stri
     apiFetch<StaffAvailabilityOverride[]>(`${ADMIN_API}/${saloonId}/staff/${selectedStaff}/availability/overrides`)
       .then(setOverrides)
       .catch((e) => { setOverrides([]); notify(e instanceof Error ? e.message : "Failed to load overrides", "error"); });
-  }, [selectedStaff, saloonId]);
+  }, [selectedStaff, saloonId, ohKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleDay(day: string) {
     setSchedule((prev) => prev.map((s) => s.dayOfWeek === day ? { ...s, available: !s.available } : s));
@@ -1661,14 +1665,19 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
   }
 
+  function fmtDate(iso: string) {
+    return new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
   function fmtRange(start: string, end: string) {
-    if (start === end) return start;
-    return `${start} – ${end}`;
+    if (start === end) return fmtDate(start);
+    return `${fmtDate(start)} – ${fmtDate(end)}`;
   }
 
   const today = new Date().toISOString().split("T")[0];
-  const upcoming = closures.filter((c) => c.endDate >= today);
-  const past     = closures.filter((c) => c.endDate <  today);
+  const currentYear = new Date().getFullYear().toString();
+  const displayClosures = closures.filter((c) => !c.holidayId || c.startDate.startsWith(currentYear));
+  const upcoming = displayClosures.filter((c) => c.endDate >= today);
+  const past     = displayClosures.filter((c) => c.endDate <  today);
 
   return (
     <div className="max-w-lg space-y-4">
@@ -1707,20 +1716,39 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
                 {upcoming.map((c) => (
                   <div key={c.id} className="flex items-center justify-between px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-                        <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${c.holidayId ? "bg-violet-100" : "bg-orange-100"}`}>
+                        {c.holidayId
+                          ? <CalendarDays className="w-3.5 h-3.5 text-violet-600" />
+                          : <CalendarOff className="w-3.5 h-3.5 text-orange-600" />}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{fmtRange(c.startDate, c.endDate)}</p>
-                        <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-slate-800">
+                            {c.holidayId ? (c.reason ?? fmtRange(c.startDate, c.endDate)) : fmtRange(c.startDate, c.endDate)}
+                          </p>
+                          {c.holidayId && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">Holiday</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          {c.holidayId ? fmtRange(c.startDate, c.endDate) : (c.reason ?? "No reason specified")}
+                        </p>
                       </div>
                     </div>
-                    <Tooltip content="Remove this blocked period" side="left">
-                      <button onClick={() => removeClosure(c.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </Tooltip>
+                    {c.holidayId ? (
+                      <Tooltip content="Managed via the Holidays page — delete the holiday to remove this closure" side="left">
+                        <span className="text-slate-200 ml-4 cursor-not-allowed">
+                          <Trash2 className="w-4 h-4" />
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip content="Remove this blocked period" side="left">
+                        <button onClick={() => removeClosure(c.id)}
+                          className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                    )}
                   </div>
                 ))}
               </>
@@ -1734,19 +1762,36 @@ function ClosuresPanel({ saloonId }: { saloonId: string }) {
                   <div key={c.id} className="flex items-center justify-between px-5 py-3 opacity-50">
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                        <CalendarOff className="w-3.5 h-3.5 text-slate-400" />
+                        {c.holidayId
+                          ? <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                          : <CalendarOff className="w-3.5 h-3.5 text-slate-400" />}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-slate-700">{fmtRange(c.startDate, c.endDate)}</p>
-                        <p className="text-xs text-slate-400">{c.reason ?? "No reason specified"}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-slate-700">
+                            {c.holidayId ? (c.reason ?? fmtRange(c.startDate, c.endDate)) : fmtRange(c.startDate, c.endDate)}
+                          </p>
+                          {c.holidayId && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Holiday</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          {c.holidayId ? fmtRange(c.startDate, c.endDate) : (c.reason ?? "No reason specified")}
+                        </p>
                       </div>
                     </div>
-                    <Tooltip content="Remove this blocked period" side="left">
-                      <button onClick={() => removeClosure(c.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                    {c.holidayId ? (
+                      <span className="text-slate-200 ml-4 cursor-not-allowed">
                         <Trash2 className="w-4 h-4" />
-                      </button>
-                    </Tooltip>
+                      </span>
+                    ) : (
+                      <Tooltip content="Remove this blocked period" side="left">
+                        <button onClick={() => removeClosure(c.id)}
+                          className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                    )}
                   </div>
                 ))}
               </>
@@ -1828,19 +1873,30 @@ const ADVANCE_OPTIONS = [
   { days: 180, label: "6 months", desc: "Long-term advance" },
 ] as const;
 
-function BookingSettingsPanel({ saloon, onSaved, onError }: { saloon: { id: string | number; bookingAdvanceDays?: number }; onSaved: (days: number) => void; onError: (msg: string) => void }) {
+function BookingSettingsPanel({
+  saloon, onSaved, onError,
+}: {
+  saloon: { id: string | number; bookingAdvanceDays?: number; bookingRequiresConfirmation?: boolean };
+  onSaved: (days: number, requiresConfirmation: boolean) => void;
+  onError: (msg: string) => void;
+}) {
   const [days, setDays] = useState(saloon.bookingAdvanceDays ?? 60);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(saloon.bookingRequiresConfirmation ?? false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setDays(saloon.bookingAdvanceDays ?? 60); }, [saloon.bookingAdvanceDays]);
+  useEffect(() => { setRequiresConfirmation(saloon.bookingRequiresConfirmation ?? false); }, [saloon.bookingRequiresConfirmation]);
 
   async function save() {
     setSaving(true);
     try {
-      const res = await apiFetch(`${ADMIN_API}/${saloon.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ bookingAdvanceDays: days }),
+      const res = await apiFetch(`${ADMIN_API}/${saloon.id}/booking-settings`, {
+        method: "PATCH",
+        body: JSON.stringify({ bookingAdvanceDays: days, bookingRequiresConfirmation: requiresConfirmation }),
       });
-      onSaved((res as { bookingAdvanceDays: number }).bookingAdvanceDays ?? days);
+      const r = res as { bookingAdvanceDays: number; bookingRequiresConfirmation: boolean };
+      onSaved(r.bookingAdvanceDays ?? days, r.bookingRequiresConfirmation ?? requiresConfirmation);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) { onError(e instanceof Error ? e.message : "Failed to save settings"); }
@@ -1849,6 +1905,7 @@ function BookingSettingsPanel({ saloon, onSaved, onError }: { saloon: { id: stri
 
   return (
     <div className="max-w-lg space-y-4">
+      {/* Advance booking window */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
           <h3 className="text-sm font-semibold text-slate-800">Advance booking window</h3>
@@ -1870,16 +1927,45 @@ function BookingSettingsPanel({ saloon, onSaved, onError }: { saloon: { id: stri
             </button>
           ))}
         </div>
-        <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between gap-4 bg-slate-50/60">
+        <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60">
           <p className="text-xs text-slate-400">
             Currently <strong className="text-slate-600">{days} days</strong> — customers can book up to{" "}
             <strong className="text-slate-600">{ADVANCE_OPTIONS.find((o) => o.days === days)?.label ?? `${days} days`}</strong> ahead.
           </p>
-          <button onClick={save} disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50 shrink-0">
-            {saved ? <><Check className="w-3 h-3" /> Saved!</> : saving ? "Saving…" : "Save"}
-          </button>
         </div>
+      </div>
+
+      {/* Booking confirmation */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-800">Booking confirmation</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            When enabled, new bookings are created as <strong>Pending</strong> and must be manually confirmed by an admin. When disabled, bookings are auto-confirmed immediately.
+          </p>
+        </div>
+        <button type="button" onClick={() => setRequiresConfirmation((v) => !v)}
+          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors cursor-pointer">
+          <div>
+            <p className={`text-sm font-semibold ${requiresConfirmation ? "text-matcha-800" : "text-slate-700"}`}>
+              Require manual confirmation
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {requiresConfirmation
+                ? "New bookings will stay Pending until you confirm them."
+                : "New bookings are confirmed automatically — no action needed."}
+            </p>
+          </div>
+          <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${requiresConfirmation ? "bg-matcha-600" : "bg-slate-200"}`}>
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${requiresConfirmation ? "left-5" : "left-0.5"}`} />
+          </div>
+        </button>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={save} disabled={saving}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
+          {saved ? <><Check className="w-3 h-3" /> Saved!</> : saving ? "Saving…" : "Save settings"}
+        </button>
       </div>
     </div>
   );
@@ -1984,7 +2070,7 @@ export default function BookingPage() {
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
         <InfoBar>
-          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to mark days when the entire saloon won't accept bookings — holidays, vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
+          Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to mark ad-hoc blocked date ranges — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
         </InfoBar>
       </div>
 
@@ -2030,8 +2116,8 @@ export default function BookingPage() {
 
       {tab === "settings" && (
         <BookingSettingsPanel
-          saloon={{ id: String(sid), bookingAdvanceDays: saloon.bookingAdvanceDays }}
-          onSaved={(days) => setSaloon({ ...saloon, bookingAdvanceDays: days })}
+          saloon={{ id: String(sid), bookingAdvanceDays: saloon.bookingAdvanceDays, bookingRequiresConfirmation: saloon.bookingRequiresConfirmation }}
+          onSaved={(days, requiresConfirmation) => setSaloon({ ...saloon, bookingAdvanceDays: days, bookingRequiresConfirmation: requiresConfirmation })}
           onError={(msg) => notify(msg, "error")}
         />
       )}

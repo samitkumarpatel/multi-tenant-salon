@@ -5,7 +5,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, clearAdminSession } from "~/routes/login";
 import { SalonErrorPage } from "@saloon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
+import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSaloonUUID } from "~/lib/api";
@@ -495,6 +495,14 @@ export default function Layout() {
                 )}
               </NavLink>
             </Tooltip>
+
+            {saloon.features?.includes("BOOKING") && (
+              <Tooltip content="Define recurring or one-time public holidays that block the booking calendar.">
+                <NavLink to="holiday" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                  <CalendarDays className="w-4 h-4 shrink-0" /> Holidays
+                </NavLink>
+              </Tooltip>
+            )}
 
             {FEATURE_NAV.some((f) => saloon.features?.includes(f.key)) && (
               <>

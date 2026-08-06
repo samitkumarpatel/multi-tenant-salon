@@ -546,7 +546,7 @@ class IntegrationTests {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
-                .jsonPath("$.status").isEqualTo("PENDING")
+                .jsonPath("$.status").isEqualTo("CONFIRMED")
                 .jsonPath("$.customerName").isEqualTo("Alice Customer")
                 .jsonPath("$.startTime").isEqualTo("10:00:00")
                 .jsonPath("$.endTime").isEqualTo("11:00:00")

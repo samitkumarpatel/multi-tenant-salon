@@ -23,7 +23,7 @@ import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "./constants";
 import { FONTS, loadGoogleFont, contrastText } from "./theme";
 import PhoneInput from "./PhoneInput";
 import type {
-  Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country,
+  Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country, SaloonHoliday,
 } from "./types";
 
 const CUSTOMER_API = `${API_BASE}/api/saloon`;
@@ -304,6 +304,30 @@ function dedupeByTime(slots: AvailableSlot[]): AvailableSlot[] {
 }
 
 /**
+ * Expand holidays into ClosureRange[]  (single-day ranges) for the visible booking window.
+ * Recurring holidays (year == null) are generated for the current and next calendar year.
+ */
+function resolveHolidayRanges(holidays: SaloonHoliday[], maxDate: Date): ClosureRange[] {
+  const todayISO = toISODate(new Date());
+  const maxISO   = toISODate(maxDate);
+  const maxYear  = maxDate.getFullYear();
+  const ranges: ClosureRange[] = [];
+  for (const h of holidays) {
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    if (h.year == null) {
+      for (let y = new Date().getFullYear(); y <= maxYear + 1; y++) {
+        const iso = `${y}-${pad2(h.month)}-${pad2(h.day)}`;
+        if (iso >= todayISO && iso <= maxISO) ranges.push({ startDate: iso, endDate: iso });
+      }
+    } else {
+      const iso = `${h.year}-${pad2(h.month)}-${pad2(h.day)}`;
+      if (iso >= todayISO && iso <= maxISO) ranges.push({ startDate: iso, endDate: iso });
+    }
+  }
+  return ranges;
+}
+
+/**
  * Default booking date: today — unless the saloon is closed today or already
  * past closing time, in which case the next working day is used.
  */
@@ -444,7 +468,7 @@ function WeekGrid({
                 </span>
                 {/* Availability hint — times for the selected day show below */}
                 <span className="text-[9px] font-semibold mt-0.5" style={{ color: !clickable || loading ? "#e2e8f0" : available > 0 ? accent.color : "#cbd5e1" }}>
-                  {isClosed && !isPast ? "Closed" : isPast || isBeyond ? "—" : loading ? "·" : available > 0 ? `${available} free` : slots.length > 0 ? "Full" : "Full"}
+                  {isClosed && !isPast ? "Closed" : isPast || isBeyond ? "—" : loading ? "·" : available > 0 ? `${available} free` : slots.length > 0 ? "Full" : "—"}
                 </span>
               </button>
             </div>
@@ -1259,6 +1283,7 @@ function StepConfirm({
   accent: Accent;
   onExit: () => void;
 }) {
+  const isPending = booking.status === "PENDING";
   return (
     <div className="text-center" style={{ animation: "pop 0.4s ease-out both" }}>
       <div
@@ -1267,10 +1292,21 @@ function StepConfirm({
       >
         <Check className="w-8 h-8" style={{ color: accent.color }} />
       </div>
-      <h2 className="text-xl font-bold text-slate-900 mb-1">You're booked!</h2>
-      <p className="text-sm text-slate-500 mb-6">
-        A confirmation has been sent to <strong>{booking.customerEmail}</strong>.
-      </p>
+      {isPending ? (
+        <>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Request received!</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            Your booking is <strong>pending confirmation</strong>. We'll notify <strong>{booking.customerEmail}</strong> once it's confirmed.
+          </p>
+        </>
+      ) : (
+        <>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">You're booked!</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            A confirmation has been sent to <strong>{booking.customerEmail}</strong>.
+          </p>
+        </>
+      )}
 
       <div className="rounded-2xl border border-slate-200 overflow-hidden mb-8 text-left shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: accent.tint }}>
@@ -1278,7 +1314,7 @@ function StepConfirm({
             Appointment
           </span>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/70" style={{ color: accent.color }}>
-            #{booking.id} · Pending
+            #{booking.id} · {isPending ? "Pending" : "Confirmed"}
           </span>
         </div>
         <div className="bg-white p-4 space-y-2.5">
@@ -1333,6 +1369,7 @@ export function BookingWizard({
   const preStaff    = staff.find((s) => s.id === initialStaffId) ?? null;
 
   const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
+  const [holidayRanges, setHolidayRanges] = useState<ClosureRange[]>([]);
   const [step, setStep] = useState(preselected ? 2 : 1);
   const [fetchedCountries, setFetchedCountries] = useState<Country[]>([]);
   const countries = countriesProp.length > 0 ? countriesProp : fetchedCountries;
@@ -1361,6 +1398,9 @@ export function BookingWizard({
     apiFetch<ClosureRange[]>(`${CUSTOMER_API}/${saloon.id}/closures`)
       .then(setClosedDateRanges)
       .catch(() => {});
+    apiFetch<SaloonHoliday[]>(`${CUSTOMER_API}/${saloon.id}/holidays`)
+      .then((hs) => setHolidayRanges(resolveHolidayRanges(hs, maxDate)))
+      .catch(() => {});
   }, [saloon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fontStack  = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
@@ -1372,6 +1412,7 @@ export function BookingWizard({
   };
   const staffMap = new Map(staff.map((s) => [s.id, s]));
   const bookableStaff = staff.filter((s) => s.availableForBooking !== false);
+  const allClosedRanges = [...closedDateRanges, ...holidayRanges];
   const closedDays = new Set(
     (saloon.operatingHours ?? []).filter((h) => h.closed).map((h) => h.day)
   );
@@ -1487,7 +1528,7 @@ export function BookingWizard({
               selectedSlot={slot}
               accent={accent}
               closedDays={closedDays}
-              closedDateRanges={closedDateRanges}
+              closedDateRanges={allClosedRanges}
               maxDate={maxDate}
               defaultMode={preStaff ? "week" : "designer"}
               onBack={() => setStep(1)}

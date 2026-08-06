@@ -17,7 +17,7 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/website`, `/website-type`, `/features`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/website`, `/website-type`, `/features`
 
 ---
 
@@ -121,10 +121,12 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
     "operatingHours": [],
     "features": ["BOOKING"],
     "bookingAdvanceDays": 60,
+    "bookingRequiresConfirmation": false,
     "businessRegistrationId": "12-3456789",
     "showBusinessId": true,
     "businessIdLabel": "EIN",
-    "createdAt": "2026-07-08T10:00:00Z"
+    "createdAt": "2026-07-08T10:00:00Z",
+    "status": "ACTIVE"
   }
 ]
 ```
@@ -145,7 +147,7 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
 
 Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug (`glam-saloon`).
 
-**Response** `200 OK` — full saloon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `bookingAdvanceDays`, `businessRegistrationId`, `showBusinessId`, `businessIdLabel`, `createdAt`)
+**Response** `200 OK` — full saloon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `bookingAdvanceDays`, `bookingRequiresConfirmation`, `businessRegistrationId`, `showBusinessId`, `businessIdLabel`, `createdAt`, `status`)
 
 `businessIdLabel` is derived automatically from `location.country` (e.g. `"CVR Number"` for Denmark, `"EIN"` for United States). It is read-only — set `location.country` to update it.
 
@@ -352,7 +354,11 @@ Returns **all** slots within each eligible staff member's working window — bot
 | `startTime` | time | yes | |
 | `notes` | string | no | |
 
-**Response** `201 Created` — booking object (status = `PENDING`)
+**Response** `201 Created` — booking object. Initial `status` depends on the saloon setting:
+- `bookingRequiresConfirmation = false` (default) → `CONFIRMED`
+- `bookingRequiresConfirmation = true` → `PENDING` (admin must confirm)
+
+**Response** `400 Bad Request` — `appointmentDate` falls within a saloon closure
 
 **Response** `404 Not Found` — saloon or service not found
 
@@ -361,7 +367,7 @@ Returns **all** slots within each eligible staff member's working window — bot
 **Flow**
 
 1. `BookingController.create(UUID, CreateBookingRequest)` → `BookingService.create(...)`
-2. Validates the slot is still free. Calculates `endTime` from service `durationMinutes`. Sets `status = PENDING`.
+2. Validates the slot is still free. Calculates `endTime` from service `durationMinutes`. Reads `saloonApi.bookingRequiresConfirmation(saloonId)` to determine initial status (`CONFIRMED` or `PENDING`).
 3. `BookingRepository.save(Booking)` → **DB**: `INSERT INTO booking`.
 4. `ApplicationEventPublisher.publishEvent(BookingCreatedEvent)` → Spring Modulith persists the event before commit.
 5. Returns `201 Created`.
@@ -498,8 +504,10 @@ Updates name, location, contact, operating hours, and business registration deta
 | `location` | object | no | See [Location](#location); `businessIdLabel` is re-derived when country changes |
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
 | `operatingHours` | array | no | Replaces existing hours when provided |
+| `bookingAdvanceDays` | integer | no | Preserved if omitted |
 | `businessRegistrationId` | string | no | Preserved if omitted |
 | `showBusinessId` | boolean | no | Preserved if omitted |
+| `bookingRequiresConfirmation` | boolean | no | Preserved if omitted. Use `PATCH .../booking-settings` for a focused update. |
 
 **Response** `200 OK` — updated saloon object
 
@@ -511,6 +519,40 @@ Updates name, location, contact, operating hours, and business registration deta
 2. `SaloonRepository.findById(UUID)` → `404` if empty.
 3. Builds a new `Saloon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`. `businessIdLabel` is re-derived from `location.country` when `location` is provided.
 4. `SaloonRepository.save(Saloon)` → **DB**: `UPDATE saloon SET ...` + `DELETE FROM saloon_operating_hours WHERE saloon_id = ?` + re-`INSERT`.
+5. Returns `200 OK`.
+
+---
+
+### Update booking settings
+
+`PATCH /api/saloon-admin/{saloonId}/booking-settings`
+
+Partially updates only the booking-related settings. Any omitted field retains its current value.
+
+**Request**
+
+```json
+{
+  "bookingAdvanceDays": 60,
+  "bookingRequiresConfirmation": true
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `bookingAdvanceDays` | integer | no | How many days in advance customers can book. Preserved if omitted. |
+| `bookingRequiresConfirmation` | boolean | no | `true` = new bookings created as PENDING (require admin confirmation); `false` = auto-confirmed. Preserved if omitted. |
+
+**Response** `200 OK` — updated saloon object
+
+**Response** `404 Not Found`
+
+**Flow**
+
+1. `SaloonController.patchBookingSettings(UUID, PatchBookingSettingsRequest)` → `SaloonService.updateBookingSettings(UUID, ...)`
+2. `SaloonRepository.findById(UUID)` → `404` if empty.
+3. Merges non-null fields from the request with existing values; all other saloon fields preserved.
+4. `SaloonRepository.save(Saloon)` → `UPDATE saloon SET booking_advance_days = ?, booking_requires_confirmation = ?`.
 5. Returns `200 OK`.
 
 ---
@@ -1003,6 +1045,87 @@ Emits **StaffAvailabilityOverrideRemovedEvent**.
 
 ---
 
+## Customer — Holidays (read-only)
+
+`GET /api/saloon/{saloonId}/holidays`
+
+Returns all holidays defined for this saloon. Used by the public website to label days as holidays in the opening-hours display.
+
+**Response** `200 OK` — array of `SaloonHoliday` objects.
+
+---
+
+## Admin — Holidays
+
+Holidays automatically generate saloon-closure rows (current year through currentYear+4 for recurring; one row for one-off). Deleting a holiday cascade-deletes all its linked closures.
+
+### List holidays
+
+`GET /api/saloon-admin/{saloonId}/holidays`
+
+**Response** `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Christmas Day",
+    "month": 12,
+    "day": 25,
+    "year": null,
+    "createdAt": "2026-08-06T10:00:00Z"
+  }
+]
+```
+
+`year: null` = annually recurring. A specific year = one-off.
+
+---
+
+### Add a holiday
+
+`POST /api/saloon-admin/{saloonId}/holidays`
+
+**Request**
+
+```json
+{
+  "name": "Christmas Day",
+  "month": 12,
+  "day": 25,
+  "year": null
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Human-readable holiday name |
+| `month` | integer | yes | 1–12 |
+| `day` | integer | yes | 1–31 |
+| `year` | integer\|null | no | Omit or `null` for annually recurring; provide a year for one-off |
+
+**Response** `200 OK` — created `SaloonHoliday` object
+
+**Flow**
+
+1. `SaloonController.addHoliday(UUID, AddHolidayRequest)` → `SaloonService.addHoliday(...)`
+2. Saves the `SaloonHoliday` row.
+3. For a specific year: inserts one `SaloonClosure` row. For recurring (null year): inserts closure rows for `currentYear` through `currentYear+4`. Invalid dates (Feb 29 on non-leap years) are skipped silently.
+4. Returns `200 OK`.
+
+---
+
+### Remove a holiday
+
+`DELETE /api/saloon-admin/{saloonId}/holidays/{holidayId}`
+
+**Response** `204 No Content`
+
+Deletes the holiday. All linked `SaloonClosure` rows are removed automatically via `ON DELETE CASCADE`.
+
+---
+
 ## Customer — Closures (read-only)
 
 `GET /api/saloon/{saloonId}/closures`
@@ -1033,17 +1156,21 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
     "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "startDate": "2026-08-04",
     "endDate": "2026-08-15",
-    "reason": "Annual vacation"
+    "reason": "Annual vacation",
+    "holidayId": null
   },
   {
     "id": 2,
     "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "startDate": "2026-12-25",
     "endDate": "2026-12-25",
-    "reason": "Christmas Day"
+    "reason": "Christmas Day",
+    "holidayId": 1
   }
 ]
 ```
+
+`holidayId` is non-null when the closure was auto-generated from a holiday. Holiday-backed closures cannot be deleted directly — delete the parent holiday to remove them.
 
 ---
 

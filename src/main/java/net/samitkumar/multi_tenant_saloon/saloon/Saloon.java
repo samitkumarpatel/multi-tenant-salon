@@ -25,6 +25,7 @@ public record Saloon(
         Integer bookingAdvanceDays,
         String businessRegistrationId,
         Boolean showBusinessId,
+        Boolean bookingRequiresConfirmation,
         String businessIdLabel,
         Instant createdAt,
         SaloonStatus status
@@ -36,6 +37,7 @@ public record Saloon(
         operatingHours = operatingHours != null ? List.copyOf(operatingHours) : List.of();
         if (bookingAdvanceDays == null) bookingAdvanceDays = 60;
         if (showBusinessId == null) showBusinessId = false;
+        if (bookingRequiresConfirmation == null) bookingRequiresConfirmation = false;
         if (status == null) status = SaloonStatus.ACTIVE;
     }
 

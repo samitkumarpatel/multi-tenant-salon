@@ -8,4 +8,6 @@ public interface SaloonApi {
     List<Saloon.OperatingHours> findOperatingHours(UUID saloonId);
     boolean isClosedOn(UUID saloonId, LocalDate date);
     List<SaloonClosure> findClosures(UUID saloonId);
+    List<SaloonHoliday> findHolidays(UUID saloonId);
+    boolean bookingRequiresConfirmation(UUID saloonId);
 }
