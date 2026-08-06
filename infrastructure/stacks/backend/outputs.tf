@@ -4,7 +4,7 @@ output "vpc_id" {
 }
 
 output "api_endpoint" {
-  value       = "https://${module.api_gateway.api_custom_domain}"
+  value       = "https://api.${var.domain}"
   description = "REST API endpoint — set as API_BASE_URL in the frontend apps"
 }
 

@@ -16,7 +16,7 @@ variable "domain" {
 
 variable "regional_certificate_arn" {
   type        = string
-  description = "Validated ACM certificate ARN in the deployment region (output of the bootstrap stack, used for API Gateway v2 custom domains)."
+  description = "Validated ACM certificate ARN in the deployment region (output of the bootstrap stack), used for the ALB HTTPS listener."
 }
 
 variable "zone_id" {
@@ -57,17 +57,15 @@ variable "services" {
   description = "Services to run on ECS. DB credentials are injected automatically. Services not referenced in routes.http are workers with no ALB attachment."
 }
 
-# ── Routes ────────────────────────────────────────────────────────────────────
-
 variable "ghcr_token" {
   type        = string
   sensitive   = true
   description = "GHCR pull credentials as JSON: {\"username\":\"...\",\"password\":\"<PAT with read:packages>\"}. Set via TF_VAR_ghcr_token."
 }
 
-variable "routes" {
-  type = object({
-    http = map(string)
-  })
-  description = "Routing rules. http maps path prefixes to service keys (e.g. { \"/\" = \"api\" })."
+# ── Ingress ───────────────────────────────────────────────────────────────────
+
+variable "ingress" {
+  type        = map(string)
+  description = "Hostname-to-service routing. Keys are full hostnames (e.g. \"api.my-saloon.online\"); values are service keys from var.services."
 }

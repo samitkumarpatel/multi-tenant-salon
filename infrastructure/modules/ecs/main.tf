@@ -220,15 +220,15 @@ locals {
   # The listener that carries the per-service forward rules
   active_listener_arn = var.internal ? aws_lb_listener.http[0].arn : aws_lb_listener.https[0].arn
 
-  # Unique service keys referenced in http_routes — each gets one target group
-  routed_service_keys = toset(values(var.http_routes))
+  # Unique service keys from ingress — each gets one target group
+  routed_service_keys = toset(values(var.ingress))
   routed_services = {
     for k in local.routed_service_keys : k => var.services[k]
   }
 
-  # Stable alphabetical priority per path pattern (lowest index = highest priority)
-  route_priorities = {
-    for idx, path in sort(keys(var.http_routes)) : path => idx + 1
+  # Stable alphabetical priority per hostname — priorities 1..N
+  ingress_priorities = {
+    for idx, host in sort(keys(var.ingress)) : host => idx + 1
   }
 }
 
@@ -254,10 +254,10 @@ resource "aws_lb_target_group" "this" {
   tags = var.tags
 }
 
-resource "aws_lb_listener_rule" "this" {
-  for_each     = var.http_routes
+resource "aws_lb_listener_rule" "ingress" {
+  for_each     = var.ingress
   listener_arn = local.active_listener_arn
-  priority     = local.route_priorities[each.key]
+  priority     = local.ingress_priorities[each.key]
 
   action {
     type             = "forward"
@@ -265,9 +265,8 @@ resource "aws_lb_listener_rule" "this" {
   }
 
   condition {
-    path_pattern {
-      # "/" is a catch-all; other prefixes match exactly and with a trailing wildcard
-      values = each.key == "/" ? ["/*", "/"] : [each.key, "${each.key}/*"]
+    host_header {
+      values = [each.key]
     }
   }
 }
@@ -299,9 +298,9 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = var.assign_public_ip
   }
 
-  # Only attach to the ALB when the service is referenced in http_routes
+  # Only attach to the ALB when the service is referenced in ingress
   dynamic "load_balancer" {
-    for_each = contains(values(var.http_routes), each.key) ? [1] : []
+    for_each = contains(values(var.ingress), each.key) ? [1] : []
     content {
       target_group_arn = aws_lb_target_group.this[each.key].arn
       container_name   = each.key
@@ -317,7 +316,7 @@ resource "aws_ecs_service" "this" {
   }
 
   # Wait for the listener infrastructure before registering the service
-  depends_on = [aws_lb_listener.http, aws_lb_listener.https, aws_lb_listener_rule.this]
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https, aws_lb_listener_rule.ingress]
 
   tags = var.tags
 }

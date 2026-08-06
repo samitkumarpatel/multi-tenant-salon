@@ -35,34 +35,29 @@ data "aws_subnets" "default" {
 }
 
 # ── Security Groups ───────────────────────────────────────────────────────────
-# Traffic path: vpc_link → alb → ecs → rds
-
-resource "aws_security_group" "vpc_link" {
-  name        = "${local.backend_name}-vpc-link"
-  description = "API Gateway VPC Link ENIs"
-  vpc_id      = data.aws_vpc.default.id
-  tags        = merge(local.common_tags, { Name = "${local.backend_name}-vpc-link" })
-}
-
-resource "aws_vpc_security_group_egress_rule" "vpc_link_all" {
-  security_group_id = aws_security_group.vpc_link.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "-1"
-}
+# Traffic path: internet → alb → ecs → rds
 
 resource "aws_security_group" "alb" {
   name        = "${local.backend_name}-alb"
-  description = "Internal ALB - accepts traffic from API Gateway VPC Link"
+  description = "Public ALB - accepts HTTP and HTTPS from the internet"
   vpc_id      = data.aws_vpc.default.id
   tags        = merge(local.common_tags, { Name = "${local.backend_name}-alb" })
 }
 
-resource "aws_vpc_security_group_ingress_rule" "alb_from_vpc_link" {
-  security_group_id            = aws_security_group.alb.id
-  referenced_security_group_id = aws_security_group.vpc_link.id
-  from_port                    = 80
-  to_port                      = 80
-  ip_protocol                  = "tcp"
+resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  security_group_id = aws_security_group.alb.id
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 80
+  to_port           = 80
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  security_group_id = aws_security_group.alb.id
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
 }
 
 resource "aws_vpc_security_group_egress_rule" "alb_all" {
@@ -81,9 +76,7 @@ resource "aws_security_group" "ecs" {
 resource "aws_vpc_security_group_ingress_rule" "ecs_from_alb" {
   security_group_id            = aws_security_group.ecs.id
   referenced_security_group_id = aws_security_group.alb.id
-  from_port                    = 8080
-  to_port                      = 8080
-  ip_protocol                  = "tcp"
+  ip_protocol                  = "-1"
 }
 
 resource "aws_vpc_security_group_egress_rule" "ecs_all" {
@@ -142,12 +135,13 @@ module "ecs" {
   name       = local.backend_name
   aws_region = var.aws_region
 
-  internal              = true
+  internal              = false
   vpc_id                = data.aws_vpc.default.id
   public_subnet_ids     = data.aws_subnets.default.ids
   private_subnet_ids    = data.aws_subnets.default.ids
   alb_security_group_id = aws_security_group.alb.id
   ecs_security_group_id = aws_security_group.ecs.id
+  acm_certificate_arn   = var.regional_certificate_arn
 
   # Default VPC subnets are public; tasks get a public IP to reach ghcr.io
   # without a NAT gateway. RDS access is gated by the rds security group.
@@ -155,22 +149,23 @@ module "ecs" {
 
   enable_deletion_protection = var.environment != "dev"
 
-  services    = local.services_with_db
-  http_routes = var.routes.http
-  tags        = local.common_tags
+  services = local.services_with_db
+  ingress  = var.ingress
+  tags     = local.common_tags
 }
 
-# ── API Gateway v2 (HTTP + WebSocket) ─────────────────────────────────────────
+# ── Route 53 — all ingress hostnames → ALB ────────────────────────────────────
 
-module "api_gateway" {
-  source = "../../modules/api-gateway"
+resource "aws_route53_record" "ingress" {
+  for_each = var.ingress
 
-  name               = local.backend_name
-  subnet_ids         = data.aws_subnets.default.ids
-  security_group_ids = [aws_security_group.vpc_link.id]
-  alb_listener_arn   = module.ecs.alb_listener_arn
-  domain             = var.domain
-  certificate_arn    = var.regional_certificate_arn
-  zone_id            = var.zone_id
-  tags               = local.common_tags
+  zone_id = var.zone_id
+  name    = each.key
+  type    = "A"
+
+  alias {
+    name                   = module.ecs.alb_dns_name
+    zone_id                = module.ecs.alb_zone_id
+    evaluate_target_health = true
+  }
 }
