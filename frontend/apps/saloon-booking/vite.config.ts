@@ -2,11 +2,12 @@ import { defineConfig } from "vite";
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 
-const wellKnownBypass = {
-  name: "well-known-bypass",
+const devMiddleware = {
+  name: "dev-middleware",
   configureServer(server: import("vite").ViteDevServer) {
     server.middlewares.use((req, res, next) => {
-      if (req.url?.startsWith("/.well-known/") || req.url === "/favicon.ico") {
+      const url = req.url ?? "/";
+      if (url.startsWith("/.well-known/") || url === "/favicon.ico") {
         res.statusCode = 204;
         res.end();
         return;
@@ -17,12 +18,15 @@ const wellKnownBypass = {
 };
 
 export default defineConfig({
-  plugins: [wellKnownBypass, tailwindcss(), reactRouter()],
+  plugins: [devMiddleware, tailwindcss(), reactRouter()],
   resolve: {
     dedupe: ["react", "react-dom", "react-router"],
   },
   server: {
-    port: 5176,
+    port: 5177,
+    watch: {
+      ignored: ["!**/node_modules/@saloon/**"],
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8080",

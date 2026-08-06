@@ -43,6 +43,7 @@ module "frontend" {
     admin-web       = { force_destroy = true }
     public-web      = { force_destroy = true }
     super-admin-web = { force_destroy = true }
+    booking-web     = { force_destroy = true }
   }
 
   distributions = {
@@ -86,6 +87,16 @@ module "frontend" {
         { error_code = 404, response_page_path = "/index.html" },
       ]
     }
+    booking = {
+      aliases            = ["book.my-saloon.online"]
+      certificate_key    = "cloudfront"
+      default_origin_key = "booking-web"
+      log_prefix         = "booking/"
+      custom_error_responses = [
+        { error_code = 403, response_page_path = "/index.html" },
+        { error_code = 404, response_page_path = "/index.html" },
+      ]
+    }
   }
 
   dns_records = {
@@ -94,6 +105,7 @@ module "frontend" {
     admin       = { subdomain = "admin",       distribution_key = "admin"       }
     wildcard    = { subdomain = "*",           distribution_key = "wildcard"    }
     super-admin = { subdomain = "super-admin", distribution_key = "super-admin" }
+    booking     = { subdomain = "book",        distribution_key = "booking"     }
   }
 }
 

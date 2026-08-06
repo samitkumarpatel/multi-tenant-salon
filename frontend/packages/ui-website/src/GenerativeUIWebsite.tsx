@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Calendar, ChevronDown, ChevronRight, Clock, MapPin, Mic, MessageCircle, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, CalendarCheck, ChevronDown, ChevronRight, Clock, MapPin, Mic, MessageCircle, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
 import { FONTS, loadGoogleFont, contrastText, isLightColor } from "./theme";
+import { formatPrice } from "./constants";
+import { SiteHeader, SiteFooter } from "./SiteChrome";
 import type { Saloon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
 
 export interface GenerativeUIWebsiteProps {
@@ -10,8 +12,14 @@ export interface GenerativeUIWebsiteProps {
   staff: StaffMember[];
   services: ServiceItem[];
   theme: WebsiteTheme;
+  /** "website" = embedded in the website layout (default); "booking" = standalone full-page with own header + toggle */
+  context?: "website" | "booking";
+  // Website context
   getPagePath?: (page: string) => string;
   onNavigate?: (page: string | null) => void;
+  // Booking context
+  /** Called when user taps the Wizard tab or a "Book now" CTA */
+  onSwitchToWizard?: () => void;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -19,7 +27,9 @@ export interface GenerativeUIWebsiteProps {
 type ToolCard = { name: string; label: string; done: boolean };
 type Message =
   | { role: "user"; text: string; time: string }
-  | { role: "assistant"; text: string; tool?: ToolCard; time: string };
+  | { role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book" };
+
+type ReplyResult = { text: string; cta?: "book" };
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -51,6 +61,68 @@ function todayHours(saloon: Saloon): string | null {
   if (!today || today.closed) return "Closed today";
   return `${today.openTime} – ${today.closeTime}`;
 }
+function mockBookingReply(input: string, saloon: Saloon, services: ServiceItem[], staff: StaffMember[]): ReplyResult {
+  const lower = input.toLowerCase();
+  const name  = saloon.name;
+  const phone = saloon.contact?.phone;
+  const email = saloon.contact?.email;
+  if (/book|appointment|schedule|slot|reserv/i.test(lower)) {
+    return { text: `Ready to book at **${name}**! The step-by-step wizard will help you pick a service, choose a date and time, and confirm your details.`, cta: "book" };
+  }
+  if (/price|cost|fee|how much/.test(lower)) {
+    const priced = services.filter((s) => s.active && s.price != null).slice(0, 5);
+    if (priced.length) {
+      const list = priced.map((s) => `**${s.name}** — ${formatPrice(s.price!, s.currency ?? "EUR")}`).join("\n");
+      return { text: `Here are some of our services and prices:\n\n${list}`, cta: "book" };
+    }
+    return { text: `Please ${phone ? `call us at ${phone}` : "reach out"} for our current pricing.` };
+  }
+  if (/service|treatment|offer|menu|what can|what do/.test(lower)) {
+    const active = services.filter((s) => s.active).slice(0, 6);
+    if (active.length) {
+      const list = active.map((s) => {
+        const parts = [`**${s.name}**`];
+        if (s.durationMinutes) parts.push(`${s.durationMinutes} min`);
+        if (s.price != null) parts.push(formatPrice(s.price, s.currency ?? "EUR"));
+        return parts.join(" · ");
+      }).join("\n");
+      return { text: `At **${name}** we offer:\n\n${list}`, cta: "book" };
+    }
+    return { text: `**${name}** offers a range of beauty & wellness services. Book now and we'll match you with the perfect treatment!`, cta: "book" };
+  }
+  if (/how long|duration|takes/.test(lower)) {
+    const timed = services.filter((s) => s.active && s.durationMinutes).slice(0, 5);
+    if (timed.length) {
+      return { text: `Here's how long our services take:\n\n${timed.map((s) => `**${s.name}** — ${s.durationMinutes} min`).join("\n")}`, cta: "book" };
+    }
+    return { text: `Session lengths vary by service — you'll see durations when selecting a treatment!`, cta: "book" };
+  }
+  if (/staff|stylist|team|who|person/.test(lower)) {
+    const names = staff.slice(0, 4).map((s) => `**${s.name}**${s.role ? ` (${s.role})` : ""}`);
+    return names.length
+      ? { text: `Our team at **${name}**:\n\n${names.join("\n")}\n\nYou can pick your preferred person when booking!`, cta: "book" }
+      : { text: `**${name}** has a skilled team ready to help!`, cta: "book" };
+  }
+  if (/hour|open|close|when/.test(lower)) {
+    const h = todayHours(saloon);
+    const open = isOpenNow(saloon);
+    const line = h ? `\n\n${open ? "We're **currently open**." : "We're **currently closed**."} Today: ${h === "Closed today" ? "**closed all day**" : `**${h}**`}.` : "";
+    return { text: `You can find our full hours on our website.${line}`, cta: "book" };
+  }
+  if (/location|address|where|find/.test(lower)) {
+    const loc  = saloon.location;
+    const parts = [loc?.address, loc?.city, loc?.country].filter(Boolean).join(", ");
+    return { text: parts ? `You can find us at **${parts}**.` : `Please ${phone ? `call us at ${phone}` : email ? `email ${email}` : "contact us"} for directions.` };
+  }
+  if (/contact|phone|email|reach|call/.test(lower)) {
+    const lines: string[] = [];
+    if (phone) lines.push(`📞 ${phone}`);
+    if (email) lines.push(`📧 ${email}`);
+    return { text: lines.length ? `Reach **${name}**:\n\n${lines.join("\n")}` : `Visit our page for contact details.` };
+  }
+  return { text: `I can help with services, prices, our team, or hours — or just go ahead and book!`, cta: "book" };
+}
+
 function mockReply(input: string, saloon: Saloon, services: ServiceItem[], staff: StaffMember[]): string {
   const lower = input.toLowerCase();
   const name  = saloon.name;
@@ -120,7 +192,8 @@ function MessageText({ text }: { text: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function GenerativeUIWebsite({ saloon, staff, services, theme }: GenerativeUIWebsiteProps) {
+export function GenerativeUIWebsite({ saloon, staff, services, theme, context = "website", getPagePath, onNavigate, onSwitchToWizard }: GenerativeUIWebsiteProps) {
+  const isBooking = context === "booking";
   const font = FONTS[theme.fontFamily as keyof typeof FONTS] ?? FONTS.system;
   loadGoogleFont(theme.fontFamily);
 
@@ -131,7 +204,10 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
   const openingMsg: Message = {
     role: "assistant",
     time: nowTime(),
-    text: `Hi! 👋 I'm the AI assistant for **${saloon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, location, or how to book. I'm here to help!`,
+    text: isBooking
+      ? `Hi! 👋 I'm the AI booking assistant for **${saloon.name}**.\n\nAsk me about services, prices, how long things take, or who's on the team — or just go ahead and book!`
+      : `Hi! 👋 I'm the AI assistant for **${saloon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, location, or how to book. I'm here to help!`,
+    cta: isBooking ? "book" : undefined,
   };
 
   const [messages, setMessages]   = useState<Message[]>([openingMsg]);
@@ -150,7 +226,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
   const [askedLabels, setAskedLabels] = useState<Set<string>>(new Set());
 
   // Typewriter animation states (drive the full-page intro overlay)
-  const fullTitle = saloon.name;
+  const fullTitle = isBooking ? `Book at ${saloon.name}` : saloon.name;
   const [labelVisible, setLabelVisible] = useState(false);
   const [typedTitle, setTypedTitle]     = useState("");
   const [titleDone, setTitleDone]       = useState(false);
@@ -218,8 +294,15 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     setQuestionPhase("chatting");
   }
 
+  function getReply(text: string): ReplyResult {
+    return isBooking
+      ? mockBookingReply(text, saloon, services, staff)
+      : { text: mockReply(text, saloon, services, staff) };
+  }
+
   // Called when a question card is clicked — answers inline, stays in answered phase
   function askQuestion(btn: ActionButton) {
+    if (btn.directAction) { btn.directAction(); return; }
     if (thinking) return;
     setAskedLabels(prev => new Set([...prev, btn.label]));
     setQuestionPhase("answered");
@@ -229,10 +312,10 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
       const tool: ToolCard = { name: "saloon-data", label: "Querying saloon data…", done: false };
       setMessages(prev => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
       setTimeout(() => {
-        const reply = mockReply(btn.question, saloon, services, staff);
+        const { text: reply, cta } = getReply(btn.question);
         setMessages(prev => {
           const next = [...prev];
-          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime() };
+          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime(), cta };
           return next;
         });
         setThinking(false);
@@ -249,10 +332,10 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
       const tool: ToolCard = { name: "saloon-data", label: "Querying saloon data…", done: false };
       setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
       setTimeout(() => {
-        const reply = mockReply(text, saloon, services, staff);
+        const { text: reply, cta } = getReply(text);
         setMessages((prev) => {
           const next = [...prev];
-          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime() };
+          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime(), cta };
           return next;
         });
         setThinking(false);
@@ -289,6 +372,12 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
 
   const sendActive  = Boolean(input.trim()) && !thinking;
 
+  // Booking mode: own header uses theme.headerBg
+  const headerBg      = theme.headerBg ?? "#FFFFFF";
+  const headerIsLight = isLightColor(headerBg);
+  const headerText    = headerIsLight ? "#0F172A" : "#FFFFFF";
+  const headerBorder  = headerIsLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)";
+
   const chatBorder  = chatLight ? "rgba(148,163,184,0.35)" : "rgba(255,255,255,0.12)";
   const bubbleBorder = chatLight ? "rgba(148,163,184,0.3)" : "rgba(255,255,255,0.08)";
   const bubbleShadow = chatLight
@@ -304,8 +393,11 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
     question: string;
     iconAnim: string;
+    /** When set, clicking calls this directly instead of dispatching a question */
+    directAction?: () => void;
   };
-  const actionButtons: ActionButton[] = [
+
+  const websiteButtons: ActionButton[] = [
     saloon.features?.includes("BOOKING") && {
       label: "Book with us",
       icon: Calendar,
@@ -344,14 +436,57 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     },
   ].filter(Boolean) as ActionButton[];
 
-  // Shuffle once on mount; first 2 shown as buttons, rest in "More" dropdown
+  const bookingButtons: ActionButton[] = [
+    {
+      label: "Book appointment",
+      icon: CalendarCheck,
+      question: "",
+      iconAnim: "group-hover:rotate-12 group-hover:scale-110",
+      directAction: onSwitchToWizard,
+    },
+    services.filter((s) => s.active).length > 0 && {
+      label: "Our services",
+      icon: Sparkles,
+      question: "What services do you offer?",
+      iconAnim: "group-hover:scale-125 group-hover:rotate-6",
+    },
+    staff.length > 0 && {
+      label: "Our team",
+      icon: Users,
+      question: "Who are your stylists?",
+      iconAnim: "group-hover:scale-110",
+    },
+    services.some((s) => s.durationMinutes) && {
+      label: "How long?",
+      icon: Clock,
+      question: "How long do your services take?",
+      iconAnim: "group-hover:rotate-45",
+    },
+    (saloon.location?.address || saloon.location?.city) && {
+      label: "Find us",
+      icon: MapPin,
+      question: "Where are you located?",
+      iconAnim: "group-hover:-translate-y-1 group-hover:scale-110",
+    },
+    (saloon.contact?.phone || saloon.contact?.email) && {
+      label: "Contact us",
+      icon: Phone,
+      question: "How can I contact you?",
+      iconAnim: "group-hover:rotate-12 group-hover:scale-110",
+    },
+  ].filter(Boolean) as ActionButton[];
+
+  const actionButtons = isBooking ? bookingButtons : websiteButtons;
+
+  // Shuffle once on mount; first 3 (or 2 for booking) shown, rest in "More" dropdown
   const [visibleButtons, dropdownButtons] = useMemo(() => {
-    const arr = [...actionButtons];
+    const shufflable = actionButtons.filter((b) => !b.directAction);
+    const arr = [...shufflable];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    return [arr.slice(0, 3), arr.slice(3)];
+    return isBooking ? [arr.slice(0, 2), arr.slice(2)] : [arr.slice(0, 3), arr.slice(3)];
   }, [actionButtons.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const inputCard = (
@@ -408,12 +543,23 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     boxShadow: `0 1px 3px ${theme.accentColor}15`,
   };
 
-  const actionButtonsPanel = visibleButtons.length > 0 ? (
+  const actionButtonsPanel = visibleButtons.length > 0 || isBooking ? (
     <div className="flex gap-1.5 mb-3 w-full">
+      {/* Booking: prominent "Book" primary button */}
+      {isBooking && (
+        <button
+          onClick={onSwitchToWizard}
+          className="group flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer"
+          style={{ backgroundColor: theme.accentColor, color: accentText }}
+        >
+          <CalendarCheck className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform duration-200" />
+          <span>Book</span>
+        </button>
+      )}
       {visibleButtons.map((btn) => (
         <button
           key={btn.label}
-          onClick={() => dispatch(btn.question)}
+          onClick={() => askQuestion(btn)}
           title={btn.label}
           className="group flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer overflow-hidden"
           style={btnStyle}
@@ -447,7 +593,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
               {dropdownButtons.map((btn) => (
                 <button
                   key={btn.label}
-                  onClick={() => { dispatch(btn.question); setMoreOpen(false); }}
+                  onClick={() => { askQuestion(btn); setMoreOpen(false); }}
                   className="group w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors duration-150 hover:opacity-80 cursor-pointer"
                   style={{ color: theme.accentColor }}
                 >
@@ -487,6 +633,19 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
       </div>
     </div>
   );
+
+  // ── "Book now" CTA button (booking context only) ─────────────────────
+
+  const bookCtaBtn = isBooking ? (
+    <button
+      onClick={onSwitchToWizard}
+      className="mt-2.5 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all hover:-translate-y-0.5 active:translate-y-0"
+      style={{ backgroundColor: theme.accentColor, color: accentText, boxShadow: `0 6px 16px -6px ${theme.accentColor}aa` }}
+    >
+      <CalendarCheck className="w-3.5 h-3.5" />
+      Book now →
+    </button>
+  ) : null;
 
   // ── Shared card for "start conversation" ──────────────────────────────
 
@@ -550,7 +709,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                 transition: "opacity 0.4s ease, transform 0.4s ease",
               }}
             >
-              Welcome to
+              {isBooking ? "AI Booking Assistant" : "Welcome to"}
             </p>
 
             <h1 className="text-2xl font-bold leading-tight mb-2" style={{ color: msgText, minHeight: "1.9rem" }}>
@@ -576,7 +735,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
               }}
             >
               <p className="text-sm mb-1" style={{ color: msgText, opacity: 0.8 }}>
-                Your AI assistant — ask me anything about us.
+                {isBooking ? "Ask about services, prices, or our team — or just book now." : "Your AI assistant — ask me anything about us."}
               </p>
               <p className="flex items-center gap-2 text-xs" style={{ color: msgDim }}>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
@@ -594,8 +753,8 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
               onClick={() => askQuestion(btn)}
               className="group flex items-center gap-3 px-4 py-3 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.98]"
               style={{
-                backgroundColor: asBubbleBg,
-                borderColor: bubbleBorder,
+                backgroundColor: btn.directAction ? theme.accentColor : asBubbleBg,
+                borderColor: btn.directAction ? theme.accentColor : bubbleBorder,
                 opacity: 0,
                 animation: `gai-question-in 0.4s ease forwards`,
                 animationDelay: `${i * 70}ms`,
@@ -603,21 +762,23 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
             >
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
-                style={{ backgroundColor: `${theme.accentColor}15` }}
+                style={{ backgroundColor: btn.directAction ? `${accentText}20` : `${theme.accentColor}15` }}
               >
-                <btn.icon className="w-4 h-4" style={{ color: theme.accentColor }} />
+                <btn.icon className="w-4 h-4" style={{ color: btn.directAction ? accentText : theme.accentColor }} />
               </div>
-              <span className="flex-1 text-sm font-medium" style={{ color: msgText }}>
-                {btn.question}
+              <span className="flex-1 text-sm font-medium" style={{ color: btn.directAction ? accentText : msgText }}>
+                {btn.directAction ? btn.label : btn.question}
               </span>
-              <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: theme.accentColor }} />
+              <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: btn.directAction ? accentText : theme.accentColor }} />
             </button>
           ))}
 
-          {/* Conversation starter — highlighted, always last */}
-          <div className="mt-1">
-            {startConversationCard(actionButtons.length * 70)}
-          </div>
+          {/* Conversation starter — shown only in website context */}
+          {!isBooking && (
+            <div className="mt-1">
+              {startConversationCard(actionButtons.length * 70)}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -625,7 +786,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
 
   // ── Answered view (question asked, reply shown, remaining questions below) ──
 
-  const unansweredButtons = actionButtons.filter(btn => !askedLabels.has(btn.label));
+  const unansweredButtons = actionButtons.filter(btn => !btn.directAction && !askedLabels.has(btn.label));
 
   const answeredView = (
     <div className="flex flex-col" style={{ height: "100%", overflow: "hidden", maxWidth: 680, margin: "0 auto", width: "100%" }}>
@@ -678,6 +839,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                       }}
                     >
                       <MessageText text={m.text} />
+                      {(m as Extract<Message, { role: "assistant" }>).cta === "book" && bookCtaBtn}
                     </div>
                   )}
                 </div>
@@ -744,9 +906,16 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
               </>
             )}
 
-            <div className={unansweredButtons.length > 0 ? "mt-1" : ""}>
-              {startConversationCard(unansweredButtons.length * 50 + 80)}
-            </div>
+            {!isBooking && (
+              <div className={unansweredButtons.length > 0 ? "mt-1" : ""}>
+                {startConversationCard(unansweredButtons.length * 50 + 80)}
+              </div>
+            )}
+            {isBooking && (
+              <div className={unansweredButtons.length > 0 ? "mt-3" : ""}>
+                {actionButtonsPanel}
+              </div>
+            )}
           </div>
         )}
 
@@ -759,7 +928,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
     </div>
   );
 
-  return (
+  const innerContent = (
     <>
     <style>{`
       @keyframes gai-cursor-blink {
@@ -785,11 +954,15 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
       }
       @media (max-width: 639px) {
         .gai-card-mobile { border-radius: 0 !important; }
+        .gai-booking-card { border-radius: 0 !important; margin: 0 !important; border-left: none !important; border-right: none !important; }
+      }
+      @media (min-width: 640px) {
+        .gai-booking-card { max-width: 720px; width: 100%; margin-left: auto; margin-right: auto; margin-top: 0.75rem; margin-bottom: 0.75rem; border-radius: 12px !important; }
       }
     `}</style>
 
-    {/* ── Full-page intro overlay ── */}
-    {introPhase !== "done" && (
+    {/* ── Full-page intro overlay (website mode only; booking mode has its own in-card overlay) ── */}
+    {!isBooking && introPhase !== "done" && (
       <div
         style={{
           position: "fixed", inset: 0, zIndex: 9999,
@@ -823,7 +996,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                   transition: "opacity 0.4s ease, transform 0.4s ease",
                 }}
               >
-                Welcome to
+                {isBooking ? "AI Booking Assistant" : "Welcome to"}
               </p>
               <h1 className="text-4xl font-bold leading-tight" style={{ color: msgText, minHeight: "3rem" }}>
                 {typedTitle || "​"}
@@ -848,11 +1021,11 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                 }}
               >
                 <p className="text-lg" style={{ color: msgText, opacity: 0.8 }}>
-                  Your AI assistant — ask me anything about us.
+                  {isBooking ? "Ask about services, prices, or our team." : "Your AI assistant — ask me anything about us."}
                 </p>
                 <p className="flex items-center gap-2 text-sm mt-1" style={{ color: msgDim }}>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-                  Online · Powered by MCP
+                  {isBooking ? "Online · Powered by AI" : "Online · Powered by MCP"}
                 </p>
               </div>
             </div>
@@ -861,23 +1034,131 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
       </div>
     )}
 
-    {/* ── Chat card — fades in after intro exits ── */}
+    {/* ── Booking mode: shared SiteHeader with the same toggle used in wizard mode ── */}
+    {isBooking && (
+      <SiteHeader
+        saloon={saloon}
+        theme={theme}
+        current="ai"
+        onBack={onSwitchToWizard ?? (() => {})}
+        standalone
+        headerExtra={
+          <div
+            className="inline-flex items-center rounded-xl p-1 gap-0.5"
+            style={{ backgroundColor: `${theme.accentColor}12`, border: `1.5px solid ${theme.accentColor}30` }}
+          >
+            <button
+              title="Book with GenAI (current)"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-default select-none"
+              style={{ backgroundColor: theme.accentColor, color: accentText, boxShadow: `0 2px 10px ${theme.accentColor}55` }}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              Book with GenAI
+            </button>
+            <button
+              onClick={onSwitchToWizard}
+              title="Switch to step-by-step booking wizard"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:opacity-80 cursor-pointer"
+              style={{ color: theme.accentColor }}
+            >
+              <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+              Book Now
+            </button>
+          </div>
+        }
+      />
+    )}
+
+    {/* ── Chat card ── */}
     <div
-      className="flex flex-col gai-card-mobile"
+      className={isBooking ? "flex-1 flex flex-col min-h-0 overflow-hidden relative gai-booking-card" : "flex flex-col gai-card-mobile"}
       style={{
-        height: "100%",
-        overflow: "hidden",
         background: pageBg,
-        fontFamily: font.stack,
         border: `1px solid ${chatBorder}`,
         borderRadius: "12px",
-        opacity: introPhase === "done" ? 1 : 0,
-        animation: introPhase === "done" ? "gai-card-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards" : "none",
         boxShadow: chatLight
           ? "0 0 0 1px rgba(148,163,184,0.12), 0 4px 24px rgba(0,0,0,0.06)"
           : "0 0 0 1px rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.35)",
+        ...(!isBooking && {
+          height: "100%", overflow: "hidden", fontFamily: font.stack,
+          opacity: introPhase === "done" ? 1 : 0,
+          animation: introPhase === "done" ? "gai-card-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards" : "none",
+        }),
       }}
     >
+      {/* ── In-card intro overlay (booking mode only — header/footer stay visible above/below the card) ── */}
+      {isBooking && introPhase !== "done" && (
+        <div
+          style={{
+            position: "absolute", inset: 0, zIndex: 10,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: pageBg, fontFamily: font.stack,
+            opacity: introPhase === "exiting" ? 0 : 1,
+            transition: "opacity 0.6s ease",
+            pointerEvents: introPhase === "exiting" ? "none" : "auto",
+          }}
+        >
+          <div style={{ maxWidth: 560, width: "100%", padding: "0 32px" }}>
+            <div className="flex items-start gap-5">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 mt-1"
+                style={{
+                  backgroundColor: avatarBg, color: avatarText,
+                  boxShadow: `0 0 0 5px ${theme.accentColor}20, 0 8px 28px ${theme.accentColor}35`,
+                  animation: "gai-scale-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+                  opacity: 0,
+                }}
+              >
+                {initials(saloon.name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-sm font-medium tracking-wide mb-1"
+                  style={{
+                    color: msgDim,
+                    opacity: labelVisible ? 1 : 0,
+                    transform: labelVisible ? "translateY(0)" : "translateY(8px)",
+                    transition: "opacity 0.4s ease, transform 0.4s ease",
+                  }}
+                >
+                  AI Booking Assistant
+                </p>
+                <h1 className="text-3xl font-bold leading-tight" style={{ color: msgText, minHeight: "2.4rem" }}>
+                  {typedTitle || "​"}
+                  {!cursorHidden && (
+                    <span
+                      aria-hidden
+                      className="inline-block w-[3px] h-8 ml-1 rounded-sm"
+                      style={{
+                        backgroundColor: theme.accentColor,
+                        animation: "gai-cursor-blink 0.65s ease-in-out infinite",
+                        verticalAlign: "middle",
+                      }}
+                    />
+                  )}
+                </h1>
+                <div
+                  className="mt-2"
+                  style={{
+                    opacity: titleDone ? 1 : 0,
+                    transform: titleDone ? "translateY(0)" : "translateY(10px)",
+                    transition: "opacity 0.5s ease, transform 0.5s ease",
+                  }}
+                >
+                  <p className="text-base" style={{ color: msgText, opacity: 0.8 }}>
+                    Ask about services, prices, or our team.
+                  </p>
+                  <p className="flex items-center gap-2 text-sm mt-1" style={{ color: msgDim }}>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
+                    Online · Powered by AI
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Chat header — only visible in chatting phase ── */}
       {questionPhase === "chatting" && (
         <div
@@ -995,6 +1276,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
                         }}
                       >
                         <MessageText text={m.text} />
+                        {(m as Extract<Message, { role: "assistant" }>).cta === "book" && bookCtaBtn}
                       </div>
                     )}
                     {m.text && (
@@ -1043,11 +1325,31 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme }: Generati
         <div className="shrink-0 px-4 pb-6 pt-8">
           <div className="mx-auto" style={{ maxWidth: 720 }}>
             {inputCard}
-            {footerStrip}
+            {!isBooking && footerStrip}
           </div>
         </div>
       )}
     </div>
     </>
   );
+
+  if (isBooking) {
+    return (
+      <div
+        className="min-h-[100dvh] flex flex-col"
+        style={{ fontFamily: font.stack, background: pageBg }}
+      >
+        {innerContent}
+        <SiteFooter
+          saloon={saloon}
+          theme={theme}
+          current="book"
+          onBack={onSwitchToWizard ?? (() => {})}
+          standalone
+        />
+      </div>
+    );
+  }
+
+  return innerContent;
 }

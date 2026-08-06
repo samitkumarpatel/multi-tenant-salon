@@ -13,7 +13,7 @@
  *  5 – Confirmation
  */
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
 } from "lucide-react";
@@ -1274,7 +1274,7 @@ function StepDetails({
 // ── Step 5: Confirmation ──────────────────────────────────────────────────────
 
 function StepConfirm({
-  booking, service, staff, saloon, accent, onExit,
+  booking, service, staff, saloon, accent, onExit, standalone = false,
 }: {
   booking: Booking;
   service: ServiceItem;
@@ -1282,6 +1282,7 @@ function StepConfirm({
   saloon: Saloon;
   accent: Accent;
   onExit: () => void;
+  standalone?: boolean;
 }) {
   const isPending = booking.status === "PENDING";
   return (
@@ -1331,7 +1332,9 @@ function StepConfirm({
         className={`inline-flex px-6 py-3 ${primaryBtnCls}`}
         style={primaryBtnStyle(accent)}
       >
-        <ArrowLeft className="w-4 h-4" /> Back to {saloon.name}
+        {standalone
+          ? <><CalendarCheck className="w-4 h-4" /> Book new appointment</>
+          : <><ArrowLeft className="w-4 h-4" /> Back to {saloon.name}</>}
       </button>
     </div>
   );
@@ -1349,7 +1352,7 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath,
+  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath, standalone = false, headerExtra,
 }: {
   saloon: Saloon;
   services: ServiceItem[];
@@ -1364,6 +1367,10 @@ export function BookingWizard({
   onExit: () => void;
   /** Builds a path for a given page key (e.g. "shop" → "/shop") */
   getPagePath?: (page: string) => string;
+  /** Hides "Back to website" chrome — use when serving from the standalone booking subdomain */
+  standalone?: boolean;
+  /** Extra content rendered in the header's right side (standalone mode only) */
+  headerExtra?: React.ReactNode;
 }) {
   const preselected = services.find((s) => s.id === initialServiceId) ?? null;
   const preStaff    = staff.find((s) => s.id === initialStaffId) ?? null;
@@ -1472,7 +1479,7 @@ export function BookingWizard({
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 
       {/* Header — same chrome as the saloon website (Book link swapped for Back) */}
-      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} />
+      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />
 
       {/* Body */}
       <main
@@ -1572,6 +1579,7 @@ export function BookingWizard({
               staff={staffMap.get(confirmed.staffId)}
               saloon={saloon}
               accent={accent}
+              standalone={standalone}
               onExit={onExit}
             />
           )}
@@ -1580,7 +1588,7 @@ export function BookingWizard({
       </main>
 
       {/* Footer — same chrome as the saloon website */}
-      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} />
+      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} />
     </div>
   );
 }
