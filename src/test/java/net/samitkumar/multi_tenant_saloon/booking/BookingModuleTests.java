@@ -318,7 +318,7 @@ class BookingModuleTests {
                 .expectBody()
                 .jsonPath("$.id").isNotEmpty()
                 .jsonPath("$.customerName").isEqualTo("John Doe")
-                .jsonPath("$.status").isEqualTo("PENDING")
+                .jsonPath("$.status").isEqualTo("CONFIRMED")
                 .jsonPath("$.startTime").isEqualTo("10:00:00")
                 .jsonPath("$.endTime").isEqualTo("11:00:00")
                 .returnResult();
@@ -330,7 +330,7 @@ class BookingModuleTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.status").isEqualTo("PENDING");
+                .jsonPath("$.status").isEqualTo("CONFIRMED");
 
         client.get()
                 .uri("/api/saloon-admin/{saloonId}/booking", saloonId)

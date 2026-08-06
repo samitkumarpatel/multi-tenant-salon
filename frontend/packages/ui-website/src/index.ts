@@ -15,6 +15,6 @@ export type {
   Saloon, Owner, Location, ContactInfo, OperatingHours,
   StaffMember, ServiceItem, WebsiteTheme, WebsiteMode,
   Booking, BookingStatus, AvailableSlot, StaffAvailability, StaffAvailabilityOverride,
-  SaloonClosure,
+  SaloonClosure, SaloonHoliday,
   Country, Currency,
 } from "./types";

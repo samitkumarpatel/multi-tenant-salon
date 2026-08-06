@@ -10,5 +10,6 @@ public record SaloonClosure(
         UUID saloonId,
         LocalDate startDate,
         LocalDate endDate,
-        String reason
+        String reason,
+        Long holidayId
 ) {}

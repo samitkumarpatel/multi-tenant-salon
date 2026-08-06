@@ -252,10 +252,13 @@ class BookingService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Requested slot is no longer available");
         }
 
+        var initialStatus = saloonApi.bookingRequiresConfirmation(saloonId)
+                ? BookingStatus.PENDING
+                : BookingStatus.CONFIRMED;
         var booking = new Booking(null, saloonId, serviceId, staffId,
                 customerName, customerEmail, customerPhone,
                 appointmentDate, startTime, endTime,
-                BookingStatus.PENDING, notes, Instant.now());
+                initialStatus, notes, Instant.now());
         var saved = bookingRepo.save(booking);
 
         eventPublisher.publishEvent(new BookingCreatedEvent(
