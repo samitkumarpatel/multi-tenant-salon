@@ -96,6 +96,57 @@ resource "aws_acm_certificate_validation" "global" {
   ]
 }
 
+# ── Extra TXT records (domain verification, etc.) ─────────────────────────────
+
+resource "aws_route53_record" "extra_txt" {
+  for_each = var.extra_txt_records
+
+  zone_id         = module.dns_zone.zone_id
+  name            = each.key == "@" ? var.domain : "${each.key}.${var.domain}"
+  type            = "TXT"
+  ttl             = 300
+  allow_overwrite = true
+  records         = [each.value]
+}
+
+# ── Zoho Mail records ─────────────────────────────────────────────────────────
+
+resource "aws_route53_record" "zoho_mx" {
+  count = var.zoho_mail != null && length(var.zoho_mail.mx_servers) > 0 ? 1 : 0
+
+  zone_id         = module.dns_zone.zone_id
+  name            = var.domain
+  type            = "MX"
+  ttl             = 300
+  allow_overwrite = true
+  records         = [for s in var.zoho_mail.mx_servers : "${s.priority} ${s.host}"]
+}
+
+resource "aws_route53_record" "zoho_txt" {
+  count = var.zoho_mail != null ? 1 : 0
+
+  zone_id         = module.dns_zone.zone_id
+  name            = var.domain
+  type            = "TXT"
+  ttl             = 300
+  allow_overwrite = true
+  records = concat(
+    ["v=spf1 ${join(" ", [for inc in var.zoho_mail.spf_includes : "include:${inc}"])} ~all"],
+    var.zoho_mail.extra_txt,
+  )
+}
+
+resource "aws_route53_record" "zoho_dkim" {
+  count = var.zoho_mail != null && var.zoho_mail.dkim_key != "" ? 1 : 0
+
+  zone_id         = module.dns_zone.zone_id
+  name            = "${var.zoho_mail.dkim_selector}._domainkey.${var.domain}"
+  type            = "TXT"
+  ttl             = 300
+  allow_overwrite = true
+  records         = ["v=DKIM1; k=rsa; p=${var.zoho_mail.dkim_key}"]
+}
+
 resource "aws_acm_certificate_validation" "regional" {
   for_each = local.regional_certs
 

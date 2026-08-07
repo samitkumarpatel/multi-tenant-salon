@@ -9,6 +9,22 @@ module "dns_bootstrapping" {
   environment = "dev"
   domain      = "my-saloon.online"
 
+  extra_txt_records = {
+    "mailjet._8bc30511" = "8bc30511bed47420ccc221dca77c12b8"
+  }
+
+  zoho_mail = {
+    mx_servers = [
+      { priority = 10, host = "mx.zoho.eu" },
+      { priority = 20, host = "mx2.zoho.eu" },
+      { priority = 50, host = "mx3.zoho.eu" },
+    ]
+    spf_includes  = ["spf.mailjet.com", "zohomail.eu"]
+    dkim_selector = "zmail"
+    dkim_key      = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCW91cv/+AW+BouuQNOHlzvJGYSrBTLftd9D2shUP/79LOO0cDOwhSNCvN+/nrW09TYUIfbpLF4DAp9pOavHyS95NnxPnq6i1z1ghcdqcQy5KlGkBI3tCOEgqF2yKlN69jBCic6W7NVO70hWrTJ9LYI2CWpz3bAXwiiAEVGpnNRrQIDAQAB"
+    extra_txt     = ["zoho-verification=zb86027192.zmverify.zoho.eu"]
+  }
+
   certificates = {
     # CloudFront requires a certificate in us-east-1 regardless of deployment region
     cloudfront = {
