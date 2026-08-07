@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_saloon.saloonservice.internal;
 import net.samitkumar.multi_tenant_saloon.saloonservice.SaloonServiceApi;
 import net.samitkumar.multi_tenant_saloon.saloonservice.ServiceCategory;
 import net.samitkumar.multi_tenant_saloon.saloonservice.ServiceItem;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class SaloonServiceManager implements SaloonServiceApi {
 
@@ -31,17 +33,21 @@ public class SaloonServiceManager implements SaloonServiceApi {
 
     ServiceItem add(UUID saloonId, String name, String description, BigDecimal price, String currency,
                     Integer durationMinutes, ServiceCategory category, List<String> assignedStaffIds) {
+        log.info("[SaloonServiceManager] Adding service '{}' category={} saloon={}", name, category, saloonId);
         var staffList = assignedStaffIds != null
                 ? assignedStaffIds.stream().map(ServiceItem.AssignedStaff::new).toList()
                 : List.<ServiceItem.AssignedStaff>of();
         var item = new ServiceItem(null, saloonId, name, description, price, currency, durationMinutes,
                 category, true, staffList, Instant.now());
-        return repository.save(item);
+        var saved = repository.save(item);
+        log.info("[SaloonServiceManager] Service added id={} saloon={}", saved.id(), saloonId);
+        return saved;
     }
 
     Optional<ServiceItem> update(UUID saloonId, Long serviceId, String name, String description,
                                  BigDecimal price, String currency, Integer durationMinutes,
                                  ServiceCategory category, boolean active, List<String> assignedStaffIds) {
+        log.info("[SaloonServiceManager] Updating service id={} saloon={} active={}", serviceId, saloonId, active);
         var staffList = assignedStaffIds != null
                 ? assignedStaffIds.stream().map(ServiceItem.AssignedStaff::new).toList()
                 : List.<ServiceItem.AssignedStaff>of();
@@ -56,6 +62,7 @@ public class SaloonServiceManager implements SaloonServiceApi {
     }
 
     void remove(UUID saloonId, Long serviceId) {
+        log.info("[SaloonServiceManager] Removing service id={} from saloon={}", serviceId, saloonId);
         repository.findById(serviceId)
                 .filter(s -> s.saloonId().equals(saloonId))
                 .ifPresent(s -> repository.deleteById(serviceId));

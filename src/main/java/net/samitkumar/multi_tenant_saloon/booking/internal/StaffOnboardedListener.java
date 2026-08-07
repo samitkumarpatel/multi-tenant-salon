@@ -4,6 +4,7 @@ import net.samitkumar.multi_tenant_saloon.booking.StaffAvailability;
 import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffOnboardedEvent;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+@Slf4j
 @Component
 class StaffOnboardedListener {
 
@@ -30,6 +32,7 @@ class StaffOnboardedListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     void onStaffOnboarded(StaffOnboardedEvent event) {
+        log.info("[StaffOnboardedListener] Received StaffOnboardedEvent for saloon={} staff={} schedule={} entries", event.saloonId(), event.staffId(), event.schedule().size());
         if (event.schedule().isEmpty()) return;
 
         List<Saloon.OperatingHours> operatingHours = saloonApi.findOperatingHours(event.saloonId());
@@ -61,5 +64,6 @@ class StaffOnboardedListener {
                 .toList();
 
         availabilityRepo.saveAll(entries);
+        log.info("[StaffOnboardedListener] Saved {} availability entries for staff={} saloon={}", entries.size(), event.staffId(), event.saloonId());
     }
 }

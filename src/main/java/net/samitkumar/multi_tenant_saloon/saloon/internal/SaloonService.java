@@ -75,6 +75,7 @@ class SaloonService implements SaloonApi {
     Saloon create(String name, Saloon.Owner owner, Saloon.Location location, Saloon.ContactInfo contact,
                   List<Saloon.OperatingHours> operatingHours, List<SaloonFeature> features,
                   String businessRegistrationId, Boolean showBusinessId) {
+        log.info("[SaloonService] Creating saloon name='{}' owner='{}'", name, owner.email());
         var handler = deriveUniqueHandler(name);
         var featureRefs = features != null
                 ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
@@ -82,6 +83,7 @@ class SaloonService implements SaloonApi {
         var saloon = new Saloon(null, name, handler, owner, location, contact, operatingHours, featureRefs, 60,
                 businessRegistrationId, showBusinessId, false, deriveBusinessIdLabel(location), Instant.now(), Saloon.SaloonStatus.ACTIVE);
         var saved = repository.save(saloon);
+        log.info("[SaloonService] Saloon created id={} handler='{}'", saved.id(), saved.handler());
         var eventFeatures = saved.features().stream().map(Saloon.SaloonFeatureRef::feature).toList();
         eventPublisher.publishEvent(new SaloonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
         return saved;
@@ -107,6 +109,7 @@ class SaloonService implements SaloonApi {
     Optional<Saloon> update(UUID id, String name, Saloon.Location location, Saloon.ContactInfo contact,
                             List<Saloon.OperatingHours> operatingHours, Integer bookingAdvanceDays,
                             String businessRegistrationId, Boolean showBusinessId, Boolean bookingRequiresConfirmation) {
+        log.info("[SaloonService] Updating saloon id={}", id);
         return repository.findById(id).map(existing -> {
             var nameToSave = (name != null && !name.isBlank()) ? name : existing.name();
             var days = bookingAdvanceDays != null ? bookingAdvanceDays : existing.bookingAdvanceDays();
@@ -126,6 +129,7 @@ class SaloonService implements SaloonApi {
     }
 
     Optional<Saloon> updateFeatures(UUID id, List<SaloonFeature> features) {
+        log.info("[SaloonService] Updating features for saloon id={} features={}", id, features);
         return repository.findById(id).map(existing -> {
             var featureRefs = features != null
                     ? features.stream().map(Saloon.SaloonFeatureRef::new).toList()
@@ -139,6 +143,7 @@ class SaloonService implements SaloonApi {
     }
 
     Optional<Saloon> updateBookingSettings(UUID id, Integer bookingAdvanceDays, Boolean bookingRequiresConfirmation) {
+        log.info("[SaloonService] Updating booking settings for saloon id={}", id);
         return repository.findById(id).map(existing -> {
             var days = bookingAdvanceDays != null ? bookingAdvanceDays : existing.bookingAdvanceDays();
             var confirm = bookingRequiresConfirmation != null ? bookingRequiresConfirmation : existing.bookingRequiresConfirmation();
@@ -196,6 +201,7 @@ class SaloonService implements SaloonApi {
     }
 
     SaloonHoliday addHoliday(UUID saloonId, String name, int month, int day, Integer endMonth, Integer endDay, Integer year) {
+        log.info("[SaloonService] Adding holiday '{}' for saloon id={} date={}/{}", name, saloonId, month, day);
         var saved = holidayRepository.save(new SaloonHoliday(null, saloonId, name, month, day, endMonth, endDay, year, Instant.now()));
         int currentYear = LocalDate.now().getYear();
         int em = endMonth != null ? endMonth : month;
@@ -224,6 +230,7 @@ class SaloonService implements SaloonApi {
     }
 
     void removeHoliday(UUID saloonId, Long holidayId) {
+        log.info("[SaloonService] Removing holiday id={} from saloon id={}", holidayId, saloonId);
         holidayRepository.findById(holidayId)
                 .filter(h -> h.saloonId().equals(saloonId))
                 .ifPresent(h -> holidayRepository.deleteById(holidayId));
@@ -236,10 +243,12 @@ class SaloonService implements SaloonApi {
     }
 
     SaloonClosure addClosure(UUID saloonId, LocalDate startDate, LocalDate endDate, String reason) {
+        log.info("[SaloonService] Adding closure for saloon id={} from={} to='{}'", saloonId, startDate, endDate);
         return closureRepository.save(new SaloonClosure(null, saloonId, startDate, endDate, reason, null));
     }
 
     boolean removeClosure(UUID saloonId, Long closureId) {
+        log.info("[SaloonService] Removing closure id={} from saloon id={}", closureId, saloonId);
         var closure = closureRepository.findById(closureId)
                 .filter(c -> c.saloonId().equals(saloonId));
         if (closure.isEmpty()) return true;
@@ -249,6 +258,7 @@ class SaloonService implements SaloonApi {
     }
 
     Optional<Saloon> disable(UUID id) {
+        log.info("[SaloonService] Disabling saloon id={}", id);
         return repository.findById(id).map(existing -> {
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
@@ -261,6 +271,7 @@ class SaloonService implements SaloonApi {
     }
 
     Optional<Saloon> enable(UUID id) {
+        log.info("[SaloonService] Enabling saloon id={}", id);
         return repository.findById(id).map(existing -> {
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
