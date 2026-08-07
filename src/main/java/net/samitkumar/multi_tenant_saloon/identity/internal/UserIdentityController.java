@@ -6,8 +6,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 class UserIdentityController {
 
@@ -18,9 +16,9 @@ class UserIdentityController {
     }
 
     @GetMapping("/internal/user-identity")
-    ResponseEntity<List<UserIdentity>> findByEmail(@RequestParam String email) {
-        var identities = repository.findByEmail(email);
-        if (identities.isEmpty()) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(identities);
+    ResponseEntity<UserIdentity> findByEmail(@RequestParam String email) {
+        return repository.findByEmail(email)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }
