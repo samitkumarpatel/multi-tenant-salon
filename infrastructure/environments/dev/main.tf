@@ -135,10 +135,13 @@ module "backend" {
     }
     auth = {
       image             = "nginx"
-      container_port    = 80
-      health_check_path = "/"
-      cpu               = 256
-      memory            = 512
+      health_check_path = "/actuator/health"
+      container_port    = 9000
+      cpu               = 512
+      memory            = 1024
+      env_vars = {
+        IDENTITY_SERVICE_URL = "https://api.my-saloon.online"
+      }
     }
   }
 

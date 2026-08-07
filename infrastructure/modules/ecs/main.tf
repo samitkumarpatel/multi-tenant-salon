@@ -228,7 +228,7 @@ locals {
 
 resource "aws_lb_target_group" "this" {
   for_each    = local.routed_services
-  name        = "${var.name}-${each.key}-tg"
+  name        = "${var.name}-${each.key}-${each.value.container_port}"
   port        = each.value.container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -244,6 +244,10 @@ resource "aws_lb_target_group" "this" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_lb_listener_rule" "ingress" {
@@ -309,7 +313,7 @@ resource "aws_ecs_service" "this" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition, desired_count]
+    ignore_changes = [desired_count]
   }
 
   # Wait for the listener infrastructure before registering the service
