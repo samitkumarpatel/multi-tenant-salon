@@ -15,6 +15,7 @@ import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
 import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.saloonservice.SaloonServiceApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffApi;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 class BookingService {
 
@@ -95,6 +97,7 @@ class BookingService {
 
     @Transactional
     List<StaffAvailability> setAvailability(UUID saloonId, Long staffId, List<StaffAvailability> schedule) {
+        log.info("[BookingService] Setting availability for saloon={} staff={} entries={}", saloonId, staffId, schedule.size());
         schedule.stream()
                 .filter(StaffAvailability::available)
                 .forEach(s -> validateAgainstSaloonHours(saloonId, s.dayOfWeek(), s.startTime(), s.endTime()));
@@ -113,6 +116,7 @@ class BookingService {
     }
 
     StaffAvailabilityOverride addOverride(UUID saloonId, Long staffId, StaffAvailabilityOverride override) {
+        log.info("[BookingService] Adding availability override for saloon={} staff={} date={}", saloonId, staffId, override.overrideDate());
         if (override.available() && override.startTime() != null && override.endTime() != null) {
             validateAgainstSaloonHours(saloonId,
                     override.overrideDate().getDayOfWeek(),
@@ -130,6 +134,7 @@ class BookingService {
     }
 
     void removeOverride(UUID saloonId, Long staffId, Long overrideId) {
+        log.info("[BookingService] Removing availability override id={} for saloon={} staff={}", overrideId, saloonId, staffId);
         overrideRepo.findById(overrideId)
                 .filter(o -> o.saloonId().equals(saloonId) && o.staffId().equals(staffId))
                 .ifPresent(o -> {
@@ -221,7 +226,7 @@ class BookingService {
     Booking create(UUID saloonId, Long serviceId, Long requestedStaffId,
                    String customerName, String customerEmail, String customerPhone,
                    LocalDate appointmentDate, LocalTime startTime, String notes) {
-
+        log.info("[BookingService] Creating booking for saloon={} service={} customer='{}' date={} time={}", saloonId, serviceId, customerEmail, appointmentDate, startTime);
         if (saloonApi.isClosedOn(saloonId, appointmentDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Saloon is closed on " + appointmentDate + " — no bookings can be made for this date");
@@ -260,7 +265,7 @@ class BookingService {
                 appointmentDate, startTime, endTime,
                 initialStatus, notes, Instant.now());
         var saved = bookingRepo.save(booking);
-
+        log.info("[BookingService] Booking created id={} status={} staff={}", saved.id(), saved.status(), staffId);
         eventPublisher.publishEvent(new BookingCreatedEvent(
                 saved.id(), saloonId, serviceId, staffId,
                 customerName, customerEmail, customerPhone,
@@ -270,6 +275,7 @@ class BookingService {
     }
 
     Optional<Booking> updateStatus(UUID saloonId, Long bookingId, BookingStatus newStatus) {
+        log.info("[BookingService] Updating booking id={} saloon={} status={}", bookingId, saloonId, newStatus);
         return bookingRepo.findBySaloonIdAndId(saloonId, bookingId).map(existing -> {
             var updated = new Booking(existing.id(), existing.saloonId(), existing.serviceId(),
                     existing.staffId(), existing.customerName(), existing.customerEmail(),
@@ -286,6 +292,7 @@ class BookingService {
 
     Optional<Booking> reschedule(UUID saloonId, Long bookingId,
                                  LocalDate newDate, LocalTime newStartTime, Long newStaffId, String notes) {
+        log.info("[BookingService] Rescheduling booking id={} saloon={} newDate={} newTime={}", bookingId, saloonId, newDate, newStartTime);
         return bookingRepo.findBySaloonIdAndId(saloonId, bookingId).map(existing -> {
             var serviceItem = saloonServiceApi.findByIdAndSaloonId(existing.serviceId(), saloonId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
@@ -306,6 +313,7 @@ class BookingService {
     }
 
     void delete(UUID saloonId, Long bookingId) {
+        log.info("[BookingService] Deleting booking id={} saloon={}", bookingId, saloonId);
         bookingRepo.findBySaloonIdAndId(saloonId, bookingId)
                 .ifPresent(b -> bookingRepo.deleteById(bookingId));
     }

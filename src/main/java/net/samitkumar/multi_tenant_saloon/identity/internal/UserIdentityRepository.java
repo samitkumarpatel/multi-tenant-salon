@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_saloon.identity.internal;
 
+import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_saloon.identity.UserIdentity;
 import net.samitkumar.multi_tenant_saloon.identity.UserIdentity.SaloonAccess;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -10,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+@Slf4j
 class UserIdentityRepository {
 
     private final JdbcClient jdbcClient;
@@ -19,6 +21,7 @@ class UserIdentityRepository {
     }
 
     Optional<UserIdentity> findByEmail(String email) {
+        log.info("Finding user identity for email: {}", email);
         List<SaloonAccess> saloons = jdbcClient
                 .sql("SELECT saloon_id, role, active FROM user_identity WHERE email = :email")
                 .param("email", email)

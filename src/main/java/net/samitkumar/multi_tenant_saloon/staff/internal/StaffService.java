@@ -5,6 +5,7 @@ import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
 import net.samitkumar.multi_tenant_saloon.staff.StaffOnboardedEvent;
 import net.samitkumar.multi_tenant_saloon.staff.StaffRole;
 import net.samitkumar.multi_tenant_saloon.staff.StaffStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class StaffService implements StaffApi {
 
@@ -46,12 +48,14 @@ public class StaffService implements StaffApi {
     StaffMember onboard(UUID saloonId, String name, String email, String phone, StaffRole role,
                         boolean isOwner, List<String> specializations,
                         List<StaffOnboardedEvent.DaySchedule> schedule) {
+        log.info("[StaffService] Onboarding staff '{}' ({}) role={} saloon={}", name, email, role, saloonId);
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
                 : List.<StaffMember.Specialization>of();
         var member = new StaffMember(null, saloonId, name, email, phone, role, StaffStatus.ACTIVE,
                 isOwner, true, specs, Instant.now());
         var saved = repository.save(member);
+        log.info("[StaffService] Staff onboarded id={} saloon={}", saved.id(), saloonId);
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
                 ? schedule
                 : DEFAULT_SCHEDULE;
@@ -75,6 +79,7 @@ public class StaffService implements StaffApi {
     Optional<StaffMember> update(UUID saloonId, Long staffId, String name, String email, String phone,
                                  StaffRole role, StaffStatus status, boolean availableForBooking,
                                  List<String> specializations) {
+        log.info("[StaffService] Updating staff id={} saloon={} role={} status={}", staffId, saloonId, role, status);
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
                 : List.<StaffMember.Specialization>of();
@@ -88,6 +93,7 @@ public class StaffService implements StaffApi {
     }
 
     void remove(UUID saloonId, Long staffId) {
+        log.info("[StaffService] Removing staff id={} from saloon={}", staffId, saloonId);
         repository.findById(staffId)
                 .filter(m -> m.saloonId().equals(saloonId))
                 .ifPresent(m -> repository.deleteById(staffId));

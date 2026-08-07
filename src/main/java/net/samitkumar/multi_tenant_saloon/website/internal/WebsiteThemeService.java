@@ -2,6 +2,7 @@ package net.samitkumar.multi_tenant_saloon.website.internal;
 
 import net.samitkumar.multi_tenant_saloon.website.WebsiteTheme;
 import net.samitkumar.multi_tenant_saloon.website.WebsiteType;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +10,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
+@Slf4j
 @Service
 class WebsiteThemeService {
 
@@ -36,6 +38,7 @@ class WebsiteThemeService {
                            String accentColor, String fontFamily, String logoBgColor,
                            String headerBg, String footerBg, String mapsUrl, String chatLayout,
                            String chatBg) {
+        log.info("[WebsiteThemeService] Saving theme for saloon={}", saloonId);
         jdbc.update("""
                 INSERT INTO saloon_website_theme
                   (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color, header_bg, footer_bg, maps_url, chat_layout, chat_bg, updated_at)
@@ -64,6 +67,7 @@ class WebsiteThemeService {
     }
 
     WebsiteTheme updateWebsiteType(UUID saloonId, WebsiteType websiteType) {
+        log.info("[WebsiteThemeService] Updating website type for saloon={} type={}", saloonId, websiteType);
         jdbc.update("""
                 INSERT INTO saloon_website_theme
                   (saloon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color,
