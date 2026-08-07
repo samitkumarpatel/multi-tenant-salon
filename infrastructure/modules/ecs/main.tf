@@ -123,14 +123,6 @@ resource "aws_ecs_task_definition" "this" {
           for k, v in each.value.secret_arns : { name = k, valueFrom = v }
         ]
 
-        healthCheck = {
-          command     = ["CMD-SHELL", "curl -f http://localhost:${each.value.container_port}${each.value.health_check_path} || exit 1"]
-          interval    = 30
-          timeout     = 5
-          retries     = 3
-          startPeriod = 15
-        }
-
         logConfiguration = {
           logDriver = "awslogs"
           options = {
@@ -310,6 +302,11 @@ resource "aws_ecs_service" "this" {
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   lifecycle {
     ignore_changes = [task_definition, desired_count]
