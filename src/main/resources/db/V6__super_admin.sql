@@ -45,3 +45,6 @@ FROM (
     WHERE sm.email IS NOT NULL
 ) combined
 ORDER BY email, saloon_id, priority;
+
+INSERT INTO super_admin (email, active) VALUES ('admin@my-saloon.online', true)
+ON CONFLICT (email) DO NOTHING;
