@@ -9,20 +9,39 @@ module "dns_bootstrapping" {
   environment = "dev"
   domain      = "my-saloon.online"
 
-  extra_txt_records = {
-    "mailjet._8bc30511" = "8bc30511bed47420ccc221dca77c12b8"
-  }
+  dns_records = {
+    zoho_mx = {
+      type    = "MX"
+      name    = "@"
+      records = ["10 mx.zoho.eu", "20 mx2.zoho.eu", "50 mx3.zoho.eu"]
+    }
 
-  zoho_mail = {
-    mx_servers = [
-      { priority = 10, host = "mx.zoho.eu" },
-      { priority = 20, host = "mx2.zoho.eu" },
-      { priority = 50, host = "mx3.zoho.eu" },
-    ]
-    spf_includes  = ["spf.mailjet.com", "zohomail.eu"]
-    dkim_selector = "zmail"
-    dkim_key      = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCW91cv/+AW+BouuQNOHlzvJGYSrBTLftd9D2shUP/79LOO0cDOwhSNCvN+/nrW09TYUIfbpLF4DAp9pOavHyS95NnxPnq6i1z1ghcdqcQy5KlGkBI3tCOEgqF2yKlN69jBCic6W7NVO70hWrTJ9LYI2CWpz3bAXwiiAEVGpnNRrQIDAQAB"
-    extra_txt     = ["zoho-verification=zb86027192.zmverify.zoho.eu"]
+    spf = {
+      type    = "TXT"
+      name    = "@"
+      records = [
+        "v=spf1 include:spf.mailjet.com include:zohomail.eu ~all",
+        "zoho-verification=zb86027192.zmverify.zoho.eu",
+      ]
+    }
+
+    zoho_dkim = {
+      type    = "TXT"
+      name    = "zmail._domainkey"
+      records = ["v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCW91cv/+AW+BouuQNOHlzvJGYSrBTLftd9D2shUP/79LOO0cDOwhSNCvN+/nrW09TYUIfbpLF4DAp9pOavHyS95NnxPnq6i1z1ghcdqcQy5KlGkBI3tCOEgqF2yKlN69jBCic6W7NVO70hWrTJ9LYI2CWpz3bAXwiiAEVGpnNRrQIDAQAB"]
+    }
+
+    mailjet_dkim = {
+      type    = "TXT"
+      name    = "mailjet._domainkey"
+      records = ["v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3H50B8nSmiEZ1l/Rzdj/MIg0eol1S1d7NnD6gGrb3QOq0gmw8nt5kBjf/qWCK3QCufnkMFDhph5gf8G+IsLPI+v6yCqG0A7JtQVmsptnTzLwR7LxDv6SoLpWQ7WeblUVNu+38JMorWaWcSNWtSt7bhJ5k9nsLvWeoo+wx+kchZ7n8vGfoQxo2NyV+pRCakqX6SX5KHnic5sw5RPKUM8PZeDYuoobShWkeSSmZIb98+Poe4wj0gjX6+IX96pj8d7HUJ8qjkvXVaEZGV6xIgV0JoJ73OM0MQedApCFCdO1dlDJmFUpWKuddwPaI6z/x/Ta2B46otZ4EEcvho9QLPyxEwIDAQAB"]
+    }
+
+    mailjet_verify = {
+      type    = "TXT"
+      name    = "mailjet._8bc30511"
+      records = ["8bc30511bed47420ccc221dca77c12b8"]
+    }
   }
 
   certificates = {
