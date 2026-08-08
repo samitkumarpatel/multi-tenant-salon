@@ -19,23 +19,13 @@ variable "certificates" {
   description = "ACM certificates to create and validate. Reference outputs by key in frontend/backend modules."
 }
 
-variable "extra_txt_records" {
-  type        = map(string)
+variable "dns_records" {
+  type = map(object({
+    type    = string
+    name    = string
+    ttl     = optional(number, 300)
+    records = list(string)
+  }))
   default     = {}
-  description = "Additional TXT records to create. Key is the record name (subdomain or @), value is the TXT record value."
-}
-
-variable "zoho_mail" {
-  type = object({
-    mx_servers = optional(list(object({
-      priority = number
-      host     = string
-    })), [])
-    spf_includes  = optional(list(string), ["zohomail.eu"])
-    dkim_selector = optional(string, "zmail")
-    dkim_key      = optional(string, "")
-    extra_txt     = optional(list(string), [])
-  })
-  default     = null
-  description = "Zoho Mail DNS records. When set, creates MX, SPF TXT, and DKIM TXT records in the hosted zone."
+  description = "DNS records to create. Key is a stable identifier used in state. Name is a subdomain or '@' for the zone apex. TXT values longer than 255 chars are automatically split into multi-string records."
 }

@@ -7,6 +7,19 @@ locals {
 
   global_certs   = { for k, v in var.certificates : k => v if v.global }
   regional_certs = { for k, v in var.certificates : k => v if !v.global }
+
+  # Resolve names to FQDNs and auto-chunk TXT values that exceed the 255-char DNS limit.
+  dns_records_normalized = {
+    for k, r in var.dns_records : k => merge(r, {
+      fqdn = r.name == "@" ? var.domain : "${r.name}.${var.domain}"
+      records = [
+        for value in r.records :
+        r.type == "TXT" && length(value) > 255
+        ? join("\" \"", [for i in range(0, ceil(length(value) / 255)) : substr(value, i * 255, 255)])
+        : value
+      ]
+    })
+  }
 }
 
 # Phase 1 — apply this target first, then update NS records at your registrar:
@@ -16,6 +29,19 @@ module "dns_zone" {
 
   domain = var.domain
   tags   = local.common_tags
+}
+
+# ── DNS records ────────────────────────────────────────────────────────────────
+
+resource "aws_route53_record" "this" {
+  for_each = local.dns_records_normalized
+
+  zone_id         = module.dns_zone.zone_id
+  name            = each.value.fqdn
+  type            = each.value.type
+  ttl             = each.value.ttl
+  allow_overwrite = true
+  records         = each.value.records
 }
 
 # ── Certificates ──────────────────────────────────────────────────────────────
@@ -94,57 +120,6 @@ resource "aws_acm_certificate_validation" "global" {
     for dvo in aws_acm_certificate.global[each.key].domain_validation_options :
     aws_route53_record.cert_validation[dvo.domain_name].fqdn
   ]
-}
-
-# ── Extra TXT records (domain verification, etc.) ─────────────────────────────
-
-resource "aws_route53_record" "extra_txt" {
-  for_each = var.extra_txt_records
-
-  zone_id         = module.dns_zone.zone_id
-  name            = each.key == "@" ? var.domain : "${each.key}.${var.domain}"
-  type            = "TXT"
-  ttl             = 300
-  allow_overwrite = true
-  records         = [each.value]
-}
-
-# ── Zoho Mail records ─────────────────────────────────────────────────────────
-
-resource "aws_route53_record" "zoho_mx" {
-  count = var.zoho_mail != null && length(var.zoho_mail.mx_servers) > 0 ? 1 : 0
-
-  zone_id         = module.dns_zone.zone_id
-  name            = var.domain
-  type            = "MX"
-  ttl             = 300
-  allow_overwrite = true
-  records         = [for s in var.zoho_mail.mx_servers : "${s.priority} ${s.host}"]
-}
-
-resource "aws_route53_record" "zoho_txt" {
-  count = var.zoho_mail != null ? 1 : 0
-
-  zone_id         = module.dns_zone.zone_id
-  name            = var.domain
-  type            = "TXT"
-  ttl             = 300
-  allow_overwrite = true
-  records = concat(
-    ["v=spf1 ${join(" ", [for inc in var.zoho_mail.spf_includes : "include:${inc}"])} ~all"],
-    var.zoho_mail.extra_txt,
-  )
-}
-
-resource "aws_route53_record" "zoho_dkim" {
-  count = var.zoho_mail != null && var.zoho_mail.dkim_key != "" ? 1 : 0
-
-  zone_id         = module.dns_zone.zone_id
-  name            = "${var.zoho_mail.dkim_selector}._domainkey.${var.domain}"
-  type            = "TXT"
-  ttl             = 300
-  allow_overwrite = true
-  records         = ["v=DKIM1; k=rsa; p=${var.zoho_mail.dkim_key}"]
 }
 
 resource "aws_acm_certificate_validation" "regional" {
