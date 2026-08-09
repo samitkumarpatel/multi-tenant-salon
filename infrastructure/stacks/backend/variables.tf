@@ -63,6 +63,18 @@ variable "ghcr_token" {
   description = "GHCR pull credentials as JSON: {\"username\":\"...\",\"password\":\"<PAT with read:packages>\"}. Set via TF_VAR_ghcr_token."
 }
 
+variable "mailjet_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Mailjet API key. Set via TF_VAR_mailjet_api_key."
+}
+
+variable "mailjet_api_secret" {
+  type        = string
+  sensitive   = true
+  description = "Mailjet API secret. Set via TF_VAR_mailjet_api_secret."
+}
+
 # ── Ingress ───────────────────────────────────────────────────────────────────
 
 variable "ingress" {
