@@ -148,6 +148,8 @@ module "backend" {
   source = "../../stacks/backend"
 
   ghcr_token               = var.ghcr_token
+  mailjet_api_key          = var.mailjet_api_key
+  mailjet_api_secret       = var.mailjet_api_secret
   environment              = "dev"
   name                     = "my-saloon"
   domain                   = "my-saloon.online"

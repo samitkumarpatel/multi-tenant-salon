@@ -7,8 +7,9 @@ locals {
 
   backend_name = "${var.name}-${var.environment}"
 
-  # Merge RDS credentials and (for ghcr.io images) the registry pull secret into
-  # every service. The environment layer never needs to know the internal ARNs.
+  # Merge RDS credentials, Mailjet secrets, and (for ghcr.io images) the registry
+  # pull secret into every service. The environment layer never needs to know the
+  # internal ARNs.
   services_with_db = {
     for k, svc in var.services : k => merge(svc, {
       ghcr_secret_arn = startswith(svc.image, "ghcr.io") ? aws_secretsmanager_secret.ghcr.arn : svc.ghcr_secret_arn
@@ -16,6 +17,8 @@ locals {
         SPRING_DATASOURCE_URL      = module.rds.secret_arn_db_url
         SPRING_DATASOURCE_USERNAME = module.rds.secret_arn_db_username
         SPRING_DATASOURCE_PASSWORD = module.rds.secret_arn_db_password
+        MAILJET_API_KEY            = aws_secretsmanager_secret.mailjet_api_key.arn
+        MAILJET_API_SECRET         = aws_secretsmanager_secret.mailjet_api_secret.arn
       })
     })
   }
@@ -125,6 +128,32 @@ resource "aws_secretsmanager_secret" "ghcr" {
 resource "aws_secretsmanager_secret_version" "ghcr" {
   secret_id     = aws_secretsmanager_secret.ghcr.id
   secret_string = var.ghcr_token
+}
+
+# ── Mailjet credentials ───────────────────────────────────────────────────────
+
+resource "aws_secretsmanager_secret" "mailjet_api_key" {
+  name                    = "/${var.name}/${var.environment}/mailjet-api-key"
+  description             = "Mailjet API key injected into ECS tasks as MAILJET_API_KEY"
+  recovery_window_in_days = var.environment == "dev" ? 0 : 7
+  tags                    = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "mailjet_api_key" {
+  secret_id     = aws_secretsmanager_secret.mailjet_api_key.id
+  secret_string = var.mailjet_api_key
+}
+
+resource "aws_secretsmanager_secret" "mailjet_api_secret" {
+  name                    = "/${var.name}/${var.environment}/mailjet-api-secret"
+  description             = "Mailjet API secret injected into ECS tasks as MAILJET_API_SECRET"
+  recovery_window_in_days = var.environment == "dev" ? 0 : 7
+  tags                    = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "mailjet_api_secret" {
+  secret_id     = aws_secretsmanager_secret.mailjet_api_secret.id
+  secret_string = var.mailjet_api_secret
 }
 
 # ── ECS (Fargate) ─────────────────────────────────────────────────────────────
