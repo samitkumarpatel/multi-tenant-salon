@@ -31,7 +31,7 @@ class UserIdentityRepository {
                         rs.getBoolean("active")
                 ))
                 .list();
-
+        log.info("Finding user identity for email: {} with result: {}", email, saloons);
         if (saloons.isEmpty()) return Optional.empty();
         return Optional.of(new UserIdentity(email, saloons));
     }
