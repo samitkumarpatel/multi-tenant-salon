@@ -89,8 +89,14 @@ class SaloonService implements SaloonApi {
         return saved;
     }
 
-    List<Saloon> findAll() {
+    @Override
+    public List<Saloon> findAll() {
         return repository.findAll().stream().map(this::withLabel).toList();
+    }
+
+    @Override
+    public Optional<Saloon> findById(UUID id) {
+        return repository.findById(id).map(this::withLabel);
     }
 
     List<Saloon> findByOwnerEmail(String email) {
@@ -128,7 +134,8 @@ class SaloonService implements SaloonApi {
         });
     }
 
-    Optional<Saloon> updateFeatures(UUID id, List<SaloonFeature> features) {
+    @Override
+    public Optional<Saloon> updateFeatures(UUID id, List<SaloonFeature> features) {
         log.info("[SaloonService] Updating features for saloon id={} features={}", id, features);
         return repository.findById(id).map(existing -> {
             var featureRefs = features != null
@@ -257,7 +264,8 @@ class SaloonService implements SaloonApi {
         return true;
     }
 
-    Optional<Saloon> disable(UUID id) {
+    @Override
+    public Optional<Saloon> disable(UUID id) {
         log.info("[SaloonService] Disabling saloon id={}", id);
         return repository.findById(id).map(existing -> {
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
@@ -270,7 +278,8 @@ class SaloonService implements SaloonApi {
         });
     }
 
-    Optional<Saloon> enable(UUID id) {
+    @Override
+    public Optional<Saloon> enable(UUID id) {
         log.info("[SaloonService] Enabling saloon id={}", id);
         return repository.findById(id).map(existing -> {
             var updated = new Saloon(existing.id(), existing.name(), existing.handler(), existing.owner(),
