@@ -86,6 +86,12 @@ variable "ingress" {
   description = "Hostname-to-service routing rules for the ALB. Keys are full hostnames (e.g. \"api.my-saloon.online\"); values are service keys from var.services."
 }
 
+variable "container_insights" {
+  type        = bool
+  default     = false
+  description = "Enable CloudWatch Container Insights on the ECS cluster. Generates custom metrics (~$0.30/metric/month beyond the 10 free tier metrics). Disable for dev."
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
