@@ -58,7 +58,7 @@ resource "aws_db_instance" "this" {
   vpc_security_group_ids = [var.security_group_id]
 
   multi_az               = var.dev_mode ? false : true
-  publicly_accessible    = false
+  publicly_accessible    = var.dev_mode
   deletion_protection    = var.dev_mode ? false : true
   skip_final_snapshot    = var.dev_mode ? true : false
   final_snapshot_identifier = var.dev_mode ? null : "${var.name}-final-snapshot"

@@ -1,0 +1,84 @@
+name: RDS Break-Glass
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'open = allow 0.0.0.0/0 on 5432 | close = revoke it'
+        required: true
+        type: choice
+        options: [open, close]
+
+env:
+  AWS_REGION: eu-north-1
+  RDS_SG_NAME: my-saloon-dev-rds
+
+jobs:
+  breakglass:
+    name: ${{ github.event.inputs.action == 'open' && 'Open RDS to internet' || 'Close RDS from internet' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get RDS security group ID
+        id: sg
+        run: |
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=${{ env.RDS_SG_NAME }}" \
+            --query "SecurityGroups[0].GroupId" \
+            --output text)
+          echo "id=$SG_ID" >> $GITHUB_OUTPUT
+          echo "Security group: $SG_ID"
+
+      - name: Get RDS endpoint
+        id: rds
+        run: |
+          ENDPOINT=$(aws rds describe-db-instances \
+            --db-instance-identifier my-saloon-dev-postgres \
+            --query "DBInstances[0].Endpoint.Address" \
+            --output text)
+          echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+          echo "RDS endpoint: $ENDPOINT"
+
+      - name: Open — add 0.0.0.0/0 ingress on port 5432
+        if: github.event.inputs.action == 'open'
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ steps.sg.outputs.id }} \
+            --protocol tcp \
+            --port 5432 \
+            --cidr 0.0.0.0/0
+          echo ""
+          echo "✓ RDS is now reachable from the internet"
+          echo "  Host:     ${{ steps.rds.outputs.endpoint }}"
+          echo "  Port:     5432"
+          echo "  Username: saloon_app"
+          echo "  Password: aws secretsmanager get-secret-value --secret-id /my-saloon/dev/db-password --query SecretString --output text"
+          echo ""
+          echo "  psql -h ${{ steps.rds.outputs.endpoint }} -p 5432 -U saloon_app -d saloon"
+          echo ""
+          echo "⚠ Remember to run this workflow with action=close when done."
+
+      - name: Close — revoke 0.0.0.0/0 ingress on port 5432
+        if: github.event.inputs.action == 'close'
+        run: |
+          # revoke is idempotent-ish — check rule exists first to avoid a non-zero exit
+          RULE=$(aws ec2 describe-security-groups \
+            --group-ids ${{ steps.sg.outputs.id }} \
+            --query "SecurityGroups[0].IpPermissions[?FromPort==\`5432\` && IpRanges[?CidrIp=='0.0.0.0/0']]" \
+            --output text)
+          if [ -n "$RULE" ]; then
+            aws ec2 revoke-security-group-ingress \
+              --group-id ${{ steps.sg.outputs.id }} \
+              --protocol tcp \
+              --port 5432 \
+              --cidr 0.0.0.0/0
+            echo "✓ RDS internet access revoked"
+          else
+            echo "No open rule found — nothing to revoke"
+          fi
