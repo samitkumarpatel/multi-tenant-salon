@@ -19,7 +19,6 @@ on:
 env:
   AWS_REGION: eu-north-1
   ECS_CLUSTER: my-saloon-dev-cluster
-  ECS_SERVICE: my-saloon-dev-api
   RDS_INSTANCE: my-saloon-dev-postgres
 
 jobs:
@@ -35,13 +34,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Scale ECS service to 0
+      - name: Scale ECS services to 0
         run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --desired-count 0
-          echo "ECS service scaled to 0"
+          for SERVICE in my-saloon-dev-api my-saloon-dev-auth; do
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service $SERVICE \
+              --desired-count 0
+            echo "$SERVICE scaled to 0"
+          done
 
       - name: Stop RDS instance
         run: |
@@ -90,10 +91,12 @@ jobs:
             --db-instance-identifier ${{ env.RDS_INSTANCE }}
           echo "RDS is available"
 
-      - name: Scale ECS service to 1
+      - name: Scale ECS services to 1
         run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --desired-count 1
-          echo "ECS service scaled to 1"
+          for SERVICE in my-saloon-dev-api my-saloon-dev-auth; do
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service $SERVICE \
+              --desired-count 1
+            echo "$SERVICE scaled to 1"
+          done

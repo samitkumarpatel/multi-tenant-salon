@@ -88,7 +88,7 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
   default_capacity_provider_strategy {
     capacity_provider = "FARGATE"
     weight            = 3
-    base              = 1
+    base              = 0
   }
 }
 
@@ -274,7 +274,8 @@ resource "aws_ecs_service" "this" {
   name            = "${var.name}-${each.key}"
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.this[each.key].arn
-  desired_count   = each.value.desired_count
+  desired_count        = each.value.desired_count
+  force_new_deployment = true
 
   capacity_provider_strategy {
     capacity_provider = "FARGATE_SPOT"
@@ -285,7 +286,7 @@ resource "aws_ecs_service" "this" {
   capacity_provider_strategy {
     capacity_provider = "FARGATE"
     weight            = 3
-    base              = 1
+    base              = 0
   }
 
   network_configuration {

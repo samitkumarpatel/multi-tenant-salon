@@ -1,3 +1,8 @@
+locals {
+  environment = "dev"
+  domain      = "my-saloon.online"
+}
+
 module "dns_bootstrapping" {
   source = "../../stacks/dns-bootstrapping"
 
@@ -6,8 +11,8 @@ module "dns_bootstrapping" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  environment = "dev"
-  domain      = "my-saloon.online"
+  environment = local.environment
+  domain      = local.domain
 
   dns_records = {
     zoho_mx = {
@@ -47,14 +52,14 @@ module "dns_bootstrapping" {
   certificates = {
     # CloudFront requires a certificate in us-east-1 regardless of deployment region
     cloudfront = {
-      domain                    = "my-saloon.online"
-      subject_alternative_names = ["*.my-saloon.online"]
+      domain                    = local.domain
+      subject_alternative_names = ["*.${local.domain}"]
       global                    = true
     }
     # ALB requires a certificate in the deployment region
     alb = {
-      domain                    = "my-saloon.online"
-      subject_alternative_names = ["*.my-saloon.online"]
+      domain                    = local.domain
+      subject_alternative_names = ["*.${local.domain}"]
       global                    = false
     }
   }
@@ -67,9 +72,9 @@ module "frontend" {
     aws = aws
   }
 
-  environment      = "dev"
+  environment      = local.environment
   name             = "my-saloon"
-  domain           = "my-saloon.online"
+  domain           = local.domain
   zone_id          = module.dns_bootstrapping.zone_id
   certificate_arns = module.dns_bootstrapping.certificate_arns
 
@@ -83,7 +88,7 @@ module "frontend" {
 
   distributions = {
     onboarding = {
-      aliases            = ["my-saloon.online", "www.my-saloon.online"]
+      aliases            = [local.domain, "www.${local.domain}"]
       certificate_key    = "cloudfront"
       default_origin_key = "onboarding-web"
       log_prefix         = "onboarding/"
@@ -93,7 +98,7 @@ module "frontend" {
       ]
     }
     admin = {
-      aliases            = ["admin.my-saloon.online"]
+      aliases            = ["admin.${local.domain}"]
       certificate_key    = "cloudfront"
       default_origin_key = "admin-web"
       log_prefix         = "admin/"
@@ -103,7 +108,7 @@ module "frontend" {
       ]
     }
     wildcard = {
-      aliases            = ["*.my-saloon.online"]
+      aliases            = ["*.${local.domain}"]
       certificate_key    = "cloudfront"
       default_origin_key = "public-web"
       log_prefix         = "wildcard/"
@@ -113,7 +118,7 @@ module "frontend" {
       ]
     }
     super-admin = {
-      aliases            = ["super-admin.my-saloon.online"]
+      aliases            = ["super-admin.${local.domain}"]
       certificate_key    = "cloudfront"
       default_origin_key = "super-admin-web"
       log_prefix         = "super-admin/"
@@ -123,7 +128,7 @@ module "frontend" {
       ]
     }
     booking = {
-      aliases            = ["book.my-saloon.online"]
+      aliases            = ["book.${local.domain}"]
       certificate_key    = "cloudfront"
       default_origin_key = "booking-web"
       log_prefix         = "booking/"
@@ -150,9 +155,9 @@ module "backend" {
   ghcr_token               = var.ghcr_token
   mailjet_api_key          = var.mailjet_api_key
   mailjet_api_secret       = var.mailjet_api_secret
-  environment              = "dev"
+  environment              = local.environment
   name                     = "my-saloon"
-  domain                   = "my-saloon.online"
+  domain                   = local.domain
   regional_certificate_arn = module.dns_bootstrapping.certificate_arns["alb"]
   zone_id                  = module.dns_bootstrapping.zone_id
 
@@ -167,23 +172,24 @@ module "backend" {
         "spring.sql.init.mode" = "never"
         "spring.modulith.events.jdbc.schema-initialization.enabled" = "false"
         "spring.flyway.enabled" = "true"
-        CORS_ALLOWED_ORIGIN_PATTERNS = "https://my-saloon.online,https://www.my-saloon.online,https://*.my-saloon.online"
+        CORS_ALLOWED_ORIGIN_PATTERNS = "https://${local.domain},https://www.${local.domain},https://*.${local.domain}"
       }
     }
     auth = {
-      image             = "nginx"
+      image             = "ghcr.io/samitkumarpatel/multi-tenant-saloon-authz"
+      image_tag         = "latest"
       health_check_path = "/actuator/health"
       container_port    = 9000
-      cpu               = 512
-      memory            = 1024
+      cpu               = 256
+      memory            = 512
       env_vars = {
-        IDENTITY_SERVICE_URL = "https://api.my-saloon.online"
+        IDENTITY_SERVICE_URL = "https://api.${local.domain}"
       }
     }
   }
 
   ingress = {
-    "api.my-saloon.online"  = "api"
-    "auth.my-saloon.online" = "auth"
+    "api.${local.domain}"  = "api"
+    "auth.${local.domain}" = "auth"
   }
 }
