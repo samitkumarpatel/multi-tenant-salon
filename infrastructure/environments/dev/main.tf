@@ -166,8 +166,8 @@ module "backend" {
       image             = "ghcr.io/samitkumarpatel/multi-tenant-saloon"
       image_tag         = "latest"
       health_check_path = "/actuator/health"
-      cpu               = 512
-      memory            = 1024
+      cpu               = 256
+      memory            = 512
       env_vars = {
         "spring.sql.init.mode" = "never"
         "spring.modulith.events.jdbc.schema-initialization.enabled" = "false"
