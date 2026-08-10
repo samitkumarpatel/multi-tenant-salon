@@ -91,7 +91,7 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
           environment-variables: |
-            BPL_JVM_THREAD_COUNT=50
+            BPL_JVM_THREAD_COUNT=100
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
