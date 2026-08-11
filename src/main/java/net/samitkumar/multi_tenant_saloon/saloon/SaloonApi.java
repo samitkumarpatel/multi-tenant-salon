@@ -14,6 +14,7 @@ public interface SaloonApi {
 
     // Super-admin operations
     List<Saloon> findAll();
+    List<Saloon> search(String q, Saloon.SaloonStatus status);
     Optional<Saloon> findById(UUID id);
     Optional<Saloon> updateFeatures(UUID id, List<SaloonFeature> features);
     Optional<Saloon> updateOwner(UUID id, Saloon.Owner owner);

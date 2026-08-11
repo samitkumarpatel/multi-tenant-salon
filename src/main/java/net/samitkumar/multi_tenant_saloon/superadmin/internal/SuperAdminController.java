@@ -21,8 +21,10 @@ class SuperAdminController {
     }
 
     @GetMapping("/api/saloon-super-admin/saloons")
-    List<Saloon> findAll() {
-        return saloonApi.findAll();
+    List<Saloon> findAll(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Saloon.SaloonStatus status) {
+        return saloonApi.search(q, status);
     }
 
     @GetMapping("/api/saloon-super-admin/saloons/{id}")
