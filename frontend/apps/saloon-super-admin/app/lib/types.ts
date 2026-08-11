@@ -52,6 +52,81 @@ export interface Saloon {
   status: SaloonStatus;
 }
 
+export interface Country {
+  name: string;
+  code: string;
+  dialCode: string;
+  currencyCode: string;
+  currencyName: string | null;
+  currencySymbol: string | null;
+  businessIdLabel?: string | null;
+  businessIdPlaceholder?: string | null;
+}
+
+export interface ServiceItem {
+  id: number;
+  saloonId: number;
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;
+  durationMinutes: number;
+  category: string;
+  active: boolean;
+  assignedStaffIds?: string[];
+  createdAt?: string;
+}
+
+export interface StaffMember {
+  id: number;
+  saloonId: number;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  status: string;
+  isOwner?: boolean;
+  availableForBooking?: boolean;
+  specializations?: string[];
+  photoUrl?: string;
+  bio?: string;
+  createdAt?: string;
+}
+
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
+
+export interface Booking {
+  id: number;
+  saloonId: string;
+  serviceId: number;
+  staffId: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  status: BookingStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SaloonHoliday {
+  id: number;
+  saloonId: string;
+  name: string;
+  month: number;
+  day: number;
+  endMonth?: number | null;
+  endDay?: number | null;
+  year?: number | null;
+}
+
+export interface SaloonManageContext {
+  saloon: Saloon;
+  setSaloon: (s: Saloon) => void;
+}
+
 export interface SuperAdminSession {
   email: string;
 }

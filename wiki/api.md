@@ -472,7 +472,7 @@ GET /api/saloon-admin/my-saloons?email=owner@example.com
 
 `PUT /api/saloon-admin/{saloonId}`
 
-Updates name, location, contact, operating hours, and business registration details. Owner, handler, and features are preserved.
+Updates name, location, contact, operating hours, and business registration details. Handler, features, and **owner** are never changed by this endpoint. To change the owner, use the dedicated super-admin endpoint `PUT /api/saloon-super-admin/saloons/{id}/owner`.
 
 **Request**
 
@@ -501,7 +501,7 @@ Updates name, location, contact, operating hours, and business registration deta
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `name` | string | no | Preserved if omitted |
+| `name` | string | yes | Display name of the saloon |
 | `location` | object | no | See [Location](#location); `businessIdLabel` is re-derived when country changes |
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
 | `operatingHours` | array | no | Replaces existing hours when provided |
@@ -1350,6 +1350,32 @@ Returns all registered saloons across all tenants, regardless of status.
 | `id` | path | uuid | Saloon UUID |
 
 **Response** `200 OK` — `Saloon` · `404` if not found
+
+---
+
+### Update saloon owner
+
+`PUT /api/saloon-super-admin/saloons/{id}/owner`
+
+Replaces the owner record (name, email, phone) for a saloon. Only callable by a super-admin. The regular saloon-admin update endpoint does not expose owner data.
+
+**Request**
+
+```json
+{
+  "name": "New Owner Name",
+  "email": "newowner@example.com",
+  "phone": "+1234567890"
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Full name of the new owner |
+| `email` | string | yes | Login credential — must be a valid email |
+| `phone` | string | no | Optional contact phone |
+
+**Response** `200 OK` — updated `Saloon` · `400` on validation error · `404` if not found
 
 ---
 

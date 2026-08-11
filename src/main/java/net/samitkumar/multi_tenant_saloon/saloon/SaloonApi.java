@@ -16,6 +16,7 @@ public interface SaloonApi {
     List<Saloon> findAll();
     Optional<Saloon> findById(UUID id);
     Optional<Saloon> updateFeatures(UUID id, List<SaloonFeature> features);
+    Optional<Saloon> updateOwner(UUID id, Saloon.Owner owner);
     Optional<Saloon> disable(UUID id);
     Optional<Saloon> enable(UUID id);
 }

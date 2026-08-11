@@ -135,6 +135,17 @@ class SaloonService implements SaloonApi {
     }
 
     @Override
+    public Optional<Saloon> updateOwner(UUID id, Saloon.Owner owner) {
+        log.info("[SaloonService] Updating owner for saloon id={}", id);
+        return repository.findById(id).map(existing -> {
+            var updated = new Saloon(existing.id(), existing.name(), existing.handler(), owner,
+                    existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
+                    existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
+                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status());
+            return repository.save(updated);
+        });
+    }
+
     public Optional<Saloon> updateFeatures(UUID id, List<SaloonFeature> features) {
         log.info("[SaloonService] Updating features for saloon id={} features={}", id, features);
         return repository.findById(id).map(existing -> {
