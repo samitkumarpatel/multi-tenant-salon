@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
+import path from "path";
 
 const wellKnownBypass = {
   name: "well-known-bypass",
@@ -19,6 +20,9 @@ const wellKnownBypass = {
 export default defineConfig({
   plugins: [wellKnownBypass, tailwindcss(), reactRouter()],
   resolve: {
+    alias: {
+      "~": path.resolve(__dirname, "./app"),
+    },
     dedupe: ["react", "react-dom", "react-router"],
   },
   server: {

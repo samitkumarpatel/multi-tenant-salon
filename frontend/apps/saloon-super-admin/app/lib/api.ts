@@ -1,5 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 export const SUPER_ADMIN_API = `${API_BASE}/api/saloon-super-admin`;
+export const ADMIN_API = `${API_BASE}/api/saloon-admin`;
+export const COUNTRIES_API = `${API_BASE}/api/saloon-utility/countries`;
 
 const ATTEMPT_TIMEOUT_MS = 8_000;
 

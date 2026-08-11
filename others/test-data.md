@@ -41,7 +41,7 @@ http POST localhost:8080/api/saloon-onboarding \
   contact:='{"phone":"+1 212 555 0100","email":"info@luxehair.com","website":"www.luxehair.com"}' \
   features:='["BOOKING","STATIC_WEBSITE"]' \
   operatingHours:='[{"day":"MONDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"TUESDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"WEDNESDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"THURSDAY","openTime":"09:00","closeTime":"19:00","closed":false},{"day":"FRIDAY","openTime":"09:00","closeTime":"20:00","closed":false},{"day":"SATURDAY","openTime":"10:00","closeTime":"18:00","closed":false},{"day":"SUNDAY","openTime":"00:00","closeTime":"00:00","closed":true}]'
-
+corr
 ```
 
 ---

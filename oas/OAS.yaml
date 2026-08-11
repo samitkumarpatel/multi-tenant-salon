@@ -470,7 +470,7 @@ paths:
     put:
       tags: [SaloonAdmin]
       summary: Update saloon details (admin)
-      description: Admin-only. Updates name, location, contact info, and operating hours. Owner, handler, and features are preserved.
+      description: Admin-only. Updates name, location, contact info, and operating hours. Handler, features, and owner are never changed here — use PUT /api/saloon-super-admin/saloons/{id}/owner to change the owner.
       operationId: updateSaloon
       requestBody:
         required: true
@@ -1356,6 +1356,40 @@ paths:
         "404":
           description: Saloon not found
 
+  /api/saloon-super-admin/saloons/{id}/owner:
+    put:
+      tags: [SuperAdmin]
+      summary: Update saloon owner (super-admin)
+      description: >
+        Replaces the owner record (name, email, phone) for a saloon.
+        Only accessible by a super-admin. The regular saloon-admin update endpoint
+        (PUT /api/saloon-admin/{id}) does not touch owner data.
+      operationId: superAdminUpdateOwner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOwnerRequest"
+      responses:
+        "200":
+          description: Owner updated; returns updated saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "400":
+          description: Validation error (name or email blank)
+        "404":
+          description: Saloon not found
+
   /api/saloon-super-admin/saloons/{id}/enable:
     put:
       tags: [SuperAdmin]
@@ -1669,6 +1703,9 @@ components:
     UpdateSaloonRequest:
       type: object
       required: [name]
+      description: >
+        Saloon admin update — owner data is NOT changeable here.
+        To change the owner, use PUT /api/saloon-super-admin/saloons/{id}/owner (super-admin only).
       properties:
         name:
           type: string
@@ -1709,6 +1746,22 @@ components:
           description: >
             When true, new bookings are created as PENDING and must be manually confirmed.
             When false, bookings are auto-confirmed immediately.
+
+    UpdateOwnerRequest:
+      type: object
+      required: [name, email]
+      description: Request body for the super-admin owner-change endpoint.
+      properties:
+        name:
+          type: string
+          description: Full name of the new owner.
+        email:
+          type: string
+          format: email
+          description: Email address used for owner login.
+        phone:
+          type: string
+          description: Optional contact phone number.
 
     Owner:
       type: object
