@@ -13,6 +13,7 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 | **Saloon Onboarding** | `/api/saloon-onboarding` | New tenant registration; platform-level listing |
 | **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
 | **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
+| **Super Admin** | `/api/saloon-super-admin/...` | Platform super-admin — cross-tenant management of all saloons |
 | **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
@@ -1323,6 +1324,64 @@ Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 **Response** `200 OK` — updated booking object
 
 **Response** `404 Not Found`
+
+---
+
+## Super Admin
+
+Platform-wide management endpoints. Accessible via the Super Admin portal (`admin@my-saloon.online` + OTP). All paths are prefixed `/api/saloon-super-admin`.
+
+### List all saloons
+
+`GET /api/saloon-super-admin/saloons`
+
+Returns all registered saloons across all tenants, regardless of status.
+
+**Response** `200 OK` — array of `Saloon`
+
+---
+
+### Get a saloon by ID
+
+`GET /api/saloon-super-admin/saloons/{id}`
+
+| Param | In | Type | Notes |
+|---|---|---|---|
+| `id` | path | uuid | Saloon UUID |
+
+**Response** `200 OK` — `Saloon` · `404` if not found
+
+---
+
+### Update saloon features
+
+`PUT /api/saloon-super-admin/saloons/{id}/features`
+
+Replaces the full feature set for the saloon.
+
+**Request body** — array of `SaloonFeature` values, e.g. `["BOOKING", "STATIC_WEBSITE"]`
+
+**Response** `200 OK` — updated `Saloon` · `404` if not found
+
+---
+
+### Disable a saloon
+
+`DELETE /api/saloon-super-admin/saloons/{id}`
+
+Soft-disables the saloon (status → `DISABLED`). Data is preserved; saloon can be re-enabled.
+
+**Response** `200 OK` — updated `Saloon` · `404` if not found
+
+---
+
+### Enable a saloon
+
+`PUT /api/saloon-super-admin/saloons/{id}/enable`
+
+Re-activates a disabled saloon (status → `ACTIVE`).
+
+**Response** `200 OK` — updated `Saloon` · `404` if not found
 
 ---
 

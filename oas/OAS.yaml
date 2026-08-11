@@ -13,6 +13,7 @@ info:
     | **Saloon Onboarding** | `/api/saloon-onboarding` | Anyone registering a new saloon tenant; platform-level listing |
     | **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
     | **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
+    | **Super Admin** | `/api/saloon-super-admin/...` | Platform super-admin — cross-tenant management of all saloons |
     | **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
     ### Customer sub-paths
@@ -88,6 +89,11 @@ tags:
       Admin recurring/one-off holiday management. Adding a holiday automatically generates
       saloon-closure rows for the current year and up to 4 years ahead so the booking engine
       blocks those dates without manual closure entry each year.
+  - name: SuperAdmin
+    description: |
+      Platform super-admin endpoints — cross-tenant management of all saloons.
+      Requires super-admin authentication (email `admin@my-saloon.online` + OTP).
+      All endpoints are prefixed `/api/saloon-super-admin`.
   - name: Utility
     description: Reference data — countries with embedded currency info. Loaded from static classpath resources.
   - name: Internal
@@ -1256,6 +1262,122 @@ paths:
       responses:
         "204":
           description: Closure removed
+
+  # ─── Super Admin ──────────────────────────────────────────────────────────────
+
+  /api/saloon-super-admin/saloons:
+    get:
+      tags: [SuperAdmin]
+      summary: List all saloons (super-admin)
+      description: Returns all registered saloons across all tenants, regardless of status.
+      operationId: superAdminListSaloons
+      responses:
+        "200":
+          description: List of all saloons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Saloon"
+
+  /api/saloon-super-admin/saloons/{id}:
+    get:
+      tags: [SuperAdmin]
+      summary: Get a saloon by ID (super-admin)
+      operationId: superAdminGetSaloon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Saloon found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          description: Saloon not found
+
+    delete:
+      tags: [SuperAdmin]
+      summary: Disable a saloon (super-admin)
+      description: Soft-deletes the saloon (sets status to DISABLED). Data is preserved and the saloon can be re-enabled.
+      operationId: superAdminDisableSaloon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Saloon disabled; returns updated saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          description: Saloon not found
+
+  /api/saloon-super-admin/saloons/{id}/features:
+    put:
+      tags: [SuperAdmin]
+      summary: Update saloon features (super-admin)
+      description: Replaces the full set of enabled features for a saloon.
+      operationId: superAdminUpdateFeatures
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SaloonFeature"
+      responses:
+        "200":
+          description: Features updated; returns updated saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          description: Saloon not found
+
+  /api/saloon-super-admin/saloons/{id}/enable:
+    put:
+      tags: [SuperAdmin]
+      summary: Enable a disabled saloon (super-admin)
+      description: Re-activates a previously disabled saloon (sets status to ACTIVE).
+      operationId: superAdminEnableSaloon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Saloon enabled; returns updated saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saloon"
+        "404":
+          description: Saloon not found
 
   # ─── Utility ──────────────────────────────────────────────────────────────────
 
