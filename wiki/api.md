@@ -1331,11 +1331,16 @@ Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 
 Platform-wide management endpoints. Accessible via the Super Admin portal (`admin@my-saloon.online` + OTP). All paths are prefixed `/api/saloon-super-admin`.
 
-### List all saloons
+### List / search saloons
 
 `GET /api/saloon-super-admin/saloons`
 
-Returns all registered saloons across all tenants, regardless of status.
+Returns registered saloons across all tenants. Supports optional server-side search and status filtering. When `q` is provided the search is executed in the database (case-insensitive LIKE) across: saloon name, handler, owner name/email/phone, contact phone/email, city, and country.
+
+| Param | In | Type | Notes |
+|---|---|---|---|
+| `q` | query | string | Optional. Full-text search term. |
+| `status` | query | `ACTIVE` \| `DISABLED` | Optional. Filter by saloon status. |
 
 **Response** `200 OK` — array of `Saloon`
 

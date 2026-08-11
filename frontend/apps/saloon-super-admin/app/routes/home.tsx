@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router";
 import {
   Shield, LogOut, Search, Building2, MapPin, User, Mail, Zap,
@@ -309,24 +309,41 @@ export default function SuperAdminHome() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DISABLED">("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selected, setSelected] = useState<Saloon | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const session = getSession();
     if (!session) { navigate("/login", { replace: true }); return; }
-    loadSaloons();
+    loadSaloons("", "ALL");
   }, []);
 
-  async function loadSaloons() {
+  async function loadSaloons(q: string, status: "ALL" | "ACTIVE" | "DISABLED") {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<Saloon[]>(`${SUPER_ADMIN_API}/saloons`);
+      const params = new URLSearchParams();
+      if (q.trim()) params.set("q", q.trim());
+      if (status !== "ALL") params.set("status", status);
+      const qs = params.toString();
+      const data = await apiFetch<Saloon[]>(`${SUPER_ADMIN_API}/saloons${qs ? `?${qs}` : ""}`);
       setSaloons(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load saloons");
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => loadSaloons(value, statusFilter), 400);
+  }
+
+  function handleStatusChange(status: "ALL" | "ACTIVE" | "DISABLED") {
+    setStatusFilter(status);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    loadSaloons(search, status);
   }
 
   function handleSaloonUpdated(updated: Saloon) {
@@ -338,20 +355,6 @@ export default function SuperAdminHome() {
     clearSession();
     navigate("/login", { replace: true });
   }
-
-  const filtered = saloons.filter((s) => {
-    const q = search.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      s.name.toLowerCase().includes(q) ||
-      (s.owner?.email ?? "").toLowerCase().includes(q) ||
-      (s.owner?.name ?? "").toLowerCase().includes(q) ||
-      (s.location?.city ?? "").toLowerCase().includes(q) ||
-      (s.location?.country ?? "").toLowerCase().includes(q) ||
-      s.handler.toLowerCase().includes(q);
-    const matchesStatus = statusFilter === "ALL" || s.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   const activeCount   = saloons.filter((s) => s.status === "ACTIVE").length;
   const disabledCount = saloons.filter((s) => s.status === "DISABLED").length;
@@ -367,7 +370,7 @@ export default function SuperAdminHome() {
         </span>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={loadSaloons}
+            onClick={() => loadSaloons(search, statusFilter)}
             className="p-1.5 rounded-md text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"
             title="Refresh"
           >
@@ -423,8 +426,8 @@ export default function SuperAdminHome() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, owner, location…"
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by name, owner, email, phone, location…"
               className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 placeholder:text-stone-400 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-600/20 transition"
             />
           </div>
@@ -434,7 +437,7 @@ export default function SuperAdminHome() {
               {(["ALL", "ACTIVE", "DISABLED"] as const).map((s) => (
                 <button
                   key={s}
-                  onClick={() => setStatusFilter(s)}
+                  onClick={() => handleStatusChange(s)}
                   className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                     statusFilter === s
                       ? "bg-matcha-600 text-white"
@@ -480,13 +483,13 @@ export default function SuperAdminHome() {
               <p className="text-xs text-stone-400 mt-1">{error}</p>
             </div>
             <button
-              onClick={loadSaloons}
+              onClick={() => loadSaloons(search, statusFilter)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-sm text-stone-800 font-medium transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Retry
             </button>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : saloons.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
             <Building2 className="w-10 h-10 text-stone-300" />
             <p className="text-sm text-stone-500">
@@ -495,7 +498,7 @@ export default function SuperAdminHome() {
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((s) => (
+            {saloons.map((s) => (
               <SaloonCard key={s.id} saloon={s} onClick={() => setSelected(s)} />
             ))}
           </div>
@@ -513,7 +516,7 @@ export default function SuperAdminHome() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s) => (
+                {saloons.map((s) => (
                   <tr
                     key={s.id}
                     onClick={() => setSelected(s)}

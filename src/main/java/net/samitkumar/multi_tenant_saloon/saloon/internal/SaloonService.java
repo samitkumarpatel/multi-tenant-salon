@@ -99,6 +99,22 @@ class SaloonService implements SaloonApi {
         return repository.findById(id).map(this::withLabel);
     }
 
+    @Override
+    public List<Saloon> search(String q, Saloon.SaloonStatus status) {
+        boolean hasQuery = q != null && !q.isBlank();
+        List<Saloon> results;
+        if (hasQuery && status != null) {
+            results = repository.searchByTextAndStatus(q.trim(), status.name());
+        } else if (hasQuery) {
+            results = repository.searchByText(q.trim());
+        } else if (status != null) {
+            results = repository.findByStatus(status);
+        } else {
+            results = repository.findAll();
+        }
+        return results.stream().map(this::withLabel).toList();
+    }
+
     List<Saloon> findByOwnerEmail(String email) {
         return repository.findByOwnerEmail(email).stream().map(this::withLabel).toList();
     }

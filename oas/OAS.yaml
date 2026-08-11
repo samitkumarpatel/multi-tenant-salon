@@ -1268,12 +1268,31 @@ paths:
   /api/saloon-super-admin/saloons:
     get:
       tags: [SuperAdmin]
-      summary: List all saloons (super-admin)
-      description: Returns all registered saloons across all tenants, regardless of status.
+      summary: List / search saloons (super-admin)
+      description: |
+        Returns registered saloons across all tenants. Supports optional server-side full-text
+        search (`q`) and status filtering (`status`). When `q` is provided the search is performed
+        in the database across: saloon name, handler, owner name, owner email, owner phone,
+        contact phone, contact email, city, and country (case-insensitive LIKE). Combining
+        `q` and `status` is supported. Omitting both parameters returns all saloons.
       operationId: superAdminListSaloons
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Full-text search term (case-insensitive). Searched across name, handler, owner name/email/phone, contact phone/email, city, country.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Filter by saloon status.
+          schema:
+            type: string
+            enum: [ACTIVE, DISABLED]
       responses:
         "200":
-          description: List of all saloons
+          description: List of matching saloons
           content:
             application/json:
               schema:
