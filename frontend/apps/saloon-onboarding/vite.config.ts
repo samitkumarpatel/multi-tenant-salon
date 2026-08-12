@@ -21,10 +21,20 @@ export default defineConfig({
   base: process.env.VITE_BASE_PATH ?? "/",
   plugins: [wellKnownBypass, tailwindcss(), reactRouter()],
   resolve: {
-    dedupe: ["react", "react-dom", "react-router"],
+    dedupe: ["react", "react-dom", "react-router", "lucide-react"],
     alias: {
       "~": resolve(__dirname, "./app"),
     },
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react-router",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+    ],
   },
   server: {
     port: 5175,

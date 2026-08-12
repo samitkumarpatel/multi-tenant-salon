@@ -1,13 +1,13 @@
 import { defineConfig } from "vite";
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
+import { resolve } from "path";
 
-const devMiddleware = {
-  name: "dev-middleware",
+const wellKnownBypass = {
+  name: "well-known-bypass",
   configureServer(server: import("vite").ViteDevServer) {
     server.middlewares.use((req, res, next) => {
-      const url = req.url ?? "/";
-      if (url.startsWith("/.well-known/") || url === "/favicon.ico") {
+      if (req.url?.startsWith("/.well-known/") || req.url === "/favicon.ico") {
         res.statusCode = 204;
         res.end();
         return;
@@ -18,9 +18,13 @@ const devMiddleware = {
 };
 
 export default defineConfig({
-  plugins: [devMiddleware, tailwindcss(), reactRouter()],
+  base: process.env.VITE_BASE_PATH ?? "/",
+  plugins: [wellKnownBypass, tailwindcss(), reactRouter()],
   resolve: {
     dedupe: ["react", "react-dom", "react-router", "lucide-react"],
+    alias: {
+      "~": resolve(__dirname, "./app"),
+    },
   },
   optimizeDeps: {
     include: [
@@ -33,7 +37,7 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 5177,
+    port: 5178,
     watch: {
       ignored: ["!**/node_modules/@saloon/**"],
     },

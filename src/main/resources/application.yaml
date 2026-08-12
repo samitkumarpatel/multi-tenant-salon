@@ -4,6 +4,12 @@ spring:
     utility:
       static-geo-data: classpath:data/countries.json
       static-currency-data: classpath:data/currencies.json
+  cloud:
+    aws:
+      s3:
+        enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:false}
+      region:
+        static: ${AWS_REGION:us-east-1}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/saloon}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -11,13 +17,14 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: >
-        classpath:db/V1__schema.sql,
-        classpath:db/V2__add_cascade_deletes.sql,
-        classpath:db/V3__add_saloon_status.sql,
-        classpath:db/V4__user_identity_view.sql,
-        classpath:db/V5__add_saloon_holiday.sql,
-        classpath:db/V6__super_admin.sql
+      schema-locations:
+        - classpath:db/V1__schema.sql
+        - classpath:db/V2__add_cascade_deletes.sql
+        - classpath:db/V3__add_saloon_status.sql
+        - classpath:db/V4__user_identity_view.sql
+        - classpath:db/V5__add_saloon_holiday.sql
+        - classpath:db/V6__super_admin.sql
+        - classpath:db/V7__add_staff_photo.sql
   modulith:
     events:
       jdbc:
@@ -33,6 +40,15 @@ spring:
     user: ${spring.datasource.username}
     password: ${spring.datasource.password}
     url: ${spring.datasource.url}
+
+media:
+  # S3 mode (production): set MEDIA_STAFF_BUCKET_NAME env var.
+  # Local mode (dev): when MEDIA_STAFF_BUCKET_NAME is absent, photos are stored under
+  # MEDIA_LOCAL_STORAGE_PATH (default /tmp/saloon-photos) and served by the backend.
+  staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.my-saloon.online}
+  local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
+  local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/saloon-photos}
+  # staff-bucket-name is set only when MEDIA_STAFF_BUCKET_NAME env var is present
 
 cors:
   # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
