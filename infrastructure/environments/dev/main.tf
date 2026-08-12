@@ -176,12 +176,13 @@ module "backend" {
       }
     }
     auth = {
-      image             = "ghcr.io/samitkumarpatel/multi-tenant-saloon-authz"
-      image_tag         = "latest"
-      health_check_path = "/actuator/health"
-      container_port    = 9000
-      cpu               = 256
-      memory            = 512
+      image                         = "ghcr.io/samitkumarpatel/multi-tenant-saloon-authz"
+      image_tag                     = "latest"
+      health_check_path             = "/actuator/health"
+      health_check_grace_period_sec = 120
+      container_port                = 9000
+      cpu                           = 512
+      memory                        = 1024
       env_vars = {
         IDENTITY_SERVICE_URL = "https://api.${local.domain}"
       }

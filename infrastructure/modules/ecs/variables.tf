@@ -70,8 +70,9 @@ variable "services" {
     min_tasks     = optional(number, 1)
     max_tasks     = optional(number, 5)
 
-    health_check_path  = optional(string, "/health")
-    log_retention_days = optional(number, 30)
+    health_check_path             = optional(string, "/health")
+    health_check_grace_period_sec = optional(number, 0)
+    log_retention_days            = optional(number, 30)
 
     env_vars        = optional(map(string), {})
     secret_arns     = optional(map(string), {})
