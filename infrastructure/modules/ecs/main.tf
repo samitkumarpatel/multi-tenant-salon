@@ -157,10 +157,6 @@ resource "aws_ecs_task_definition" "this" {
   ])
 
   tags = var.tags
-
-  lifecycle {
-    ignore_changes = [container_definitions]
-  }
 }
 
 # ── Shared ALB ────────────────────────────────────────────────────────────────
