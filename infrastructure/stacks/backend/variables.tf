@@ -53,6 +53,7 @@ variable "services" {
     env_vars        = optional(map(string), {})
     secret_arns     = optional(map(string), {})
     ghcr_secret_arn = optional(string, "")
+    s3_bucket_arns  = optional(list(string), [])
   }))
   description = "Services to run on ECS. DB credentials are injected automatically. Services not referenced in routes.http are workers with no ALB attachment."
 }

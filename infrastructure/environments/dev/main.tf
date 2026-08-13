@@ -195,8 +195,11 @@ module "backend" {
         "spring.sql.init.mode" = "never"
         "spring.modulith.events.jdbc.schema-initialization.enabled" = "false"
         "spring.flyway.enabled" = "true"
-        CORS_ALLOWED_ORIGIN_PATTERNS = "https://${local.domain},https://www.${local.domain},https://*.${local.domain}"
+        CORS_ALLOWED_ORIGIN_PATTERNS    = "https://${local.domain},https://www.${local.domain},https://*.${local.domain}"
+        "media.staff-bucket-name"       = module.frontend.s3_buckets["staff-web"]
+        "media.staff-cdn-base-url"      = "https://staff.${local.domain}"
       }
+      s3_bucket_arns = ["arn:aws:s3:::${module.frontend.s3_buckets["staff-web"]}"]
     }
     auth = {
       image                         = "ghcr.io/samitkumarpatel/multi-tenant-saloon-authz"

@@ -53,6 +53,24 @@ resource "aws_iam_role" "task" {
   tags               = var.tags
 }
 
+resource "aws_iam_role_policy" "s3_access" {
+  for_each = {
+    for k, v in var.services : k => v
+    if length(v.s3_bucket_arns) > 0
+  }
+  name = "${var.name}-${each.key}-s3"
+  role = aws_iam_role.task[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:DeleteObject"]
+      Resource = [for arn in each.value.s3_bucket_arns : "${arn}/uploads/*"]
+    }]
+  })
+}
+
 # ── Per-service CloudWatch log groups ─────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "this" {
