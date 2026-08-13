@@ -16,11 +16,11 @@ import java.nio.file.Path;
 @RestController
 @RequestMapping("/api/media/photos")
 @ConditionalOnProperty(name = "media.staff-bucket-name", matchIfMissing = true, havingValue = "__local__")
-class LocalMediaController {
+class MediaServiceController {
 
     private final Path root;
 
-    LocalMediaController(@Value("${media.local-storage-path:/tmp/saloon-photos}") String storageDir) {
+    MediaServiceController(@Value("${media.local-storage-path:/tmp/saloon-photos}") String storageDir) {
         this.root = Path.of(storageDir).toAbsolutePath().normalize();
     }
 

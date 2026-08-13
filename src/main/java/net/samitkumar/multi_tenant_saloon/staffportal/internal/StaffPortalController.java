@@ -3,7 +3,7 @@ package net.samitkumar.multi_tenant_saloon.staffportal.internal;
 import net.samitkumar.multi_tenant_saloon.booking.Booking;
 import net.samitkumar.multi_tenant_saloon.booking.BookingApi;
 import net.samitkumar.multi_tenant_saloon.booking.StaffAvailabilityOverride;
-import net.samitkumar.multi_tenant_saloon.media.MediaApi;
+import net.samitkumar.multi_tenant_saloon.media.MediaService;
 import net.samitkumar.multi_tenant_saloon.staff.StaffApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
 import org.springframework.http.ResponseEntity;
@@ -20,9 +20,9 @@ class StaffPortalController {
 
     private final StaffApi staffApi;
     private final BookingApi bookingApi;
-    private final MediaApi mediaApi;
+    private final MediaService mediaApi;
 
-    StaffPortalController(StaffApi staffApi, BookingApi bookingApi, Optional<MediaApi> mediaApi) {
+    StaffPortalController(StaffApi staffApi, BookingApi bookingApi, Optional<MediaService> mediaApi) {
         this.staffApi = staffApi;
         this.bookingApi = bookingApi;
         this.mediaApi = mediaApi.orElse(null);
@@ -63,8 +63,8 @@ class StaffPortalController {
     }
 
     @PostMapping("/{staffId}/photo-upload-url")
-    ResponseEntity<MediaApi.PresignedUpload> getPhotoUploadUrl(@PathVariable Long staffId,
-                                                               @RequestBody PhotoUploadRequest request) {
+    ResponseEntity<MediaService.PresignedUpload> getPhotoUploadUrl(@PathVariable Long staffId,
+                                                                   @RequestBody PhotoUploadRequest request) {
         if (mediaApi == null) return ResponseEntity.status(503).build();
         return staffApi.findById(staffId)
                 .map(m -> ResponseEntity.ok(mediaApi.generateStaffPhotoUploadUrl(staffId, request.contentType())))

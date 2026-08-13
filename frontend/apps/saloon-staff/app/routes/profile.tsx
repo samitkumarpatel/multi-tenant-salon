@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { Pencil, X, Crown, CalendarOff, UserCircle, Camera } from "lucide-react";
+import { Pencil, X, Crown, CalendarOff, UserCircle, Camera, RefreshCw } from "lucide-react";
 import { STAFF_PORTAL_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { getStaffSession } from "~/routes/login";
 import { InfoBar, PhoneInput, TileGrid, Toast, useToast } from "@saloon/ui-shared";
@@ -38,6 +39,138 @@ export async function clientLoader(_: ClientLoaderFunctionArgs) {
   return { member, countries };
 }
 
+// ── Camera helpers ────────────────────────────────────────────────────────────
+
+function dataUrlToFile(dataUrl: string, filename: string, type: string): File {
+  const arr = dataUrl.split(",");
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) u8arr[n] = bstr.charCodeAt(n);
+  return new File([u8arr], filename, { type });
+}
+
+function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, file: File) => void; onClose: () => void }) {
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [ready, setReady]   = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+  const [facing, setFacing] = useState<"user" | "environment">("user");
+
+  function startStream(facingMode: "user" | "environment") {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    setReady(false);
+    setError(null);
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false })
+      .then((stream) => {
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch((err: DOMException) => {
+        const msg =
+          err.name === "NotAllowedError"
+            ? "Camera access denied — allow camera access in your browser settings and try again."
+            : err.name === "NotFoundError"
+            ? "No camera found on this device."
+            : `Camera error: ${err.message}`;
+        setError(msg);
+      });
+  }
+
+  useEffect(() => {
+    startStream(facing);
+    return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function flipCamera() {
+    const next = facing === "user" ? "environment" : "user";
+    setFacing(next);
+    startStream(next);
+  }
+
+  function capture() {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !ready) return;
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    const side = Math.min(w, h);
+    canvas.width  = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d")!;
+    if (facing === "user") {
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -(w + side) / 2, -(h - side) / 2, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(video, -(w - side) / 2, -(h - side) / 2, w, h);
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+    onCapture(dataUrl, dataUrlToFile(dataUrl, "photo.jpg", "image/jpeg"));
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-xs flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <span className="text-sm font-semibold text-slate-800">Take a photo</span>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {error ? (
+          <div className="px-6 py-8 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+              <Camera className="w-6 h-6 text-red-400" />
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">{error}</p>
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium text-slate-700 cursor-pointer transition-colors">
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="relative bg-black aspect-square overflow-hidden">
+              <video ref={videoRef} autoPlay playsInline muted onCanPlay={() => setReady(true)}
+                className="w-full h-full object-cover"
+                style={{ transform: facing === "user" ? "scaleX(-1)" : "none" }}
+              />
+              {!ready && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                  <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
+              <button type="button" onClick={flipCamera}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors cursor-pointer backdrop-blur-sm"
+                title="Flip camera">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-40 h-40 rounded-full border-2 border-white/30" />
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2 py-5 bg-slate-50">
+              <button type="button" onClick={capture} disabled={!ready} title="Capture photo"
+                className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 hover:border-matcha-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-slate-800 hover:bg-matcha-700 transition-colors" />
+              </button>
+              <p className="text-[11px] text-slate-400">Click the button to capture</p>
+            </div>
+          </>
+        )}
+      </div>
+      <canvas ref={canvasRef} className="hidden" />
+    </div>,
+    document.body
+  );
+}
+
 // ── Photo picker ──────────────────────────────────────────────────────────────
 
 function PhotoPicker({
@@ -50,6 +183,7 @@ function PhotoPicker({
   onFileSelect?: (file: File | null) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -59,6 +193,12 @@ function PhotoPicker({
     reader.readAsDataURL(file);
     onFileSelect?.(file);
     e.target.value = "";
+  }
+
+  function handleCapture(dataUrl: string, file: File) {
+    onChange(dataUrl);
+    onFileSelect?.(file);
+    setShowCamera(false);
   }
 
   return (
@@ -79,7 +219,7 @@ function PhotoPicker({
 
         <button
           type="button"
-          onClick={() => uploadRef.current?.click()}
+          onClick={() => setShowCamera(true)}
           title="Take photo"
           className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-matcha-600 text-white flex items-center justify-center hover:bg-matcha-700 transition-colors cursor-pointer shadow-sm"
         >
@@ -105,6 +245,10 @@ function PhotoPicker({
       </div>
 
       <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+
+      {showCamera && (
+        <CameraCapture onCapture={handleCapture} onClose={() => setShowCamera(false)} />
+      )}
     </div>
   );
 }
@@ -190,7 +334,7 @@ export default function Profile() {
             {member.photoUrl ? (
               <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-slate-200" />
             ) : (
-              <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[member.status] ?? "bg-slate-300"}`} />
+              <UserCircle className="w-10 h-10 text-slate-300 shrink-0" />
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

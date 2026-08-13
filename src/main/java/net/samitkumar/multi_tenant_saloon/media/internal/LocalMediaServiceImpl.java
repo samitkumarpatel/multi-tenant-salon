@@ -1,7 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.media.internal;
 
 import lombok.extern.slf4j.Slf4j;
-import net.samitkumar.multi_tenant_saloon.media.MediaApi;
+import net.samitkumar.multi_tenant_saloon.media.MediaService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -13,12 +13,12 @@ import java.util.UUID;
 // Active when media.staff-bucket-name is absent (local dev); havingValue is set to an impossible string
 // so the condition only passes via matchIfMissing=true (i.e., when the property is not set at all).
 @ConditionalOnProperty(name = "media.staff-bucket-name", matchIfMissing = true, havingValue = "__local__")
-class LocalMediaService implements MediaApi {
+class LocalMediaServiceImpl implements MediaService {
 
     private final String storageDir;
     private final String baseUrl;
 
-    LocalMediaService(
+    LocalMediaServiceImpl(
             @Value("${media.local-storage-path:/tmp/saloon-photos}") String storageDir,
             @Value("${media.local-base-url:http://localhost:8080}") String baseUrl) {
         this.storageDir = storageDir;

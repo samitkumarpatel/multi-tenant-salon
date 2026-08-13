@@ -1905,6 +1905,32 @@ function BookingSettingsPanel({
 
   return (
     <div className="max-w-lg space-y-4">
+      {/* Booking confirmation */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-800">Booking confirmation</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            When enabled, new bookings are created as <strong>Pending</strong> and must be manually confirmed by an admin. When disabled, bookings are auto-confirmed immediately.
+          </p>
+        </div>
+        <button type="button" onClick={() => setRequiresConfirmation((v) => !v)}
+          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors cursor-pointer">
+          <div>
+            <p className={`text-sm font-semibold ${requiresConfirmation ? "text-matcha-800" : "text-slate-700"}`}>
+              Require manual confirmation
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {requiresConfirmation
+                ? "New bookings will stay Pending until you confirm them."
+                : "New bookings are confirmed automatically — no action needed."}
+            </p>
+          </div>
+          <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${requiresConfirmation ? "bg-matcha-600" : "bg-slate-200"}`}>
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${requiresConfirmation ? "left-5" : "left-0.5"}`} />
+          </div>
+        </button>
+      </div>
+
       {/* Advance booking window */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
@@ -1933,32 +1959,6 @@ function BookingSettingsPanel({
             <strong className="text-slate-600">{ADVANCE_OPTIONS.find((o) => o.days === days)?.label ?? `${days} days`}</strong> ahead.
           </p>
         </div>
-      </div>
-
-      {/* Booking confirmation */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-800">Booking confirmation</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            When enabled, new bookings are created as <strong>Pending</strong> and must be manually confirmed by an admin. When disabled, bookings are auto-confirmed immediately.
-          </p>
-        </div>
-        <button type="button" onClick={() => setRequiresConfirmation((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors cursor-pointer">
-          <div>
-            <p className={`text-sm font-semibold ${requiresConfirmation ? "text-matcha-800" : "text-slate-700"}`}>
-              Require manual confirmation
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {requiresConfirmation
-                ? "New bookings will stay Pending until you confirm them."
-                : "New bookings are confirmed automatically — no action needed."}
-            </p>
-          </div>
-          <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${requiresConfirmation ? "bg-matcha-600" : "bg-slate-200"}`}>
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${requiresConfirmation ? "left-5" : "left-0.5"}`} />
-          </div>
-        </button>
       </div>
 
       <div className="flex justify-end">
@@ -2127,7 +2127,7 @@ export default function BookingPage() {
         {infoVisible && (
           <div className="relative">
             <InfoBar>
-              Manage customer appointments and staff availability. Use <strong>Bookings</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to mark ad-hoc blocked date ranges — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
+              Manage customer appointments and staff availability. Use <strong>Appointments</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to mark ad-hoc blocked date ranges — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
             </InfoBar>
             <button
               onClick={dismissInfo}
@@ -2147,7 +2147,7 @@ export default function BookingPage() {
       <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit flex-wrap">
         <Tooltip content="View, confirm, reschedule, cancel, or complete customer appointments." side="bottom">
           <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
-            <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Bookings</span>
+            <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Appointments</span>
           </button>
         </Tooltip>
         <Tooltip content="Set each staff member's weekly working hours and add one-off date overrides." side="bottom">

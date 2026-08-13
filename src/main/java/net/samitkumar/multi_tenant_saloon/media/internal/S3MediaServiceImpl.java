@@ -1,7 +1,7 @@
 package net.samitkumar.multi_tenant_saloon.media.internal;
 
 import io.awspring.cloud.s3.S3Template;
-import net.samitkumar.multi_tenant_saloon.media.MediaApi;
+import net.samitkumar.multi_tenant_saloon.media.MediaService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -11,15 +11,15 @@ import java.util.UUID;
 
 @Service
 @ConditionalOnProperty("media.staff-bucket-name")
-class MediaService implements MediaApi {
+class S3MediaServiceImpl implements MediaService {
 
     private final S3Template s3Template;
     private final String bucketName;
     private final String cdnBaseUrl;
 
-    MediaService(S3Template s3Template,
-                 @Value("${media.staff-bucket-name}") String bucketName,
-                 @Value("${media.staff-cdn-base-url:https://staff.my-saloon.online}") String cdnBaseUrl) {
+    S3MediaServiceImpl(S3Template s3Template,
+                       @Value("${media.staff-bucket-name}") String bucketName,
+                       @Value("${media.staff-cdn-base-url:https://staff.my-saloon.online}") String cdnBaseUrl) {
         this.s3Template = s3Template;
         this.bucketName = bucketName;
         this.cdnBaseUrl = cdnBaseUrl;

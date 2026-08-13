@@ -1,4 +1,4 @@
-import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResponse } from "react-router";
+import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResponse, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState } from "react";
 import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon } from "lucide-react";
@@ -70,6 +70,7 @@ const STATUS_DOT: Record<string, string> = {
 export default function Layout() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { staff } = useLoaderData<typeof clientLoader>();
   const session = getStaffSession()!;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -154,11 +155,15 @@ export default function Layout() {
 
           <div className="px-4 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-matcha-700">
-                  {session.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                </span>
-              </div>
+              {staff.photoUrl ? (
+                <img src={staff.photoUrl} alt={session.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-bold text-matcha-700">
+                    {session.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-slate-900 truncate">{session.name}</p>
                 <p className="text-[11px] text-slate-400 truncate">

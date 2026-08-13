@@ -1,6 +1,6 @@
 package net.samitkumar.multi_tenant_saloon.staff.internal;
 
-import net.samitkumar.multi_tenant_saloon.media.MediaApi;
+import net.samitkumar.multi_tenant_saloon.media.MediaService;
 import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
 import net.samitkumar.multi_tenant_saloon.staff.StaffOnboardedEvent;
 import net.samitkumar.multi_tenant_saloon.staff.StaffRole;
@@ -17,9 +17,9 @@ import java.util.UUID;
 class StaffController {
 
     private final StaffService service;
-    private final MediaApi mediaApi;
+    private final MediaService mediaApi;
 
-    StaffController(StaffService service, Optional<MediaApi> mediaApi) {
+    StaffController(StaffService service, Optional<MediaService> mediaApi) {
         this.service = service;
         this.mediaApi = mediaApi.orElse(null);
     }
@@ -74,9 +74,9 @@ class StaffController {
     }
 
     @PostMapping("/api/saloon-admin/{saloonId}/staff/{staffId}/photo-upload-url")
-    ResponseEntity<MediaApi.PresignedUpload> getPhotoUploadUrl(@PathVariable UUID saloonId,
-                                                               @PathVariable Long staffId,
-                                                               @RequestBody PhotoUploadRequest request) {
+    ResponseEntity<MediaService.PresignedUpload> getPhotoUploadUrl(@PathVariable UUID saloonId,
+                                                                   @PathVariable Long staffId,
+                                                                   @RequestBody PhotoUploadRequest request) {
         if (mediaApi == null) return ResponseEntity.status(503).build();
         return service.findByIdAndSaloonId(staffId, saloonId)
                 .map(m -> ResponseEntity.ok(mediaApi.generateStaffPhotoUploadUrl(staffId, request.contentType())))
