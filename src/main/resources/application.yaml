@@ -7,7 +7,7 @@ spring:
   cloud:
     aws:
       s3:
-        enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:false}
+        enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:true}
       region:
         static: ${AWS_DEFAULT_REGION:${AWS_REGION:eu-north-1}}
   datasource:
