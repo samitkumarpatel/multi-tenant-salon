@@ -56,6 +56,7 @@ module "s3" {
 
   name          = "${var.name}-${each.key}"
   force_destroy = each.value.force_destroy
+  cors_rules    = each.value.cors_rules
   tags          = local.common_tags
 }
 

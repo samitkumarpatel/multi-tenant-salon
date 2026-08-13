@@ -21,6 +21,7 @@ public record StaffMember(
         StaffStatus status,
         @Column("is_owner") boolean isOwner,
         @Column("available_for_booking") boolean availableForBooking,
+        @Column("profile_photo_url") String photoUrl,
         @MappedCollection(idColumn = "staff_member_id") List<Specialization> specializations,
         Instant createdAt
 ) {

@@ -23,7 +23,17 @@ export default defineConfig({
     alias: {
       "~": path.resolve(__dirname, "./app"),
     },
-    dedupe: ["react", "react-dom", "react-router"],
+    dedupe: ["react", "react-dom", "react-router", "lucide-react"],
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react-router",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+    ],
   },
   server: {
     port: 5176,

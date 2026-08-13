@@ -84,6 +84,18 @@ module "frontend" {
     public-web      = { force_destroy = true }
     super-admin-web = { force_destroy = true }
     booking-web     = { force_destroy = true }
+    staff-web = {
+      force_destroy = true
+      cors_rules = [
+        {
+          allowed_methods = ["GET", "PUT", "POST", "HEAD"]
+          allowed_origins = ["https://staff.${local.domain}", "https://admin.${local.domain}"]
+          allowed_headers = ["*"]
+          expose_headers  = ["ETag"]
+          max_age_seconds = 3000
+        }
+      ]
+    }
   }
 
   distributions = {
@@ -137,6 +149,16 @@ module "frontend" {
         { error_code = 404, response_page_path = "/index.html" },
       ]
     }
+    staff = {
+      aliases            = ["staff.${local.domain}"]
+      certificate_key    = "cloudfront"
+      default_origin_key = "staff-web"
+      log_prefix         = "staff/"
+      custom_error_responses = [
+        { error_code = 403, response_page_path = "/index.html" },
+        { error_code = 404, response_page_path = "/index.html" },
+      ]
+    }
   }
 
   dns_records = {
@@ -146,6 +168,7 @@ module "frontend" {
     wildcard    = { subdomain = "*",           distribution_key = "wildcard"    }
     super-admin = { subdomain = "super-admin", distribution_key = "super-admin" }
     booking     = { subdomain = "book",        distribution_key = "booking"     }
+    staff       = { subdomain = "staff",       distribution_key = "staff"       }
   }
 }
 
