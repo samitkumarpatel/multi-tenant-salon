@@ -9,7 +9,7 @@ spring:
       s3:
         enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:false}
       region:
-        static: ${AWS_REGION:us-east-1}
+        static: ${AWS_DEFAULT_REGION:${AWS_REGION:eu-north-1}}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/saloon}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
