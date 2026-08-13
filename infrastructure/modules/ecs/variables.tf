@@ -77,6 +77,7 @@ variable "services" {
     env_vars        = optional(map(string), {})
     secret_arns     = optional(map(string), {})
     ghcr_secret_arn = optional(string, "")
+    s3_bucket_arns  = optional(list(string), [])
   }))
   description = "Map of services to deploy. Key is used as the service name suffix and container name. Services not referenced in http_routes are workers with no ALB attachment."
 }
