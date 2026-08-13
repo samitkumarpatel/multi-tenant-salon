@@ -14,6 +14,7 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 | **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
 | **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
 | **Super Admin** | `/api/saloon-super-admin/...` | Platform super-admin — cross-tenant management of all saloons |
+| **Staff Portal** | `/api/saloon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
 | **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
@@ -1542,3 +1543,93 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 | `openTime` | string | `"HH:mm"`, null if `closed` is true |
 | `closeTime` | string | `"HH:mm"`, null if `closed` is true |
 | `closed` | boolean | |
+
+---
+
+## Staff Portal
+
+Self-service portal for authenticated staff members. Authentication is via email lookup + mock OTP (code `123456` in dev).
+
+> All endpoints are scoped to the staff member by `staffId` (a `Long`). The `saloonId` is derived server-side from the staff record.
+
+### Look up by email (login step 1)
+
+`GET /api/saloon-staff/me?email={email}`
+
+Returns all `StaffMember` records matching the email. If multiple saloons employ the same email, all records are returned so the client can let the user choose.
+
+**Response** `200 OK` — `StaffMember[]`  
+**Response** `404` — no staff account found
+
+---
+
+### Get own profile
+
+`GET /api/saloon-staff/{staffId}`
+
+**Response** `200 OK` — `StaffMember`
+
+---
+
+### Update own profile
+
+`PATCH /api/saloon-staff/{staffId}/profile`
+
+Staff may only update their name and phone number. Email, role, status, and specializations are admin-managed.
+
+**Request**
+
+```json
+{ "name": "Anna Nguyen", "phone": "+1 555 0123" }
+```
+
+**Response** `200 OK` — `StaffMember`
+
+---
+
+### List own appointments
+
+`GET /api/saloon-staff/{staffId}/appointments`
+
+Returns all `Booking` records assigned to this staff member across all dates and statuses.
+
+**Response** `200 OK` — `Booking[]`
+
+---
+
+### List personal holidays
+
+`GET /api/saloon-staff/{staffId}/holidays`
+
+Returns personal day-off records (availability overrides where `available=false`). These block the booking calendar so customers cannot book on these dates.
+
+**Response** `200 OK` — `StaffAvailabilityOverride[]`
+
+---
+
+### Book a personal holiday
+
+`POST /api/saloon-staff/{staffId}/holidays`
+
+Creates a date-specific unavailability override. Existing bookings on this date are not automatically cancelled — the staff member should notify their manager.
+
+**Request**
+
+```json
+{ "overrideDate": "2026-12-25", "reason": "Christmas" }
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `overrideDate` | `date` | yes | ISO-8601 date (`YYYY-MM-DD`) |
+| `reason` | string | no | Free-text note |
+
+**Response** `201 Created` — `StaffAvailabilityOverride`
+
+---
+
+### Remove a personal holiday
+
+`DELETE /api/saloon-staff/{staffId}/holidays/{holidayId}`
+
+**Response** `204 No Content`

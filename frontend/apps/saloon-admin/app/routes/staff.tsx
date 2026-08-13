@@ -41,6 +41,11 @@ const ROLE_EMOJI: Record<string, string> = {
 
 // ── Form field type ───────────────────────────────────────────────────────────
 
+interface PresignedUpload {
+  presignedUrl: string;
+  publicUrl: string;
+}
+
 interface StaffFormFields {
   name: string;
   email: string;
@@ -48,6 +53,7 @@ interface StaffFormFields {
   role: string;
   specializations: string[];
   photo: string | null;
+  photoFile: File | null;
 }
 
 // ── Schedule editor ───────────────────────────────────────────────────────────
@@ -188,7 +194,7 @@ function ScheduleEditor({
 
 // ── Camera capture modal ──────────────────────────────────────────────────────
 
-function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string) => void; onClose: () => void }) {
+function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, file: File) => void; onClose: () => void }) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -250,7 +256,8 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string) =>
     }
 
     streamRef.current?.getTracks().forEach((t) => t.stop());
-    onCapture(canvas.toDataURL("image/jpeg", 0.88));
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+    onCapture(dataUrl, dataUrlToFile(dataUrl, "photo.jpg", "image/jpeg"));
   }
 
   return createPortal(
@@ -330,7 +337,24 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string) =>
 
 // ── Photo picker ──────────────────────────────────────────────────────────────
 
-function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+function dataUrlToFile(dataUrl: string, filename: string, type: string): File {
+  const arr = dataUrl.split(",");
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) u8arr[n] = bstr.charCodeAt(n);
+  return new File([u8arr], filename, { type });
+}
+
+function PhotoPicker({
+  value,
+  onChange,
+  onFileSelect,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+  onFileSelect?: (file: File | null) => void;
+}) {
   const uploadRef      = useRef<HTMLInputElement>(null);
   const [showCam, setShowCam] = useState(false);
 
@@ -340,6 +364,7 @@ function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: 
     const reader = new FileReader();
     reader.onload = () => onChange(reader.result as string);
     reader.readAsDataURL(file);
+    onFileSelect?.(file);
     e.target.value = "";
   }
 
@@ -372,7 +397,7 @@ function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: 
           {value && (
             <button
               type="button"
-              onClick={() => onChange(null)}
+              onClick={() => { onChange(null); onFileSelect?.(null); }}
               title="Remove photo"
               className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer text-xs leading-none shadow-sm"
             >
@@ -396,7 +421,7 @@ function PhotoPicker({ value, onChange }: { value: string | null; onChange: (v: 
 
       {showCam && (
         <CameraCapture
-          onCapture={(dataUrl) => { onChange(dataUrl); setShowCam(false); }}
+          onCapture={(dataUrl, file) => { onChange(dataUrl); onFileSelect?.(file); setShowCam(false); }}
           onClose={() => setShowCam(false)}
         />
       )}
@@ -420,7 +445,7 @@ function AddStaffFlow({
   busy: boolean;
 }) {
   const [f, setF] = useState<StaffFormFields>({
-    name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null,
+    name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null, photoFile: null,
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>(() => defaultSchedule(operatingHours));
@@ -493,7 +518,7 @@ function AddStaffFlow({
       </button>
       {showAdvanced && (
         <div className="mb-4 space-y-4">
-          <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} />
+          <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} onFileSelect={(file) => setF((p) => ({ ...p, photoFile: file }))} />
           <div>
             <label className={fieldLabel}>Phone</label>
             <PhoneInput
@@ -550,7 +575,7 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
 }) {
   return (
     <>
-      <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} />
+      <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} onFileSelect={(file) => setF((p) => ({ ...p, photoFile: file }))} />
 
       <div className="mb-4">
         <label className={fieldLabel}>Name <span className="text-red-500">*</span></label>
@@ -625,7 +650,7 @@ export default function Staff() {
     () => Boolean(localStorage.getItem(`setup-alert-dismissed:staff:${saloon.id}`))
   );
 
-  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null });
+  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null, photoFile: null });
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
 
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
@@ -639,6 +664,7 @@ export default function Staff() {
       availableForBooking: m.availableForBooking ?? true,
       specializations: [...(m.specializations ?? [])],
       photo: m.photoUrl ?? null,
+      photoFile: null,
     });
     setModal((p) => ({ ...p, edit: true }));
   }
@@ -652,10 +678,25 @@ export default function Staff() {
       const sched = schedule
         .filter((e) => e.enabled)
         .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
-      const member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff`, {
+      let member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff`, {
         method: "POST",
-        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, photoUrl: fields.photo, schedule: sched }),
+        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, schedule: sched }),
       });
+      if (fields.photoFile) {
+        const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/staff/${member.id}/photo-upload-url`, {
+          method: "POST",
+          body: JSON.stringify({ contentType: fields.photoFile.type }),
+        });
+        await fetch(upload.presignedUrl, {
+          method: "PUT",
+          body: fields.photoFile,
+          headers: { "Content-Type": fields.photoFile.type },
+        });
+        member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${member.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ name: member.name, email: member.email, phone: member.phone, role: member.role, status: member.status, availableForBooking: member.availableForBooking, specializations: member.specializations, photoUrl: upload.publicUrl }),
+        });
+      }
       setStaff((p) => [member, ...p]);
       closeModal("add");
       notify(`${member.name} added!`);
@@ -667,9 +708,22 @@ export default function Staff() {
     if (!target) return;
     setBusy(true);
     try {
+      let photoUrl: string | null = ef.photo?.startsWith("data:") ? null : (ef.photo ?? null);
+      if (ef.photoFile) {
+        const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/staff/${target.id}/photo-upload-url`, {
+          method: "POST",
+          body: JSON.stringify({ contentType: ef.photoFile.type }),
+        });
+        await fetch(upload.presignedUrl, {
+          method: "PUT",
+          body: ef.photoFile,
+          headers: { "Content-Type": ef.photoFile.type },
+        });
+        photoUrl = upload.publicUrl;
+      }
       const updated = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${target.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl: ef.photo }),
+        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl }),
       });
       setStaff((p) => p.map((m) => m.id === updated.id ? updated : m));
       closeModal("edit");
@@ -761,7 +815,11 @@ export default function Staff() {
             {staff.map((m) => (
               <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
 
-                <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status] ?? "bg-slate-300"}`} />
+                {m.photoUrl ? (
+                  <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+                ) : (
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status] ?? "bg-slate-300"}`} />
+                )}
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

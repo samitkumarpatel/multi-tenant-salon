@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_saloon.staff.internal;
 
+import net.samitkumar.multi_tenant_saloon.media.MediaService;
 import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
 import net.samitkumar.multi_tenant_saloon.staff.StaffOnboardedEvent;
 import net.samitkumar.multi_tenant_saloon.staff.StaffRole;
@@ -9,15 +10,18 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
 class StaffController {
 
     private final StaffService service;
+    private final MediaService mediaApi;
 
-    StaffController(StaffService service) {
+    StaffController(StaffService service, Optional<MediaService> mediaApi) {
         this.service = service;
+        this.mediaApi = mediaApi.orElse(null);
     }
 
     record OnboardRequest(String name, String email, String phone, StaffRole role,
@@ -25,7 +29,9 @@ class StaffController {
                           List<StaffOnboardedEvent.DaySchedule> schedule) {}
 
     record UpdateRequest(String name, String email, String phone, StaffRole role, StaffStatus status,
-                         Boolean availableForBooking, List<String> specializations) {}
+                         Boolean availableForBooking, List<String> specializations, String photoUrl) {}
+
+    record PhotoUploadRequest(String contentType) {}
 
     @GetMapping({"/api/saloon/{saloonId}/staff", "/api/saloon-admin/{saloonId}/staff"})
     List<StaffMember> findAll(@PathVariable UUID saloonId) {
@@ -56,7 +62,7 @@ class StaffController {
         return service.update(saloonId, staffId, request.name(), request.email(), request.phone(),
                         request.role(), request.status(),
                         request.availableForBooking() == null || request.availableForBooking(),
-                        request.specializations())
+                        request.specializations(), request.photoUrl())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -65,5 +71,15 @@ class StaffController {
     ResponseEntity<Void> remove(@PathVariable UUID saloonId, @PathVariable Long staffId) {
         service.remove(saloonId, staffId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/api/saloon-admin/{saloonId}/staff/{staffId}/photo-upload-url")
+    ResponseEntity<MediaService.PresignedUpload> getPhotoUploadUrl(@PathVariable UUID saloonId,
+                                                                   @PathVariable Long staffId,
+                                                                   @RequestBody PhotoUploadRequest request) {
+        if (mediaApi == null) return ResponseEntity.status(503).build();
+        return service.findByIdAndSaloonId(staffId, saloonId)
+                .map(m -> ResponseEntity.ok(mediaApi.generateStaffPhotoUploadUrl(staffId, request.contentType())))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

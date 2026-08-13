@@ -14,6 +14,7 @@ info:
     | **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
     | **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
     | **Super Admin** | `/api/saloon-super-admin/...` | Platform super-admin — cross-tenant management of all saloons |
+    | **Staff Portal** | `/api/saloon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
     | **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
     ### Customer sub-paths
@@ -89,6 +90,12 @@ tags:
       Admin recurring/one-off holiday management. Adding a holiday automatically generates
       saloon-closure rows for the current year and up to 4 years ahead so the booking engine
       blocks those dates without manual closure entry each year.
+  - name: StaffPortal
+    description: |
+      Staff self-service portal endpoints. A staff member authenticates by email lookup
+      (`GET /api/saloon-staff/me?email=...`) plus a mock OTP, then uses their `staffId`
+      to manage their own profile, view their appointments, and book personal holidays
+      (date-specific unavailability overrides that block new customer bookings).
   - name: SuperAdmin
     description: |
       Platform super-admin endpoints — cross-tenant management of all saloons.
@@ -1448,6 +1455,162 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Country"
+
+
+  # ─── Staff Portal ────────────────────────────────────────────────────────────
+
+  /api/saloon-staff/me:
+    get:
+      summary: Look up staff member by email (login step 1)
+      description: Returns all staff records matching the given email. Used during login to identify the staff member before OTP verification.
+      tags: [StaffPortal]
+      parameters:
+        - in: query
+          name: email
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Staff records found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffMember"
+        "404":
+          description: No staff account found for this email
+
+  /api/saloon-staff/{staffId}:
+    get:
+      summary: Get own staff profile
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      responses:
+        "200":
+          description: Staff member profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+        "404":
+          description: Not found
+
+  /api/saloon-staff/{staffId}/profile:
+    patch:
+      summary: Update own profile (name and phone only)
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        "200":
+          description: Updated staff member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+        "404":
+          description: Not found
+
+  /api/saloon-staff/{staffId}/appointments:
+    get:
+      summary: List own appointments
+      description: Returns all bookings assigned to this staff member across all dates.
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      responses:
+        "200":
+          description: Bookings assigned to this staff member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+        "404":
+          description: Staff member not found
+
+  /api/saloon-staff/{staffId}/holidays:
+    get:
+      summary: List personal holidays (days off)
+      description: Returns all availability overrides where `available=false` — these block the booking calendar.
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      responses:
+        "200":
+          description: Personal holiday overrides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAvailabilityOverride"
+        "404":
+          description: Staff member not found
+    post:
+      summary: Book a personal holiday
+      description: Creates a date-specific unavailability override (`available=false`). Customers cannot book this staff member on that date.
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [overrideDate]
+              properties:
+                overrideDate:
+                  type: string
+                  format: date
+                  example: "2026-12-25"
+                reason:
+                  type: string
+                  example: "Christmas"
+      responses:
+        "201":
+          description: Holiday created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAvailabilityOverride"
+        "404":
+          description: Staff member not found
+
+  /api/saloon-staff/{staffId}/holidays/{holidayId}:
+    delete:
+      summary: Remove a personal holiday
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+        - in: path
+          name: holidayId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Holiday removed
+        "404":
+          description: Staff member not found
 
 
 # ─── Components ───────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ package net.samitkumar.multi_tenant_saloon.booking.internal;
 
 import net.samitkumar.multi_tenant_saloon.booking.AvailableSlot;
 import net.samitkumar.multi_tenant_saloon.booking.Booking;
+import net.samitkumar.multi_tenant_saloon.booking.BookingApi;
 import net.samitkumar.multi_tenant_saloon.booking.BookingCreatedEvent;
 import net.samitkumar.multi_tenant_saloon.booking.BookingRescheduledEvent;
 import net.samitkumar.multi_tenant_saloon.booking.BookingStatus;
@@ -35,7 +36,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-class BookingService {
+class BookingService implements BookingApi {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("H:mm");
     private static final int DEFAULT_DURATION_MINUTES = 30;
@@ -111,11 +112,18 @@ class BookingService {
         return saved;
     }
 
-    List<StaffAvailabilityOverride> getOverrides(UUID saloonId, Long staffId) {
+    @Override
+    public List<Booking> findByStaff(UUID saloonId, Long staffId) {
+        return bookingRepo.findBySaloonIdAndStaffId(saloonId, staffId);
+    }
+
+    @Override
+    public List<StaffAvailabilityOverride> getOverrides(UUID saloonId, Long staffId) {
         return overrideRepo.findBySaloonIdAndStaffId(saloonId, staffId);
     }
 
-    StaffAvailabilityOverride addOverride(UUID saloonId, Long staffId, StaffAvailabilityOverride override) {
+    @Override
+    public StaffAvailabilityOverride addOverride(UUID saloonId, Long staffId, StaffAvailabilityOverride override) {
         log.info("[BookingService] Adding availability override for saloon={} staff={} date={}", saloonId, staffId, override.overrideDate());
         if (override.available() && override.startTime() != null && override.endTime() != null) {
             validateAgainstSaloonHours(saloonId,
@@ -133,7 +141,8 @@ class BookingService {
         return saved;
     }
 
-    void removeOverride(UUID saloonId, Long staffId, Long overrideId) {
+    @Override
+    public void removeOverride(UUID saloonId, Long staffId, Long overrideId) {
         log.info("[BookingService] Removing availability override id={} for saloon={} staff={}", overrideId, saloonId, staffId);
         overrideRepo.findById(overrideId)
                 .filter(o -> o.saloonId().equals(saloonId) && o.staffId().equals(staffId))

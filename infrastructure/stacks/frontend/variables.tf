@@ -31,6 +31,13 @@ variable "certificate_arns" {
 variable "buckets" {
   type = map(object({
     force_destroy = optional(bool, false)
+    cors_rules = optional(list(object({
+      allowed_headers = optional(list(string), ["*"])
+      allowed_methods = list(string)
+      allowed_origins = list(string)
+      expose_headers  = optional(list(string), ["ETag"])
+      max_age_seconds = optional(number, 3000)
+    })), [])
   }))
   description = "S3 buckets to create. Key is used as the bucket name suffix and as the origin key in distributions."
 }

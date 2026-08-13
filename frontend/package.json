@@ -12,11 +12,13 @@
     "dev:onboarding": "npm run dev --workspace=apps/saloon-onboarding",
     "dev:super-admin": "npm run dev --workspace=apps/saloon-super-admin",
     "dev:booking": "npm run dev --workspace=apps/saloon-booking",
+    "dev:staff": "npm run dev --workspace=apps/saloon-staff",
     "build:admin": "npm run build --workspace=apps/saloon-admin",
     "build:public": "npm run build --workspace=apps/saloon-public-website",
     "build:onboarding": "npm run build --workspace=apps/saloon-onboarding",
     "build:super-admin": "npm run build --workspace=apps/saloon-super-admin",
     "build:booking": "npm run build --workspace=apps/saloon-booking",
+    "build:staff": "npm run build --workspace=apps/saloon-staff",
     "build:all": "npm run build --workspaces --if-present",
     "typecheck:all": "npm run typecheck --workspaces --if-present"
   }
