@@ -211,6 +211,20 @@ export default function Login() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-900">{m.name}</p>
                       <p className="text-[11px] text-slate-400">{ROLE_LABEL[m.role] ?? m.role}</p>
+                      {(m.saloonName || m.saloonHandler) && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {m.saloonName && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-matcha-50 text-matcha-700 border border-matcha-200 leading-none">
+                              {m.saloonName}
+                            </span>
+                          )}
+                          {m.saloonHandler && (
+                            <span className="text-[10px] text-slate-400 font-mono leading-none">
+                              @{m.saloonHandler}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </button>
                 ))}

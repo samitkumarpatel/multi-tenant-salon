@@ -10,6 +10,8 @@ export interface Country {
 export interface StaffMember {
   id: number;
   saloonId: string;
+  saloonName?: string;
+  saloonHandler?: string;
   name: string;
   email: string;
   phone?: string;

@@ -1556,10 +1556,40 @@ Self-service portal for authenticated staff members. Authentication is via email
 
 `GET /api/saloon-staff/me?email={email}`
 
-Returns all `StaffMember` records matching the email. If multiple saloons employ the same email, all records are returned so the client can let the user choose.
+Returns all staff records matching the email. Each record is a `StaffMemberSummary` — a superset of `StaffMember` that includes the saloon's `name` and `handler` so the login picker can distinguish between accounts at different saloons. If multiple saloons employ the same email, all records are returned.
 
-**Response** `200 OK` — `StaffMember[]`  
-**Response** `404` — no staff account found
+**Response** `200 OK` — `StaffMemberSummary[]`
+
+```json
+[
+  {
+    "id": 42,
+    "saloonId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "saloonName": "Glam Studio",
+    "saloonHandler": "glam-studio",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "phone": "+1 555 0199",
+    "role": "MANAGER",
+    "status": "ACTIVE",
+    "isOwner": false,
+    "availableForBooking": true,
+    "photoUrl": null,
+    "specializations": ["HAIR_COLOR", "HIGHLIGHTS"],
+    "createdAt": "2026-01-15T10:30:00Z"
+  }
+]
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `saloonName` | string \| null | Display name of the saloon; `null` if the saloon lookup fails |
+| `saloonHandler` | string \| null | URL slug of the saloon (e.g. `"glam-studio"`); `null` if not found |
+| `role` | string | Enum name (e.g. `"MANAGER"`) |
+| `status` | string | Enum name (e.g. `"ACTIVE"`) |
+| `specializations` | string[] | Flat array of specialization strings |
+
+**Response** `404` — no staff account found for this email
 
 ---
 
@@ -1584,6 +1614,37 @@ Staff may only update their name and phone number. Email, role, status, and spec
 ```
 
 **Response** `200 OK` — `StaffMember`
+
+---
+
+### Get a photo upload URL
+
+`POST /api/saloon-staff/{staffId}/photo-upload-url`
+
+Returns a pre-signed PUT URL the browser uses to upload a profile photo directly to S3 (or to the backend in local dev when S3 is not configured). The client should PUT the file to `presignedUrl` with the matching `Content-Type` header, then save `publicUrl` on the staff profile via `PATCH /profile`.
+
+**Request**
+
+```json
+{ "contentType": "image/jpeg" }
+```
+
+**Response** `200 OK` — `PresignedUpload`
+
+```json
+{
+  "presignedUrl": "https://my-bucket.s3.amazonaws.com/uploads/staff/42/photo.jpg?...",
+  "publicUrl": "https://staff.example.com/uploads/staff/42/photo.jpg"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `presignedUrl` | uri | Time-limited signed S3 PUT URL; in dev, a backend endpoint |
+| `publicUrl` | uri | CDN/public URL to persist on the staff profile after upload |
+
+**Response** `404` — staff member not found  
+**Response** `503` — media storage not configured
 
 ---
 

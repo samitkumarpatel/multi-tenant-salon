@@ -1462,7 +1462,10 @@ paths:
   /api/saloon-staff/me:
     get:
       summary: Look up staff member by email (login step 1)
-      description: Returns all staff records matching the given email. Used during login to identify the staff member before OTP verification.
+      description: |
+        Returns all staff records matching the given email, enriched with the saloon's
+        `name` and `handler` so the login picker can distinguish between accounts at
+        different saloons. Used during login to identify the staff member before OTP verification.
       tags: [StaffPortal]
       parameters:
         - in: query
@@ -1479,7 +1482,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/StaffMember"
+                  $ref: "#/components/schemas/StaffMemberSummary"
         "404":
           description: No staff account found for this email
 
@@ -1593,6 +1596,40 @@ paths:
                 $ref: "#/components/schemas/StaffAvailabilityOverride"
         "404":
           description: Staff member not found
+
+  /api/saloon-staff/{staffId}/photo-upload-url:
+    post:
+      summary: Get a pre-signed URL to upload a profile photo
+      description: |
+        Returns a pre-signed PUT URL the browser can use to upload a photo directly to
+        S3 (or to the local dev endpoint when S3 is not configured). The `publicUrl`
+        is the CDN URL to save on the staff profile after the upload completes.
+        Returns `503` when media storage is not configured.
+      tags: [StaffPortal]
+      parameters:
+        - $ref: "#/components/parameters/StaffId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contentType]
+              properties:
+                contentType:
+                  type: string
+                  example: "image/jpeg"
+      responses:
+        "200":
+          description: Pre-signed upload URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresignedUpload"
+        "404":
+          description: Staff member not found
+        "503":
+          description: Media storage not configured
 
   /api/saloon-staff/{staffId}/holidays/{holidayId}:
     delete:
@@ -2161,6 +2198,78 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    StaffMemberSummary:
+      type: object
+      description: >
+        Staff member record enriched with saloon context. Returned only by
+        `GET /api/saloon-staff/me` so the login picker can distinguish between
+        accounts at different saloons. `role` and `status` are serialized as
+        plain strings (enum name).
+      properties:
+        id:
+          type: integer
+          format: int64
+        saloonId:
+          type: string
+          format: uuid
+        saloonName:
+          type: string
+          description: Display name of the saloon this staff record belongs to.
+          nullable: true
+        saloonHandler:
+          type: string
+          description: URL-friendly slug of the saloon (e.g. "sunshine-cuts").
+          nullable: true
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          description: Staff role serialized as its enum name (e.g. "MANAGER").
+        status:
+          type: string
+          description: Staff status serialized as its enum name (e.g. "ACTIVE").
+        isOwner:
+          type: boolean
+          default: false
+        availableForBooking:
+          type: boolean
+          default: true
+        photoUrl:
+          type: string
+          format: uri
+          nullable: true
+        specializations:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PresignedUpload:
+      type: object
+      description: Pre-signed URLs for a direct-to-storage photo upload.
+      properties:
+        presignedUrl:
+          type: string
+          format: uri
+          description: >
+            PUT this URL with the file body and matching `Content-Type` header to
+            upload the photo. In production this is a time-limited S3 signed URL;
+            in local dev it is a backend endpoint.
+        publicUrl:
+          type: string
+          format: uri
+          description: >
+            The CDN or public URL to persist on the staff profile once the
+            upload completes.
 
     OnboardStaffRequest:
       type: object

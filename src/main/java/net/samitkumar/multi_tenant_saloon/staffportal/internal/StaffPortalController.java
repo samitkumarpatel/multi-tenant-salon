@@ -4,15 +4,19 @@ import net.samitkumar.multi_tenant_saloon.booking.Booking;
 import net.samitkumar.multi_tenant_saloon.booking.BookingApi;
 import net.samitkumar.multi_tenant_saloon.booking.StaffAvailabilityOverride;
 import net.samitkumar.multi_tenant_saloon.media.MediaService;
+import net.samitkumar.multi_tenant_saloon.saloon.Saloon;
+import net.samitkumar.multi_tenant_saloon.saloon.SaloonApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffApi;
 import net.samitkumar.multi_tenant_saloon.staff.StaffMember;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/saloon-staff")
@@ -20,11 +24,13 @@ class StaffPortalController {
 
     private final StaffApi staffApi;
     private final BookingApi bookingApi;
+    private final SaloonApi saloonApi;
     private final MediaService mediaApi;
 
-    StaffPortalController(StaffApi staffApi, BookingApi bookingApi, Optional<MediaService> mediaApi) {
+    StaffPortalController(StaffApi staffApi, BookingApi bookingApi, SaloonApi saloonApi, Optional<MediaService> mediaApi) {
         this.staffApi = staffApi;
         this.bookingApi = bookingApi;
+        this.saloonApi = saloonApi;
         this.mediaApi = mediaApi.orElse(null);
     }
 
@@ -34,13 +40,31 @@ class StaffPortalController {
 
     record HolidayRequest(LocalDate overrideDate, String reason) {}
 
+    record StaffMemberSummary(Long id, UUID saloonId, String saloonName, String saloonHandler,
+                              String name, String email, String phone, String role, String status,
+                              boolean isOwner, boolean availableForBooking, String photoUrl,
+                              List<String> specializations, Instant createdAt) {}
+
     @GetMapping("/me")
-    ResponseEntity<List<StaffMember>> findByEmail(@RequestParam String email) {
+    ResponseEntity<List<StaffMemberSummary>> findByEmail(@RequestParam String email) {
         var members = staffApi.findByEmail(email);
-        if (members.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(members);
+        if (members.isEmpty()) return ResponseEntity.notFound().build();
+        var result = members.stream()
+                .map(m -> {
+                    var saloon = saloonApi.findById(m.saloonId());
+                    return new StaffMemberSummary(
+                            m.id(), m.saloonId(),
+                            saloon.map(Saloon::name).orElse(null),
+                            saloon.map(Saloon::handler).orElse(null),
+                            m.name(), m.email(), m.phone(),
+                            m.role().name(), m.status().name(),
+                            m.isOwner(), m.availableForBooking(), m.photoUrl(),
+                            m.specializations().stream().map(StaffMember.Specialization::value).toList(),
+                            m.createdAt()
+                    );
+                })
+                .toList();
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{staffId}")
