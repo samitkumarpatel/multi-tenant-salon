@@ -7,7 +7,7 @@ spring:
   cloud:
     aws:
       s3:
-        enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:false}
+        enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:false}  # set true when STORAGE_TYPE=S3
       region:
         static: ${AWS_DEFAULT_REGION:${AWS_REGION:eu-north-1}}
   datasource:
@@ -42,13 +42,13 @@ spring:
     url: ${spring.datasource.url}
 
 media:
-  # S3 mode (production): set MEDIA_STAFF_BUCKET_NAME env var.
-  # Local mode (dev): when MEDIA_STAFF_BUCKET_NAME is absent, photos are stored under
-  # MEDIA_LOCAL_STORAGE_PATH (default /tmp/saloon-photos) and served by the backend.
+  # STORAGE_TYPE=LOCAL (default) — photos stored locally and served by the backend
+  # STORAGE_TYPE=S3              — photos stored in S3; also set SPRING_CLOUD_AWS_S3_ENABLED=true
+  storage-type: ${STORAGE_TYPE:LOCAL}
+  staff-bucket-name: ${MEDIA_STAFF_BUCKET_NAME:}
   staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.my-saloon.online}
   local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
   local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/saloon-photos}
-  # staff-bucket-name is set only when MEDIA_STAFF_BUCKET_NAME env var is present
 
 cors:
   # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.

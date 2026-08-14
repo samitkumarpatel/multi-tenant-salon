@@ -10,9 +10,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-// Active when media.staff-bucket-name is absent (local dev); havingValue is set to an impossible string
-// so the condition only passes via matchIfMissing=true (i.e., when the property is not set at all).
-@ConditionalOnProperty(name = "media.staff-bucket-name", matchIfMissing = true, havingValue = "__local__")
+@ConditionalOnProperty(name = "media.storage-type", havingValue = "LOCAL", matchIfMissing = true)
 class LocalMediaServiceImpl implements MediaService {
 
     private final String storageDir;
