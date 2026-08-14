@@ -10,7 +10,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 @Service
-@ConditionalOnProperty("media.staff-bucket-name")
+@ConditionalOnProperty(name = "media.storage-type", havingValue = "S3")
 class S3MediaServiceImpl implements MediaService {
 
     private final S3Template s3Template;

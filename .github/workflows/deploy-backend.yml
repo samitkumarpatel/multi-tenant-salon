@@ -93,6 +93,7 @@ jobs:
           environment-variables: |
             BPL_JVM_THREAD_COUNT=100
             SPRING_CLOUD_AWS_S3_ENABLED=true
+            STORAGE_TYPE=S3
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
