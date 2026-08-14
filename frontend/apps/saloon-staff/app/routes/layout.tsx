@@ -1,7 +1,7 @@
 import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResponse, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState } from "react";
-import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon } from "lucide-react";
+import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon, Store } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@saloon/ui-shared";
 import { getStaffSession, clearStaffSession } from "~/routes/login";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
@@ -108,9 +108,15 @@ export default function Layout() {
           </span>
         </div>
 
-        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider hidden sm:inline">
-          Staff Portal
-        </span>
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Staff Portal</span>
+          {session.saloonName && (
+            <>
+              <span className="text-slate-200 select-none">·</span>
+              <span className="text-xs font-semibold text-matcha-600">{session.saloonName}</span>
+            </>
+          )}
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600">
@@ -169,6 +175,15 @@ export default function Layout() {
                 <p className="text-[11px] text-slate-400 truncate">
                   {ROLE_LABEL[session.role] ?? session.role}
                 </p>
+                {session.saloonName && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Store className="w-3 h-3 text-matcha-500 shrink-0" />
+                    <span className="text-[11px] text-matcha-600 font-medium truncate">{session.saloonName}</span>
+                  </div>
+                )}
+                {session.saloonHandler && (
+                  <span className="text-[10px] text-slate-400 font-mono truncate block">@{session.saloonHandler}</span>
+                )}
               </div>
             </div>
           </div>

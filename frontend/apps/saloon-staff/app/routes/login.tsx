@@ -117,6 +117,8 @@ export default function Login() {
     const session: StaffSession = {
       staffId: member.id,
       saloonId: String(member.saloonId),
+      saloonName: member.saloonName,
+      saloonHandler: member.saloonHandler,
       email: member.email,
       name: member.name,
       role: member.role,
