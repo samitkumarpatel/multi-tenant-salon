@@ -5,12 +5,12 @@ variable "environment" {
 
 variable "name" {
   type    = string
-  default = "my-saloon"
+  default = "my-salon"
 }
 
 variable "domain" {
   type        = string
-  default     = "my-saloon.online"
+  default     = "my-salon.online"
   description = "Root domain."
 }
 
@@ -80,5 +80,5 @@ variable "mailjet_api_secret" {
 
 variable "ingress" {
   type        = map(string)
-  description = "Hostname-to-service routing. Keys are full hostnames (e.g. \"api.my-saloon.online\"); values are service keys from var.services."
+  description = "Hostname-to-service routing. Keys are full hostnames (e.g. \"api.my-salon.online\"); values are service keys from var.services."
 }

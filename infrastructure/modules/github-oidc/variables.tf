@@ -10,7 +10,7 @@ variable "github_org" {
 
 variable "github_repo" {
   type        = string
-  description = "Repository name without the org prefix (e.g. multi-tenant-saloon)."
+  description = "Repository name without the org prefix (e.g. multi-tenant-salon)."
 }
 
 variable "s3_bucket_arns" {

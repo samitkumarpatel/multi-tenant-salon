@@ -1,9 +1,9 @@
-export { SaloonWebsite, SalonErrorPage, SaloonDisabledPage } from "./SaloonWebsite";
+export { SalonWebsite, SalonErrorPage, SalonDisabledPage } from "./SalonWebsite";
 export { GenerativeUIWebsite } from "./GenerativeUIWebsite";
 export type { GenerativeUIWebsiteProps } from "./GenerativeUIWebsite";
 export { GenerativeUIBooking } from "./GenerativeUIBooking";
 export type { GenerativeUIBookingProps } from "./GenerativeUIBooking";
-export type { SaloonWebsiteProps } from "./SaloonWebsite";
+export type { SalonWebsiteProps } from "./SalonWebsite";
 
 export { BookingWizard } from "./BookingWizard";
 export { FeatureView, FEATURE_VIEWS } from "./FeatureView";
@@ -14,9 +14,9 @@ export { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice
 export { apiFetch, API_BASE } from "./api";
 
 export type {
-  Saloon, Owner, Location, ContactInfo, OperatingHours,
+  Salon, Owner, Location, ContactInfo, OperatingHours,
   StaffMember, ServiceItem, WebsiteTheme, WebsiteMode,
   Booking, BookingStatus, AvailableSlot, StaffAvailability, StaffAvailabilityOverride,
-  SaloonClosure, SaloonHoliday,
+  SalonClosure, SalonHoliday,
   Country, Currency,
 } from "./types";

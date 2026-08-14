@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { Country } from "@saloon/ui-website";
+import type { Country } from "@salon/ui-website";
 import { detectCountry } from "./locale";
 
 interface Props {

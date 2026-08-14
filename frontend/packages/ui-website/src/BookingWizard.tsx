@@ -1,6 +1,6 @@
 /**
- * Customer-facing booking wizard — themed by the saloon's Design settings.
- * Shared by the /:saloonId/book route and the saloon website's #book hash view.
+ * Customer-facing booking wizard — themed by the salon's Design settings.
+ * Shared by the /:salonId/book route and the salon website's #book hash view.
  *
  * Steps:
  *  1 – Pick a service   (skipped when initialServiceId is valid)
@@ -23,10 +23,10 @@ import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "./constants";
 import { FONTS, loadGoogleFont, contrastText } from "./theme";
 import PhoneInput from "./PhoneInput";
 import type {
-  Saloon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country, SaloonHoliday,
+  Salon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country, SalonHoliday,
 } from "./types";
 
-const CUSTOMER_API = `${API_BASE}/api/saloon`;
+const CUSTOMER_API = `${API_BASE}/api/salon`;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -307,7 +307,7 @@ function dedupeByTime(slots: AvailableSlot[]): AvailableSlot[] {
  * Expand holidays into ClosureRange[]  (single-day ranges) for the visible booking window.
  * Recurring holidays (year == null) are generated for the current and next calendar year.
  */
-function resolveHolidayRanges(holidays: SaloonHoliday[], maxDate: Date): ClosureRange[] {
+function resolveHolidayRanges(holidays: SalonHoliday[], maxDate: Date): ClosureRange[] {
   const todayISO = toISODate(new Date());
   const maxISO   = toISODate(maxDate);
   const maxYear  = maxDate.getFullYear();
@@ -328,7 +328,7 @@ function resolveHolidayRanges(holidays: SaloonHoliday[], maxDate: Date): Closure
 }
 
 /**
- * Default booking date: today — unless the saloon is closed today or already
+ * Default booking date: today — unless the salon is closed today or already
  * past closing time, in which case the next working day is used.
  */
 function defaultBookingDate(hours: OperatingHours[]): string {
@@ -348,16 +348,16 @@ function defaultBookingDate(hours: OperatingHours[]): string {
 }
 
 function WeekGrid({
-  saloonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, closedDateRanges, maxDate, onPick,
+  salonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, closedDateRanges, maxDate, onPick,
 }: {
-  saloonId: string;
+  salonId: string;
   serviceId: number;
   staffId: number | null;
   date: string;
   setDate: (d: string) => void;
   selectedSlot: AvailableSlot | null;
   accent: Accent;
-  /** Weekday names (e.g. "MONDAY") on which the saloon is closed */
+  /** Weekday names (e.g. "MONDAY") on which the salon is closed */
   closedDays: Set<string>;
   closedDateRanges: ClosureRange[];
   maxDate: Date;
@@ -389,7 +389,7 @@ function WeekGrid({
         const iso = toISODate(d);
         const params = new URLSearchParams({ serviceId: String(serviceId), date: iso });
         if (staffId) params.set("staffId", String(staffId));
-        return apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/slots?${params}`)
+        return apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
           .then((slots) => [iso, futureSlots(iso, slots)] as const)
           .catch(() => [iso, []] as const);
       })
@@ -399,7 +399,7 @@ function WeekGrid({
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saloonId, serviceId, staffId, weekStart.getTime()]);
+  }, [salonId, serviceId, staffId, weekStart.getTime()]);
 
   const hasAny = Object.values(slotsByDate).some((s) => s.length > 0);
 
@@ -618,9 +618,9 @@ function MonthCalendar({
 // ── Designer/day grid (X axis = time, Y axis = designer) ─────────────────────
 
 function DesignerGrid({
-  saloonId, serviceId, staff, date, selectedSlot, accent, closedDays, closedDateRanges, onPick,
+  salonId, serviceId, staff, date, selectedSlot, accent, closedDays, closedDateRanges, onPick,
 }: {
-  saloonId: string;
+  salonId: string;
   serviceId: number;
   staff: StaffMember[];
   date: string;
@@ -644,12 +644,12 @@ function DesignerGrid({
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load availability"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [saloonId, serviceId, date, isClosed]);
+  }, [salonId, serviceId, date, isClosed]);
 
   // X axis: sorted union of start times; Y axis: designers
   const times = slots ? [...new Set(slots.map((s) => s.startTime))].sort() : [];
@@ -662,7 +662,7 @@ function DesignerGrid({
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-3">
       {!date && <p className="text-xs text-slate-400 text-center py-6">Pick a date to see each stylist's availability.</p>}
-        {date && isClosed && <p className="text-xs text-slate-400 text-center py-6">The saloon is closed on {fmtDate(date)} — try another date.</p>}
+        {date && isClosed && <p className="text-xs text-slate-400 text-center py-6">The salon is closed on {fmtDate(date)} — try another date.</p>}
 
         {loading && (
           <div className="flex items-center justify-center py-8">
@@ -778,9 +778,9 @@ function DesignerGrid({
 // ── Inline day slots (auto-loads for the picked date + staff) ────────────────
 
 function DaySlots({
-  saloonId, serviceId, date, staffId, staff, selectedSlot, accent, closedDays, closedDateRanges, onPick,
+  salonId, serviceId, date, staffId, staff, selectedSlot, accent, closedDays, closedDateRanges, onPick,
 }: {
-  saloonId: string;
+  salonId: string;
   serviceId: number;
   date: string;
   staffId: number | null;
@@ -807,12 +807,12 @@ function DaySlots({
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load slots"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [saloonId, serviceId, date, staffId, isClosed]);
+  }, [salonId, serviceId, date, staffId, isClosed]);
 
   const groups: [string, AvailableSlot[]][] = slots
     ? (
@@ -832,7 +832,7 @@ function DaySlots({
       </p>
 
       {!date && <p className="text-xs text-slate-400 py-4 text-center">Pick a date to see available times.</p>}
-      {date && isClosed && <p className="text-xs text-slate-400 py-4 text-center">The saloon is closed on {fmtDate(date)} — pick another date.</p>}
+      {date && isClosed && <p className="text-xs text-slate-400 py-4 text-center">The salon is closed on {fmtDate(date)} — pick another date.</p>}
 
       {loading && (
         <div className="flex items-center justify-center py-6">
@@ -888,9 +888,9 @@ function DaySlots({
 // ── Step 2: Date + staff selection ────────────────────────────────────────────
 
 function StepDate({
-  saloonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
+  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
 }: {
-  saloonId: string;
+  salonId: string;
   serviceId: number;
   staff: StaffMember[];
   date: string;
@@ -1012,7 +1012,7 @@ function StepDate({
           </div>
           {dateMode === "week" ? (
             <WeekGrid
-              saloonId={saloonId}
+              salonId={salonId}
               serviceId={serviceId}
               staffId={staffId}
               date={date}
@@ -1035,7 +1035,7 @@ function StepDate({
                 maxDate={maxDate}
               />
               <DesignerGrid
-                saloonId={saloonId}
+                salonId={salonId}
                 serviceId={serviceId}
                 staff={staff}
                 date={date}
@@ -1057,7 +1057,7 @@ function StepDate({
                 maxDate={maxDate}
               />
               <DaySlots
-                saloonId={saloonId}
+                salonId={salonId}
                 serviceId={serviceId}
                 date={date}
                 staffId={staffId}
@@ -1088,9 +1088,9 @@ function StepDate({
 // ── Step 3: Slot selection ────────────────────────────────────────────────────
 
 function StepSlots({
-  saloonId, serviceId, date, staffId, staffMap, selectedSlot, accent, onSelect, onBack, onNext,
+  salonId, serviceId, date, staffId, staffMap, selectedSlot, accent, onSelect, onBack, onNext,
 }: {
-  saloonId: string;
+  salonId: string;
   serviceId: number;
   date: string;
   staffId: number | null;
@@ -1111,11 +1111,11 @@ function StepSlots({
     setSlots(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${saloonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
       .then((s) => setSlots(futureSlots(date, s)))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load slots"))
       .finally(() => setLoading(false));
-  }, [saloonId, serviceId, date, staffId]);
+  }, [salonId, serviceId, date, staffId]);
 
   // Group slots by morning / afternoon / evening for easier scanning
   const groups: [string, AvailableSlot[]][] = slots
@@ -1212,12 +1212,12 @@ function StepSlots({
 // ── Step 4: Customer details ──────────────────────────────────────────────────
 
 function StepDetails({
-  form, setForm, countries, saloonCountry, accent, onBack, onSubmit, busy,
+  form, setForm, countries, salonCountry, accent, onBack, onSubmit, busy,
 }: {
   form: { name: string; email: string; phone: string; notes: string };
   setForm: (f: { name: string; email: string; phone: string; notes: string }) => void;
   countries: Country[];
-  saloonCountry?: string;
+  salonCountry?: string;
   accent: Accent;
   onBack: () => void;
   onSubmit: () => void;
@@ -1244,7 +1244,7 @@ function StepDetails({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone <span className="text-slate-400 font-normal">(optional)</span></label>
-          <PhoneInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} countries={countries} defaultCountry={saloonCountry} />
+          <PhoneInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} countries={countries} defaultCountry={salonCountry} />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
@@ -1274,12 +1274,12 @@ function StepDetails({
 // ── Step 5: Confirmation ──────────────────────────────────────────────────────
 
 function StepConfirm({
-  booking, service, staff, saloon, accent, onExit, standalone = false,
+  booking, service, staff, salon, accent, onExit, standalone = false,
 }: {
   booking: Booking;
   service: ServiceItem;
   staff: StaffMember | undefined;
-  saloon: Saloon;
+  salon: Salon;
   accent: Accent;
   onExit: () => void;
   standalone?: boolean;
@@ -1319,7 +1319,7 @@ function StepConfirm({
           </span>
         </div>
         <div className="bg-white p-4 space-y-2.5">
-          <Row label="Saloon" value={saloon.name} />
+          <Row label="Salon" value={salon.name} />
           <Row label="Service" value={`${service.name} (${service.durationMinutes} min)`} />
           <Row label="Date" value={fmtDate(booking.appointmentDate)} />
           <Row label="Time" value={`${fmt12(booking.startTime)} – ${fmt12(booking.endTime)}`} />
@@ -1334,7 +1334,7 @@ function StepConfirm({
       >
         {standalone
           ? <><CalendarCheck className="w-4 h-4" /> Book new appointment</>
-          : <><ArrowLeft className="w-4 h-4" /> Back to {saloon.name}</>}
+          : <><ArrowLeft className="w-4 h-4" /> Back to {salon.name}</>}
       </button>
     </div>
   );
@@ -1352,9 +1352,9 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  saloon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath, standalone = false, headerExtra,
+  salon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath, standalone = false, headerExtra,
 }: {
-  saloon: Saloon;
+  salon: Salon;
   services: ServiceItem[];
   staff: StaffMember[];
   theme: WebsiteTheme;
@@ -1381,7 +1381,7 @@ export function BookingWizard({
   const [fetchedCountries, setFetchedCountries] = useState<Country[]>([]);
   const countries = countriesProp.length > 0 ? countriesProp : fetchedCountries;
   const [service, setService] = useState<ServiceItem | null>(preselected);
-  const [date, setDate] = useState(() => defaultBookingDate(saloon.operatingHours ?? [])); // today, or next working day if closed/past hours
+  const [date, setDate] = useState(() => defaultBookingDate(salon.operatingHours ?? [])); // today, or next working day if closed/past hours
   const [staffId, setStaffId] = useState<number | null>(preStaff?.id ?? null);
   const [slot, setSlot] = useState<AvailableSlot | null>(null);
   const [viaWeek, setViaWeek] = useState(false); // slot picked from the week grid (skips step 3)
@@ -1396,19 +1396,19 @@ export function BookingWizard({
 
   useEffect(() => {
     if (countriesProp.length > 0) return;
-    apiFetch<Country[]>(`${API_BASE}/api/saloon-utility/countries`)
+    apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`)
       .then(setFetchedCountries)
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    apiFetch<ClosureRange[]>(`${CUSTOMER_API}/${saloon.id}/closures`)
+    apiFetch<ClosureRange[]>(`${CUSTOMER_API}/${salon.id}/closures`)
       .then(setClosedDateRanges)
       .catch(() => {});
-    apiFetch<SaloonHoliday[]>(`${CUSTOMER_API}/${saloon.id}/holidays`)
+    apiFetch<SalonHoliday[]>(`${CUSTOMER_API}/${salon.id}/holidays`)
       .then((hs) => setHolidayRanges(resolveHolidayRanges(hs, maxDate)))
       .catch(() => {});
-  }, [saloon.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [salon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fontStack  = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
   const accent: Accent = {
@@ -1421,11 +1421,11 @@ export function BookingWizard({
   const bookableStaff = staff.filter((s) => s.availableForBooking !== false);
   const allClosedRanges = [...closedDateRanges, ...holidayRanges];
   const closedDays = new Set(
-    (saloon.operatingHours ?? []).filter((h) => h.closed).map((h) => h.day)
+    (salon.operatingHours ?? []).filter((h) => h.closed).map((h) => h.day)
   );
   const maxDate = (() => {
     const d = new Date();
-    d.setDate(d.getDate() + (saloon.bookingAdvanceDays ?? 60));
+    d.setDate(d.getDate() + (salon.bookingAdvanceDays ?? 60));
     d.setHours(23, 59, 59, 999);
     return d;
   })();
@@ -1442,7 +1442,7 @@ export function BookingWizard({
     setBusy(true);
     setError(null);
     try {
-      const booking = await apiFetch<Booking>(`${CUSTOMER_API}/${saloon.id}/booking`, {
+      const booking = await apiFetch<Booking>(`${CUSTOMER_API}/${salon.id}/booking`, {
         method: "POST",
         body: JSON.stringify({
           serviceId: service.id,
@@ -1478,8 +1478,8 @@ export function BookingWizard({
       {/* Accent ribbon */}
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 
-      {/* Header — same chrome as the saloon website (Book link swapped for Back) */}
-      <SiteHeader saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />
+      {/* Header — same chrome as the salon website (Book link swapped for Back) */}
+      <SiteHeader salon={salon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />
 
       {/* Body */}
       <main
@@ -1525,7 +1525,7 @@ export function BookingWizard({
 
           {step === 2 && service && (
             <StepDate
-              saloonId={String(saloon.id)}
+              salonId={String(salon.id)}
               serviceId={service.id}
               staff={bookableStaff}
               date={date}
@@ -1546,7 +1546,7 @@ export function BookingWizard({
 
           {step === 3 && service && (
             <StepSlots
-              saloonId={String(saloon.id)}
+              salonId={String(salon.id)}
               serviceId={service.id}
               date={date}
               staffId={staffId}
@@ -1564,7 +1564,7 @@ export function BookingWizard({
               form={form}
               setForm={setForm}
               countries={countries}
-              saloonCountry={saloon.location?.country}
+              salonCountry={salon.location?.country}
               accent={accent}
               onBack={() => setStep(viaWeek ? 2 : 3)}
               onSubmit={submitBooking}
@@ -1577,7 +1577,7 @@ export function BookingWizard({
               booking={confirmed}
               service={service}
               staff={staffMap.get(confirmed.staffId)}
-              saloon={saloon}
+              salon={salon}
               accent={accent}
               standalone={standalone}
               onExit={onExit}
@@ -1587,8 +1587,8 @@ export function BookingWizard({
         </div>
       </main>
 
-      {/* Footer — same chrome as the saloon website */}
-      <SiteFooter saloon={saloon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} />
+      {/* Footer — same chrome as the salon website */}
+      <SiteFooter salon={salon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} />
     </div>
   );
 }

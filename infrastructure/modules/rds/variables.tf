@@ -10,12 +10,12 @@ variable "dev_mode" {
 
 variable "db_name" {
   type    = string
-  default = "saloon"
+  default = "salon"
 }
 
 variable "db_username" {
   type    = string
-  default = "saloon_app"
+  default = "salon_app"
 }
 
 variable "subnet_ids" {
@@ -30,7 +30,7 @@ variable "security_group_id" {
 
 variable "secret_path_prefix" {
   type        = string
-  description = "Secrets Manager path prefix, e.g. multi-tenant-saloon/dev"
+  description = "Secrets Manager path prefix, e.g. multi-tenant-salon/dev"
 }
 
 variable "tags" {

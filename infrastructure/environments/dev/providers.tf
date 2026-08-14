@@ -23,7 +23,7 @@ terraform {
 
 locals {
   default_tags = {
-    Project     = "multi-tenant-saloon"
+    Project     = "multi-tenant-salon"
     Environment = "dev"
     ManagedBy   = "terraform"
   }

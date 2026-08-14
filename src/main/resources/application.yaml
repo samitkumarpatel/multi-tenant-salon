@@ -11,20 +11,14 @@ spring:
       region:
         static: ${AWS_DEFAULT_REGION:${AWS_REGION:eu-north-1}}
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/saloon}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/salon}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
   sql:
     init:
       mode: always
       schema-locations:
-        - classpath:db/V1__schema.sql
-        - classpath:db/V2__add_cascade_deletes.sql
-        - classpath:db/V3__add_saloon_status.sql
-        - classpath:db/V4__user_identity_view.sql
-        - classpath:db/V5__add_saloon_holiday.sql
-        - classpath:db/V6__super_admin.sql
-        - classpath:db/V7__add_staff_photo.sql
+        - classpath:db/schema.sql
   modulith:
     events:
       jdbc:
@@ -46,13 +40,13 @@ media:
   # STORAGE_TYPE=S3              — photos stored in S3; also set SPRING_CLOUD_AWS_S3_ENABLED=true
   storage-type: ${STORAGE_TYPE:LOCAL}
   staff-bucket-name: ${MEDIA_STAFF_BUCKET_NAME:}
-  staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.my-saloon.online}
+  staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.my-salon.online}
   local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
-  local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/saloon-photos}
+  local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/salon-photos}
 
 cors:
   # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
-  # e.g. https://my-saloon.online,https://www.my-saloon.online,https://*.my-saloon.online
+  # e.g. https://my-salon.online,https://www.my-salon.online,https://*.my-salon.online
   allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
 
 management:

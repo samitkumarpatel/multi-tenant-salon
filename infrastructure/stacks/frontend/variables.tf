@@ -5,12 +5,12 @@ variable "environment" {
 
 variable "name" {
   type    = string
-  default = "my-saloon"
+  default = "my-salon"
 }
 
 variable "domain" {
   type        = string
-  default     = "my-saloon.online"
+  default     = "my-salon.online"
   description = "Root domain."
 }
 

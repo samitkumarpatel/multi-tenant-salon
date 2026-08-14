@@ -1,15 +1,15 @@
-name: Deploy saloon-onboarding
+name: Deploy salon-onboarding
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/deploy-onboarding.yml"
+#  push:
+#    branches: [main]
+#    paths:
+#      - "frontend/**"
+#      - ".github/workflows/deploy-onboarding.yml"
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,11 +27,11 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build saloon-onboarding
+      - name: Build salon-onboarding
         working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-          VITE_SALOON_DOMAIN: ${{ vars.VITE_SALOON_DOMAIN }}
+          VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN }}
           VITE_ADMIN_APP_URL: ${{ vars.VITE_ADMIN_APP_URL }}
           VITE_BASE_PATH: /
         run: npm run build:onboarding
@@ -39,9 +39,22 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: saloon-onboarding
-          path: frontend/apps/saloon-onboarding/build/client
+          name: salon-onboarding
+          path: frontend/apps/salon-onboarding/build/client
           retention-days: 7
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-onboarding
+          path: dist
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -52,13 +65,13 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          aws s3 sync frontend/apps/saloon-onboarding/build/client \
-            s3://my-saloon-onboarding-web/ \
+          aws s3 sync dist \
+            s3://my-salon-onboarding-web/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html"
-          aws s3 cp frontend/apps/saloon-onboarding/build/client/index.html \
-            s3://my-saloon-onboarding-web/index.html \
+          aws s3 cp dist/index.html \
+            s3://my-salon-onboarding-web/index.html \
             --cache-control "no-cache,no-store,must-revalidate"
 
       - name: Invalidate CloudFront

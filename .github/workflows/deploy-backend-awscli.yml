@@ -11,20 +11,21 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: samitkumarpatel/multi-tenant-saloon
+  IMAGE_NAME: samitkumarpatel/multi-tenant-salon
   AWS_REGION: eu-north-1
-  ECS_SERVICE: my-saloon-dev-api
-  ECS_CLUSTER: my-saloon-dev-cluster
-  ECS_TASK_DEFINITION_FAMILY: my-saloon-dev-api
+  ECS_SERVICE: my-salon-dev-api
+  ECS_CLUSTER: my-salon-dev-cluster
+  ECS_TASK_DEFINITION_FAMILY: my-salon-dev-api
   CONTAINER_NAME: api
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment: dev
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
 
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +59,14 @@ jobs:
 
           echo "image=$REGISTRY/$IMAGE_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: dev
+    permissions:
+      contents: read
+
+    steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@0e613a0980cbf65ed5b322eb7a1e075d28913a83  # v4.0.2
         with:
@@ -79,7 +88,7 @@ jobs:
 
       - name: Update image in task definition
         run: |
-          jq --arg IMAGE "${{ steps.build-image.outputs.image }}" \
+          jq --arg IMAGE "${{ needs.build.outputs.image }}" \
              --arg NAME "${{ env.CONTAINER_NAME }}" \
              '(.containerDefinitions[] | select(.name == $NAME) | .image) = $IMAGE' \
              task-definition.json > task-definition.new.json
@@ -136,4 +145,4 @@ jobs:
 
       - name: Deployment succeeded
         if: steps.wait.outcome == 'success'
-        run: echo "Deployed ${{ steps.build-image.outputs.image }} to ${{ env.ECS_SERVICE }}"
+        run: echo "Deployed ${{ needs.build.outputs.image }} to ${{ env.ECS_SERVICE }}"

@@ -1,4 +1,4 @@
-import type { Country } from "@saloon/ui-website";
+import type { Country } from "@salon/ui-website";
 
 function regionCode(tag: string): string {
   try {

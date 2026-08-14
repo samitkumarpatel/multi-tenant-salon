@@ -1,6 +1,6 @@
 locals {
   environment = "dev"
-  domain      = "my-saloon.online"
+  domain      = "my-salon.online"
 }
 
 module "dns_bootstrapping" {
@@ -73,7 +73,7 @@ module "frontend" {
   }
 
   environment      = local.environment
-  name             = "my-saloon"
+  name             = "my-salon"
   domain           = local.domain
   zone_id          = module.dns_bootstrapping.zone_id
   certificate_arns = module.dns_bootstrapping.certificate_arns
@@ -179,14 +179,14 @@ module "backend" {
   mailjet_api_key          = var.mailjet_api_key
   mailjet_api_secret       = var.mailjet_api_secret
   environment              = local.environment
-  name                     = "my-saloon"
+  name                     = "my-salon"
   domain                   = local.domain
   regional_certificate_arn = module.dns_bootstrapping.certificate_arns["alb"]
   zone_id                  = module.dns_bootstrapping.zone_id
 
   services = {
     api = {
-      image             = "ghcr.io/samitkumarpatel/multi-tenant-saloon"
+      image             = "ghcr.io/samitkumarpatel/multi-tenant-salon"
       image_tag         = "latest"
       health_check_path = "/actuator/health"
       cpu               = 512
@@ -202,7 +202,7 @@ module "backend" {
       s3_bucket_arns = ["arn:aws:s3:::${module.frontend.s3_buckets["staff-web"]}"]
     }
     auth = {
-      image                         = "ghcr.io/samitkumarpatel/multi-tenant-saloon-authz"
+      image                         = "ghcr.io/samitkumarpatel/multi-tenant-salon-authz"
       image_tag                     = "latest"
       health_check_path             = "/actuator/health"
       health_check_grace_period_sec = 120
