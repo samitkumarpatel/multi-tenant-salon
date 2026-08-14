@@ -18,7 +18,7 @@ spring:
     init:
       mode: always
       schema-locations:
-        - classpath:db/schema.sql
+        - classpath:db/V1__schema.sql
   modulith:
     events:
       jdbc:

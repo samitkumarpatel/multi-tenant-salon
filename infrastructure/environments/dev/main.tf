@@ -1,6 +1,6 @@
 locals {
   environment = "dev"
-  domain      = "my-salon.online"
+  domain      = "salonsaas.org"
 }
 
 module "dns_bootstrapping" {
