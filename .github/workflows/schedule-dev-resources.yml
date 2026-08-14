@@ -1,13 +1,13 @@
 name: on-n-off Scheduler
 
 on:
-  schedule:
-    - cron: '58 21 * * *'  # 23:58 CEST (UTC+2) — shutdown
-    - cron: '0 6 * * *'    # 08:00 CEST (UTC+2) — startup
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/schedule-dev-resources.yml"
+#  schedule:
+#    - cron: '58 21 * * *'  # 23:58 CEST (UTC+2) — shutdown
+#    - cron: '0 6 * * *'    # 08:00 CEST (UTC+2) — startup
+#  push:
+#    branches: [main]
+#    paths:
+#      - ".github/workflows/schedule-dev-resources.yml"
   workflow_dispatch:
     inputs:
       action:

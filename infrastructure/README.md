@@ -1,6 +1,6 @@
 # Infrastructure
 
-Terraform infrastructure for multi-tenant-saloon, organised as reusable modules consumed by purpose-scoped stacks.
+Terraform infrastructure for multi-tenant-salon, organised as reusable modules consumed by purpose-scoped stacks.
 
 ```
 infrastructure/

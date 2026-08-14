@@ -1,6 +1,6 @@
 locals {
   common_tags = {
-    Project     = "multi-tenant-saloon"
+    Project     = "multi-tenant-salon"
     Environment = var.environment
     ManagedBy   = "terraform"
   }
@@ -130,7 +130,7 @@ resource "aws_resourcegroups_group" "env" {
     query = jsonencode({
       ResourceTypeFilters = ["AWS::AllSupported"]
       TagFilters = [
-        { Key = "Project", Values = ["multi-tenant-saloon"] },
+        { Key = "Project", Values = ["multi-tenant-salon"] },
         { Key = "Environment", Values = [var.environment] },
       ]
     })

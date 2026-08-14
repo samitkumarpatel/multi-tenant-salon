@@ -6,12 +6,12 @@ name: Deploy backend
 # static .aws/task-definition.json file needs to be maintained in the repo.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "pom.xml"
-      - ".github/workflows/deploy-backend.yml"
+#  push:
+#    branches: [main]
+#    paths:
+#      - "src/**"
+#      - "pom.xml"
+#      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
 env:
@@ -25,12 +25,13 @@ env:
   CONTAINER_NAME: api
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment: dev
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
 
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +65,14 @@ jobs:
 
           echo "image=$REGISTRY/$IMAGE_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: dev
+    permissions:
+      contents: read
+
+    steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@0e613a0980cbf65ed5b322eb7a1e075d28913a83  # v4.0.2
         with:
@@ -79,7 +88,7 @@ jobs:
             --output json \
             | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
             > task-definition.json
-          
+
           echo "---------------------debug: task-definition.json---------------------"
           cat task-definition.json
 
@@ -89,7 +98,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
+          image: ${{ needs.build.outputs.image }}
           environment-variables: |
             BPL_JVM_THREAD_COUNT=100
             SPRING_CLOUD_AWS_S3_ENABLED=true

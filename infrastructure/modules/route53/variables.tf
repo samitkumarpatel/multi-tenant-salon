@@ -5,7 +5,7 @@ variable "zone_id" {
 
 variable "records" {
   type = map(object({
-    name       = string # fully qualified name, e.g. "my-saloon.online", "www.my-saloon.online", "*.my-saloon.online"
+    name       = string # fully qualified name, e.g. "my-salon.online", "www.my-salon.online", "*.my-salon.online"
     cf_domain  = string # CloudFront distribution domain name
     cf_zone_id = string # CloudFront distribution hosted zone ID
   }))

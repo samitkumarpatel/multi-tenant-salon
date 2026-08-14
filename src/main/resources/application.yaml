@@ -18,13 +18,7 @@ spring:
     init:
       mode: always
       schema-locations:
-        - classpath:db/V1__schema.sql
-        - classpath:db/V2__add_cascade_deletes.sql
-        - classpath:db/V3__add_salon_status.sql
-        - classpath:db/V4__user_identity_view.sql
-        - classpath:db/V5__add_salon_holiday.sql
-        - classpath:db/V6__super_admin.sql
-        - classpath:db/V7__add_staff_photo.sql
+        - classpath:db/schema.sql
   modulith:
     events:
       jdbc:

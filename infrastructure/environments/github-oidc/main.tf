@@ -2,14 +2,14 @@ data "aws_caller_identity" "current" {}
 
 locals {
   common_tags = {
-    Project   = "multi-tenant-saloon"
+    Project   = "multi-tenant-salon"
     ManagedBy = "terraform"
   }
 
   s3_bucket_arns = [
-    "arn:aws:s3:::my-saloon-main-web",
-    "arn:aws:s3:::my-saloon-public-web",
-    "arn:aws:s3:::my-saloon-super-admin-web",
+    "arn:aws:s3:::my-salon-main-web",
+    "arn:aws:s3:::my-salon-public-web",
+    "arn:aws:s3:::my-salon-super-admin-web",
   ]
 
   cloudfront_distribution_arns = [
@@ -20,22 +20,22 @@ locals {
   # Cluster ARN + one service ARN per service key defined in environments/dev/main.tf.
   # Add a new entry here whenever a new service key is added to module.backend.services.
   ecs_cluster_arns = [
-    "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:cluster/my-saloon-dev-cluster",
-    "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:service/my-saloon-dev-cluster/my-saloon-dev-api",
+    "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:cluster/my-salon-dev-cluster",
+    "arn:aws:ecs:*:${data.aws_caller_identity.current.account_id}:service/my-salon-dev-cluster/my-salon-dev-api",
   ]
 
   ecs_task_execution_role_arns = [
-    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/my-saloon-dev-api-exec-role",
-    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/my-saloon-dev-api-task-role",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/my-salon-dev-api-exec-role",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/my-salon-dev-api-task-role",
   ]
 }
 
 module "github_oidc" {
   source = "../../modules/github-oidc"
 
-  name                         = "my-saloon"
+  name                         = "my-salon"
   github_org                   = "samitkumarpatel"
-  github_repo                  = "multi-tenant-saloon"
+  github_repo                  = "multi-tenant-salon"
   s3_bucket_arns               = local.s3_bucket_arns
   cloudfront_distribution_arns = local.cloudfront_distribution_arns
   ecs_cluster_arns             = local.ecs_cluster_arns
