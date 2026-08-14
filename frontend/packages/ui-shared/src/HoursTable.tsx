@@ -1,5 +1,5 @@
-import type { OperatingHours } from "@saloon/ui-website";
-import { DAY_SHORT } from "@saloon/ui-website";
+import type { OperatingHours } from "@salon/ui-website";
+import { DAY_SHORT } from "@salon/ui-website";
 import { ChevronDown } from "lucide-react";
 
 interface Props {

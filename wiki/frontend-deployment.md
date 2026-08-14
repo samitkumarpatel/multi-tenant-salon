@@ -4,10 +4,10 @@
 
 | App | Local Port | Framework | Production URL |
 |-----|-----------|-----------|---------------|
-| `saloon-onboarding` | 5175 | React Router v7 | `https://my-saloon.online` |
-| `saloon-admin` | 5173 | React Router v7 | `https://my-saloon.online/<saloon-id>` |
-| `saloon-public-website` | 5174 | React Router v7 | `https://<saloon-id>.my-saloon.online` |
-| `saloon-super-admin` | 5176 | React Router v7 | `https://admin.my-saloon.online` |
+| `salon-onboarding` | 5175 | React Router v7 | `https://my-salon.online` |
+| `salon-admin` | 5173 | React Router v7 | `https://my-salon.online/<salon-id>` |
+| `salon-public-website` | 5174 | React Router v7 | `https://<salon-id>.my-salon.online` |
+| `salon-super-admin` | 5176 | React Router v7 | `https://admin.my-salon.online` |
 
 ---
 
@@ -16,19 +16,19 @@
 ```
                          ┌─────────────────────────────────────────────┐
                          │              Route 53 (DNS)                  │
-                         │  my-saloon.online  →  CF Distribution #1    │
-                         │  *.my-saloon.online →  CF Distribution #2   │
+                         │  my-salon.online  →  CF Distribution #1    │
+                         │  *.my-salon.online →  CF Distribution #2   │
                          └───────────────┬─────────────────┬───────────┘
                                          │                 │
                     ┌────────────────────▼──┐     ┌───────▼────────────────────┐
                     │  CloudFront Dist #1   │     │   CloudFront Dist #2        │
-                    │  my-saloon.online     │     │   *.my-saloon.online        │
+                    │  my-salon.online     │     │   *.my-salon.online        │
                     │                       │     │                              │
-                    │  CF Function routes:  │     │  Host: admin.my-saloon.*   │
-                    │  / → onboarding       │     │  → S3: saloon-super-admin  │
+                    │  CF Function routes:  │     │  Host: admin.my-salon.*   │
+                    │  / → onboarding       │     │  → S3: salon-super-admin  │
                     │  /<slug> → admin      │     │                              │
-                    └───────┬───────┬───────┘     │  Host: <slug>.my-saloon.*  │
-                            │       │              │  → S3: saloon-public-web   │
+                    └───────┬───────┬───────┘     │  Host: <slug>.my-salon.*  │
+                            │       │              │  → S3: salon-public-web   │
                     ┌───────▼─┐  ┌──▼──────┐      │  (CF Fn extracts slug)     │
                     │ S3:     │  │ S3:     │      └───────────┬────────────────┘
                     │ main-   │  │ main-   │                  │
@@ -49,8 +49,8 @@
 
 One certificate in **us-east-1** (required for CloudFront) with two SANs:
 
-- `my-saloon.online`
-- `*.my-saloon.online`
+- `my-salon.online`
+- `*.my-salon.online`
 
 Use DNS validation via Route 53.
 
@@ -60,17 +60,17 @@ All buckets are **private** (no public access). CloudFront accesses them via **O
 
 | Bucket Name | Contents |
 |-------------|---------|
-| `my-saloon-main-web` | onboarding + admin builds in separate prefixes |
-| `my-saloon-public-web` | public-website build |
-| `my-saloon-super-admin-web` | super-admin build |
-| `my-saloon-cf-logs` | CloudFront access logs |
+| `my-salon-main-web` | onboarding + admin builds in separate prefixes |
+| `my-salon-public-web` | public-website build |
+| `my-salon-super-admin-web` | super-admin build |
+| `my-salon-cf-logs` | CloudFront access logs |
 
 ```
-my-saloon-main-web/
-├── onboarding/           ← build output of saloon-onboarding
+my-salon-main-web/
+├── onboarding/           ← build output of salon-onboarding
 │   ├── index.html
 │   └── assets/
-└── admin/                ← build output of saloon-admin
+└── admin/                ← build output of salon-admin
     ├── index.html
     └── assets/
 ```
@@ -79,28 +79,28 @@ Upload commands after each build:
 
 ```bash
 # onboarding
-aws s3 sync apps/saloon-onboarding/build/client/ \
-  s3://my-saloon-main-web/onboarding/ --delete
+aws s3 sync apps/salon-onboarding/build/client/ \
+  s3://my-salon-main-web/onboarding/ --delete
 
 # admin
-aws s3 sync apps/saloon-admin/build/client/ \
-  s3://my-saloon-main-web/admin/ --delete
+aws s3 sync apps/salon-admin/build/client/ \
+  s3://my-salon-main-web/admin/ --delete
 
 # public website
-aws s3 sync apps/saloon-public-website/build/client/ \
-  s3://my-saloon-public-web/ --delete
+aws s3 sync apps/salon-public-website/build/client/ \
+  s3://my-salon-public-web/ --delete
 
 # super admin
-aws s3 sync apps/saloon-super-admin/build/client/ \
-  s3://my-saloon-super-admin-web/ --delete
+aws s3 sync apps/salon-super-admin/build/client/ \
+  s3://my-salon-super-admin-web/ --delete
 ```
 
-### CloudFront Distribution #1 — `my-saloon.online`
+### CloudFront Distribution #1 — `my-salon.online`
 
-**Domains:** `my-saloon.online`  
+**Domains:** `my-salon.online`  
 **Certificate:** ACM cert above  
-**Origin:** S3 `my-saloon-main-web` via OAC  
-**Logging:** `my-saloon-cf-logs/main/`
+**Origin:** S3 `my-salon-main-web` via OAC  
+**Logging:** `my-salon-cf-logs/main/`
 
 #### Cache Behaviors (evaluated top-to-bottom)
 
@@ -130,7 +130,7 @@ function handler(event) {
     return request;
   }
 
-  // Everything else: first path segment is the saloon slug → admin SPA
+  // Everything else: first path segment is the salon slug → admin SPA
   request.uri = '/admin/index.html';
   return request;
 }
@@ -154,23 +154,23 @@ S3 returns 403 for missing objects (bucket is private). Returning `index.html` e
 
 ---
 
-### CloudFront Distribution #2 — `*.my-saloon.online`
+### CloudFront Distribution #2 — `*.my-salon.online`
 
-**Domains:** `*.my-saloon.online`  
+**Domains:** `*.my-salon.online`  
 **Certificate:** ACM cert above  
-**Logging:** `my-saloon-cf-logs/wildcard/`
+**Logging:** `my-salon-cf-logs/wildcard/`
 
 This distribution handles two sub-domain namespaces:
 
 | Subdomain | Purpose | S3 Origin |
 |-----------|---------|----------|
-| `admin.my-saloon.online` | Super admin dashboard | `my-saloon-super-admin-web` |
-| `<slug>.my-saloon.online` | Per-saloon public page | `my-saloon-public-web` |
+| `admin.my-salon.online` | Super admin dashboard | `my-salon-super-admin-web` |
+| `<slug>.my-salon.online` | Per-salon public page | `my-salon-public-web` |
 
 CloudFront supports only one default origin per distribution. Two origins are registered:
 
-- **Origin A:** `my-saloon-public-web` (default origin)  
-- **Origin B:** `my-saloon-super-admin-web`
+- **Origin A:** `my-salon-public-web` (default origin)  
+- **Origin B:** `my-salon-super-admin-web`
 
 #### Cache Behaviors
 
@@ -184,13 +184,13 @@ To switch origin based on the `Host` header, use **Lambda@Edge** at the origin-r
 // Lambda@Edge — origin-request — Node 22.x runtime
 export const handler = async (event) => {
   const request = event.Records[0].cf.request;
-  const host = request.headers['host'][0].value; // e.g. "admin.my-saloon.online"
+  const host = request.headers['host'][0].value; // e.g. "admin.my-salon.online"
 
-  if (host === 'admin.my-saloon.online') {
+  if (host === 'admin.my-salon.online') {
     // Override origin to super-admin bucket
-    request.origin.s3.domainName = 'my-saloon-super-admin-web.s3.amazonaws.com';
+    request.origin.s3.domainName = 'my-salon-super-admin-web.s3.amazonaws.com';
     request.origin.s3.path = '';
-    request.headers['host'] = [{ key: 'Host', value: 'my-saloon-super-admin-web.s3.amazonaws.com' }];
+    request.headers['host'] = [{ key: 'Host', value: 'my-salon-super-admin-web.s3.amazonaws.com' }];
   }
   // else: default origin (public-web bucket) is already set
 
@@ -203,11 +203,11 @@ export const handler = async (event) => {
 };
 ```
 
-The **public-website** SPA reads the saloon slug from the subdomain directly:
+The **public-website** SPA reads the salon slug from the subdomain directly:
 
 ```ts
 // In the app
-const slug = window.location.hostname.split('.')[0]; // "abc123" from "abc123.my-saloon.online"
+const slug = window.location.hostname.split('.')[0]; // "abc123" from "abc123.my-salon.online"
 ```
 
 This is already how the dev server middleware handles it (rewriting the path to `?slug=<slug>` in local dev).
@@ -230,10 +230,10 @@ All four apps use React Router v7 framework mode, which defaults to SSR with a N
 Add or update `react-router.config.ts` in each app:
 
 ```ts
-// apps/saloon-admin/react-router.config.ts
-// apps/saloon-onboarding/react-router.config.ts
-// apps/saloon-public-website/react-router.config.ts
-// apps/saloon-super-admin/react-router.config.ts
+// apps/salon-admin/react-router.config.ts
+// apps/salon-onboarding/react-router.config.ts
+// apps/salon-public-website/react-router.config.ts
+// apps/salon-super-admin/react-router.config.ts
 
 import type { Config } from '@react-router/dev/config';
 
@@ -246,7 +246,7 @@ After this change `npm run build` outputs only `build/client/` (no `build/server
 
 ### 2. Asset base paths — injected at build time via CI
 
-Onboarding and admin share one S3 bucket (`my-saloon-main-web`) in separate prefixes. Both `vite.config.ts` files already read `VITE_BASE_PATH` from the environment:
+Onboarding and admin share one S3 bucket (`my-salon-main-web`) in separate prefixes. Both `vite.config.ts` files already read `VITE_BASE_PATH` from the environment:
 
 ```ts
 base: process.env.VITE_BASE_PATH ?? "/",
@@ -259,15 +259,15 @@ The GitHub Actions workflows inject the correct value at build time — no hardc
 
 Local dev runs without the env var, so `base` stays `"/"` and the dev server works unchanged.
 
-> `saloon-public-website` and `saloon-super-admin` each have their own S3 bucket, so no base path override is needed.
+> `salon-public-website` and `salon-super-admin` each have their own S3 bucket, so no base path override is needed.
 
-### 3. Admin app: route the saloon slug from the URL
+### 3. Admin app: route the salon slug from the URL
 
-The admin app's React Router routes need to treat the first path segment as the saloon identifier. Update the root route to include a dynamic segment:
+The admin app's React Router routes need to treat the first path segment as the salon identifier. Update the root route to include a dynamic segment:
 
 ```
 / (root layout)
-└── /:saloonId (layout with saloon context provider)
+└── /:salonId (layout with salon context provider)
     ├── / (dashboard)
     ├── /services
     ├── /staff
@@ -282,10 +282,10 @@ Both records are **Alias** records pointing to CloudFront distributions (no TTL 
 
 | Record | Type | Target |
 |--------|------|--------|
-| `my-saloon.online` | A (Alias) | CloudFront Distribution #1 domain |
-| `*.my-saloon.online` | A (Alias) | CloudFront Distribution #2 domain |
+| `my-salon.online` | A (Alias) | CloudFront Distribution #1 domain |
+| `*.my-salon.online` | A (Alias) | CloudFront Distribution #2 domain |
 
-> Route 53 does not support wildcard Alias records for apex (`my-saloon.online` itself). The apex and wildcard need separate records pointing to separate CloudFront distributions, which is exactly what is described above.
+> Route 53 does not support wildcard Alias records for apex (`my-salon.online` itself). The apex and wildcard need separate records pointing to separate CloudFront distributions, which is exactly what is described above.
 
 ---
 
@@ -342,13 +342,13 @@ jobs:
       - name: Deploy onboarding
         working-directory: frontend
         run: |
-          aws s3 sync apps/saloon-onboarding/build/client/ \
-            s3://my-saloon-main-web/onboarding/ \
+          aws s3 sync apps/salon-onboarding/build/client/ \
+            s3://my-salon-main-web/onboarding/ \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html"
-          aws s3 sync apps/saloon-onboarding/build/client/ \
-            s3://my-saloon-main-web/onboarding/ \
+          aws s3 sync apps/salon-onboarding/build/client/ \
+            s3://my-salon-main-web/onboarding/ \
             --delete \
             --cache-control "no-cache, no-store" \
             --include "*.html" \
@@ -357,13 +357,13 @@ jobs:
       - name: Deploy admin
         working-directory: frontend
         run: |
-          aws s3 sync apps/saloon-admin/build/client/ \
-            s3://my-saloon-main-web/admin/ \
+          aws s3 sync apps/salon-admin/build/client/ \
+            s3://my-salon-main-web/admin/ \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html"
-          aws s3 sync apps/saloon-admin/build/client/ \
-            s3://my-saloon-main-web/admin/ \
+          aws s3 sync apps/salon-admin/build/client/ \
+            s3://my-salon-main-web/admin/ \
             --delete \
             --cache-control "no-cache, no-store" \
             --include "*.html" \
@@ -372,13 +372,13 @@ jobs:
       - name: Deploy public website
         working-directory: frontend
         run: |
-          aws s3 sync apps/saloon-public-website/build/client/ \
-            s3://my-saloon-public-web/ \
+          aws s3 sync apps/salon-public-website/build/client/ \
+            s3://my-salon-public-web/ \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html"
-          aws s3 sync apps/saloon-public-website/build/client/ \
-            s3://my-saloon-public-web/ \
+          aws s3 sync apps/salon-public-website/build/client/ \
+            s3://my-salon-public-web/ \
             --delete \
             --cache-control "no-cache, no-store" \
             --include "*.html" \
@@ -387,13 +387,13 @@ jobs:
       - name: Deploy super admin
         working-directory: frontend
         run: |
-          aws s3 sync apps/saloon-super-admin/build/client/ \
-            s3://my-saloon-super-admin-web/ \
+          aws s3 sync apps/salon-super-admin/build/client/ \
+            s3://my-salon-super-admin-web/ \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html"
-          aws s3 sync apps/saloon-super-admin/build/client/ \
-            s3://my-saloon-super-admin-web/ \
+          aws s3 sync apps/salon-super-admin/build/client/ \
+            s3://my-salon-super-admin-web/ \
             --delete \
             --cache-control "no-cache, no-store" \
             --include "*.html" \
@@ -425,22 +425,22 @@ Use **OIDC federation** instead of long-lived AWS access keys. The IAM role trus
 
 ### Phase 1 — AWS infrastructure
 
-- [ ] Request ACM certificate for `my-saloon.online` + `*.my-saloon.online` in `us-east-1`
-- [ ] Create S3 buckets: `my-saloon-main-web`, `my-saloon-public-web`, `my-saloon-super-admin-web`, `my-saloon-cf-logs`
+- [ ] Request ACM certificate for `my-salon.online` + `*.my-salon.online` in `us-east-1`
+- [ ] Create S3 buckets: `my-salon-main-web`, `my-salon-public-web`, `my-salon-super-admin-web`, `my-salon-cf-logs`
 - [ ] Block all public access on all S3 buckets
-- [ ] Create CloudFront Distribution #1 (`my-saloon.online`) with OAC on `my-saloon-main-web`
+- [ ] Create CloudFront Distribution #1 (`my-salon.online`) with OAC on `my-salon-main-web`
 - [ ] Attach `MainRouterFn` CloudFront Function to Distribution #1 default behavior
 - [ ] Configure cache behaviors and error responses for Distribution #1
-- [ ] Create CloudFront Distribution #2 (`*.my-saloon.online`) with two origins + Lambda@Edge
+- [ ] Create CloudFront Distribution #2 (`*.my-salon.online`) with two origins + Lambda@Edge
 - [ ] Configure custom error responses for Distribution #2
-- [ ] Set Route 53 Alias records for `my-saloon.online` and `*.my-saloon.online`
+- [ ] Set Route 53 Alias records for `my-salon.online` and `*.my-salon.online`
 
 ### Phase 2 — Code changes
 
 - [ ] Add `react-router.config.ts` with `ssr: false` to all four apps
 - [x] `VITE_BASE_PATH` injected via CI workflows (no source change needed)
-- [ ] Update admin app routes to use `/:saloonId` as the root dynamic segment
-- [ ] Verify `window.location.hostname` slug extraction works in `saloon-public-website`
+- [ ] Update admin app routes to use `/:salonId` as the root dynamic segment
+- [ ] Verify `window.location.hostname` slug extraction works in `salon-public-website`
 - [ ] Build all apps locally and verify output in `build/client/`
 
 ### Phase 3 — CI/CD
@@ -452,11 +452,11 @@ Use **OIDC federation** instead of long-lived AWS access keys. The IAM role trus
 
 ### Phase 4 — Smoke testing
 
-- [ ] `https://my-saloon.online` → onboarding landing page loads
-- [ ] `https://my-saloon.online/login` → onboarding login page loads
-- [ ] `https://my-saloon.online/test-saloon` → admin dashboard for `test-saloon` loads
-- [ ] `https://test-saloon.my-saloon.online` → public website for `test-saloon` loads
-- [ ] `https://admin.my-saloon.online` → super admin dashboard loads
+- [ ] `https://my-salon.online` → onboarding landing page loads
+- [ ] `https://my-salon.online/login` → onboarding login page loads
+- [ ] `https://my-salon.online/test-salon` → admin dashboard for `test-salon` loads
+- [ ] `https://test-salon.my-salon.online` → public website for `test-salon` loads
+- [ ] `https://admin.my-salon.online` → super admin dashboard loads
 - [ ] Hard-refresh on a deep admin URL (`/<slug>/services`) loads the page correctly
 
 ---
@@ -479,7 +479,7 @@ Use **OIDC federation** instead of long-lived AWS access keys. The IAM role trus
 
 | Item | Note |
 |------|------|
-| `MainRouterFn` onboarding path list | Must be kept in sync with routes in `saloon-onboarding`. Consider CloudFront KeyValueStore to update without redeploying the function. |
+| `MainRouterFn` onboarding path list | Must be kept in sync with routes in `salon-onboarding`. Consider CloudFront KeyValueStore to update without redeploying the function. |
 | Lambda@Edge cold starts | Adds ~50–200 ms latency on first request per edge location for Distribution #2. Consider CloudFront Functions with a fixed origin and handling origin switching via a different mechanism if this becomes a concern. |
-| SSR / SEO for public website | SPA mode means crawlers receive an empty shell. If SEO is important for `<slug>.my-saloon.online`, consider deploying `saloon-public-website` to AWS Lambda + CloudFront (keeping SSR) instead of S3 SPA mode. |
+| SSR / SEO for public website | SPA mode means crawlers receive an empty shell. If SEO is important for `<slug>.my-salon.online`, consider deploying `salon-public-website` to AWS Lambda + CloudFront (keeping SSR) instead of S3 SPA mode. |
 | Per-app independent deploys | The current workflow rebuilds all apps on every push. Split into per-app jobs with `paths` filters to deploy only the changed app. |

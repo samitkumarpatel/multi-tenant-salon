@@ -16,12 +16,12 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: samitkumarpatel/multi-tenant-saloon
+  IMAGE_NAME: samitkumarpatel/multi-tenant-salon
   AWS_REGION: eu-north-1
-  ECS_SERVICE: my-saloon-dev-api
-  ECS_CLUSTER: my-saloon-dev-cluster
-  # Terraform sets family = "${name}-${service_key}" → my-saloon-dev-api
-  ECS_TASK_DEFINITION_FAMILY: my-saloon-dev-api
+  ECS_SERVICE: my-salon-dev-api
+  ECS_CLUSTER: my-salon-dev-cluster
+  # Terraform sets family = "${name}-${service_key}" → my-salon-dev-api
+  ECS_TASK_DEFINITION_FAMILY: my-salon-dev-api
   CONTAINER_NAME: api
 
 jobs:

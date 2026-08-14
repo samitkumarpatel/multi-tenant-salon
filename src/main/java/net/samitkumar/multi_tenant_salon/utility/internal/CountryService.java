@@ -1,0 +1,73 @@
+package net.samitkumar.multi_tenant_salon.utility.internal;
+
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import net.samitkumar.multi_tenant_salon.utility.Country;
+import net.samitkumar.multi_tenant_salon.utility.Currency;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+class CountryService implements net.samitkumar.multi_tenant_salon.utility.CountryApi {
+
+    private record RawCountry(String name, String code, String dialCode, String currencyCode, String businessIdLabel, String businessIdPlaceholder) {}
+    private record RawCurrency(String code, String name, String symbol) {}
+
+    private final List<Country> countries;
+    private final List<Currency> currencies;
+
+    CountryService(
+            @Value("${spring.application.utility.static-geo-data}") Resource geoResource,
+            @Value("${spring.application.utility.static-currency-data}") Resource currencyResource,
+            ObjectMapper objectMapper) {
+        try {
+            List<RawCurrency> rawCurrencies = objectMapper
+                    .readValue(currencyResource.getInputStream(), new TypeReference<List<RawCurrency>>() {});
+            Map<String, RawCurrency> currencyMap = rawCurrencies.stream()
+                    .collect(Collectors.toMap(RawCurrency::code, c -> c));
+            currencies = rawCurrencies.stream()
+                    .map(c -> new Currency(c.code(), c.name(), c.symbol()))
+                    .toList();
+
+            countries = objectMapper
+                    .readValue(geoResource.getInputStream(), new TypeReference<List<RawCountry>>() {})
+                    .stream()
+                    .map(c -> {
+                        RawCurrency currency = currencyMap.get(c.currencyCode());
+                        return new Country(
+                                c.name(), c.code(), c.dialCode(), c.currencyCode(),
+                                currency != null ? currency.name() : null,
+                                currency != null ? currency.symbol() : null,
+                                c.businessIdLabel(), c.businessIdPlaceholder()
+                        );
+                    })
+                    .toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load country/currency data", e);
+        }
+    }
+
+    List<Country> findAll() {
+        return countries;
+    }
+
+    List<Currency> findAllCurrencies() {
+        return currencies;
+    }
+
+    @Override
+    public Optional<Country> findByName(String name) {
+        if (name == null) return Optional.empty();
+        return countries.stream()
+                .filter(c -> c.name().equalsIgnoreCase(name))
+                .findFirst();
+    }
+}

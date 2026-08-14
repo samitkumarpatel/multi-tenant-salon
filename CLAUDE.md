@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./mvnw test
 
 # Run a single test class
-./mvnw test -Dtest=MultiTenantSaloonApplicationTests
+./mvnw test -Dtest=MultiTenantSalonApplicationTests
 
 # Run the app in test mode (starts PostgreSQL via Testcontainers)
 ./mvnw spring-boot:test-run
@@ -37,9 +37,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-This is a **modular monolith** using [Spring Modulith](https://docs.spring.io/spring-modulith/reference/). Modules are enforced as Java packages under `net.samitkumar.multi_tenant_saloon`. Each top-level sub-package is treated as an independent module with enforced boundaries.
+This is a **modular monolith** using [Spring Modulith](https://docs.spring.io/spring-modulith/reference/). Modules are enforced as Java packages under `net.samitkumar.multi_tenant_salon`. Each top-level sub-package is treated as an independent module with enforced boundaries.
 
-The application is a **multi-tenant SaaS platform for saloon/salon management**. The architecture diagram is in `others/saloon_saas_architecture.svg`.
+The application is a **multi-tenant SaaS platform for salon/salon management**. The architecture diagram is in `others/salon_saas_architecture.svg`.
 
 Key conventions:
 - Module internals go in sub-packages (e.g., `module.internal`) and are not accessible to other modules
@@ -48,10 +48,10 @@ Key conventions:
 
 ## Modules
 
-- **`saloon`** — Core aggregate: `Saloon` entity with embedded `Owner`/`Location`/`ContactInfo` and child tables for `operatingHours`/`features`. Publishes `SaloonCreatedEvent`.
-- **`saloonservice`** — `ServiceItem` catalog per saloon (pricing, duration, category, assigned staff).
-- **`staff`** — `StaffMember` roster per saloon (role, status, specializations).
-- **`notification`** — Listens to `SaloonCreatedEvent` via `@ApplicationModuleListener` (decoupled, async-safe).
+- **`salon`** — Core aggregate: `Salon` entity with embedded `Owner`/`Location`/`ContactInfo` and child tables for `operatingHours`/`features`. Publishes `SalonCreatedEvent`.
+- **`salonservice`** — `ServiceItem` catalog per salon (pricing, duration, category, assigned staff).
+- **`staff`** — `StaffMember` roster per salon (role, status, specializations).
+- **`notification`** — Listens to `SalonCreatedEvent` via `@ApplicationModuleListener` (decoupled, async-safe).
 
 ## Data Model
 
@@ -61,14 +61,14 @@ Spring Data JDBC conventions used throughout:
 - All aggregate roots use `@Id Long id` (auto-generated `BIGSERIAL`).
 - Nested value objects (`Owner`, `Location`, `ContactInfo`) are `@Embedded` — flattened into the parent table. Columns that would clash (e.g., `owner_email` vs `contact_email`) are disambiguated with `@Column` on the inner record components.
 - Collection fields (`operatingHours`, `features`, `assignedStaffIds`, `specializations`) live in separate child tables via `@MappedCollection(idColumn = "...")`.
-- Wrapper records for collection elements (`SaloonFeatureRef`, `AssignedStaff`, `Specialization`) carry `@JsonValue` so they serialize transparently — e.g., `List<SaloonFeatureRef>` serializes as `["BOOKING"]`, not `[{"feature":"BOOKING"}]`.
+- Wrapper records for collection elements (`SalonFeatureRef`, `AssignedStaff`, `Specialization`) carry `@JsonValue` so they serialize transparently — e.g., `List<SalonFeatureRef>` serializes as `["BOOKING"]`, not `[{"feature":"BOOKING"}]`.
 - any new changes related to db schema ha to be in a separate file with a versioned name like `V2__add_new_table.sql` and so on.
 
 ## Testing
 
-The `TestcontainersConfiguration` class auto-wires a PostgreSQL container for any test that `@Import`s it. The `TestMultiTenantSaloonApplication` class boots the full app locally with Testcontainers.
+The `TestcontainersConfiguration` class auto-wires a PostgreSQL container for any test that `@Import`s it. The `TestMultiTenantSalonApplication` class boots the full app locally with Testcontainers.
 
-Package name note: the Java package uses underscores (`net.samitkumar.multi_tenant_saloon`) because hyphens are invalid in Java package names.
+Package name note: the Java package uses underscores (`net.samitkumar.multi_tenant_salon`) because hyphens are invalid in Java package names.
 
 ## Java Instructions
 - Always use java record types for data models where possible for immutability and simplicity.

@@ -18,8 +18,8 @@ on:
 
 env:
   AWS_REGION: eu-north-1
-  ECS_CLUSTER: my-saloon-dev-cluster
-  RDS_INSTANCE: my-saloon-dev-postgres
+  ECS_CLUSTER: my-salon-dev-cluster
+  RDS_INSTANCE: my-salon-dev-postgres
 
 jobs:
   shutdown:
@@ -36,7 +36,7 @@ jobs:
 
       - name: Scale ECS services to 0
         run: |
-          for SERVICE in my-saloon-dev-api my-saloon-dev-auth; do
+          for SERVICE in my-salon-dev-api my-salon-dev-auth; do
             aws ecs update-service \
               --cluster ${{ env.ECS_CLUSTER }} \
               --service $SERVICE \
@@ -93,7 +93,7 @@ jobs:
 
       - name: Scale ECS services to 1
         run: |
-          for SERVICE in my-saloon-dev-api my-saloon-dev-auth; do
+          for SERVICE in my-salon-dev-api my-salon-dev-auth; do
             aws ecs update-service \
               --cluster ${{ env.ECS_CLUSTER }} \
               --service $SERVICE \

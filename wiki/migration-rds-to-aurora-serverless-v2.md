@@ -76,7 +76,7 @@ Remove the old `aws_db_instance` resource and the `aws_secretsmanager_secret_ver
 
 ### No application changes
 
-`application.yaml`, `application-prod.yaml`, Flyway config, and all Java code stay exactly as-is. The new connection string is written to the same Secrets Manager path (`/my-saloon/dev/db-url`), so ECS picks it up automatically on next task start.
+`application.yaml`, `application-prod.yaml`, Flyway config, and all Java code stay exactly as-is. The new connection string is written to the same Secrets Manager path (`/my-salon/dev/db-url`), so ECS picks it up automatically on next task start.
 
 ## Data Migration Steps
 
@@ -86,10 +86,10 @@ Remove the old `aws_db_instance` resource and the `aws_secretsmanager_secret_ver
 4. **Restore data** (if needed for dev, skip if starting fresh is acceptable):
    ```bash
    # Dump from old RDS
-   pg_dump -h <old-rds-endpoint> -U saloon_app -d saloon -F c -f saloon_backup.dump
+   pg_dump -h <old-rds-endpoint> -U salon_app -d salon -F c -f salon_backup.dump
 
    # Restore to Aurora
-   pg_restore -h <aurora-endpoint> -U saloon_app -d saloon saloon_backup.dump
+   pg_restore -h <aurora-endpoint> -U salon_app -d salon salon_backup.dump
    ```
 
 For dev, starting fresh (letting Flyway recreate the schema) is usually acceptable — no production data to preserve.

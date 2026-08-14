@@ -1,7 +1,7 @@
 import { ArrowLeft, ShoppingBag, BadgeCheck, Gift, CalendarCheck, type LucideIcon } from "lucide-react";
 import { FONTS, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import type { Saloon, WebsiteTheme } from "./types";
+import type { Salon, WebsiteTheme } from "./types";
 
 export const FEATURE_VIEWS: Record<string, { title: string; icon: LucideIcon; tagline: string; blurb: string }> = {
   shop: {
@@ -29,9 +29,9 @@ function initials(name: string) {
 }
 
 export function FeatureView({
-  saloon, theme, pageKey, bookUrl, onBack, getPagePath,
+  salon, theme, pageKey, bookUrl, onBack, getPagePath,
 }: {
-  saloon: Saloon;
+  salon: Salon;
   theme: WebsiteTheme;
   pageKey: string;
   bookUrl: string;
@@ -40,7 +40,7 @@ export function FeatureView({
 }) {
   const page = FEATURE_VIEWS[pageKey] ?? FEATURE_VIEWS.shop;
   const Icon = page.icon;
-  const hasBooking = saloon.features?.includes("BOOKING");
+  const hasBooking = salon.features?.includes("BOOKING");
 
   const fontStack = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
   const accentText = contrastText(theme.accentColor);
@@ -49,7 +49,7 @@ export function FeatureView({
 
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStack, backgroundColor: theme.heroBg }}>
-      <SiteHeader saloon={saloon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
+      <SiteHeader salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
 
       <main className="flex-1 flex items-center">
         <div className="max-w-5xl mx-auto px-6 py-16 w-full text-center">
@@ -95,13 +95,13 @@ export function FeatureView({
                 borderColor: heroLight ? "rgba(15,23,42,0.15)" : "rgba(255,255,255,0.2)",
               }}
             >
-              <ArrowLeft className="w-4 h-4" /> Back to {saloon.name}
+              <ArrowLeft className="w-4 h-4" /> Back to {salon.name}
             </button>
           </div>
         </div>
       </main>
 
-      <SiteFooter saloon={saloon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
+      <SiteFooter salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
     </div>
   );
 }

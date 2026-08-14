@@ -2,7 +2,7 @@
 
 Base path: `/api`
 
-All request and response bodies are `application/json`. Saloon IDs are `UUID` strings. Service, staff, and booking IDs are `Long` integers.
+All request and response bodies are `application/json`. Salon IDs are `UUID` strings. Service, staff, and booking IDs are `Long` integers.
 
 ---
 
@@ -10,12 +10,12 @@ All request and response bodies are `application/json`. Saloon IDs are `UUID` st
 
 | Namespace | Base Path | Audience |
 |---|---|---|
-| **Saloon Onboarding** | `/api/saloon-onboarding` | New tenant registration; platform-level listing |
-| **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
-| **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
-| **Super Admin** | `/api/saloon-super-admin/...` | Platform super-admin — cross-tenant management of all saloons |
-| **Staff Portal** | `/api/saloon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
-| **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
+| **Salon Onboarding** | `/api/salon-onboarding` | New tenant registration; platform-level listing |
+| **Customer** | `/api/salon/{salonId}/...` | Public/customer-facing — browse, book, read |
+| **Admin** | `/api/salon-admin/{salonId}/...` | Salon owner/administrator — manage, configure, operate |
+| **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
+| **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
+| **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
 
@@ -23,19 +23,19 @@ Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/h
 
 ---
 
-## Saloon Onboarding
+## Salon Onboarding
 
-### Register a new saloon
+### Register a new salon
 
-`POST /api/saloon-onboarding`
+`POST /api/salon-onboarding`
 
 **Request**
 
 ```json
 {
-  "name": "Glam Saloon",
+  "name": "Glam Salon",
   "ownerName": "Jane Doe",
-  "ownerEmail": "jane@glamsaloon.com",
+  "ownerEmail": "jane@glamsalon.com",
   "ownerPhone": "+1234567890",
   "location": {
     "address": "123 Main St",
@@ -46,8 +46,8 @@ Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/h
   },
   "contact": {
     "phone": "+1234567890",
-    "email": "info@glamsaloon.com",
-    "website": "https://glamsaloon.com"
+    "email": "info@glamsalon.com",
+    "website": "https://glamsalon.com"
   },
   "operatingHours": [
     { "day": "MONDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
@@ -66,48 +66,48 @@ Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/h
 | `location` | object | no | See [Location](#location) |
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
 | `operatingHours` | array | no | See [OperatingHours](#operatinghours) |
-| `features` | array | no | See [SaloonFeature](#saloonfeature) values |
+| `features` | array | no | See [SalonFeature](#salonfeature) values |
 | `businessRegistrationId` | string | no | Business reg. number (e.g. CVR, EIN) shown on the public website |
 | `showBusinessId` | boolean | no | Whether to display the registration number publicly; defaults to `false` |
 
 **Response** `201 Created`
 
-`Location` header points to the new resource, e.g. `/api/saloon/a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
+`Location` header points to the new resource, e.g. `/api/salon/a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
 
 ```json
 {
-  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "saloonHandler": "glam-saloon",
-  "emailId": "jane@glamsaloon.com",
-  "message": "Welcome! We've sent a login link and setup guide to jane@glamsaloon.com. Use your email to sign in to the admin panel."
+  "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "salonHandler": "glam-salon",
+  "emailId": "jane@glamsalon.com",
+  "message": "Welcome! We've sent a login link and setup guide to jane@glamsalon.com. Use your email to sign in to the admin panel."
 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `saloonId` | UUID | The newly created saloon's unique identifier |
-| `saloonHandler` | string | URL-friendly slug derived from the saloon name |
+| `salonId` | UUID | The newly created salon's unique identifier |
+| `salonHandler` | string | URL-friendly slug derived from the salon name |
 | `emailId` | string | The owner's email to use when signing in to the admin panel |
 | `message` | string | Confirmation that a welcome email has been sent |
 
-The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced with `-`, special characters stripped. Duplicate base handlers get a numeric suffix (`"glam-saloon"` → `"glam-saloon-2"`, etc.).
+The `salonHandler` is derived from the salon name: lowercased, spaces replaced with `-`, special characters stripped. Duplicate base handlers get a numeric suffix (`"glam-salon"` → `"glam-salon-2"`, etc.).
 
 **Flow**
 
-1. `SaloonController.create()` validates `@NotBlank` on `name`, `ownerName`, `ownerEmail` — returns `400` before reaching the service if any are blank.
-2. `SaloonService.create()` calls `deriveUniqueHandler(name)`: checks `SaloonRepository.existsByHandler(base)` and increments a suffix until a free handler is found. Derives `businessIdLabel` from `location.country` using the countries reference data (e.g. `"Denmark"` → `"CVR Number"`). Builds a `Saloon` with `id = null`.
-3. `SaloonRepository.save(Saloon)` → **DB**: `INSERT INTO saloon`, `INSERT INTO saloon_operating_hours`, `INSERT INTO saloon_feature` — all in one transaction. Database assigns UUID via `DEFAULT gen_random_uuid()`.
-4. `ApplicationEventPublisher.publishEvent(SaloonCreatedEvent)` — Spring Modulith writes the event to `event_publication` before the transaction commits.
-5. Returns `201 Created` with `CreateSaloonResponse(saloonId, saloonHandler, emailId, message)` and a `Location` header.
+1. `SalonController.create()` validates `@NotBlank` on `name`, `ownerName`, `ownerEmail` — returns `400` before reaching the service if any are blank.
+2. `SalonService.create()` calls `deriveUniqueHandler(name)`: checks `SalonRepository.existsByHandler(base)` and increments a suffix until a free handler is found. Derives `businessIdLabel` from `location.country` using the countries reference data (e.g. `"Denmark"` → `"CVR Number"`). Builds a `Salon` with `id = null`.
+3. `SalonRepository.save(Salon)` → **DB**: `INSERT INTO salon`, `INSERT INTO salon_operating_hours`, `INSERT INTO salon_feature` — all in one transaction. Database assigns UUID via `DEFAULT gen_random_uuid()`.
+4. `ApplicationEventPublisher.publishEvent(SalonCreatedEvent)` — Spring Modulith writes the event to `event_publication` before the transaction commits.
+5. Returns `201 Created` with `CreateSalonResponse(salonId, salonHandler, emailId, message)` and a `Location` header.
 6. After commit → **Events** (async):
-   - `SaloonNotificationListener.onSaloonCreated(SaloonCreatedEvent)` logs the registration notice.
-   - `OwnerStaffListener.onSaloonCreated(SaloonCreatedEvent)` auto-creates a `StaffMember` for the owner (`isOwner = true`, `role = MANAGER`, `status = ACTIVE`, `availableForBooking = true`).
+   - `SalonNotificationListener.onSalonCreated(SalonCreatedEvent)` logs the registration notice.
+   - `OwnerStaffListener.onSalonCreated(SalonCreatedEvent)` auto-creates a `StaffMember` for the owner (`isOwner = true`, `role = MANAGER`, `status = ACTIVE`, `availableForBooking = true`).
 
 ---
 
-### List all saloons (platform view)
+### List all salons (platform view)
 
-`GET /api/saloon-onboarding`
+`GET /api/salon-onboarding`
 
 **Response** `200 OK`
 
@@ -115,11 +115,11 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
 [
   {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "name": "Glam Saloon",
-    "handler": "glam-saloon",
-    "owner": { "name": "Jane Doe", "email": "jane@glamsaloon.com", "phone": "+1234567890" },
+    "name": "Glam Salon",
+    "handler": "glam-salon",
+    "owner": { "name": "Jane Doe", "email": "jane@glamsalon.com", "phone": "+1234567890" },
     "location": { "address": "123 Main St", "city": "New York", "state": "NY", "country": "United States", "zipCode": "10001" },
-    "contact": { "phone": "+1234567890", "email": "info@glamsaloon.com", "website": "https://glamsaloon.com" },
+    "contact": { "phone": "+1234567890", "email": "info@glamsalon.com", "website": "https://glamsalon.com" },
     "operatingHours": [],
     "features": ["BOOKING"],
     "bookingAdvanceDays": 60,
@@ -135,33 +135,33 @@ The `saloonHandler` is derived from the saloon name: lowercased, spaces replaced
 
 **Flow**
 
-1. `SaloonController.findAll()` → `SaloonService.findAll()` → `SaloonRepository.findAll()`
-2. **DB**: `SELECT * FROM saloon` + child rows from `saloon_operating_hours` and `saloon_feature`. `@Embedded` columns are hydrated into `Owner`, `Location`, and `ContactInfo`.
-3. Returns `List<Saloon>` — empty array if no saloons exist.
+1. `SalonController.findAll()` → `SalonService.findAll()` → `SalonRepository.findAll()`
+2. **DB**: `SELECT * FROM salon` + child rows from `salon_operating_hours` and `salon_feature`. `@Embedded` columns are hydrated into `Owner`, `Location`, and `ContactInfo`.
+3. Returns `List<Salon>` — empty array if no salons exist.
 
 ---
 
-## Customer — Saloon Discovery
+## Customer — Salon Discovery
 
-### Get a saloon
+### Get a salon
 
-`GET /api/saloon/{saloonIdOrHandler}`
+`GET /api/salon/{salonIdOrHandler}`
 
-Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug (`glam-saloon`).
+Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug (`glam-salon`).
 
-**Response** `200 OK` — full saloon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `bookingAdvanceDays`, `bookingRequiresConfirmation`, `businessRegistrationId`, `showBusinessId`, `businessIdLabel`, `createdAt`, `status`)
+**Response** `200 OK` — full salon object (includes `id`, `name`, `handler`, `owner`, `location`, `contact`, `operatingHours`, `features`, `bookingAdvanceDays`, `bookingRequiresConfirmation`, `businessRegistrationId`, `showBusinessId`, `businessIdLabel`, `createdAt`, `status`)
 
 `businessIdLabel` is derived automatically from `location.country` (e.g. `"CVR Number"` for Denmark, `"EIN"` for United States). It is read-only — set `location.country` to update it.
 
-**Response** `404 Not Found` — if neither a saloon with that UUID nor a handler matches
+**Response** `404 Not Found` — if neither a salon with that UUID nor a handler matches
 
 **Flow**
 
-1. `SaloonController.findByIdOrHandler(String)` → `SaloonService.findByIdOrHandler(String)`
-2. Tries `UUID.fromString(id)` → `SaloonRepository.findById(UUID)` on success.
-3. Falls back to `SaloonRepository.findByHandler(id)` when the value is not a valid UUID.
-4. **DB**: `SELECT * FROM saloon WHERE id = ?` or `SELECT * FROM saloon WHERE handler = ?` + child collections.
-5. Maps `Optional<Saloon>` → `200 OK` or `404 Not Found`.
+1. `SalonController.findByIdOrHandler(String)` → `SalonService.findByIdOrHandler(String)`
+2. Tries `UUID.fromString(id)` → `SalonRepository.findById(UUID)` on success.
+3. Falls back to `SalonRepository.findByHandler(id)` when the value is not a valid UUID.
+4. **DB**: `SELECT * FROM salon WHERE id = ?` or `SELECT * FROM salon WHERE handler = ?` + child collections.
+5. Maps `Optional<Salon>` → `200 OK` or `404 Not Found`.
 
 ---
 
@@ -169,7 +169,7 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 
 ### List services
 
-`GET /api/saloon/{saloonId}/services`
+`GET /api/salon/{salonId}/services`
 
 **Response** `200 OK`
 
@@ -177,7 +177,7 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Classic Haircut",
     "description": "Shampoo, cut, and blow-dry",
     "price": 35.00,
@@ -190,7 +190,7 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
   },
   {
     "id": 2,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Pay as you go",
     "description": "Haircut, Coloring, Facial and more",
     "price": null,
@@ -208,25 +208,25 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 
 **Flow**
 
-1. `SaloonServiceController.findAll(UUID)` → `SaloonServiceManager.findBySaloonId(UUID)` → `SaloonServiceRepository.findBySaloonId(UUID)`
-2. **DB**: `SELECT * FROM service_item WHERE saloon_id = ?` + `service_item_assigned_staff` rows per item.
+1. `SalonServiceController.findAll(UUID)` → `SalonServiceManager.findBySalonId(UUID)` → `SalonServiceRepository.findBySalonId(UUID)`
+2. **DB**: `SELECT * FROM service_item WHERE salon_id = ?` + `service_item_assigned_staff` rows per item.
 3. Returns `List<ServiceItem>` — empty array if none.
 
 ---
 
 ### Get a service
 
-`GET /api/saloon/{saloonId}/services/{serviceId}`
+`GET /api/salon/{salonId}/services/{serviceId}`
 
 **Response** `200 OK` — service object
 
-**Response** `404 Not Found` — if the service does not exist or does not belong to the saloon
+**Response** `404 Not Found` — if the service does not exist or does not belong to the salon
 
 **Flow**
 
-1. `SaloonServiceController.findById(UUID, Long)` → `SaloonServiceManager.findById(UUID, Long)`
-2. `SaloonServiceRepository.findById(Long)` → **DB**: `SELECT * FROM service_item WHERE id = ?`
-3. Result is filtered by `saloonId` — returns `404` if not found or saloon mismatch.
+1. `SalonServiceController.findById(UUID, Long)` → `SalonServiceManager.findById(UUID, Long)`
+2. `SalonServiceRepository.findById(Long)` → **DB**: `SELECT * FROM service_item WHERE id = ?`
+3. Result is filtered by `salonId` — returns `404` if not found or salon mismatch.
 
 ---
 
@@ -234,7 +234,7 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 
 ### List staff
 
-`GET /api/saloon/{saloonId}/staff`
+`GET /api/salon/{salonId}/staff`
 
 **Response** `200 OK`
 
@@ -242,9 +242,9 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Alice Smith",
-    "email": "alice@glamsaloon.com",
+    "email": "alice@glamsalon.com",
     "phone": "+1234567890",
     "role": "STYLIST",
     "status": "ACTIVE",
@@ -258,29 +258,29 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 ]
 ```
 
-> **Note**: When a saloon is first created, the owner is automatically enrolled as a staff member with `isOwner = true` and `availableForBooking = true`.
+> **Note**: When a salon is first created, the owner is automatically enrolled as a staff member with `isOwner = true` and `availableForBooking = true`.
 
 **Flow**
 
-1. `StaffController.findAll(UUID)` → `StaffService.findBySaloonId(UUID)` → `StaffRepository.findBySaloonId(UUID)`
-2. **DB**: `SELECT * FROM staff_member WHERE saloon_id = ?` + `staff_member_specialization` rows per member.
+1. `StaffController.findAll(UUID)` → `StaffService.findBySalonId(UUID)` → `StaffRepository.findBySalonId(UUID)`
+2. **DB**: `SELECT * FROM staff_member WHERE salon_id = ?` + `staff_member_specialization` rows per member.
 3. Returns `List<StaffMember>` — empty array if none.
 
 ---
 
 ### Get a staff member
 
-`GET /api/saloon/{saloonId}/staff/{staffId}`
+`GET /api/salon/{salonId}/staff/{staffId}`
 
 **Response** `200 OK` — staff member object
 
-**Response** `404 Not Found` — if the staff member does not exist or does not belong to the saloon
+**Response** `404 Not Found` — if the staff member does not exist or does not belong to the salon
 
 **Flow**
 
 1. `StaffController.findById(UUID, Long)` → `StaffService.findById(UUID, Long)`
 2. `StaffRepository.findById(Long)` → **DB**: `SELECT * FROM staff_member WHERE id = ?`
-3. Filtered by `saloonId` — returns `404` if not found or saloon mismatch.
+3. Filtered by `salonId` — returns `404` if not found or salon mismatch.
 
 ---
 
@@ -288,7 +288,7 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 
 ### Get booking slots
 
-`GET /api/saloon/{saloonId}/booking/slots?serviceId={serviceId}&date={date}[&staffId={staffId}]`
+`GET /api/salon/{salonId}/booking/slots?serviceId={serviceId}&date={date}[&staffId={staffId}]`
 
 Returns **all** slots within each eligible staff member's working window — both available and already-booked ones. The `booked` flag tells the UI how to render each slot.
 
@@ -328,7 +328,7 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 ### Create a booking
 
-`POST /api/saloon/{saloonId}/booking`
+`POST /api/salon/{salonId}/booking`
 
 **Request**
 
@@ -356,20 +356,20 @@ Returns **all** slots within each eligible staff member's working window — bot
 | `startTime` | time | yes | |
 | `notes` | string | no | |
 
-**Response** `201 Created` — booking object. Initial `status` depends on the saloon setting:
+**Response** `201 Created` — booking object. Initial `status` depends on the salon setting:
 - `bookingRequiresConfirmation = false` (default) → `CONFIRMED`
 - `bookingRequiresConfirmation = true` → `PENDING` (admin must confirm)
 
-**Response** `400 Bad Request` — `appointmentDate` falls within a saloon closure
+**Response** `400 Bad Request` — `appointmentDate` falls within a salon closure
 
-**Response** `404 Not Found` — saloon or service not found
+**Response** `404 Not Found` — salon or service not found
 
 **Response** `409 Conflict` — requested slot is no longer available
 
 **Flow**
 
 1. `BookingController.create(UUID, CreateBookingRequest)` → `BookingService.create(...)`
-2. Validates the slot is still free. Calculates `endTime` from service `durationMinutes`. Reads `saloonApi.bookingRequiresConfirmation(saloonId)` to determine initial status (`CONFIRMED` or `PENDING`).
+2. Validates the slot is still free. Calculates `endTime` from service `durationMinutes`. Reads `salonApi.bookingRequiresConfirmation(salonId)` to determine initial status (`CONFIRMED` or `PENDING`).
 3. `BookingRepository.save(Booking)` → **DB**: `INSERT INTO booking`.
 4. `ApplicationEventPublisher.publishEvent(BookingCreatedEvent)` → Spring Modulith persists the event before commit.
 5. Returns `201 Created`.
@@ -379,7 +379,7 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 ### Get a booking
 
-`GET /api/saloon/{saloonId}/booking/{bookingId}`
+`GET /api/salon/{salonId}/booking/{bookingId}`
 
 **Response** `200 OK` — booking object
 
@@ -391,13 +391,13 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 ### Get website theme
 
-`GET /api/saloon/{saloonId}/website`
+`GET /api/salon/{salonId}/website`
 
 **Response** `200 OK`
 
 ```json
 {
-  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "heroBg": "#F8FAFC",
   "heroTextColor": "#0F172A",
   "accentColor": "#1D4ED8",
@@ -417,69 +417,69 @@ Returns **all** slots within each eligible staff member's working window — bot
 **Flow**
 
 1. `WebsiteController.getTheme(UUID)` → `WebsiteThemeService.getTheme(UUID)` → `WebsiteThemeRepository.findById(UUID)`
-2. **DB**: `SELECT * FROM saloon_website_theme WHERE saloon_id = ?`
+2. **DB**: `SELECT * FROM salon_website_theme WHERE salon_id = ?`
 3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write): `heroBg="#0F172A"`, `heroTextColor="#FFFFFF"`, `accentColor="#F59E0B"`, `fontFamily="inter"`, `logoBgColor="#F59E0B"`, `updatedAt=null`.
 
 ---
 
 ## Admin — Login / Session
 
-### Look up saloons by owner email
+### Look up salons by owner email
 
-`GET /api/saloon-admin/my-saloons?email={email}`
+`GET /api/salon-admin/my-salons?email={email}`
 
-Used by the admin login flow. The owner enters the email they used during saloon onboarding. The backend resolves which saloon(s) are tied to that email.
+Used by the admin login flow. The owner enters the email they used during salon onboarding. The backend resolves which salon(s) are tied to that email.
 
 **Query Parameters**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `email` | string (email) | yes | The email address used during saloon onboarding |
+| `email` | string (email) | yes | The email address used during salon onboarding |
 
 **Responses**
 
-- `200 OK` — Array of `Saloon` objects (one or more found)
-- `404 Not Found` — No saloon registered with that email
+- `200 OK` — Array of `Salon` objects (one or more found)
+- `404 Not Found` — No salon registered with that email
 
 **Login flow logic**
 
 | Result | Frontend action |
 |---|---|
-| 1 saloon | Store session, navigate to `/:saloonId` |
-| 2+ saloons | Store session, navigate to `/saloons` picker |
-| 0 saloons | Show "no saloon found" error |
+| 1 salon | Store session, navigate to `/:salonId` |
+| 2+ salons | Store session, navigate to `/salons` picker |
+| 0 salons | Show "no salon found" error |
 
 **Example**
 
 ```
-GET /api/saloon-admin/my-saloons?email=owner@example.com
+GET /api/salon-admin/my-salons?email=owner@example.com
 ```
 
 ---
 
-## Admin — Saloon Management
+## Admin — Salon Management
 
-### Get saloon (admin)
+### Get salon (admin)
 
-`GET /api/saloon-admin/{saloonId}`
+`GET /api/salon-admin/{salonId}`
 
-**Response** `200 OK` — same saloon object shape as the customer endpoint
+**Response** `200 OK` — same salon object shape as the customer endpoint
 
 **Response** `404 Not Found`
 
 ---
 
-### Update saloon details
+### Update salon details
 
-`PUT /api/saloon-admin/{saloonId}`
+`PUT /api/salon-admin/{salonId}`
 
-Updates name, location, contact, operating hours, and business registration details. Handler, features, and **owner** are never changed by this endpoint. To change the owner, use the dedicated super-admin endpoint `PUT /api/saloon-super-admin/saloons/{id}/owner`.
+Updates name, location, contact, operating hours, and business registration details. Handler, features, and **owner** are never changed by this endpoint. To change the owner, use the dedicated super-admin endpoint `PUT /api/salon-super-admin/salons/{id}/owner`.
 
 **Request**
 
 ```json
 {
-  "name": "Glam Saloon Uptown",
+  "name": "Glam Salon Uptown",
   "location": {
     "address": "456 Park Ave",
     "city": "New York",
@@ -489,8 +489,8 @@ Updates name, location, contact, operating hours, and business registration deta
   },
   "contact": {
     "phone": "+1987654321",
-    "email": "uptown@glamsaloon.com",
-    "website": "https://glamsaloon.com/uptown"
+    "email": "uptown@glamsalon.com",
+    "website": "https://glamsalon.com/uptown"
   },
   "operatingHours": [
     { "day": "MONDAY", "openTime": "10:00", "closeTime": "20:00", "closed": false }
@@ -502,7 +502,7 @@ Updates name, location, contact, operating hours, and business registration deta
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `name` | string | yes | Display name of the saloon |
+| `name` | string | yes | Display name of the salon |
 | `location` | object | no | See [Location](#location); `businessIdLabel` is re-derived when country changes |
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
 | `operatingHours` | array | no | Replaces existing hours when provided |
@@ -511,23 +511,23 @@ Updates name, location, contact, operating hours, and business registration deta
 | `showBusinessId` | boolean | no | Preserved if omitted |
 | `bookingRequiresConfirmation` | boolean | no | Preserved if omitted. Use `PATCH .../booking-settings` for a focused update. |
 
-**Response** `200 OK` — updated saloon object
+**Response** `200 OK` — updated salon object
 
 **Response** `404 Not Found`
 
 **Flow**
 
-1. `SaloonController.update(UUID, UpdateSaloonRequest)` → `SaloonService.update(UUID, ...)`
-2. `SaloonRepository.findById(UUID)` → `404` if empty.
-3. Builds a new `Saloon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`. `businessIdLabel` is re-derived from `location.country` when `location` is provided.
-4. `SaloonRepository.save(Saloon)` → **DB**: `UPDATE saloon SET ...` + `DELETE FROM saloon_operating_hours WHERE saloon_id = ?` + re-`INSERT`.
+1. `SalonController.update(UUID, UpdateSalonRequest)` → `SalonService.update(UUID, ...)`
+2. `SalonRepository.findById(UUID)` → `404` if empty.
+3. Builds a new `Salon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`. `businessIdLabel` is re-derived from `location.country` when `location` is provided.
+4. `SalonRepository.save(Salon)` → **DB**: `UPDATE salon SET ...` + `DELETE FROM salon_operating_hours WHERE salon_id = ?` + re-`INSERT`.
 5. Returns `200 OK`.
 
 ---
 
 ### Update booking settings
 
-`PATCH /api/saloon-admin/{saloonId}/booking-settings`
+`PATCH /api/salon-admin/{salonId}/booking-settings`
 
 Partially updates only the booking-related settings. Any omitted field retains its current value.
 
@@ -545,25 +545,25 @@ Partially updates only the booking-related settings. Any omitted field retains i
 | `bookingAdvanceDays` | integer | no | How many days in advance customers can book. Preserved if omitted. |
 | `bookingRequiresConfirmation` | boolean | no | `true` = new bookings created as PENDING (require admin confirmation); `false` = auto-confirmed. Preserved if omitted. |
 
-**Response** `200 OK` — updated saloon object
+**Response** `200 OK` — updated salon object
 
 **Response** `404 Not Found`
 
 **Flow**
 
-1. `SaloonController.patchBookingSettings(UUID, PatchBookingSettingsRequest)` → `SaloonService.updateBookingSettings(UUID, ...)`
-2. `SaloonRepository.findById(UUID)` → `404` if empty.
-3. Merges non-null fields from the request with existing values; all other saloon fields preserved.
-4. `SaloonRepository.save(Saloon)` → `UPDATE saloon SET booking_advance_days = ?, booking_requires_confirmation = ?`.
+1. `SalonController.patchBookingSettings(UUID, PatchBookingSettingsRequest)` → `SalonService.updateBookingSettings(UUID, ...)`
+2. `SalonRepository.findById(UUID)` → `404` if empty.
+3. Merges non-null fields from the request with existing values; all other salon fields preserved.
+4. `SalonRepository.save(Salon)` → `UPDATE salon SET booking_advance_days = ?, booking_requires_confirmation = ?`.
 5. Returns `200 OK`.
 
 ---
 
-### Replace saloon features
+### Replace salon features
 
-`PUT /api/saloon-admin/{saloonId}/features`
+`PUT /api/salon-admin/{salonId}/features`
 
-Replaces the full feature list for a saloon.
+Replaces the full feature list for a salon.
 
 **Request**
 
@@ -571,30 +571,30 @@ Replaces the full feature list for a saloon.
 ["BOOKING", "MEMBERSHIP", "WEBSHOP"]
 ```
 
-**Response** `200 OK` — updated saloon object
+**Response** `200 OK` — updated salon object
 
 **Response** `404 Not Found`
 
 **Flow**
 
-1. `SaloonController.updateFeatures(UUID, List<SaloonFeature>)` → `SaloonService.updateFeatures(UUID, ...)`
-2. `SaloonRepository.findById(UUID)` → `404` if empty.
-3. Builds a new `Saloon` preserving all fields except `features`.
-4. `SaloonRepository.save(Saloon)` → **DB**: `DELETE FROM saloon_feature WHERE saloon_id = ?` + re-`INSERT`.
+1. `SalonController.updateFeatures(UUID, List<SalonFeature>)` → `SalonService.updateFeatures(UUID, ...)`
+2. `SalonRepository.findById(UUID)` → `404` if empty.
+3. Builds a new `Salon` preserving all fields except `features`.
+4. `SalonRepository.save(Salon)` → **DB**: `DELETE FROM salon_feature WHERE salon_id = ?` + re-`INSERT`.
 5. Returns `200 OK`.
 
 ---
 
-### Delete a saloon
+### Delete a salon
 
-`DELETE /api/saloon-admin/{saloonId}`
+`DELETE /api/salon-admin/{salonId}`
 
 **Response** `204 No Content`
 
 **Flow**
 
-1. `SaloonController.delete(UUID)` → `SaloonService.delete(UUID)` → `SaloonRepository.deleteById(UUID)`
-2. **DB**: `DELETE FROM saloon WHERE id = ?` — `ON DELETE CASCADE` removes rows in `saloon_operating_hours`, `saloon_feature`, `service_item`, and `staff_member` automatically.
+1. `SalonController.delete(UUID)` → `SalonService.delete(UUID)` → `SalonRepository.deleteById(UUID)`
+2. **DB**: `DELETE FROM salon WHERE id = ?` — `ON DELETE CASCADE` removes rows in `salon_operating_hours`, `salon_feature`, `service_item`, and `staff_member` automatically.
 3. Always returns `204` — no-op if the UUID does not exist.
 
 ---
@@ -603,7 +603,7 @@ Replaces the full feature list for a saloon.
 
 ### Get website theme (admin)
 
-`GET /api/saloon-admin/{saloonId}/website`
+`GET /api/salon-admin/{salonId}/website`
 
 Same response shape as the public endpoint — includes all theme fields plus `websiteType`. See [Get website theme](#get-website-theme).
 
@@ -611,7 +611,7 @@ Same response shape as the public endpoint — includes all theme fields plus `w
 
 ### Save website theme
 
-`PUT /api/saloon-admin/{saloonId}/website`
+`PUT /api/salon-admin/{salonId}/website`
 
 Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 
@@ -637,17 +637,17 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 | `heroTextColor` | string | CSS color for hero text |
 | `accentColor` | string | Primary accent / CTA color |
 | `fontFamily` | string | Font family slug (e.g. `"system"`, `"poppins"`) |
-| `logoBgColor` | string | Background color behind the saloon logo |
+| `logoBgColor` | string | Background color behind the salon logo |
 | `headerBg` | string | Navigation bar background color |
 | `footerBg` | string | Footer background color |
-| `mapsUrl` | string | Google Maps embed URL for the saloon location |
+| `mapsUrl` | string | Google Maps embed URL for the salon location |
 | `chatLayout` | string | Generative UI chat widget layout; defaults to `"app"` |
 
 **Response** `200 OK`
 
 ```json
 {
-  "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "heroBg": "#1E293B",
   "heroTextColor": "#F8FAFC",
   "accentColor": "#6366F1",
@@ -665,14 +665,14 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 **Flow**
 
 1. `WebsiteController.saveTheme(UUID, SaveThemeRequest)` → `WebsiteThemeService.saveTheme(UUID, ...)`
-2. **DB**: `INSERT INTO saloon_website_theme (...) ON CONFLICT (saloon_id) DO UPDATE SET ...` with `updated_at = NOW()`.
+2. **DB**: `INSERT INTO salon_website_theme (...) ON CONFLICT (salon_id) DO UPDATE SET ...` with `updated_at = NOW()`.
 3. Re-fetches the persisted row and returns `200 OK`.
 
 ---
 
 ### Get website type (admin)
 
-`GET /api/saloon-admin/{saloonId}/website-type`
+`GET /api/salon-admin/{salonId}/website-type`
 
 Returns only the current website presentation type. Defaults to `STATIC_WEBSITE` if the theme row does not yet exist. This endpoint is called when the admin navigates to the website tab.
 
@@ -692,7 +692,7 @@ Returns only the current website presentation type. Defaults to `STATIC_WEBSITE`
 
 ### Update website type (admin)
 
-`PATCH /api/saloon-admin/{saloonId}/website-type`
+`PATCH /api/salon-admin/{salonId}/website-type`
 
 Updates the website presentation type. The rest of the theme is preserved. Creates the theme row if it does not yet exist.
 
@@ -722,7 +722,7 @@ Updates the website presentation type. The rest of the theme is preserved. Creat
 
 ### List services (admin)
 
-`GET /api/saloon-admin/{saloonId}/services`
+`GET /api/salon-admin/{salonId}/services`
 
 Same response as the public endpoint. See [List services](#list-services).
 
@@ -730,7 +730,7 @@ Same response as the public endpoint. See [List services](#list-services).
 
 ### Add a service
 
-`POST /api/saloon-admin/{saloonId}/services`
+`POST /api/salon-admin/{salonId}/services`
 
 **Request**
 
@@ -758,20 +758,20 @@ Same response as the public endpoint. See [List services](#list-services).
 
 **Response** `201 Created` — service object
 
-`Location` header: `/api/saloon/{saloonId}/services/{serviceId}`
+`Location` header: `/api/salon/{salonId}/services/{serviceId}`
 
 **Flow**
 
-1. `SaloonServiceController.add(UUID, AddServiceRequest)` → `SaloonServiceManager.add(UUID, ...)`
+1. `SalonServiceController.add(UUID, AddServiceRequest)` → `SalonServiceManager.add(UUID, ...)`
 2. Builds a `ServiceItem` with `id = null`, `active = true`, `createdAt = Instant.now()`.
-3. `SaloonServiceRepository.save(ServiceItem)` → **DB**: `INSERT INTO service_item` + `INSERT INTO service_item_assigned_staff`.
+3. `SalonServiceRepository.save(ServiceItem)` → **DB**: `INSERT INTO service_item` + `INSERT INTO service_item_assigned_staff`.
 4. Returns `201 Created` with the saved `ServiceItem` and a `Location` header.
 
 ---
 
 ### Get a service (admin)
 
-`GET /api/saloon-admin/{saloonId}/services/{serviceId}`
+`GET /api/salon-admin/{salonId}/services/{serviceId}`
 
 **Response** `200 OK` — service object
 
@@ -781,7 +781,7 @@ Same response as the public endpoint. See [List services](#list-services).
 
 ### Update a service
 
-`PUT /api/saloon-admin/{saloonId}/services/{serviceId}`
+`PUT /api/salon-admin/{salonId}/services/{serviceId}`
 
 **Request**
 
@@ -804,25 +804,25 @@ Same response as the public endpoint. See [List services](#list-services).
 
 **Flow**
 
-1. `SaloonServiceController.update(UUID, Long, UpdateServiceRequest)` → `SaloonServiceManager.update(...)`
-2. `SaloonServiceRepository.findById(Long)` — filtered by `saloonId`, `404` on mismatch.
-3. Builds a new `ServiceItem` preserving `id`, `saloonId`, `createdAt`.
-4. `SaloonServiceRepository.save(ServiceItem)` → **DB**: `UPDATE service_item SET ...` + `DELETE FROM service_item_assigned_staff WHERE service_item_id = ?` + re-`INSERT`.
+1. `SalonServiceController.update(UUID, Long, UpdateServiceRequest)` → `SalonServiceManager.update(...)`
+2. `SalonServiceRepository.findById(Long)` — filtered by `salonId`, `404` on mismatch.
+3. Builds a new `ServiceItem` preserving `id`, `salonId`, `createdAt`.
+4. `SalonServiceRepository.save(ServiceItem)` → **DB**: `UPDATE service_item SET ...` + `DELETE FROM service_item_assigned_staff WHERE service_item_id = ?` + re-`INSERT`.
 5. Returns `200 OK`.
 
 ---
 
 ### Delete a service
 
-`DELETE /api/saloon-admin/{saloonId}/services/{serviceId}`
+`DELETE /api/salon-admin/{salonId}/services/{serviceId}`
 
 **Response** `204 No Content`
 
 **Flow**
 
-1. `SaloonServiceController.remove(UUID, Long)` → `SaloonServiceManager.remove(UUID, Long)`
-2. `SaloonServiceRepository.findById(Long)` — filtered by `saloonId`. Skips silently if not found or wrong saloon.
-3. `SaloonServiceRepository.deleteById(Long)` → **DB**: `DELETE FROM service_item WHERE id = ?` — cascade removes `service_item_assigned_staff` rows.
+1. `SalonServiceController.remove(UUID, Long)` → `SalonServiceManager.remove(UUID, Long)`
+2. `SalonServiceRepository.findById(Long)` — filtered by `salonId`. Skips silently if not found or wrong salon.
+3. `SalonServiceRepository.deleteById(Long)` → **DB**: `DELETE FROM service_item WHERE id = ?` — cascade removes `service_item_assigned_staff` rows.
 4. Always returns `204`.
 
 ---
@@ -831,7 +831,7 @@ Same response as the public endpoint. See [List services](#list-services).
 
 ### List staff (admin)
 
-`GET /api/saloon-admin/{saloonId}/staff`
+`GET /api/salon-admin/{salonId}/staff`
 
 Same response as the public endpoint. See [List staff](#list-staff).
 
@@ -839,14 +839,14 @@ Same response as the public endpoint. See [List staff](#list-staff).
 
 ### Onboard a staff member
 
-`POST /api/saloon-admin/{saloonId}/staff`
+`POST /api/salon-admin/{salonId}/staff`
 
 **Request**
 
 ```json
 {
   "name": "Alice Smith",
-  "email": "alice@glamsaloon.com",
+  "email": "alice@glamsalon.com",
   "phone": "+1234567890",
   "role": "STYLIST",
   "specializations": ["coloring", "balayage"],
@@ -869,7 +869,7 @@ New staff members are set to `status = ACTIVE` automatically.
 
 **Response** `201 Created` — staff member object
 
-`Location` header: `/api/saloon/{saloonId}/staff/{staffId}`
+`Location` header: `/api/salon/{salonId}/staff/{staffId}`
 
 **Flow**
 
@@ -882,7 +882,7 @@ New staff members are set to `status = ACTIVE` automatically.
 
 ### Get a staff member (admin)
 
-`GET /api/saloon-admin/{saloonId}/staff/{staffId}`
+`GET /api/salon-admin/{salonId}/staff/{staffId}`
 
 **Response** `200 OK` — staff member object
 
@@ -892,14 +892,14 @@ New staff members are set to `status = ACTIVE` automatically.
 
 ### Update a staff member
 
-`PUT /api/saloon-admin/{saloonId}/staff/{staffId}`
+`PUT /api/salon-admin/{salonId}/staff/{staffId}`
 
 **Request**
 
 ```json
 {
   "name": "Alice Smith",
-  "email": "alice@glamsaloon.com",
+  "email": "alice@glamsalon.com",
   "phone": "+1234567890",
   "role": "COLORIST",
   "status": "ON_LEAVE",
@@ -919,8 +919,8 @@ Setting `availableForBooking` to `false` removes the staff member from slot disc
 **Flow**
 
 1. `StaffController.update(UUID, Long, UpdateRequest)` → `StaffService.update(UUID, Long, ...)`
-2. `StaffRepository.findById(Long)` — filtered by `saloonId`, `404` on mismatch.
-3. Builds a new `StaffMember` preserving `id`, `saloonId`, `createdAt` — all other fields are replaced.
+2. `StaffRepository.findById(Long)` — filtered by `salonId`, `404` on mismatch.
+3. Builds a new `StaffMember` preserving `id`, `salonId`, `createdAt` — all other fields are replaced.
 4. `StaffRepository.save(StaffMember)` → **DB**: `UPDATE staff_member SET ...` + `DELETE FROM staff_member_specialization WHERE staff_member_id = ?` + re-`INSERT`.
 5. Returns `200 OK`.
 
@@ -928,14 +928,14 @@ Setting `availableForBooking` to `false` removes the staff member from slot disc
 
 ### Remove a staff member
 
-`DELETE /api/saloon-admin/{saloonId}/staff/{staffId}`
+`DELETE /api/salon-admin/{salonId}/staff/{staffId}`
 
 **Response** `204 No Content`
 
 **Flow**
 
 1. `StaffController.remove(UUID, Long)` → `StaffService.remove(UUID, Long)`
-2. `StaffRepository.findById(Long)` — filtered by `saloonId`. Skips silently if not found or wrong saloon.
+2. `StaffRepository.findById(Long)` — filtered by `salonId`. Skips silently if not found or wrong salon.
 3. `StaffRepository.deleteById(Long)` → **DB**: `DELETE FROM staff_member WHERE id = ?` — cascade removes `staff_member_specialization` rows.
 4. Always returns `204`.
 
@@ -945,7 +945,7 @@ Setting `availableForBooking` to `false` removes the staff member from slot disc
 
 ### Get weekly availability schedule
 
-`GET /api/saloon-admin/{saloonId}/staff/{staffId}/availability`
+`GET /api/salon-admin/{salonId}/staff/{staffId}/availability`
 
 **Response** `200 OK`
 
@@ -953,7 +953,7 @@ Setting `availableForBooking` to `false` removes the staff member from slot disc
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "staffId": 1,
     "dayOfWeek": "MONDAY",
     "startTime": "09:00",
@@ -967,7 +967,7 @@ Setting `availableForBooking` to `false` removes the staff member from slot disc
 
 ### Replace weekly availability schedule
 
-`PUT /api/saloon-admin/{saloonId}/staff/{staffId}/availability`
+`PUT /api/salon-admin/{salonId}/staff/{staffId}/availability`
 
 **Request**
 
@@ -987,7 +987,7 @@ Previous entries are deleted before the new set is saved. Emits **StaffScheduleU
 
 ### List date-specific overrides
 
-`GET /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides`
+`GET /api/salon-admin/{salonId}/staff/{staffId}/availability/overrides`
 
 **Response** `200 OK`
 
@@ -995,7 +995,7 @@ Previous entries are deleted before the new set is saved. Emits **StaffScheduleU
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "staffId": 1,
     "overrideDate": "2026-12-25",
     "startTime": null,
@@ -1010,7 +1010,7 @@ Previous entries are deleted before the new set is saved. Emits **StaffScheduleU
 
 ### Add a date-specific override
 
-`POST /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides`
+`POST /api/salon-admin/{salonId}/staff/{staffId}/availability/overrides`
 
 **Request**
 
@@ -1038,7 +1038,7 @@ Emits **StaffAvailabilityOverrideAddedEvent**.
 
 ### Remove a date-specific override
 
-`DELETE /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}`
+`DELETE /api/salon-admin/{salonId}/staff/{staffId}/availability/overrides/{overrideId}`
 
 Deletes the override so the regular weekly schedule applies again for that date.
 Emits **StaffAvailabilityOverrideRemovedEvent**.
@@ -1049,21 +1049,21 @@ Emits **StaffAvailabilityOverrideRemovedEvent**.
 
 ## Customer — Holidays (read-only)
 
-`GET /api/saloon/{saloonId}/holidays`
+`GET /api/salon/{salonId}/holidays`
 
-Returns all holidays defined for this saloon. Used by the public website to label days as holidays in the opening-hours display.
+Returns all holidays defined for this salon. Used by the public website to label days as holidays in the opening-hours display.
 
-**Response** `200 OK` — array of `SaloonHoliday` objects.
+**Response** `200 OK` — array of `SalonHoliday` objects.
 
 ---
 
 ## Admin — Holidays
 
-Holidays automatically generate saloon-closure rows (current year through currentYear+4 for recurring; one row for one-off). Deleting a holiday cascade-deletes all its linked closures.
+Holidays automatically generate salon-closure rows (current year through currentYear+4 for recurring; one row for one-off). Deleting a holiday cascade-deletes all its linked closures.
 
 ### List holidays
 
-`GET /api/saloon-admin/{saloonId}/holidays`
+`GET /api/salon-admin/{salonId}/holidays`
 
 **Response** `200 OK`
 
@@ -1071,7 +1071,7 @@ Holidays automatically generate saloon-closure rows (current year through curren
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Christmas Day",
     "month": 12,
     "day": 25,
@@ -1087,7 +1087,7 @@ Holidays automatically generate saloon-closure rows (current year through curren
 
 ### Add a holiday
 
-`POST /api/saloon-admin/{saloonId}/holidays`
+`POST /api/salon-admin/{salonId}/holidays`
 
 **Request**
 
@@ -1107,47 +1107,47 @@ Holidays automatically generate saloon-closure rows (current year through curren
 | `day` | integer | yes | 1–31 |
 | `year` | integer\|null | no | Omit or `null` for annually recurring; provide a year for one-off |
 
-**Response** `200 OK` — created `SaloonHoliday` object
+**Response** `200 OK` — created `SalonHoliday` object
 
 **Flow**
 
-1. `SaloonController.addHoliday(UUID, AddHolidayRequest)` → `SaloonService.addHoliday(...)`
-2. Saves the `SaloonHoliday` row.
-3. For a specific year: inserts one `SaloonClosure` row. For recurring (null year): inserts closure rows for `currentYear` through `currentYear+4`. Invalid dates (Feb 29 on non-leap years) are skipped silently.
+1. `SalonController.addHoliday(UUID, AddHolidayRequest)` → `SalonService.addHoliday(...)`
+2. Saves the `SalonHoliday` row.
+3. For a specific year: inserts one `SalonClosure` row. For recurring (null year): inserts closure rows for `currentYear` through `currentYear+4`. Invalid dates (Feb 29 on non-leap years) are skipped silently.
 4. Returns `200 OK`.
 
 ---
 
 ### Remove a holiday
 
-`DELETE /api/saloon-admin/{saloonId}/holidays/{holidayId}`
+`DELETE /api/salon-admin/{salonId}/holidays/{holidayId}`
 
 **Response** `204 No Content`
 
-Deletes the holiday. All linked `SaloonClosure` rows are removed automatically via `ON DELETE CASCADE`.
+Deletes the holiday. All linked `SalonClosure` rows are removed automatically via `ON DELETE CASCADE`.
 
 ---
 
 ## Customer — Closures (read-only)
 
-`GET /api/saloon/{saloonId}/closures`
+`GET /api/salon/{salonId}/closures`
 
-Returns all closures for the saloon. Used by the booking wizard to disable closed date ranges in the calendar (month, week, and designer views).
+Returns all closures for the salon. Used by the booking wizard to disable closed date ranges in the calendar (month, week, and designer views).
 
-**Response** `200 OK` — array of `SaloonClosure` (same schema as admin endpoint below).
+**Response** `200 OK` — array of `SalonClosure` (same schema as admin endpoint below).
 
 ---
 
 ## Admin — Closures
 
-Saloon closures block the entire saloon on a date range (vacation, public holiday, emergency). When a date falls within a closure:
+Salon closures block the entire salon on a date range (vacation, public holiday, emergency). When a date falls within a closure:
 - `GET .../slots` returns an **empty array**
 - `POST .../booking` returns **HTTP 400**
 - Booking calendar views visually disable those dates
 
 ### List closures
 
-`GET /api/saloon-admin/{saloonId}/closures`
+`GET /api/salon-admin/{salonId}/closures`
 
 **Response** `200 OK`
 
@@ -1155,7 +1155,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "startDate": "2026-08-04",
     "endDate": "2026-08-15",
     "reason": "Annual vacation",
@@ -1163,7 +1163,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
   },
   {
     "id": 2,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "startDate": "2026-12-25",
     "endDate": "2026-12-25",
     "reason": "Christmas Day",
@@ -1178,7 +1178,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 
 ### Add a closure
 
-`POST /api/saloon-admin/{saloonId}/closures`
+`POST /api/salon-admin/{salonId}/closures`
 
 **Request**
 
@@ -1196,13 +1196,13 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 | `endDate` | date | yes | Last day (inclusive); same as `startDate` for a single-day closure |
 | `reason` | string | no | Human-readable reason shown in admin UI |
 
-**Response** `200 OK` — the created `SaloonClosure` object
+**Response** `200 OK` — the created `SalonClosure` object
 
 ---
 
 ### Remove a closure
 
-`DELETE /api/saloon-admin/{saloonId}/closures/{closureId}`
+`DELETE /api/salon-admin/{salonId}/closures/{closureId}`
 
 **Response** `204 No Content`
 
@@ -1212,7 +1212,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 
 ### List all bookings
 
-`GET /api/saloon-admin/{saloonId}/booking`
+`GET /api/salon-admin/{salonId}/booking`
 
 **Response** `200 OK`
 
@@ -1220,7 +1220,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 [
   {
     "id": 1,
-    "saloonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "serviceId": 1,
     "staffId": 1,
     "customerName": "Bob Smith",
@@ -1240,7 +1240,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 
 ### Get a booking (admin)
 
-`GET /api/saloon-admin/{saloonId}/booking/{bookingId}`
+`GET /api/salon-admin/{salonId}/booking/{bookingId}`
 
 **Response** `200 OK` — booking object
 
@@ -1250,7 +1250,7 @@ Saloon closures block the entire saloon on a date range (vacation, public holida
 
 ### Reschedule a booking
 
-`PUT /api/saloon-admin/{saloonId}/booking/{bookingId}`
+`PUT /api/salon-admin/{salonId}/booking/{bookingId}`
 
 Moves a booking to a different date, time, or staff member. End time is recalculated automatically.
 Emits **BookingRescheduledEvent**.
@@ -1274,7 +1274,7 @@ Emits **BookingRescheduledEvent**.
 
 ### Delete a booking
 
-`DELETE /api/saloon-admin/{saloonId}/booking/{bookingId}`
+`DELETE /api/salon-admin/{salonId}/booking/{bookingId}`
 
 **Response** `204 No Content`
 
@@ -1282,7 +1282,7 @@ Emits **BookingRescheduledEvent**.
 
 ### Confirm a booking
 
-`POST /api/saloon-admin/{saloonId}/booking/{bookingId}/confirm`
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/confirm`
 
 Moves the booking from `PENDING` to `CONFIRMED`. Emits **BookingStatusChangedEvent**.
 
@@ -1294,7 +1294,7 @@ Moves the booking from `PENDING` to `CONFIRMED`. Emits **BookingStatusChangedEve
 
 ### Cancel a booking
 
-`POST /api/saloon-admin/{saloonId}/booking/{bookingId}/cancel`
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/cancel`
 
 Moves the booking to `CANCELLED`. Emits **BookingStatusChangedEvent**.
 
@@ -1306,7 +1306,7 @@ Moves the booking to `CANCELLED`. Emits **BookingStatusChangedEvent**.
 
 ### Complete a booking
 
-`POST /api/saloon-admin/{saloonId}/booking/{bookingId}/complete`
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/complete`
 
 Marks the appointment as `COMPLETED` after the customer's visit. Emits **BookingStatusChangedEvent**.
 
@@ -1318,7 +1318,7 @@ Marks the appointment as `COMPLETED` after the customer's visit. Emits **Booking
 
 ### Mark booking as no-show
 
-`POST /api/saloon-admin/{saloonId}/booking/{bookingId}/no-show`
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/no-show`
 
 Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 
@@ -1330,40 +1330,40 @@ Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 
 ## Super Admin
 
-Platform-wide management endpoints. Accessible via the Super Admin portal (`admin@my-saloon.online` + OTP). All paths are prefixed `/api/saloon-super-admin`.
+Platform-wide management endpoints. Accessible via the Super Admin portal (`admin@my-salon.online` + OTP). All paths are prefixed `/api/salon-super-admin`.
 
-### List / search saloons
+### List / search salons
 
-`GET /api/saloon-super-admin/saloons`
+`GET /api/salon-super-admin/salons`
 
-Returns registered saloons across all tenants. Supports optional server-side search and status filtering. When `q` is provided the search is executed in the database (case-insensitive LIKE) across: saloon name, handler, owner name/email/phone, contact phone/email, city, and country.
+Returns registered salons across all tenants. Supports optional server-side search and status filtering. When `q` is provided the search is executed in the database (case-insensitive LIKE) across: salon name, handler, owner name/email/phone, contact phone/email, city, and country.
 
 | Param | In | Type | Notes |
 |---|---|---|---|
 | `q` | query | string | Optional. Full-text search term. |
-| `status` | query | `ACTIVE` \| `DISABLED` | Optional. Filter by saloon status. |
+| `status` | query | `ACTIVE` \| `DISABLED` | Optional. Filter by salon status. |
 
-**Response** `200 OK` — array of `Saloon`
+**Response** `200 OK` — array of `Salon`
 
 ---
 
-### Get a saloon by ID
+### Get a salon by ID
 
-`GET /api/saloon-super-admin/saloons/{id}`
+`GET /api/salon-super-admin/salons/{id}`
 
 | Param | In | Type | Notes |
 |---|---|---|---|
-| `id` | path | uuid | Saloon UUID |
+| `id` | path | uuid | Salon UUID |
 
-**Response** `200 OK` — `Saloon` · `404` if not found
+**Response** `200 OK` — `Salon` · `404` if not found
 
 ---
 
-### Update saloon owner
+### Update salon owner
 
-`PUT /api/saloon-super-admin/saloons/{id}/owner`
+`PUT /api/salon-super-admin/salons/{id}/owner`
 
-Replaces the owner record (name, email, phone) for a saloon. Only callable by a super-admin. The regular saloon-admin update endpoint does not expose owner data.
+Replaces the owner record (name, email, phone) for a salon. Only callable by a super-admin. The regular salon-admin update endpoint does not expose owner data.
 
 **Request**
 
@@ -1381,39 +1381,39 @@ Replaces the owner record (name, email, phone) for a saloon. Only callable by a 
 | `email` | string | yes | Login credential — must be a valid email |
 | `phone` | string | no | Optional contact phone |
 
-**Response** `200 OK` — updated `Saloon` · `400` on validation error · `404` if not found
+**Response** `200 OK` — updated `Salon` · `400` on validation error · `404` if not found
 
 ---
 
-### Update saloon features
+### Update salon features
 
-`PUT /api/saloon-super-admin/saloons/{id}/features`
+`PUT /api/salon-super-admin/salons/{id}/features`
 
-Replaces the full feature set for the saloon.
+Replaces the full feature set for the salon.
 
-**Request body** — array of `SaloonFeature` values, e.g. `["BOOKING", "STATIC_WEBSITE"]`
+**Request body** — array of `SalonFeature` values, e.g. `["BOOKING", "STATIC_WEBSITE"]`
 
-**Response** `200 OK` — updated `Saloon` · `404` if not found
-
----
-
-### Disable a saloon
-
-`DELETE /api/saloon-super-admin/saloons/{id}`
-
-Soft-disables the saloon (status → `DISABLED`). Data is preserved; saloon can be re-enabled.
-
-**Response** `200 OK` — updated `Saloon` · `404` if not found
+**Response** `200 OK` — updated `Salon` · `404` if not found
 
 ---
 
-### Enable a saloon
+### Disable a salon
 
-`PUT /api/saloon-super-admin/saloons/{id}/enable`
+`DELETE /api/salon-super-admin/salons/{id}`
 
-Re-activates a disabled saloon (status → `ACTIVE`).
+Soft-disables the salon (status → `DISABLED`). Data is preserved; salon can be re-enabled.
 
-**Response** `200 OK` — updated `Saloon` · `404` if not found
+**Response** `200 OK` — updated `Salon` · `404` if not found
+
+---
+
+### Enable a salon
+
+`PUT /api/salon-super-admin/salons/{id}/enable`
+
+Re-activates a disabled salon (status → `ACTIVE`).
+
+**Response** `200 OK` — updated `Salon` · `404` if not found
 
 ---
 
@@ -1421,7 +1421,7 @@ Re-activates a disabled saloon (status → `ACTIVE`).
 
 ### List countries
 
-`GET /api/saloon-utility/countries`
+`GET /api/salon-utility/countries`
 
 Returns the full list of countries with their ISO codes, dial codes, and embedded currency info. Data is loaded and joined from static classpath resources at startup — no database access occurs on this endpoint.
 
@@ -1463,11 +1463,11 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 | `GENERATIVE_UI` | AI-generated personalised page per visitor, powered by MCP |
 | `CUSTOMISE_WEBSITE_CONTACT_US` | Bespoke website built to a custom design brief |
 
-### SaloonFeature
+### SalonFeature
 
 | Value | Description |
 |---|---|
-| `STATIC_WEBSITE` | Public-facing website for the saloon |
+| `STATIC_WEBSITE` | Public-facing website for the salon |
 | `BOOKING` | Online appointment booking |
 | `MEMBERSHIP` | Customer membership / subscription plans |
 | `WEBSHOP` | Online product shop |
@@ -1550,13 +1550,13 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 
 Self-service portal for authenticated staff members. Authentication is via email lookup + mock OTP (code `123456` in dev).
 
-> All endpoints are scoped to the staff member by `staffId` (a `Long`). The `saloonId` is derived server-side from the staff record.
+> All endpoints are scoped to the staff member by `staffId` (a `Long`). The `salonId` is derived server-side from the staff record.
 
 ### Look up by email (login step 1)
 
-`GET /api/saloon-staff/me?email={email}`
+`GET /api/salon-staff/me?email={email}`
 
-Returns all staff records matching the email. Each record is a `StaffMemberSummary` — a superset of `StaffMember` that includes the saloon's `name` and `handler` so the login picker can distinguish between accounts at different saloons. If multiple saloons employ the same email, all records are returned.
+Returns all staff records matching the email. Each record is a `StaffMemberSummary` — a superset of `StaffMember` that includes the salon's `name` and `handler` so the login picker can distinguish between accounts at different salons. If multiple salons employ the same email, all records are returned.
 
 **Response** `200 OK` — `StaffMemberSummary[]`
 
@@ -1564,9 +1564,9 @@ Returns all staff records matching the email. Each record is a `StaffMemberSumma
 [
   {
     "id": 42,
-    "saloonId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "saloonName": "Glam Studio",
-    "saloonHandler": "glam-studio",
+    "salonId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "salonName": "Glam Studio",
+    "salonHandler": "glam-studio",
     "name": "Jane Doe",
     "email": "jane@example.com",
     "phone": "+1 555 0199",
@@ -1583,8 +1583,8 @@ Returns all staff records matching the email. Each record is a `StaffMemberSumma
 
 | Field | Type | Notes |
 |---|---|---|
-| `saloonName` | string \| null | Display name of the saloon; `null` if the saloon lookup fails |
-| `saloonHandler` | string \| null | URL slug of the saloon (e.g. `"glam-studio"`); `null` if not found |
+| `salonName` | string \| null | Display name of the salon; `null` if the salon lookup fails |
+| `salonHandler` | string \| null | URL slug of the salon (e.g. `"glam-studio"`); `null` if not found |
 | `role` | string | Enum name (e.g. `"MANAGER"`) |
 | `status` | string | Enum name (e.g. `"ACTIVE"`) |
 | `specializations` | string[] | Flat array of specialization strings |
@@ -1595,7 +1595,7 @@ Returns all staff records matching the email. Each record is a `StaffMemberSumma
 
 ### Get own profile
 
-`GET /api/saloon-staff/{staffId}`
+`GET /api/salon-staff/{staffId}`
 
 **Response** `200 OK` — `StaffMember`
 
@@ -1603,7 +1603,7 @@ Returns all staff records matching the email. Each record is a `StaffMemberSumma
 
 ### Update own profile
 
-`PATCH /api/saloon-staff/{staffId}/profile`
+`PATCH /api/salon-staff/{staffId}/profile`
 
 Staff may only update their name and phone number. Email, role, status, and specializations are admin-managed.
 
@@ -1619,7 +1619,7 @@ Staff may only update their name and phone number. Email, role, status, and spec
 
 ### Get a photo upload URL
 
-`POST /api/saloon-staff/{staffId}/photo-upload-url`
+`POST /api/salon-staff/{staffId}/photo-upload-url`
 
 Returns a pre-signed PUT URL the browser uses to upload a profile photo directly to S3 (or to the backend in local dev when S3 is not configured). The client should PUT the file to `presignedUrl` with the matching `Content-Type` header, then save `publicUrl` on the staff profile via `PATCH /profile`.
 
@@ -1650,7 +1650,7 @@ Returns a pre-signed PUT URL the browser uses to upload a profile photo directly
 
 ### List own appointments
 
-`GET /api/saloon-staff/{staffId}/appointments`
+`GET /api/salon-staff/{staffId}/appointments`
 
 Returns all `Booking` records assigned to this staff member across all dates and statuses.
 
@@ -1660,7 +1660,7 @@ Returns all `Booking` records assigned to this staff member across all dates and
 
 ### List personal holidays
 
-`GET /api/saloon-staff/{staffId}/holidays`
+`GET /api/salon-staff/{staffId}/holidays`
 
 Returns personal day-off records (availability overrides where `available=false`). These block the booking calendar so customers cannot book on these dates.
 
@@ -1670,7 +1670,7 @@ Returns personal day-off records (availability overrides where `available=false`
 
 ### Book a personal holiday
 
-`POST /api/saloon-staff/{staffId}/holidays`
+`POST /api/salon-staff/{staffId}/holidays`
 
 Creates a date-specific unavailability override. Existing bookings on this date are not automatically cancelled — the staff member should notify their manager.
 
@@ -1691,6 +1691,6 @@ Creates a date-specific unavailability override. Existing bookings on this date 
 
 ### Remove a personal holiday
 
-`DELETE /api/saloon-staff/{staffId}/holidays/{holidayId}`
+`DELETE /api/salon-staff/{staffId}/holidays/{holidayId}`
 
 **Response** `204 No Content`

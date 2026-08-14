@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS event_publication
 CREATE INDEX IF NOT EXISTS event_publication_serialized_event_hash_idx ON event_publication USING hash(serialized_event);
 CREATE INDEX IF NOT EXISTS event_publication_by_completion_date_idx ON event_publication (completion_date);
 
-CREATE TABLE IF NOT EXISTS saloon (
+CREATE TABLE IF NOT EXISTS salon (
   id                       UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   name                     VARCHAR(255) NOT NULL,
   handler                  VARCHAR(255) NOT NULL UNIQUE,
@@ -36,24 +36,24 @@ CREATE TABLE IF NOT EXISTS saloon (
   created_at               TIMESTAMPTZ  NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS saloon_operating_hours (
-  saloon_id  UUID        NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
-  saloon_key INTEGER,
+CREATE TABLE IF NOT EXISTS salon_operating_hours (
+  salon_id  UUID        NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
+  salon_key INTEGER,
   day        VARCHAR(20) NOT NULL,
   open_time  VARCHAR(10),
   close_time VARCHAR(10),
   closed     BOOLEAN     NOT NULL DEFAULT FALSE
 );
 
-CREATE TABLE IF NOT EXISTS saloon_feature (
-  saloon_id  UUID        NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
-  saloon_key INTEGER,
+CREATE TABLE IF NOT EXISTS salon_feature (
+  salon_id  UUID        NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
+  salon_key INTEGER,
   feature    VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS service_item (
   id               BIGSERIAL    PRIMARY KEY,
-  saloon_id        UUID         NOT NULL REFERENCES saloon(id),
+  salon_id        UUID         NOT NULL REFERENCES salon(id),
   name             VARCHAR(255) NOT NULL,
   description      TEXT,
   price            NUMERIC(10, 2),
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS service_item_assigned_staff (
 
 CREATE TABLE IF NOT EXISTS staff_member (
   id                    BIGSERIAL    PRIMARY KEY,
-  saloon_id             UUID         NOT NULL REFERENCES saloon(id),
+  salon_id             UUID         NOT NULL REFERENCES salon(id),
   name                  VARCHAR(255) NOT NULL,
   email                 VARCHAR(255),
   phone                 VARCHAR(50),
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS staff_member_specialization (
 
 CREATE TABLE IF NOT EXISTS staff_availability (
   id          BIGSERIAL    PRIMARY KEY,
-  saloon_id   UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  salon_id   UUID         NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
   staff_id    BIGINT       NOT NULL REFERENCES staff_member(id) ON DELETE CASCADE,
   day_of_week VARCHAR(10)  NOT NULL,
   start_time  TIME         NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS staff_availability (
 
 CREATE TABLE IF NOT EXISTS staff_availability_override (
   id            BIGSERIAL    PRIMARY KEY,
-  saloon_id     UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  salon_id     UUID         NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
   staff_id      BIGINT       NOT NULL REFERENCES staff_member(id) ON DELETE CASCADE,
   override_date DATE         NOT NULL,
   start_time    TIME,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS staff_availability_override (
 
 CREATE TABLE IF NOT EXISTS booking (
   id               BIGSERIAL    PRIMARY KEY,
-  saloon_id        UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  salon_id        UUID         NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
   service_id       BIGINT       NOT NULL REFERENCES service_item(id) ON DELETE CASCADE,
   staff_id         BIGINT       NOT NULL REFERENCES staff_member(id) ON DELETE CASCADE,
   customer_name    VARCHAR(255) NOT NULL,
@@ -126,8 +126,8 @@ CREATE TABLE IF NOT EXISTS booking (
   created_at       TIMESTAMPTZ  NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS saloon_website_theme (
-  saloon_id       UUID         PRIMARY KEY REFERENCES saloon(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS salon_website_theme (
+  salon_id       UUID         PRIMARY KEY REFERENCES salon(id) ON DELETE CASCADE,
   hero_bg         VARCHAR(50)  NOT NULL DEFAULT '#F8FAFC',
   hero_text_color VARCHAR(50)  NOT NULL DEFAULT '#0F172A',
   accent_color    VARCHAR(50)  NOT NULL DEFAULT '#1D4ED8',
@@ -142,9 +142,9 @@ CREATE TABLE IF NOT EXISTS saloon_website_theme (
   updated_at      TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS saloon_closure (
+CREATE TABLE IF NOT EXISTS salon_closure (
   id          BIGSERIAL    PRIMARY KEY,
-  saloon_id   UUID         NOT NULL REFERENCES saloon(id) ON DELETE CASCADE,
+  salon_id   UUID         NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
   start_date  DATE         NOT NULL,
   end_date    DATE         NOT NULL,
   reason      VARCHAR(255)

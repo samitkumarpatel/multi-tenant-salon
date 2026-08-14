@@ -5,10 +5,10 @@ import {
 import { FONTS, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import type { Saloon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
+import type { Salon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
 
 export interface GenerativeUIWebsiteProps {
-  saloon: Saloon;
+  salon: Salon;
   staff: StaffMember[];
   services: ServiceItem[];
   theme: WebsiteTheme;
@@ -43,8 +43,8 @@ function initials(name: string) {
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-function isOpenNow(saloon: Saloon): boolean {
-  const hours = saloon.operatingHours;
+function isOpenNow(salon: Salon): boolean {
+  const hours = salon.operatingHours;
   if (!hours?.length) return false;
   const d = new Date();
   const today = hours.find((h) => h.day === DAY_ORDER[d.getDay()]);
@@ -54,18 +54,18 @@ function isOpenNow(saloon: Saloon): boolean {
   const cur = d.getHours() * 60 + d.getMinutes();
   return cur >= oh * 60 + om && cur < ch * 60 + cm;
 }
-function todayHours(saloon: Saloon): string | null {
-  const hours = saloon.operatingHours;
+function todayHours(salon: Salon): string | null {
+  const hours = salon.operatingHours;
   if (!hours?.length) return null;
   const today = hours.find((h) => h.day === DAY_ORDER[new Date().getDay()]);
   if (!today || today.closed) return "Closed today";
   return `${today.openTime} – ${today.closeTime}`;
 }
-function mockBookingReply(input: string, saloon: Saloon, services: ServiceItem[], staff: StaffMember[]): ReplyResult {
+function mockBookingReply(input: string, salon: Salon, services: ServiceItem[], staff: StaffMember[]): ReplyResult {
   const lower = input.toLowerCase();
-  const name  = saloon.name;
-  const phone = saloon.contact?.phone;
-  const email = saloon.contact?.email;
+  const name  = salon.name;
+  const phone = salon.contact?.phone;
+  const email = salon.contact?.email;
   if (/book|appointment|schedule|slot|reserv/i.test(lower)) {
     return { text: `Ready to book at **${name}**! The step-by-step wizard will help you pick a service, choose a date and time, and confirm your details.`, cta: "book" };
   }
@@ -104,13 +104,13 @@ function mockBookingReply(input: string, saloon: Saloon, services: ServiceItem[]
       : { text: `**${name}** has a skilled team ready to help!`, cta: "book" };
   }
   if (/hour|open|close|when/.test(lower)) {
-    const h = todayHours(saloon);
-    const open = isOpenNow(saloon);
+    const h = todayHours(salon);
+    const open = isOpenNow(salon);
     const line = h ? `\n\n${open ? "We're **currently open**." : "We're **currently closed**."} Today: ${h === "Closed today" ? "**closed all day**" : `**${h}**`}.` : "";
     return { text: `You can find our full hours on our website.${line}`, cta: "book" };
   }
   if (/location|address|where|find/.test(lower)) {
-    const loc  = saloon.location;
+    const loc  = salon.location;
     const parts = [loc?.address, loc?.city, loc?.country].filter(Boolean).join(", ");
     return { text: parts ? `You can find us at **${parts}**.` : `Please ${phone ? `call us at ${phone}` : email ? `email ${email}` : "contact us"} for directions.` };
   }
@@ -123,11 +123,11 @@ function mockBookingReply(input: string, saloon: Saloon, services: ServiceItem[]
   return { text: `I can help with services, prices, our team, or hours — or just go ahead and book!`, cta: "book" };
 }
 
-function mockReply(input: string, saloon: Saloon, services: ServiceItem[], staff: StaffMember[]): string {
+function mockReply(input: string, salon: Salon, services: ServiceItem[], staff: StaffMember[]): string {
   const lower = input.toLowerCase();
-  const name  = saloon.name;
-  const phone = saloon.contact?.phone;
-  const email = saloon.contact?.email;
+  const name  = salon.name;
+  const phone = salon.contact?.phone;
+  const email = salon.contact?.email;
   const contact = phone ? `call us at ${phone}` : email ? `email us at ${email}` : "contact us directly";
   if (/service|treatment|offer|menu|price|cost/.test(lower)) {
     const names = services.filter((s) => s.active).slice(0, 5).map((s) => s.name);
@@ -144,13 +144,13 @@ function mockReply(input: string, saloon: Saloon, services: ServiceItem[], staff
       : `${name} has a dedicated team of professionals. Reach out and we'll match you with the right person.`;
   }
   if (/hour|open|close|time|when/.test(lower)) {
-    const h = todayHours(saloon);
-    const currently = isOpenNow(saloon) ? "We're **currently open**." : "We're **currently closed**.";
+    const h = todayHours(salon);
+    const currently = isOpenNow(salon) ? "We're **currently open**." : "We're **currently closed**.";
     const line = h ? `\n\n${currently} Today: ${h === "Closed today" ? "**closed all day**" : `**${h}**`}.` : "";
     return `You can find our full hours on our website.${line}`;
   }
   if (/location|address|where|find|direction|map/.test(lower)) {
-    const loc  = saloon.location;
+    const loc  = salon.location;
     const parts = [loc?.address, loc?.city, loc?.country].filter(Boolean).join(", ");
     return parts
       ? `You can find us at **${parts}**.${phone ? ` Give us a call at ${phone} if you need help finding us!` : ""}`
@@ -192,7 +192,7 @@ function MessageText({ text }: { text: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function GenerativeUIWebsite({ saloon, staff, services, theme, context = "website", getPagePath, onNavigate, onSwitchToWizard }: GenerativeUIWebsiteProps) {
+export function GenerativeUIWebsite({ salon, staff, services, theme, context = "website", getPagePath, onNavigate, onSwitchToWizard }: GenerativeUIWebsiteProps) {
   const isBooking = context === "booking";
   const font = FONTS[theme.fontFamily as keyof typeof FONTS] ?? FONTS.system;
   loadGoogleFont(theme.fontFamily);
@@ -205,8 +205,8 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
     role: "assistant",
     time: nowTime(),
     text: isBooking
-      ? `Hi! 👋 I'm the AI booking assistant for **${saloon.name}**.\n\nAsk me about services, prices, how long things take, or who's on the team — or just go ahead and book!`
-      : `Hi! 👋 I'm the AI assistant for **${saloon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, location, or how to book. I'm here to help!`,
+      ? `Hi! 👋 I'm the AI booking assistant for **${salon.name}**.\n\nAsk me about services, prices, how long things take, or who's on the team — or just go ahead and book!`
+      : `Hi! 👋 I'm the AI assistant for **${salon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, location, or how to book. I'm here to help!`,
     cta: isBooking ? "book" : undefined,
   };
 
@@ -226,7 +226,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
   const [askedLabels, setAskedLabels] = useState<Set<string>>(new Set());
 
   // Typewriter animation states (drive the full-page intro overlay)
-  const fullTitle = isBooking ? `Book at ${saloon.name}` : saloon.name;
+  const fullTitle = isBooking ? `Book at ${salon.name}` : salon.name;
   const [labelVisible, setLabelVisible] = useState(false);
   const [typedTitle, setTypedTitle]     = useState("");
   const [titleDone, setTitleDone]       = useState(false);
@@ -296,8 +296,8 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
 
   function getReply(text: string): ReplyResult {
     return isBooking
-      ? mockBookingReply(text, saloon, services, staff)
-      : { text: mockReply(text, saloon, services, staff) };
+      ? mockBookingReply(text, salon, services, staff)
+      : { text: mockReply(text, salon, services, staff) };
   }
 
   // Called when a question card is clicked — answers inline, stays in answered phase
@@ -309,13 +309,13 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
     setMessages(prev => [...prev, { role: "user", text: btn.question, time: nowTime() }]);
     setThinking(true);
     setTimeout(() => {
-      const tool: ToolCard = { name: "saloon-data", label: "Querying saloon data…", done: false };
+      const tool: ToolCard = { name: "salon-data", label: "Querying salon data…", done: false };
       setMessages(prev => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
       setTimeout(() => {
         const { text: reply, cta } = getReply(btn.question);
         setMessages(prev => {
           const next = [...prev];
-          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime(), cta };
+          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "salon-data" }, time: nowTime(), cta };
           return next;
         });
         setThinking(false);
@@ -329,13 +329,13 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
     setMessages((prev) => [...prev, { role: "user", text, time: nowTime() }]);
     setThinking(true);
     setTimeout(() => {
-      const tool: ToolCard = { name: "saloon-data", label: "Querying saloon data…", done: false };
+      const tool: ToolCard = { name: "salon-data", label: "Querying salon data…", done: false };
       setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
       setTimeout(() => {
         const { text: reply, cta } = getReply(text);
         setMessages((prev) => {
           const next = [...prev];
-          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "saloon-data" }, time: nowTime(), cta };
+          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "salon-data" }, time: nowTime(), cta };
           return next;
         });
         setThinking(false);
@@ -386,7 +386,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
 
   const pageBg = `radial-gradient(ellipse 80% 50% at 50% -10%, ${theme.accentColor}18 0%, transparent 60%), ${chatBg}`;
 
-  // ── Dynamic action buttons (based on available saloon data) ────────────
+  // ── Dynamic action buttons (based on available salon data) ────────────
 
   type ActionButton = {
     label: string;
@@ -398,7 +398,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
   };
 
   const websiteButtons: ActionButton[] = [
-    saloon.features?.includes("BOOKING") && {
+    salon.features?.includes("BOOKING") && {
       label: "Book with us",
       icon: Calendar,
       question: "How do I book an appointment?",
@@ -416,19 +416,19 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
       question: "Who's on the team?",
       iconAnim: "group-hover:scale-110",
     },
-    (saloon.operatingHours?.length ?? 0) > 0 && {
+    (salon.operatingHours?.length ?? 0) > 0 && {
       label: "Opening Hours",
       icon: Clock,
       question: "What are your opening hours?",
       iconAnim: "group-hover:rotate-45",
     },
-    (saloon.location?.address || saloon.location?.city) && {
+    (salon.location?.address || salon.location?.city) && {
       label: "Find Us",
       icon: MapPin,
       question: "Where are you located?",
       iconAnim: "group-hover:-translate-y-1 group-hover:scale-110",
     },
-    (saloon.contact?.phone || saloon.contact?.email) && {
+    (salon.contact?.phone || salon.contact?.email) && {
       label: "Contact Us",
       icon: Phone,
       question: "How can I contact you?",
@@ -462,13 +462,13 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
       question: "How long do your services take?",
       iconAnim: "group-hover:rotate-45",
     },
-    (saloon.location?.address || saloon.location?.city) && {
+    (salon.location?.address || salon.location?.city) && {
       label: "Find us",
       icon: MapPin,
       question: "Where are you located?",
       iconAnim: "group-hover:-translate-y-1 group-hover:scale-110",
     },
-    (saloon.contact?.phone || saloon.contact?.email) && {
+    (salon.contact?.phone || salon.contact?.email) && {
       label: "Contact us",
       icon: Phone,
       question: "How can I contact you?",
@@ -611,25 +611,25 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
   const footerStrip = (
     <div className="flex items-center justify-between flex-wrap gap-x-3 mt-2 px-1">
       <div className="flex items-center gap-2.5">
-        <span className="text-[9px]" style={{ color: msgDim }}>© {new Date().getFullYear()} {saloon.name}.</span>
-        {saloon.contact?.phone && (
+        <span className="text-[9px]" style={{ color: msgDim }}>© {new Date().getFullYear()} {salon.name}.</span>
+        {salon.contact?.phone && (
           <a
-            href={`tel:${saloon.contact.phone}`}
+            href={`tel:${salon.contact.phone}`}
             className="inline-flex items-center gap-0.5 text-[9px] no-underline hover:opacity-70"
             style={{ color: msgDim }}
           >
-            <Phone className="w-2.5 h-2.5" /> {saloon.contact.phone}
+            <Phone className="w-2.5 h-2.5" /> {salon.contact.phone}
           </a>
         )}
-        {saloon.showBusinessId && saloon.businessRegistrationId && (
-          <span className="text-[9px]" style={{ color: msgDim }}>· {saloon.businessIdLabel ?? "Reg. No."} {saloon.businessRegistrationId}</span>
+        {salon.showBusinessId && salon.businessRegistrationId && (
+          <span className="text-[9px]" style={{ color: msgDim }}>· {salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</span>
         )}
         <span className="text-[9px]" style={{ color: msgDim }}>Powered by AI.</span>
       </div>
       <div className="flex items-center gap-2">
         <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Privacy</a>
         <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Terms</a>
-        <span className="text-[9px] opacity-40" style={{ color: msgDim }}>My Saloon</span>
+        <span className="text-[9px] opacity-40" style={{ color: msgDim }}>My Salon</span>
       </div>
     </div>
   );
@@ -696,7 +696,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
               boxShadow: `0 0 0 4px ${theme.accentColor}20, 0 6px 20px ${theme.accentColor}30`,
             }}
           >
-            {initials(saloon.name)}
+            {initials(salon.name)}
           </div>
 
           <div className="flex-1 min-w-0">
@@ -810,7 +810,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                   className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
                   style={{ backgroundColor: avatarBg, color: avatarText }}
                 >
-                  {initials(saloon.name)[0]}
+                  {initials(salon.name)[0]}
                 </div>
                 <div className="flex-1 min-w-0 space-y-1.5">
                   {m.tool && (
@@ -854,7 +854,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                 className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
                 style={{ backgroundColor: avatarBg, color: avatarText }}
               >
-                {initials(saloon.name)[0]}
+                {initials(salon.name)[0]}
               </div>
               <div
                 className="px-4 py-3 flex items-center gap-1"
@@ -984,7 +984,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                 opacity: 0,
               }}
             >
-              {initials(saloon.name)}
+              {initials(salon.name)}
             </div>
             <div className="flex-1 min-w-0">
               <p
@@ -1037,7 +1037,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
     {/* ── Booking mode: shared SiteHeader with the same toggle used in wizard mode ── */}
     {isBooking && (
       <SiteHeader
-        saloon={saloon}
+        salon={salon}
         theme={theme}
         current="ai"
         onBack={onSwitchToWizard ?? (() => {})}
@@ -1109,7 +1109,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                   opacity: 0,
                 }}
               >
-                {initials(saloon.name)}
+                {initials(salon.name)}
               </div>
               <div className="flex-1 min-w-0">
                 <p
@@ -1182,7 +1182,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                     : `0 0 0 2px ${topBg}, 0 0 0 3.5px ${avatarBg}40`,
                 }}
               >
-                {initials(saloon.name)}
+                {initials(salon.name)}
               </div>
               <span
                 className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
@@ -1194,7 +1194,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: topText }}>{saloon.name}</p>
+              <p className="text-sm font-semibold truncate" style={{ color: topText }}>{salon.name}</p>
               <div className="flex items-center gap-1.5 text-[11px]" style={{ color: topDim }}>
                 {thinking ? (
                   <>
@@ -1207,7 +1207,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                 ) : (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-                    {isOpenNow(saloon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
+                    {isOpenNow(salon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
                   </>
                 )}
               </div>
@@ -1247,7 +1247,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                     className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold mb-5"
                     style={{ backgroundColor: avatarBg, color: avatarText }}
                   >
-                    {initials(saloon.name)[0]}
+                    {initials(salon.name)[0]}
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
                     {m.tool && (
@@ -1293,7 +1293,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
                   className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
                   style={{ backgroundColor: avatarBg, color: avatarText }}
                 >
-                  {initials(saloon.name)[0]}
+                  {initials(salon.name)[0]}
                 </div>
                 <div
                   className="px-4 py-3 flex items-center gap-1"
@@ -1341,7 +1341,7 @@ export function GenerativeUIWebsite({ saloon, staff, services, theme, context = 
       >
         {innerContent}
         <SiteFooter
-          saloon={saloon}
+          salon={salon}
           theme={theme}
           current="book"
           onBack={onSwitchToWizard ?? (() => {})}

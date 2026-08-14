@@ -42,7 +42,7 @@ export interface OperatingHours {
   closed: boolean;
 }
 
-export interface Saloon {
+export interface Salon {
   id: number;
   name: string;
   handler?: string;
@@ -64,7 +64,7 @@ export type WebsiteMode = "STATIC_WEBSITE" | "GENERATIVE_UI" | "CUSTOMISE_WEBSIT
 
 export interface StaffMember {
   id: number;
-  saloonId: number;
+  salonId: number;
   name: string;
   email: string;
   phone?: string;
@@ -80,7 +80,7 @@ export interface StaffMember {
 }
 
 export interface WebsiteTheme {
-  saloonId?: string;
+  salonId?: string;
   heroBg: string;
   heroTextColor: string;
   accentColor: string;
@@ -97,7 +97,7 @@ export interface WebsiteTheme {
 
 export interface ServiceItem {
   id: number;
-  saloonId: number;
+  salonId: number;
   name: string;
   description?: string;
   price: number;
@@ -113,7 +113,7 @@ export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" 
 
 export interface Booking {
   id: number;
-  saloonId: string;
+  salonId: string;
   serviceId: number;
   staffId: number;
   customerName: string;
@@ -136,7 +136,7 @@ export interface AvailableSlot {
 
 export interface StaffAvailability {
   id: number;
-  saloonId: string;
+  salonId: string;
   staffId: number;
   dayOfWeek: string;
   startTime: string;
@@ -146,7 +146,7 @@ export interface StaffAvailability {
 
 export interface StaffAvailabilityOverride {
   id: number;
-  saloonId: string;
+  salonId: string;
   staffId: number;
   overrideDate: string;
   startTime?: string;
@@ -155,9 +155,9 @@ export interface StaffAvailabilityOverride {
   reason?: string;
 }
 
-export interface SaloonClosure {
+export interface SalonClosure {
   id: number;
-  saloonId: string;
+  salonId: string;
   startDate: string;
   endDate: string;
   reason?: string;
@@ -165,9 +165,9 @@ export interface SaloonClosure {
 }
 
 /** A named holiday. When {@code year} is null/undefined it repeats every year. */
-export interface SaloonHoliday {
+export interface SalonHoliday {
   id: number;
-  saloonId: string;
+  salonId: string;
   name: string;
   month: number;
   day: number;

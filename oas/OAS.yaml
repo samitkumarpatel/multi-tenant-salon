@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Multi-Tenant Saloon API
+  title: Multi-Tenant Salon API
   description: |
-    REST API for the multi-tenant SaaS saloon/salon management platform.
+    REST API for the multi-tenant SaaS salon/salon management platform.
 
     ## Module / Access Hierarchy
 
@@ -10,25 +10,25 @@ info:
 
     | Namespace | Base Path | Who uses it |
     |---|---|---|
-    | **Saloon Onboarding** | `/api/saloon-onboarding` | Anyone registering a new saloon tenant; platform-level listing |
-    | **Customer** | `/api/saloon/{saloonId}/...` | Public/customer-facing — browse, book, read |
-    | **Admin** | `/api/saloon-admin/{saloonId}/...` | Saloon owner/administrator — manage, configure, operate |
-    | **Super Admin** | `/api/saloon-super-admin/...` | Platform super-admin — cross-tenant management of all saloons |
-    | **Staff Portal** | `/api/saloon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
-    | **Utility** | `/api/saloon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
+    | **Salon Onboarding** | `/api/salon-onboarding` | Anyone registering a new salon tenant; platform-level listing |
+    | **Customer** | `/api/salon/{salonId}/...` | Public/customer-facing — browse, book, read |
+    | **Admin** | `/api/salon-admin/{salonId}/...` | Salon owner/administrator — manage, configure, operate |
+    | **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
+    | **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
+    | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
     ### Customer sub-paths
-    - `/api/saloon/{saloonId}/services/...` — browse the service catalog
-    - `/api/saloon/{saloonId}/staff/...` — view staff members
-    - `/api/saloon/{saloonId}/booking/...` — slot discovery and appointment creation
-    - `/api/saloon/{saloonId}/website` — public website theme
+    - `/api/salon/{salonId}/services/...` — browse the service catalog
+    - `/api/salon/{salonId}/staff/...` — view staff members
+    - `/api/salon/{salonId}/booking/...` — slot discovery and appointment creation
+    - `/api/salon/{salonId}/website` — public website theme
 
     ### Admin sub-paths
-    - `/api/saloon-admin/{saloonId}/services/...` — full CRUD on the service catalog
-    - `/api/saloon-admin/{saloonId}/staff/...` — full CRUD + availability management
-    - `/api/saloon-admin/{saloonId}/booking/...` — view, reschedule, and change booking status
-    - `/api/saloon-admin/{saloonId}/website` — website theme management
-    - `/api/saloon-admin/{saloonId}/website-type` — get or update the active website presentation type
+    - `/api/salon-admin/{salonId}/services/...` — full CRUD on the service catalog
+    - `/api/salon-admin/{salonId}/staff/...` — full CRUD + availability management
+    - `/api/salon-admin/{salonId}/booking/...` — view, reschedule, and change booking status
+    - `/api/salon-admin/{salonId}/website` — website theme management
+    - `/api/salon-admin/{salonId}/website-type` — get or update the active website presentation type
 
     ## Notification Events
     Every booking and calendar activity emits an internal Spring Modulith event handled by
@@ -46,28 +46,28 @@ servers:
     description: Local development server
 
 tags:
-  - name: SaloonOnboarding
+  - name: SalonOnboarding
     description: |
-      New saloon tenant registration and platform-level saloon listing.
-      Creating a saloon triggers auto-enrolment of the owner as a staff member
+      New salon tenant registration and platform-level salon listing.
+      Creating a salon triggers auto-enrolment of the owner as a staff member
       (`isOwner = true`, `role = MANAGER`, `availableForBooking = true`).
-  - name: Saloon
-    description: Customer-facing saloon discovery — browse, search by handler, view details.
+  - name: Salon
+    description: Customer-facing salon discovery — browse, search by handler, view details.
   - name: Services
-    description: Customer-facing service catalog — list and get services for a saloon.
+    description: Customer-facing service catalog — list and get services for a salon.
   - name: Staff
     description: Customer-facing staff roster — list and view staff member profiles.
   - name: Booking
     description: |
       Customer-facing appointment flow — slot discovery and booking creation/retrieval.
   - name: Website
-    description: Customer-facing website theme — read the public visual theme for a saloon.
-  - name: SaloonAdmin
+    description: Customer-facing website theme — read the public visual theme for a salon.
+  - name: SalonAdmin
     description: |
-      Admin operations on the saloon aggregate — update details, manage features, delete.
+      Admin operations on the salon aggregate — update details, manage features, delete.
       In production these endpoints must be protected by an auth layer (e.g. Bearer JWT).
   - name: AdminServices
-    description: Admin service catalog management — full CRUD on a saloon's service items.
+    description: Admin service catalog management — full CRUD on a salon's service items.
   - name: AdminStaff
     description: Admin staff roster management — onboard, update, and remove staff members.
   - name: AdminAvailability
@@ -82,25 +82,25 @@ tags:
     description: Admin website management — save/update the website theme and trigger publish.
   - name: AdminClosures
     description: |
-      Admin saloon-closure management — define date ranges when the entire saloon is closed.
+      Admin salon-closure management — define date ranges when the entire salon is closed.
       When a closure covers the requested date, slot discovery returns an empty list and booking
       creation returns HTTP 400. Use this for vacations, public holidays, or emergency shutdowns.
   - name: AdminHolidays
     description: |
       Admin recurring/one-off holiday management. Adding a holiday automatically generates
-      saloon-closure rows for the current year and up to 4 years ahead so the booking engine
+      salon-closure rows for the current year and up to 4 years ahead so the booking engine
       blocks those dates without manual closure entry each year.
   - name: StaffPortal
     description: |
       Staff self-service portal endpoints. A staff member authenticates by email lookup
-      (`GET /api/saloon-staff/me?email=...`) plus a mock OTP, then uses their `staffId`
+      (`GET /api/salon-staff/me?email=...`) plus a mock OTP, then uses their `staffId`
       to manage their own profile, view their appointments, and book personal holidays
       (date-specific unavailability overrides that block new customer bookings).
   - name: SuperAdmin
     description: |
-      Platform super-admin endpoints — cross-tenant management of all saloons.
-      Requires super-admin authentication (email `admin@my-saloon.online` + OTP).
-      All endpoints are prefixed `/api/saloon-super-admin`.
+      Platform super-admin endpoints — cross-tenant management of all salons.
+      Requires super-admin authentication (email `admin@my-salon.online` + OTP).
+      All endpoints are prefixed `/api/salon-super-admin`.
   - name: Utility
     description: Reference data — countries with embedded currency info. Loaded from static classpath resources.
   - name: Internal
@@ -118,7 +118,7 @@ paths:
       summary: Resolve user identity by email
       description: |
         Returns all `user_identity` view rows for the given email address.
-        Used by the Authorization Server to load roles and saloon associations for JWT issuance.
+        Used by the Authorization Server to load roles and salon associations for JWT issuance.
         Returns 404 when the email is not registered as an owner or active staff member.
       operationId: getUserIdentity
       parameters:
@@ -140,83 +140,83 @@ paths:
         "404":
           description: No identity found for the given email
 
-  # ─── Saloon Onboarding ────────────────────────────────────────────────────────
+  # ─── Salon Onboarding ────────────────────────────────────────────────────────
 
-  /api/saloon-onboarding:
+  /api/salon-onboarding:
     get:
-      tags: [SaloonOnboarding]
-      summary: List all saloons (platform view)
-      operationId: listSaloons
+      tags: [SalonOnboarding]
+      summary: List all salons (platform view)
+      operationId: listSalons
       responses:
         "200":
-          description: List of all saloons across all tenants
+          description: List of all salons across all tenants
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Saloon"
+                  $ref: "#/components/schemas/Salon"
 
     post:
-      tags: [SaloonOnboarding]
-      summary: Register a new saloon (tenant onboarding)
-      operationId: createSaloon
+      tags: [SalonOnboarding]
+      summary: Register a new salon (tenant onboarding)
+      operationId: createSalon
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateSaloonRequest"
+              $ref: "#/components/schemas/CreateSalonRequest"
       responses:
         "201":
-          description: Saloon registered; owner auto-enrolled as staff member
+          description: Salon registered; owner auto-enrolled as staff member
           headers:
             Location:
-              description: URL of the newly created saloon, e.g. /api/saloon/{id}
+              description: URL of the newly created salon, e.g. /api/salon/{id}
               schema:
                 type: string
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CreateSaloonResponse"
+                $ref: "#/components/schemas/CreateSalonResponse"
 
-  # ─── Customer — Saloon Discovery ─────────────────────────────────────────────
+  # ─── Customer — Salon Discovery ─────────────────────────────────────────────
 
-  /api/saloon/{saloonIdOrHandler}:
+  /api/salon/{salonIdOrHandler}:
     get:
-      tags: [Saloon]
-      summary: Get saloon by ID or handler (public)
+      tags: [Salon]
+      summary: Get salon by ID or handler (public)
       description: |
         Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
-        (`glam-saloon`). UUID lookup is tried first; if the value is not a valid UUID the
+        (`glam-salon`). UUID lookup is tried first; if the value is not a valid UUID the
         request falls back to a handler lookup.
-      operationId: getSaloon
+      operationId: getSalon
       parameters:
-        - name: saloonIdOrHandler
+        - name: salonIdOrHandler
           in: path
           required: true
           schema:
             type: string
-          description: Saloon UUID or URL-friendly handler slug
+          description: Salon UUID or URL-friendly handler slug
       responses:
         "200":
-          description: Saloon details
+          description: Salon details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
 
   # ─── Customer — Services ──────────────────────────────────────────────────────
 
-  /api/saloon/{saloonId}/services:
+  /api/salon/{salonId}/services:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [Services]
-      summary: List services for a saloon (public)
+      summary: List services for a salon (public)
       operationId: listServices
       responses:
         "200":
@@ -228,9 +228,9 @@ paths:
                 items:
                   $ref: "#/components/schemas/ServiceItem"
 
-  /api/saloon/{saloonId}/services/{serviceId}:
+  /api/salon/{salonId}/services/{serviceId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/ServiceId"
 
     get:
@@ -249,13 +249,13 @@ paths:
 
   # ─── Customer — Staff ─────────────────────────────────────────────────────────
 
-  /api/saloon/{saloonId}/staff:
+  /api/salon/{salonId}/staff:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [Staff]
-      summary: List staff members for a saloon (public)
+      summary: List staff members for a salon (public)
       operationId: listStaff
       responses:
         "200":
@@ -267,9 +267,9 @@ paths:
                 items:
                   $ref: "#/components/schemas/StaffMember"
 
-  /api/saloon/{saloonId}/staff/{staffId}:
+  /api/salon/{salonId}/staff/{staffId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/StaffId"
 
     get:
@@ -288,9 +288,9 @@ paths:
 
   # ─── Customer — Booking ───────────────────────────────────────────────────────
 
-  /api/saloon/{saloonId}/booking/slots:
+  /api/salon/{salonId}/booking/slots:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
     get:
       tags: [Booking]
       summary: Get booking slots for a service on a given date
@@ -302,7 +302,7 @@ paths:
         `true` means it is taken (existing non-cancelled booking) and should be shown
         grayed-out / non-selectable in the UI.
         Optionally filter to a single staff member via `staffId`.
-        Returns an **empty array** when the date falls within a saloon closure.
+        Returns an **empty array** when the date falls within a salon closure.
       operationId: getAvailableSlots
       parameters:
         - name: serviceId
@@ -337,9 +337,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloon/{saloonId}/booking:
+  /api/salon/{salonId}/booking:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     post:
       tags: [Booking]
@@ -347,8 +347,8 @@ paths:
       description: |
         Customer-facing. Books an available slot for a service. `staffId` is optional — the
         system auto-assigns the first available staff member if omitted.
-        Returns HTTP 400 when `appointmentDate` falls within a saloon closure.
-        The initial booking status depends on the saloon's `bookingRequiresConfirmation` setting:
+        Returns HTTP 400 when `appointmentDate` falls within a salon closure.
+        The initial booking status depends on the salon's `bookingRequiresConfirmation` setting:
         - `false` (default) → status is **CONFIRMED** immediately.
         - `true` → status is **PENDING**; an admin must confirm before the appointment is active.
         Emits **BookingCreatedEvent** → customer receives a booking confirmation notification.
@@ -367,15 +367,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Booking"
         "400":
-          description: Saloon is closed on the requested date (saloon closure)
+          description: Salon is closed on the requested date (salon closure)
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           description: Requested slot is no longer available
 
-  /api/saloon/{saloonId}/booking/{bookingId}:
+  /api/salon/{salonId}/booking/{bookingId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/BookingId"
 
     get:
@@ -394,15 +394,15 @@ paths:
 
   # ─── Customer — Website Theme ──────────────────────────────────────────────────
 
-  /api/saloon/{saloonId}/website:
+  /api/salon/{salonId}/website:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [Website]
-      summary: Get website theme for a saloon (public)
+      summary: Get website theme for a salon (public)
       description: |
-        Returns the visual theme used to render the saloon's public-facing website.
+        Returns the visual theme used to render the salon's public-facing website.
         If no theme has been saved yet, sensible defaults are returned without touching the DB:
         `heroBg="#F8FAFC"`, `heroTextColor="#0F172A"`, `accentColor="#1D4ED8"`, `fontFamily="system"`,
         `logoBgColor="#10B981"`, `headerBg="#E2E8F0"`, `footerBg="#E2E8F0"`, `chatLayout="app"`, `updatedAt=null`.
@@ -419,19 +419,19 @@ paths:
 
   # ─── Admin — Login / Session ─────────────────────────────────────────────────
 
-  /api/saloon-admin/my-saloons:
+  /api/salon-admin/my-salons:
     get:
-      tags: [SaloonAdmin]
-      summary: Look up saloons by owner email (admin login)
+      tags: [SalonAdmin]
+      summary: Look up salons by owner email (admin login)
       description: |
-        Returns all saloons whose owner email matches the given address.
-        Used by the admin login flow to resolve the saloonId before entering the admin UI.
-        - **1 result** → proceed directly to the saloon-admin UI.
-        - **2+ results** → show a saloon-picker screen and let the owner choose.
-        - **0 results** → show "no saloon found" error.
+        Returns all salons whose owner email matches the given address.
+        Used by the admin login flow to resolve the salonId before entering the admin UI.
+        - **1 result** → proceed directly to the salon-admin UI.
+        - **2+ results** → show a salon-picker screen and let the owner choose.
+        - **0 results** → show "no salon found" error.
 
         No authentication is enforced on this endpoint (dummy login flow).
-      operationId: getMySaloons
+      operationId: getMySalons
       parameters:
         - name: email
           in: query
@@ -440,81 +440,81 @@ paths:
             type: string
             format: email
           example: owner@example.com
-          description: The email address used during saloon onboarding
+          description: The email address used during salon onboarding
       responses:
         "200":
-          description: One or more saloons found for this email
+          description: One or more salons found for this email
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Saloon"
+                  $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ─── Admin — Saloon Management ────────────────────────────────────────────────
+  # ─── Admin — Salon Management ────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}:
+  /api/salon-admin/{salonId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
-      tags: [SaloonAdmin]
-      summary: Get saloon details (admin)
+      tags: [SalonAdmin]
+      summary: Get salon details (admin)
       description: Accepts either a UUID or a handler slug — same lookup logic as the public endpoint.
-      operationId: adminGetSaloon
+      operationId: adminGetSalon
       responses:
         "200":
-          description: Saloon details
+          description: Salon details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
 
     put:
-      tags: [SaloonAdmin]
-      summary: Update saloon details (admin)
-      description: Admin-only. Updates name, location, contact info, and operating hours. Handler, features, and owner are never changed here — use PUT /api/saloon-super-admin/saloons/{id}/owner to change the owner.
-      operationId: updateSaloon
+      tags: [SalonAdmin]
+      summary: Update salon details (admin)
+      description: Admin-only. Updates name, location, contact info, and operating hours. Handler, features, and owner are never changed here — use PUT /api/salon-super-admin/salons/{id}/owner to change the owner.
+      operationId: updateSalon
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateSaloonRequest"
+              $ref: "#/components/schemas/UpdateSalonRequest"
       responses:
         "200":
-          description: Updated saloon
+          description: Updated salon
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
 
     delete:
-      tags: [SaloonAdmin]
-      summary: Delete a saloon (admin)
-      description: Admin-only. Permanently removes the saloon and all associated data (services, staff, bookings) via cascade delete.
-      operationId: deleteSaloon
+      tags: [SalonAdmin]
+      summary: Delete a salon (admin)
+      description: Admin-only. Permanently removes the salon and all associated data (services, staff, bookings) via cascade delete.
+      operationId: deleteSalon
       responses:
         "204":
-          description: Saloon deleted
+          description: Salon deleted
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloon-admin/{saloonId}/features:
+  /api/salon-admin/{salonId}/features:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     put:
-      tags: [SaloonAdmin]
-      summary: Replace saloon feature flags (admin)
-      description: Admin-only. Replaces the full set of enabled features for the saloon (BOOKING, ANALYTICS, etc.).
-      operationId: updateSaloonFeatures
+      tags: [SalonAdmin]
+      summary: Replace salon feature flags (admin)
+      description: Admin-only. Replaces the full set of enabled features for the salon (BOOKING, ANALYTICS, etc.).
+      operationId: updateSalonFeatures
       requestBody:
         required: true
         content:
@@ -522,7 +522,7 @@ paths:
             schema:
               type: array
               items:
-                $ref: "#/components/schemas/SaloonFeature"
+                $ref: "#/components/schemas/SalonFeature"
               example: ["BOOKING", "ANALYTICS"]
       responses:
         "200":
@@ -530,20 +530,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloon-admin/{saloonId}/booking-settings:
+  /api/salon-admin/{salonId}/booking-settings:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     patch:
-      tags: [SaloonAdmin]
+      tags: [SalonAdmin]
       summary: Update booking settings (admin)
       description: |
-        Admin-only. Partially updates only the booking-related saloon settings —
-        `bookingAdvanceDays` and `bookingRequiresConfirmation`. All other saloon fields
+        Admin-only. Partially updates only the booking-related salon settings —
+        `bookingAdvanceDays` and `bookingRequiresConfirmation`. All other salon fields
         are preserved. Either field may be omitted; omitted fields keep their current value.
       operationId: patchBookingSettings
       requestBody:
@@ -554,23 +554,23 @@ paths:
               $ref: "#/components/schemas/PatchBookingSettingsRequest"
       responses:
         "200":
-          description: Settings updated; full saloon object returned
+          description: Settings updated; full salon object returned
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
 
   # ─── Admin — Holidays ────────────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/holidays:
+  /api/salon-admin/{salonId}/holidays:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminHolidays]
-      summary: List saloon holidays (admin)
+      summary: List salon holidays (admin)
       operationId: listHolidays
       responses:
         "200":
@@ -580,13 +580,13 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SaloonHoliday"
+                  $ref: "#/components/schemas/SalonHoliday"
 
     post:
       tags: [AdminHolidays]
       summary: Add a holiday (admin)
       description: |
-        Admin-only. Creates a holiday record and automatically generates saloon-closure rows
+        Admin-only. Creates a holiday record and automatically generates salon-closure rows
         for the current year through currentYear+4 (for recurring holidays) or for the
         specified year only (for one-off holidays). Invalid dates (e.g. Feb 29 on a non-leap
         year) are skipped silently.
@@ -603,11 +603,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SaloonHoliday"
+                $ref: "#/components/schemas/SalonHoliday"
 
-  /api/saloon-admin/{saloonId}/holidays/{holidayId}:
+  /api/salon-admin/{salonId}/holidays/{holidayId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - name: holidayId
         in: path
         required: true
@@ -620,7 +620,7 @@ paths:
       tags: [AdminHolidays]
       summary: Remove a holiday (admin)
       description: |
-        Admin-only. Deletes the holiday record. All associated saloon-closure rows are
+        Admin-only. Deletes the holiday record. All associated salon-closure rows are
         removed automatically via ON DELETE CASCADE.
       operationId: removeHoliday
       responses:
@@ -629,9 +629,9 @@ paths:
 
   # ─── Admin — Website ──────────────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/website:
+  /api/salon-admin/{salonId}/website:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminWebsite]
@@ -650,7 +650,7 @@ paths:
     put:
       tags: [AdminWebsite]
       summary: Save website theme (admin)
-      description: Admin-only. Upserts the website theme for the saloon. Creates a new row if none exists; otherwise updates in place.
+      description: Admin-only. Upserts the website theme for the salon. Creates a new row if none exists; otherwise updates in place.
       operationId: saveTheme
       requestBody:
         required: true
@@ -666,15 +666,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/WebsiteTheme"
 
-  /api/saloon-admin/{saloonId}/website-type:
+  /api/salon-admin/{salonId}/website-type:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminWebsite]
       summary: Get website type (admin)
       description: |
-        Admin-only. Returns the current website presentation type for the saloon.
+        Admin-only. Returns the current website presentation type for the salon.
         Defaults to `STATIC_WEBSITE` if the theme row does not yet exist.
         This endpoint is called when the admin navigates to the website tab.
       operationId: getWebsiteType
@@ -712,9 +712,9 @@ paths:
 
   # ─── Admin — Services ─────────────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/services:
+  /api/salon-admin/{salonId}/services:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminServices]
@@ -748,9 +748,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ServiceItem"
 
-  /api/saloon-admin/{saloonId}/services/{serviceId}:
+  /api/salon-admin/{salonId}/services/{serviceId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/ServiceId"
 
     get:
@@ -800,9 +800,9 @@ paths:
 
   # ─── Admin — Staff ────────────────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/staff:
+  /api/salon-admin/{salonId}/staff:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminStaff]
@@ -836,9 +836,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/StaffMember"
 
-  /api/saloon-admin/{saloonId}/staff/{staffId}:
+  /api/salon-admin/{salonId}/staff/{staffId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/StaffId"
 
     get:
@@ -889,9 +889,9 @@ paths:
 
   # ─── Admin — Staff Availability ───────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/staff/{staffId}/availability:
+  /api/salon-admin/{salonId}/staff/{staffId}/availability:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/StaffId"
 
     get:
@@ -934,9 +934,9 @@ paths:
                 items:
                   $ref: "#/components/schemas/StaffAvailability"
 
-  /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides:
+  /api/salon-admin/{salonId}/staff/{staffId}/availability/overrides:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/StaffId"
 
     get:
@@ -976,9 +976,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/StaffAvailabilityOverride"
 
-  /api/saloon-admin/{saloonId}/staff/{staffId}/availability/overrides/{overrideId}:
+  /api/salon-admin/{salonId}/staff/{staffId}/availability/overrides/{overrideId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/StaffId"
       - name: overrideId
         in: path
@@ -992,7 +992,7 @@ paths:
       summary: Remove a date-specific availability override (admin)
       description: |
         Admin-only. Deletes the override so the regular weekly schedule applies again for
-        that date. Scoped to the given saloonId/staffId pair.
+        that date. Scoped to the given salonId/staffId pair.
         Emits **StaffAvailabilityOverrideRemovedEvent** → notification module logs the change.
       operationId: removeAvailabilityOverride
       responses:
@@ -1001,13 +1001,13 @@ paths:
 
   # ─── Admin — Booking ──────────────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/booking:
+  /api/salon-admin/{salonId}/booking:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminBooking]
-      summary: List all bookings for a saloon (admin)
+      summary: List all bookings for a salon (admin)
       description: Admin-only. Returns all bookings across all statuses.
       operationId: listBookings
       responses:
@@ -1020,9 +1020,9 @@ paths:
                 items:
                   $ref: "#/components/schemas/Booking"
 
-  /api/saloon-admin/{saloonId}/booking/{bookingId}:
+  /api/salon-admin/{salonId}/booking/{bookingId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/BookingId"
 
     get:
@@ -1072,9 +1072,9 @@ paths:
         "204":
           description: Booking deleted
 
-  /api/saloon-admin/{saloonId}/booking/{bookingId}/confirm:
+  /api/salon-admin/{salonId}/booking/{bookingId}/confirm:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/BookingId"
 
     post:
@@ -1094,9 +1094,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloon-admin/{saloonId}/booking/{bookingId}/cancel:
+  /api/salon-admin/{salonId}/booking/{bookingId}/cancel:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/BookingId"
 
     post:
@@ -1116,9 +1116,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloon-admin/{saloonId}/booking/{bookingId}/complete:
+  /api/salon-admin/{salonId}/booking/{bookingId}/complete:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/BookingId"
 
     post:
@@ -1138,9 +1138,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/saloon-admin/{saloonId}/booking/{bookingId}/no-show:
+  /api/salon-admin/{salonId}/booking/{bookingId}/no-show:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - $ref: "#/components/parameters/BookingId"
 
     post:
@@ -1162,15 +1162,15 @@ paths:
 
   # ─── Customer — Holidays (read-only) ─────────────────────────────────────────
 
-  /api/saloon/{saloonId}/holidays:
+  /api/salon/{salonId}/holidays:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [Booking]
-      summary: List saloon holidays (customer)
+      summary: List salon holidays (customer)
       description: >
-        Returns all holidays defined for this saloon. The public website uses this
+        Returns all holidays defined for this salon. The public website uses this
         to label days as holidays in the opening-hours display.
       operationId: listHolidaysPublic
       responses:
@@ -1181,19 +1181,19 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SaloonHoliday"
+                  $ref: "#/components/schemas/SalonHoliday"
 
   # ─── Customer — Closures (read-only) ─────────────────────────────────────────
 
-  /api/saloon/{saloonId}/closures:
+  /api/salon/{salonId}/closures:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [Booking]
-      summary: List saloon closures (customer)
+      summary: List salon closures (customer)
       description: >
-        Returns all closures defined for this saloon. The booking wizard uses this
+        Returns all closures defined for this salon. The booking wizard uses this
         to disable closed date ranges in all three calendar views.
       operationId: listClosuresPublic
       responses:
@@ -1204,18 +1204,18 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SaloonClosure"
+                  $ref: "#/components/schemas/SalonClosure"
 
   # ─── Admin — Closures ────────────────────────────────────────────────────────
 
-  /api/saloon-admin/{saloonId}/closures:
+  /api/salon-admin/{salonId}/closures:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
 
     get:
       tags: [AdminClosures]
-      summary: List saloon closures (admin)
-      description: Returns all closures defined for this saloon, sorted by start date.
+      summary: List salon closures (admin)
+      description: Returns all closures defined for this salon, sorted by start date.
       operationId: listClosures
       responses:
         "200":
@@ -1225,13 +1225,13 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SaloonClosure"
+                  $ref: "#/components/schemas/SalonClosure"
 
     post:
       tags: [AdminClosures]
-      summary: Add a saloon closure (admin)
+      summary: Add a salon closure (admin)
       description: |
-        Admin-only. Marks the saloon as closed for a date range. A single day can be closed
+        Admin-only. Marks the salon as closed for a date range. A single day can be closed
         by setting `startDate` and `endDate` to the same value. Once saved, slot discovery
         will return an empty list for any date within the closure, and booking creation will
         return HTTP 400 for those dates.
@@ -1248,11 +1248,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SaloonClosure"
+                $ref: "#/components/schemas/SalonClosure"
 
-  /api/saloon-admin/{saloonId}/closures/{closureId}:
+  /api/salon-admin/{salonId}/closures/{closureId}:
     parameters:
-      - $ref: "#/components/parameters/SaloonId"
+      - $ref: "#/components/parameters/SalonId"
       - name: closureId
         in: path
         required: true
@@ -1263,7 +1263,7 @@ paths:
 
     delete:
       tags: [AdminClosures]
-      summary: Remove a saloon closure (admin)
+      summary: Remove a salon closure (admin)
       description: Admin-only. Removes the closure so bookings can be taken for those dates again.
       operationId: removeClosure
       responses:
@@ -1272,17 +1272,17 @@ paths:
 
   # ─── Super Admin ──────────────────────────────────────────────────────────────
 
-  /api/saloon-super-admin/saloons:
+  /api/salon-super-admin/salons:
     get:
       tags: [SuperAdmin]
-      summary: List / search saloons (super-admin)
+      summary: List / search salons (super-admin)
       description: |
-        Returns registered saloons across all tenants. Supports optional server-side full-text
+        Returns registered salons across all tenants. Supports optional server-side full-text
         search (`q`) and status filtering (`status`). When `q` is provided the search is performed
-        in the database across: saloon name, handler, owner name, owner email, owner phone,
+        in the database across: salon name, handler, owner name, owner email, owner phone,
         contact phone, contact email, city, and country (case-insensitive LIKE). Combining
-        `q` and `status` is supported. Omitting both parameters returns all saloons.
-      operationId: superAdminListSaloons
+        `q` and `status` is supported. Omitting both parameters returns all salons.
+      operationId: superAdminListSalons
       parameters:
         - name: q
           in: query
@@ -1293,25 +1293,25 @@ paths:
         - name: status
           in: query
           required: false
-          description: Filter by saloon status.
+          description: Filter by salon status.
           schema:
             type: string
             enum: [ACTIVE, DISABLED]
       responses:
         "200":
-          description: List of matching saloons
+          description: List of matching salons
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Saloon"
+                  $ref: "#/components/schemas/Salon"
 
-  /api/saloon-super-admin/saloons/{id}:
+  /api/salon-super-admin/salons/{id}:
     get:
       tags: [SuperAdmin]
-      summary: Get a saloon by ID (super-admin)
-      operationId: superAdminGetSaloon
+      summary: Get a salon by ID (super-admin)
+      operationId: superAdminGetSalon
       parameters:
         - name: id
           in: path
@@ -1321,19 +1321,19 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Saloon found
+          description: Salon found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
-          description: Saloon not found
+          description: Salon not found
 
     delete:
       tags: [SuperAdmin]
-      summary: Disable a saloon (super-admin)
-      description: Soft-deletes the saloon (sets status to DISABLED). Data is preserved and the saloon can be re-enabled.
-      operationId: superAdminDisableSaloon
+      summary: Disable a salon (super-admin)
+      description: Soft-deletes the salon (sets status to DISABLED). Data is preserved and the salon can be re-enabled.
+      operationId: superAdminDisableSalon
       parameters:
         - name: id
           in: path
@@ -1343,19 +1343,19 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Saloon disabled; returns updated saloon
+          description: Salon disabled; returns updated salon
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
-          description: Saloon not found
+          description: Salon not found
 
-  /api/saloon-super-admin/saloons/{id}/features:
+  /api/salon-super-admin/salons/{id}/features:
     put:
       tags: [SuperAdmin]
-      summary: Update saloon features (super-admin)
-      description: Replaces the full set of enabled features for a saloon.
+      summary: Update salon features (super-admin)
+      description: Replaces the full set of enabled features for a salon.
       operationId: superAdminUpdateFeatures
       parameters:
         - name: id
@@ -1371,25 +1371,25 @@ paths:
             schema:
               type: array
               items:
-                $ref: "#/components/schemas/SaloonFeature"
+                $ref: "#/components/schemas/SalonFeature"
       responses:
         "200":
-          description: Features updated; returns updated saloon
+          description: Features updated; returns updated salon
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
-          description: Saloon not found
+          description: Salon not found
 
-  /api/saloon-super-admin/saloons/{id}/owner:
+  /api/salon-super-admin/salons/{id}/owner:
     put:
       tags: [SuperAdmin]
-      summary: Update saloon owner (super-admin)
+      summary: Update salon owner (super-admin)
       description: >
-        Replaces the owner record (name, email, phone) for a saloon.
-        Only accessible by a super-admin. The regular saloon-admin update endpoint
-        (PUT /api/saloon-admin/{id}) does not touch owner data.
+        Replaces the owner record (name, email, phone) for a salon.
+        Only accessible by a super-admin. The regular salon-admin update endpoint
+        (PUT /api/salon-admin/{id}) does not touch owner data.
       operationId: superAdminUpdateOwner
       parameters:
         - name: id
@@ -1406,22 +1406,22 @@ paths:
               $ref: "#/components/schemas/UpdateOwnerRequest"
       responses:
         "200":
-          description: Owner updated; returns updated saloon
+          description: Owner updated; returns updated salon
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "400":
           description: Validation error (name or email blank)
         "404":
-          description: Saloon not found
+          description: Salon not found
 
-  /api/saloon-super-admin/saloons/{id}/enable:
+  /api/salon-super-admin/salons/{id}/enable:
     put:
       tags: [SuperAdmin]
-      summary: Enable a disabled saloon (super-admin)
-      description: Re-activates a previously disabled saloon (sets status to ACTIVE).
-      operationId: superAdminEnableSaloon
+      summary: Enable a disabled salon (super-admin)
+      description: Re-activates a previously disabled salon (sets status to ACTIVE).
+      operationId: superAdminEnableSalon
       parameters:
         - name: id
           in: path
@@ -1431,17 +1431,17 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Saloon enabled; returns updated saloon
+          description: Salon enabled; returns updated salon
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Saloon"
+                $ref: "#/components/schemas/Salon"
         "404":
-          description: Saloon not found
+          description: Salon not found
 
   # ─── Utility ──────────────────────────────────────────────────────────────────
 
-  /api/saloon-utility/countries:
+  /api/salon-utility/countries:
     get:
       tags: [Utility]
       summary: List all supported countries
@@ -1459,13 +1459,13 @@ paths:
 
   # ─── Staff Portal ────────────────────────────────────────────────────────────
 
-  /api/saloon-staff/me:
+  /api/salon-staff/me:
     get:
       summary: Look up staff member by email (login step 1)
       description: |
-        Returns all staff records matching the given email, enriched with the saloon's
+        Returns all staff records matching the given email, enriched with the salon's
         `name` and `handler` so the login picker can distinguish between accounts at
-        different saloons. Used during login to identify the staff member before OTP verification.
+        different salons. Used during login to identify the staff member before OTP verification.
       tags: [StaffPortal]
       parameters:
         - in: query
@@ -1486,7 +1486,7 @@ paths:
         "404":
           description: No staff account found for this email
 
-  /api/saloon-staff/{staffId}:
+  /api/salon-staff/{staffId}:
     get:
       summary: Get own staff profile
       tags: [StaffPortal]
@@ -1502,7 +1502,7 @@ paths:
         "404":
           description: Not found
 
-  /api/saloon-staff/{staffId}/profile:
+  /api/salon-staff/{staffId}/profile:
     patch:
       summary: Update own profile (name and phone only)
       tags: [StaffPortal]
@@ -1529,7 +1529,7 @@ paths:
         "404":
           description: Not found
 
-  /api/saloon-staff/{staffId}/appointments:
+  /api/salon-staff/{staffId}/appointments:
     get:
       summary: List own appointments
       description: Returns all bookings assigned to this staff member across all dates.
@@ -1548,7 +1548,7 @@ paths:
         "404":
           description: Staff member not found
 
-  /api/saloon-staff/{staffId}/holidays:
+  /api/salon-staff/{staffId}/holidays:
     get:
       summary: List personal holidays (days off)
       description: Returns all availability overrides where `available=false` — these block the booking calendar.
@@ -1597,7 +1597,7 @@ paths:
         "404":
           description: Staff member not found
 
-  /api/saloon-staff/{staffId}/photo-upload-url:
+  /api/salon-staff/{staffId}/photo-upload-url:
     post:
       summary: Get a pre-signed URL to upload a profile photo
       description: |
@@ -1631,7 +1631,7 @@ paths:
         "503":
           description: Media storage not configured
 
-  /api/saloon-staff/{staffId}/holidays/{holidayId}:
+  /api/salon-staff/{staffId}/holidays/{holidayId}:
     delete:
       summary: Remove a personal holiday
       tags: [StaffPortal]
@@ -1662,17 +1662,17 @@ components:
       description: |
         JWT issued by the identity provider after the admin authenticates.
         **Not yet enforced** — authentication/authorisation is a planned future addition.
-        Currently the `saloonId` path parameter is the only enforcement in place.
+        Currently the `salonId` path parameter is the only enforcement in place.
 
   parameters:
-    SaloonId:
-      name: saloonId
+    SalonId:
+      name: salonId
       in: path
       required: true
       schema:
         type: string
         format: uuid
-      description: Saloon UUID
+      description: Salon UUID
 
     ServiceId:
       name: serviceId
@@ -1709,13 +1709,13 @@ components:
 
     # ── Closure ──────────────────────────────────────────────────────────────
 
-    SaloonClosure:
+    SalonClosure:
       type: object
       properties:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         startDate:
@@ -1737,13 +1737,13 @@ components:
             Set when this closure was auto-generated from a holiday record.
             Holiday-backed closures cannot be deleted directly — delete the parent holiday instead.
 
-    SaloonHoliday:
+    SalonHoliday:
       type: object
       properties:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         name:
@@ -1807,9 +1807,9 @@ components:
           type: string
           description: Optional human-readable reason shown in the admin UI
 
-    # ── Saloon ────────────────────────────────────────────────────────────────
+    # ── Salon ────────────────────────────────────────────────────────────────
 
-    Saloon:
+    Salon:
       type: object
       properties:
         id:
@@ -1833,7 +1833,7 @@ components:
         features:
           type: array
           items:
-            $ref: "#/components/schemas/SaloonFeature"
+            $ref: "#/components/schemas/SalonFeature"
           description: Serialized as a flat array of feature strings
           example: ["BOOKING", "ANALYTICS"]
         bookingAdvanceDays:
@@ -1866,9 +1866,9 @@ components:
         status:
           type: string
           enum: [ACTIVE, DISABLED]
-          description: Saloon lifecycle status. Defaults to ACTIVE on creation.
+          description: Salon lifecycle status. Defaults to ACTIVE on creation.
 
-    CreateSaloonRequest:
+    CreateSalonRequest:
       type: object
       required: [name, ownerName, ownerEmail]
       properties:
@@ -1892,7 +1892,7 @@ components:
         features:
           type: array
           items:
-            $ref: "#/components/schemas/SaloonFeature"
+            $ref: "#/components/schemas/SalonFeature"
         businessRegistrationId:
           type: string
           description: Company/business registration number.
@@ -1901,16 +1901,16 @@ components:
           description: Whether to show the registration number on the public website. Defaults to false.
           default: false
 
-    CreateSaloonResponse:
+    CreateSalonResponse:
       type: object
       properties:
-        saloonId:
+        salonId:
           type: string
           format: uuid
-          description: The newly created saloon's UUID
-        saloonHandler:
+          description: The newly created salon's UUID
+        salonHandler:
           type: string
-          description: URL-friendly slug derived from the saloon name
+          description: URL-friendly slug derived from the salon name
         emailId:
           type: string
           format: email
@@ -1919,12 +1919,12 @@ components:
           type: string
           description: Human-readable confirmation that a welcome email has been sent with the login link and setup guide
 
-    UpdateSaloonRequest:
+    UpdateSalonRequest:
       type: object
       required: [name]
       description: >
-        Saloon admin update — owner data is NOT changeable here.
-        To change the owner, use PUT /api/saloon-super-admin/saloons/{id}/owner (super-admin only).
+        Salon admin update — owner data is NOT changeable here.
+        To change the owner, use PUT /api/salon-super-admin/salons/{id}/owner (super-admin only).
       properties:
         name:
           type: string
@@ -1954,7 +1954,7 @@ components:
 
     PatchBookingSettingsRequest:
       type: object
-      description: Partial update for booking-related saloon settings. Omitted fields are preserved.
+      description: Partial update for booking-related salon settings. Omitted fields are preserved.
       properties:
         bookingAdvanceDays:
           type: integer
@@ -2037,7 +2037,7 @@ components:
           type: boolean
           default: false
 
-    SaloonFeature:
+    SalonFeature:
       type: string
       enum:
         - STATIC_WEBSITE
@@ -2055,7 +2055,7 @@ components:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         name:
@@ -2154,7 +2154,7 @@ components:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         name:
@@ -2171,7 +2171,7 @@ components:
         isOwner:
           type: boolean
           description: >
-            True when this staff member was auto-created from the saloon owner's profile.
+            True when this staff member was auto-created from the salon owner's profile.
             Owner-staff entries cannot be deleted; the owner may opt out of the booking
             calendar by setting availableForBooking to false.
           default: false
@@ -2202,24 +2202,24 @@ components:
     StaffMemberSummary:
       type: object
       description: >
-        Staff member record enriched with saloon context. Returned only by
-        `GET /api/saloon-staff/me` so the login picker can distinguish between
-        accounts at different saloons. `role` and `status` are serialized as
+        Staff member record enriched with salon context. Returned only by
+        `GET /api/salon-staff/me` so the login picker can distinguish between
+        accounts at different salons. `role` and `status` are serialized as
         plain strings (enum name).
       properties:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
-        saloonName:
+        salonName:
           type: string
-          description: Display name of the saloon this staff record belongs to.
+          description: Display name of the salon this staff record belongs to.
           nullable: true
-        saloonHandler:
+        salonHandler:
           type: string
-          description: URL-friendly slug of the saloon (e.g. "sunshine-cuts").
+          description: URL-friendly slug of the salon (e.g. "sunshine-cuts").
           nullable: true
         name:
           type: string
@@ -2352,7 +2352,7 @@ components:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         staffId:
@@ -2396,7 +2396,7 @@ components:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         staffId:
@@ -2466,7 +2466,7 @@ components:
         id:
           type: integer
           format: int64
-        saloonId:
+        salonId:
           type: string
           format: uuid
         serviceId:
@@ -2550,7 +2550,7 @@ components:
     WebsiteTheme:
       type: object
       properties:
-        saloonId:
+        salonId:
           type: string
           format: uuid
         heroBg:
@@ -2572,7 +2572,7 @@ components:
           description: Footer background color
         mapsUrl:
           type: string
-          description: Google Maps embed URL for the saloon location
+          description: Google Maps embed URL for the salon location
         chatLayout:
           type: string
           description: Generative UI chat widget layout (e.g. "app"); defaults to "app"
@@ -2604,7 +2604,7 @@ components:
           description: Footer background color
         mapsUrl:
           type: string
-          description: Google Maps embed URL for the saloon location
+          description: Google Maps embed URL for the salon location
         chatLayout:
           type: string
           description: Generative UI chat widget layout (e.g. "app"); defaults to "app" when omitted
@@ -2653,7 +2653,7 @@ components:
 
     UserIdentity:
       type: object
-      description: One row from the user_identity view — a resolved email + role + saloon association.
+      description: One row from the user_identity view — a resolved email + role + salon association.
       properties:
         email:
           type: string
@@ -2661,9 +2661,9 @@ components:
         role:
           type: string
           enum: [OWNER, STAFF]
-        saloonId:
+        salonId:
           type: string
           format: uuid
         active:
           type: boolean
-          description: True when both the saloon and the staff/owner record are active.
+          description: True when both the salon and the staff/owner record are active.

@@ -1,5 +1,5 @@
 {
-  "name": "@saloon/ui-shared",
+  "name": "@salon/ui-shared",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@saloon/ui-website": "*",
+    "@salon/ui-website": "*",
     "lucide-react": "^0.511.0"
   },
   "peerDependencies": {

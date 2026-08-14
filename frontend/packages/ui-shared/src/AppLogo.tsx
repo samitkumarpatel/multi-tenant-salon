@@ -27,7 +27,7 @@ export function AppLogo({
     <div
       className={`inline-flex items-center gap-2 select-none ${className}`}
       role="img"
-      aria-label="my-saloon"
+      aria-label="my-salon"
     >
       <span
         className={`logo-snip shrink-0 ${snipping ? "is-snipping" : ""}`}
@@ -123,7 +123,7 @@ export function AppLogo({
         >
           my
           <span style={{ fontWeight: 400, opacity: 0.45 }}>-</span>
-          saloon
+          salon
         </span>
       )}
     </div>
