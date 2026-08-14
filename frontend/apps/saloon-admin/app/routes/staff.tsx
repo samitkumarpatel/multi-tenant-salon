@@ -818,7 +818,11 @@ export default function Staff() {
                 {m.photoUrl ? (
                   <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
                 ) : (
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[m.status] ?? "bg-slate-300"}`} />
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-slate-500">
+                      {m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                  </div>
                 )}
 
                 <div className="flex-1 min-w-0">

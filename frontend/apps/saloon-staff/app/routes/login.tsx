@@ -205,11 +205,15 @@ export default function Login() {
                     onClick={() => { setSelected(m); setStep("otp"); setTimeout(() => otpRefs.current[0]?.focus(), 60); }}
                     className="w-full flex items-center gap-3 px-6 py-3.5 text-left hover:bg-slate-50 transition-colors cursor-pointer"
                   >
-                    <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-matcha-700">
-                        {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                      </span>
-                    </div>
+                    {m.photoUrl ? (
+                      <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-matcha-700">
+                          {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-900">{m.name}</p>
                       <p className="text-[11px] text-slate-400">{ROLE_LABEL[m.role] ?? m.role}</p>

@@ -176,7 +176,13 @@ function BookingDetailModal({
           )}
           {member && (
             <div className="flex items-center gap-2">
-              <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              {member.photoUrl ? (
+                <img src={member.photoUrl} alt={member.name} className="w-5 h-5 rounded-full object-cover shrink-0 border border-slate-200" />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                  <span className="text-[8px] font-bold text-slate-500">{member.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+                </div>
+              )}
               <span>{member.name} · {STAFF_ROLE_LABEL[member.role] ?? member.role}</span>
             </div>
           )}
@@ -265,9 +271,18 @@ function BookingRow({
         </div>
       )}
       {member && (
-        <div className="hidden md:block min-w-0 w-28 shrink-0">
-          <p className="text-xs font-medium text-slate-700 truncate">{member.name}</p>
-          <p className="text-[10px] text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+        <div className="hidden md:flex items-center gap-2 min-w-0 w-28 shrink-0">
+          {member.photoUrl ? (
+            <img src={member.photoUrl} alt={member.name} className="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-200" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+              <span className="text-[8px] font-bold text-slate-500">{member.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-700 truncate">{member.name}</p>
+            <p className="text-[10px] text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+          </div>
         </div>
       )}
       <div className="shrink-0 flex items-center gap-1">
@@ -665,9 +680,13 @@ function WeekTimelineGrid({
                           )}
                           {member && (
                             <div className="flex items-center gap-1 mt-auto pt-1">
-                              <div className="w-4 h-4 rounded-full bg-white/50 flex items-center justify-center shrink-0 ring-1 ring-black/10">
-                                <span className="text-[7px] font-black leading-none">{initials(member.name)}</span>
-                              </div>
+                              {member.photoUrl ? (
+                                <img src={member.photoUrl} alt={member.name} className="w-4 h-4 rounded-full object-cover shrink-0 ring-1 ring-black/10" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full bg-white/50 flex items-center justify-center shrink-0 ring-1 ring-black/10">
+                                  <span className="text-[7px] font-black leading-none">{initials(member.name)}</span>
+                                </div>
+                              )}
                               <span className="text-[8px] opacity-60 truncate">{member.name.split(" ")[0]}</span>
                             </div>
                           )}
@@ -732,10 +751,14 @@ function WeekTimelineGrid({
               {/* Staff */}
               {member && (
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm"
-                    style={{ backgroundColor: hoverStaffColor }}>
-                    <span className="text-[9px] font-black text-white">{initials(member.name)}</span>
-                  </div>
+                  {member.photoUrl ? (
+                    <img src={member.photoUrl} alt={member.name} className="w-6 h-6 rounded-full object-cover shrink-0 ring-2 ring-white shadow-sm" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm"
+                      style={{ backgroundColor: hoverStaffColor }}>
+                      <span className="text-[9px] font-black text-white">{initials(member.name)}</span>
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-700 leading-none truncate">{member.name}</p>
                     <p className="text-[9px] text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
