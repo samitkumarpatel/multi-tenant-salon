@@ -60,7 +60,12 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-slate-900">Welcome back, {session.name.split(" ")[0]}</h1>
-        <p className="text-sm text-slate-500 mt-1">Here's your schedule at a glance.</p>
+        <p className="text-sm text-slate-500 mt-1">
+          {session.saloonName
+            ? <>Working at <span className="font-semibold text-matcha-700">{session.saloonName}</span> · here's your schedule.</>
+            : "Here's your schedule at a glance."
+          }
+        </p>
       </div>
 
       {/* ── Stats ── */}

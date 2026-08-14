@@ -15,7 +15,7 @@ import java.nio.file.Path;
 @Slf4j
 @RestController
 @RequestMapping("/api/media/photos")
-@ConditionalOnProperty(name = "media.staff-bucket-name", matchIfMissing = true, havingValue = "__local__")
+@ConditionalOnProperty(name = "media.storage-type", havingValue = "LOCAL", matchIfMissing = true)
 class MediaServiceController {
 
     private final Path root;

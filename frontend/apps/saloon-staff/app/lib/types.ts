@@ -59,6 +59,8 @@ export interface StaffHoliday {
 export interface StaffSession {
   staffId: number;
   saloonId: string;
+  saloonName?: string;
+  saloonHandler?: string;
   email: string;
   name: string;
   role: string;
