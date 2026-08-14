@@ -112,9 +112,13 @@ export default function SaloonStaff() {
           <div className="divide-y divide-stone-200">
             {staff.map((m) => (
               <div key={m.id} className="flex items-center gap-4 px-4 py-3">
-                <div className="w-9 h-9 rounded-full bg-matcha-50 border border-matcha-200 flex items-center justify-center text-sm font-bold text-matcha-600 shrink-0">
-                  {m.name.charAt(0).toUpperCase()}
-                </div>
+                {m.photoUrl ? (
+                  <img src={m.photoUrl} alt={m.name} className="w-9 h-9 rounded-full object-cover shrink-0 border border-matcha-200" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-matcha-50 border border-matcha-200 flex items-center justify-center text-sm font-bold text-matcha-600 shrink-0">
+                    {m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-stone-800 truncate">{m.name}</p>
