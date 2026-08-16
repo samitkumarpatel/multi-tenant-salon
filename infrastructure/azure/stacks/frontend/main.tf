@@ -30,9 +30,11 @@ module "cdn" {
   name                = local.frontend_name
   resource_group_name = var.resource_group_name
 
+  dns_zone_id = var.dns_zone_id
+
   endpoints = {
     for k, v in var.storage_accounts : k => {
-      origin_host     = module.storage.accounts[k].primary_web_host
+      origin_host     = try(module.storage.accounts[k].primary_web_host, "${v.storage_account_name}.z1.web.core.windows.net")
       custom_hostname = lookup(var.cdn_custom_hostnames, k, null)
     }
   }

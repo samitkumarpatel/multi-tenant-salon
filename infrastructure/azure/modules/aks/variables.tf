@@ -10,13 +10,17 @@ variable "resource_group_name" {
   type = string
 }
 
+variable "resource_group_id" {
+  type = string
+}
+
 variable "subnet_id" {
   type = string
 }
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.31"
+  default = ""
 }
 
 # ── System node pool ──────────────────────────────────────────────────────────

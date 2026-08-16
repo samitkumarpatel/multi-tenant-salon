@@ -20,8 +20,8 @@ resource "azurerm_kubernetes_cluster" "this" {
   name                = local.name
   location            = var.location
   resource_group_name = var.resource_group_name
-  dns_prefix          = local.name
-  kubernetes_version  = var.kubernetes_version
+  dns_prefix         = local.name
+  kubernetes_version = var.kubernetes_version != "" ? var.kubernetes_version : null
 
   # System pool: on-demand nodes — hosts K8s system pods and PostgreSQL.
   # PostgreSQL must NOT run on the spot pool (eviction = unclean shutdown → data risk).
@@ -35,6 +35,10 @@ resource "azurerm_kubernetes_cluster" "this" {
     node_labels     = { "workload-type" = "system" }
   }
 
+  node_provisioning_profile {
+    mode = "Manual"
+  }
+
   identity {
     type = "SystemAssigned"
   }
@@ -43,6 +47,8 @@ resource "azurerm_kubernetes_cluster" "this" {
     network_plugin    = "azure"
     load_balancer_sku = "standard"
     outbound_type     = "loadBalancer"
+    service_cidr      = "10.96.0.0/16"
+    dns_service_ip    = "10.96.0.10"
   }
 
   dynamic "oms_agent" {
@@ -98,13 +104,12 @@ resource "azurerm_managed_disk" "postgres" {
   tags                 = var.tags
 }
 
-# Grant AKS kubelet identity rights to attach the managed disk
-data "azurerm_resource_group" "this" {
-  name = var.resource_group_name
-}
-
-resource "azurerm_role_assignment" "aks_disk" {
-  scope                = data.azurerm_resource_group.this.id
-  role_definition_name = "Contributor"
-  principal_id         = azurerm_kubernetes_cluster.this.kubelet_identity[0].object_id
-}
+# NOTE: The role assignment below requires an Owner/UAA account, not the CI SP.
+# Run this once manually with az cli using an account that has Owner role:
+#
+#   KUBELET_OID=$(az aks show -g multi-tenant-salon-dev -n salon-saas-dev \
+#                   --query identityProfile.kubeletidentity.objectId -o tsv)
+#   az role assignment create \
+#     --assignee "$KUBELET_OID" \
+#     --role "Contributor" \
+#     --scope "/subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev"

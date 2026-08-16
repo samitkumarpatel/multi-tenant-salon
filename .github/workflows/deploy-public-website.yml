@@ -64,14 +64,59 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync dist \
-            s3://my-salon-public-web/ \
+            s3://salon-saas-public-web/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html"
           aws s3 cp dist/index.html \
-            s3://my-salon-public-web/index.html \
+            s3://salon-saas-public-web/index.html \
             --cache-control "no-cache,no-store,must-revalidate"
 
       - name: Invalidate CloudFront
         run: |
           aws cloudfront create-invalidation --distribution-id E33JDQ7LZT8RCE --paths "/*"
+
+  deploy-azure:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-public-website
+          path: dist
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Blob Storage
+        run: |
+          az storage blob sync \
+            --source dist \
+            --container '$web' \
+            --account-name ${{ vars.AZURE_STORAGE_ACCOUNT }} \
+            --auth-mode login \
+            --delete-destination true \
+            --exclude-pattern "index.html" \
+            --content-cache-control "public,max-age=31536000,immutable"
+          az storage blob upload \
+            --file dist/index.html \
+            --name index.html \
+            --container '$web' \
+            --account-name ${{ vars.AZURE_STORAGE_ACCOUNT }} \
+            --auth-mode login \
+            --content-cache-control "no-cache,no-store,must-revalidate" \
+            --overwrite true
+
+      - name: Purge Azure CDN
+        run: |
+          az cdn endpoint purge \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --profile-name ${{ vars.AZURE_CDN_PROFILE }} \
+            --name ${{ vars.AZURE_CDN_ENDPOINT }} \
+            --content-paths "/*"

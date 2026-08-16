@@ -31,6 +31,7 @@ module "aks" {
   name                = local.backend_name
   location            = var.location
   resource_group_name = var.resource_group_name
+  resource_group_id   = var.resource_group_id
   subnet_id           = module.vnet.aks_subnet_id
   kubernetes_version  = var.kubernetes_version
 
@@ -55,17 +56,9 @@ module "aks" {
 module "key_vault" {
   source = "../../modules/key-vault"
 
-  name                  = var.key_vault_name
-  location              = var.location
-  resource_group_name   = var.resource_group_name
-  aks_kubelet_object_id = module.aks.kubelet_identity_object_id
-
-  secrets = {
-    ghcr-token         = var.ghcr_token
-    mailjet-api-key    = var.mailjet_api_key
-    mailjet-api-secret = var.mailjet_api_secret
-    postgres-password  = var.postgres_password
-  }
+  name                = var.key_vault_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
 
   soft_delete_retention_days = var.environment == "dev" ? 7 : 30
   purge_protection_enabled   = var.environment != "dev"

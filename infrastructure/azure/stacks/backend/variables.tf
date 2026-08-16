@@ -10,6 +10,10 @@ variable "resource_group_name" {
   type = string
 }
 
+variable "resource_group_id" {
+  type = string
+}
+
 variable "location" {
   type    = string
   default = "eastus"
@@ -31,7 +35,7 @@ variable "aks_subnet_cidr" {
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.31"
+  default = ""
 }
 
 variable "system_node_count" {
@@ -83,24 +87,3 @@ variable "key_vault_name" {
   description = "Globally unique Key Vault name (3-24 chars, alphanumeric + hyphens)"
 }
 
-# ── Secrets ───────────────────────────────────────────────────────────────────
-
-variable "ghcr_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "mailjet_api_key" {
-  type      = string
-  sensitive = true
-}
-
-variable "mailjet_api_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "postgres_password" {
-  type      = string
-  sensitive = true
-}

@@ -3,17 +3,17 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.0"
+      version = "5.1.0"
     }
   }
 
   # Uncomment to store state in Azure Blob Storage
-  # backend "azurerm" {
-  #   resource_group_name  = "tfstate-rg"
-  #   storage_account_name = "mysalontfstate"
-  #   container_name       = "tfstate"
-  #   key                  = "dev.terraform.tfstate"
-  # }
+  backend "azurerm" {
+    resource_group_name  = "personal"
+    storage_account_name = "azstrogeu001"
+    container_name       = "tfstate"
+    key                  = "multitenantsaloon.terraform.tfstate"
+  }
 }
 
 provider "azurerm" {

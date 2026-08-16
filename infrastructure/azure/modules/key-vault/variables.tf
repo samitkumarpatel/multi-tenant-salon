@@ -11,11 +11,6 @@ variable "resource_group_name" {
   type = string
 }
 
-variable "aks_kubelet_object_id" {
-  type    = string
-  default = null
-}
-
 variable "soft_delete_retention_days" {
   type    = number
   default = 7

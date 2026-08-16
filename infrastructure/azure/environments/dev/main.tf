@@ -1,8 +1,32 @@
 locals {
-  environment          = "dev"
-  domain               = "salonsaas.org"
-  location             = "eastus"
-  resource_group_name  = "multi-tenant-salon-${local.environment}"
+  environment         = "dev"
+  domain              = "salonsaas.org"
+  location            = "westeurope"
+  resource_group_name = "multi-tenant-salon-${local.environment}"
+
+  # Custom hostname for each frontend app
+  cdn_custom_hostnames = {
+    onboarding-web  = local.domain
+    admin-web       = "admin.${local.domain}"
+    public-web      = "app.${local.domain}"
+    super-admin-web = "super-admin.${local.domain}"
+    booking-web     = "book.${local.domain}"
+    staff-web       = "staff.${local.domain}"
+  }
+
+  # DNS subdomain for each app: "@" for apex, otherwise the prefix before .salonsaas.org
+  cdn_dns_subdomains = {
+    for k, h in local.cdn_custom_hostnames : k => (
+      h == local.domain ? "@" : trimsuffix(h, ".${local.domain}")
+    )
+  }
+
+  # _dnsauth.<subdomain> TXT record name for Front Door ownership validation
+  cdn_dnsauth_names = {
+    for k, sub in local.cdn_dns_subdomains : k => (
+      sub == "@" ? "_dnsauth" : "_dnsauth.${sub}"
+    )
+  }
 }
 
 # ── Single Resource Group ──────────────────────────────────────────────────────
@@ -74,20 +98,20 @@ module "dns_bootstrapping" {
 module "frontend" {
   source = "../../stacks/frontend"
 
-  name                = "my-salon"
+  name                = "salon-saas"
   environment         = local.environment
   resource_group_name = module.resource_group.name
   location            = module.resource_group.location
 
   # Storage account names: globally unique, 3-24 chars, lowercase alphanumeric only
   storage_accounts = {
-    onboarding-web  = { storage_account_name = "mysalondevonboarding" }
-    admin-web       = { storage_account_name = "mysalondevadmin" }
-    public-web      = { storage_account_name = "mysalondevpublic" }
-    super-admin-web = { storage_account_name = "mysalondevsuperadmin" }
-    booking-web     = { storage_account_name = "mysalondevbooking" }
+    onboarding-web  = { storage_account_name = "salonsaasdevonboarding" }
+    admin-web       = { storage_account_name = "salonsaasdevadmin" }
+    public-web      = { storage_account_name = "salonsaasdevpublic" }
+    super-admin-web = { storage_account_name = "salonsaasdevsuperadmin" }
+    booking-web     = { storage_account_name = "salonsaasdevbooking" }
     staff-web = {
-      storage_account_name = "mysalondevstaff"
+      storage_account_name = "salonsaasdevstaff"
       cors_rules = [
         {
           allowed_methods = ["GET", "PUT", "POST", "HEAD"]
@@ -100,14 +124,8 @@ module "frontend" {
     }
   }
 
-  cdn_custom_hostnames = {
-    onboarding-web  = local.domain
-    admin-web       = "admin.${local.domain}"
-    public-web      = "app.${local.domain}"
-    super-admin-web = "super-admin.${local.domain}"
-    booking-web     = "book.${local.domain}"
-    staff-web       = "staff.${local.domain}"
-  }
+  cdn_custom_hostnames = local.cdn_custom_hostnames
+  dns_zone_id          = module.dns_bootstrapping.zone_id
 }
 
 # ── Backend ────────────────────────────────────────────────────────────────────
@@ -115,21 +133,66 @@ module "frontend" {
 module "backend" {
   source = "../../stacks/backend"
 
-  name                = "my-salon"
+  name                = "salon-saas"
   environment         = local.environment
   resource_group_name = module.resource_group.name
+  resource_group_id   = module.resource_group.id
   location            = module.resource_group.location
 
   # Key Vault name: globally unique, 3-24 chars, alphanumeric + hyphens
-  key_vault_name = "my-salon-dev-kv"
+  key_vault_name = "salon-saas-dev-kv"
 
-  ghcr_token         = var.ghcr_token
-  mailjet_api_key    = var.mailjet_api_key
-  mailjet_api_secret = var.mailjet_api_secret
-  postgres_password  = var.postgres_password
-
-  system_node_count    = 2
-  spot_min_count       = 1
-  spot_max_count       = 3
+  system_node_count     = 2
+  spot_min_count        = 1
+  spot_max_count        = 3
   postgres_disk_size_gb = 32
+}
+
+# ── Front Door DNS records ─────────────────────────────────────────────────────
+# Ownership validation TXT records (_dnsauth.*) so Front Door can provision
+# managed TLS certificates. CNAME/alias records route traffic to the endpoints.
+
+# TXT: _dnsauth and _dnsauth.<sub> — one per custom domain
+resource "azurerm_dns_txt_record" "cdn_validation" {
+  for_each = module.frontend.custom_domain_validation_tokens
+
+  name                = local.cdn_dnsauth_names[each.key]
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+
+  record {
+    value = each.value
+  }
+
+  depends_on = [module.dns_bootstrapping]
+}
+
+# Alias A record for apex domain (@) → Front Door endpoint
+# Azure DNS alias records let you point the root domain to a Front Door endpoint
+# without violating the DNS spec that forbids CNAME at apex.
+resource "azurerm_dns_a_record" "cdn_apex" {
+  name                = "@"
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+  target_resource_id  = module.frontend.cdn_endpoint_ids["onboarding-web"]
+
+  depends_on = [module.dns_bootstrapping]
+}
+
+# CNAME records for all subdomains → their Front Door endpoints
+resource "azurerm_dns_cname_record" "cdn" {
+  for_each = {
+    for k, sub in local.cdn_dns_subdomains : k => sub
+    if sub != "@"
+  }
+
+  name                = each.value
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+  record              = module.frontend.cdn_endpoints[each.key]
+
+  depends_on = [module.dns_bootstrapping]
 }

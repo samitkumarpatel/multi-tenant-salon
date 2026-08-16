@@ -17,6 +17,12 @@ variable "endpoints" {
   }))
 }
 
+variable "dns_zone_id" {
+  type        = string
+  description = "Azure DNS zone resource ID — enables Front Door to validate ownership via the Azure DNS API, so managed TLS certs are provisioned without waiting for public DNS propagation."
+  default     = null
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

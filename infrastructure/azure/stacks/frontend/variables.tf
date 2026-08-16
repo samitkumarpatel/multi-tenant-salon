@@ -38,3 +38,9 @@ variable "cdn_custom_hostnames" {
   type    = map(string)
   default = {}
 }
+
+variable "dns_zone_id" {
+  type        = string
+  description = "Azure DNS zone resource ID for Front Door managed certificate validation"
+  default     = null
+}

@@ -91,9 +91,10 @@ resource "azurerm_cdn_frontdoor_custom_domain" "this" {
   name                     = replace(each.value.custom_hostname, ".", "-")
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
   host_name                = each.value.custom_hostname
+  dns_zone_id              = var.dns_zone_id
 
   tls {
-    certificate_type    = "ManagedCertificate"
-    minimum_tls_version = "TLS12"
+    certificate_type = "ManagedCertificate"
+    minimum_version  = "TLS12"
   }
 }

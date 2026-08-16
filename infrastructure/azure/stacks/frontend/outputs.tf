@@ -16,3 +16,8 @@ output "custom_domain_validation_tokens" {
   description = "DNS TXT validation tokens for Front Door custom domain TLS certificates"
   value       = module.cdn.custom_domain_validation_tokens
 }
+
+output "cdn_endpoint_ids" {
+  description = "Map of logical app name → Front Door endpoint resource ID"
+  value       = module.cdn.endpoint_ids
+}
