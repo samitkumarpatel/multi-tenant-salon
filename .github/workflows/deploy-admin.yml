@@ -45,6 +45,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    if: false  # disabled: AWS deployment replaced by Azure
     needs: build
     permissions:
       contents: read
@@ -101,7 +102,7 @@ jobs:
           az storage blob sync \
             --source dist \
             --container '$web' \
-            --account-name ${{ vars.AZURE_STORAGE_ACCOUNT }} \
+            --account-name salonsaasdevadmin \
             --auth-mode login \
             --delete-destination true \
             --exclude-pattern "index.html" \
@@ -110,15 +111,16 @@ jobs:
             --file dist/index.html \
             --name index.html \
             --container '$web' \
-            --account-name ${{ vars.AZURE_STORAGE_ACCOUNT }} \
+            --account-name salonsaasdevadmin \
             --auth-mode login \
             --content-cache-control "no-cache,no-store,must-revalidate" \
             --overwrite true
 
-      - name: Purge Azure CDN
+      - name: Purge Azure Front Door
         run: |
-          az cdn endpoint purge \
-            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --profile-name ${{ vars.AZURE_CDN_PROFILE }} \
-            --name ${{ vars.AZURE_CDN_ENDPOINT }} \
-            --content-paths "/*"
+          az afd endpoint purge \
+            --resource-group multi-tenant-salon-dev \
+            --profile-name salon-saas-dev-fe-afd \
+            --endpoint-name salon-saas-dev-fe-admin-web \
+            --content-paths "/*" \
+            --domains salon-saas-dev-fe-admin-web-f0hhancqhac5chg3.z01.azurefd.net

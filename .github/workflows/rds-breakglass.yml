@@ -17,6 +17,7 @@ jobs:
   breakglass:
     name: ${{ github.event.inputs.action == 'open' && 'Open RDS to internet' || 'Close RDS from internet' }}
     runs-on: ubuntu-latest
+    if: false  # disabled: AWS RDS replaced by Azure
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
