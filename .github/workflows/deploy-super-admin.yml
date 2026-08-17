@@ -1,11 +1,11 @@
 name: Deploy salon-super-admin
 
 on:
-#  push:
-#    branches: [main]
-#    paths:
-#      - "frontend/**"
-#      - ".github/workflows/deploy-super-admin.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-super-admin.yml"
   workflow_dispatch:
 
 jobs:
@@ -118,7 +118,7 @@ jobs:
 
       - name: Purge Azure Front Door
         run: |
-          az afd endpoint purge \
+          az afd endpoint purge --no-wait \
             --resource-group multi-tenant-salon-dev \
             --profile-name salon-saas-dev-fe-afd \
             --endpoint-name salon-saas-dev-fe-super-admin-web \

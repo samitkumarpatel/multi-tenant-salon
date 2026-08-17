@@ -3,7 +3,7 @@ name: AKS On Off Scheduler
 on:
   schedule:
     - cron: '0 22 * * *'   # 00:00 CEST (UTC+2) — shutdown
-    - cron: '0 8 * * *'    # 10:00 CEST (UTC+2) — startup
+    - cron: '0 12 * * *'   # 14:00 CEST (UTC+2) — startup
   workflow_dispatch:
     inputs:
       action:
@@ -43,7 +43,7 @@ jobs:
   startup:
     name: Startup (start AKS cluster)
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 8 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
+    if: github.event.schedule == '0 12 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
 
     steps:
       - name: Login to Azure

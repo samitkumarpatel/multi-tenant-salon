@@ -1,4 +1,4 @@
-name: RDS Break-Glass
+name: AWS RDS Break-Glass
 
 on:
   workflow_dispatch:

@@ -1,12 +1,12 @@
 name: Deploy salon-booking
 
 on:
-#  push:
-#    branches: [main]
-#    paths:
-#      - "frontend/apps/salon-booking/**"
-#      - "frontend/packages/ui-website/**"
-#      - ".github/workflows/deploy-booking.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/apps/salon-booking/**"
+      - "frontend/packages/ui-website/**"
+      - ".github/workflows/deploy-booking.yml"
   workflow_dispatch:
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
 
       - name: Purge Azure Front Door
         run: |
-          az afd endpoint purge \
+          az afd endpoint purge --no-wait \
             --resource-group multi-tenant-salon-dev \
             --profile-name salon-saas-dev-fe-afd \
             --endpoint-name salon-saas-dev-fe-booking-web \

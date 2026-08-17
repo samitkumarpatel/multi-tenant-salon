@@ -25,7 +25,7 @@ Go to **GitHub Actions → RDS Break-Glass → Run workflow** and select `open`.
 Or via the CLI:
 
 ```bash
-gh workflow run rds-breakglass.yml \
+gh workflow run aws-rds-breakglass.yml \
   --field action=open
 ```
 
@@ -79,7 +79,7 @@ psql -h "$PGHOST" -p 5432 -U salon_app -d salon
 Run the workflow again with `close`, or via CLI:
 
 ```bash
-gh workflow run rds-breakglass.yml \
+gh workflow run aws-rds-breakglass.yml \
   --field action=close
 ```
 
