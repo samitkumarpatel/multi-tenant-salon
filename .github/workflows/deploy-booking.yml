@@ -99,11 +99,15 @@ jobs:
 
       - name: Deploy to Azure Blob Storage
         run: |
+          ACCOUNT_KEY=$(az storage account keys list \
+            --account-name salonsaasdevbooking \
+            --resource-group multi-tenant-salon-dev \
+            --query "[0].value" -o tsv)
           az storage blob upload-batch \
             --source dist \
             --destination '$web' \
             --account-name salonsaasdevbooking \
-            --auth-mode login \
+            --account-key "$ACCOUNT_KEY" \
             --overwrite true \
             --content-cache-control "public,max-age=31536000,immutable"
           az storage blob upload \
@@ -111,7 +115,7 @@ jobs:
             --name index.html \
             --container '$web' \
             --account-name salonsaasdevbooking \
-            --auth-mode login \
+            --account-key "$ACCOUNT_KEY" \
             --content-cache-control "no-cache,no-store,must-revalidate" \
             --overwrite true
 

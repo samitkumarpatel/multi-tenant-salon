@@ -1,0 +1,68 @@
+name: AKS On Off Scheduler
+
+on:
+  schedule:
+    - cron: '0 22 * * *'   # 00:00 CEST (UTC+2) — shutdown
+    - cron: '0 8 * * *'    # 10:00 CEST (UTC+2) — startup
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options: [shutdown, startup]
+
+jobs:
+  shutdown:
+    name: Shutdown (stop AKS cluster)
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 22 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'shutdown')
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Stop AKS cluster
+        run: |
+          STATUS=$(az aks show \
+            --resource-group multi-tenant-salon-dev \
+            --name salon-saas-dev \
+            --query "powerState.code" -o tsv)
+          echo "AKS current state: $STATUS"
+          if [ "$STATUS" = "Running" ]; then
+            az aks stop \
+              --resource-group multi-tenant-salon-dev \
+              --name salon-saas-dev
+            echo "AKS stopped — all node VMs and control plane deallocated"
+          else
+            echo "AKS is not running (state: $STATUS), skipping"
+          fi
+
+  startup:
+    name: Startup (start AKS cluster)
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 8 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Start AKS cluster
+        run: |
+          STATUS=$(az aks show \
+            --resource-group multi-tenant-salon-dev \
+            --name salon-saas-dev \
+            --query "powerState.code" -o tsv)
+          echo "AKS current state: $STATUS"
+          if [ "$STATUS" = "Stopped" ]; then
+            az aks start \
+              --resource-group multi-tenant-salon-dev \
+              --name salon-saas-dev
+            echo "AKS started — system and spot pools restored"
+          else
+            echo "AKS is not stopped (state: $STATUS), skipping"
+          fi
