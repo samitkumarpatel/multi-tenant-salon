@@ -99,13 +99,12 @@ jobs:
 
       - name: Deploy to Azure Blob Storage
         run: |
-          az storage blob sync \
+          az storage blob upload-batch \
             --source dist \
-            --container '$web' \
+            --destination '$web' \
             --account-name salonsaasdevadmin \
             --auth-mode login \
-            --delete-destination true \
-            --exclude-pattern "index.html" \
+            --overwrite true \
             --content-cache-control "public,max-age=31536000,immutable"
           az storage blob upload \
             --file dist/index.html \
