@@ -45,6 +45,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    if: false  # disabled: AWS deployment replaced by Azure
     needs: build
     permissions:
       contents: read
@@ -66,14 +67,60 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync dist \
-            s3://my-salon-onboarding-web/ \
+            s3://salon-saas-onboarding-web/ \
             --delete \
             --cache-control "public,max-age=31536000,immutable" \
             --exclude "index.html"
           aws s3 cp dist/index.html \
-            s3://my-salon-onboarding-web/index.html \
+            s3://salon-saas-onboarding-web/index.html \
             --cache-control "no-cache,no-store,must-revalidate"
 
       - name: Invalidate CloudFront
         run: |
           aws cloudfront create-invalidation --distribution-id EOLKINLTPH8ZG --paths "/*"
+
+  deploy-azure:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-onboarding
+          path: dist
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Blob Storage
+        run: |
+          az storage blob sync \
+            --source dist \
+            --container '$web' \
+            --account-name salonsaasdevonboarding \
+            --auth-mode login \
+            --delete-destination true \
+            --exclude-pattern "index.html" \
+            --content-cache-control "public,max-age=31536000,immutable"
+          az storage blob upload \
+            --file dist/index.html \
+            --name index.html \
+            --container '$web' \
+            --account-name salonsaasdevonboarding \
+            --auth-mode login \
+            --content-cache-control "no-cache,no-store,must-revalidate" \
+            --overwrite true
+
+      - name: Purge Azure Front Door
+        run: |
+          az afd endpoint purge \
+            --resource-group multi-tenant-salon-dev \
+            --profile-name salon-saas-dev-fe-afd \
+            --endpoint-name salon-saas-dev-fe-onboarding-web \
+            --content-paths "/*" \
+            --domains salon-saas-dev-fe-onboarding-web-fqeag8g9h3c5g3fp.z01.azurefd.net

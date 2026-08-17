@@ -18,14 +18,15 @@ on:
 
 env:
   AWS_REGION: eu-north-1
-  ECS_CLUSTER: my-salon-dev-cluster
-  RDS_INSTANCE: my-salon-dev-postgres
+  ECS_CLUSTER: salon-saas-dev-cluster
+  RDS_INSTANCE: salon-saas-dev-postgres
 
 jobs:
   shutdown:
     name: Shutdown (scale down ECS + stop RDS)
     runs-on: ubuntu-latest
-    if: github.event.schedule == '58 21 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'shutdown')
+    if: false  # disabled: AWS resources (ECS + RDS) replaced by Azure
+    # if: github.event.schedule == '58 21 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'shutdown')
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -36,7 +37,7 @@ jobs:
 
       - name: Scale ECS services to 0
         run: |
-          for SERVICE in my-salon-dev-api my-salon-dev-auth; do
+          for SERVICE in salon-saas-dev-api salon-saas-dev-auth; do
             aws ecs update-service \
               --cluster ${{ env.ECS_CLUSTER }} \
               --service $SERVICE \
@@ -61,7 +62,8 @@ jobs:
   startup:
     name: Startup (start RDS + scale up ECS)
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
+    if: false  # disabled: AWS resources (ECS + RDS) replaced by Azure
+    # if: github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -93,7 +95,7 @@ jobs:
 
       - name: Scale ECS services to 1
         run: |
-          for SERVICE in my-salon-dev-api my-salon-dev-auth; do
+          for SERVICE in salon-saas-dev-api salon-saas-dev-auth; do
             aws ecs update-service \
               --cluster ${{ env.ECS_CLUSTER }} \
               --service $SERVICE \

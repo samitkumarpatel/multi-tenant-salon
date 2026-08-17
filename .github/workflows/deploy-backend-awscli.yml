@@ -13,9 +13,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: samitkumarpatel/multi-tenant-salon
   AWS_REGION: eu-north-1
-  ECS_SERVICE: my-salon-dev-api
-  ECS_CLUSTER: my-salon-dev-cluster
-  ECS_TASK_DEFINITION_FAMILY: my-salon-dev-api
+  ECS_SERVICE: salon-saas-dev-api
+  ECS_CLUSTER: salon-saas-dev-cluster
+  ECS_TASK_DEFINITION_FAMILY: salon-saas-dev-api
   CONTAINER_NAME: api
 
 jobs:
@@ -61,6 +61,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    if: false  # disabled: AWS deployment replaced by Azure (see deploy-backend.yml deploy-azure job)
     needs: build
     environment: dev
     permissions:

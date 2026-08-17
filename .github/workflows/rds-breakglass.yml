@@ -11,12 +11,13 @@ on:
 
 env:
   AWS_REGION: eu-north-1
-  RDS_SG_NAME: my-salon-dev-rds
+  RDS_SG_NAME: salon-saas-dev-rds
 
 jobs:
   breakglass:
     name: ${{ github.event.inputs.action == 'open' && 'Open RDS to internet' || 'Close RDS from internet' }}
     runs-on: ubuntu-latest
+    if: false  # disabled: AWS RDS replaced by Azure
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -39,7 +40,7 @@ jobs:
         id: rds
         run: |
           ENDPOINT=$(aws rds describe-db-instances \
-            --db-instance-identifier my-salon-dev-postgres \
+            --db-instance-identifier salon-saas-dev-postgres \
             --query "DBInstances[0].Endpoint.Address" \
             --output text)
           echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
@@ -58,7 +59,7 @@ jobs:
           echo "  Host:     ${{ steps.rds.outputs.endpoint }}"
           echo "  Port:     5432"
           echo "  Username: salon_app"
-          echo "  Password: aws secretsmanager get-secret-value --secret-id /my-salon/dev/db-password --query SecretString --output text"
+          echo "  Password: aws secretsmanager get-secret-value --secret-id /salon-saas/dev/db-password --query SecretString --output text"
           echo ""
           echo "  psql -h ${{ steps.rds.outputs.endpoint }} -p 5432 -U salon_app -d salon"
           echo ""
