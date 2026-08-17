@@ -1,0 +1,60 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/samitkumarpatel/multi-tenant-salon
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# Name of a kubernetes.io/dockerconfigjson Secret for pulling from ghcr.io
+imagePullSecrets:
+  - name: ghcr-secret
+
+# fullnameOverride keeps the deployment name "api" so the CI workflow
+# (kubectl set image deployment/api api=...) does not need to change.
+fullnameOverride: "api"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.salonsaas.org
+  tls:
+    enabled: true
+    secretName: api-tls
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+# Schedule on spot nodes to reduce cost.
+# Matches the AKS spot pool taint: kubernetes.azure.com/scalesetpriority=spot:NoSchedule
+spot:
+  enabled: true
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+# Non-sensitive environment variables
+env:
+  SPRING_SQL_INIT_MODE: "never"
+  SPRING_MODULITH_EVENTS_JDBC_SCHEMA_INITIALIZATION_ENABLED: "false"
+  SPRING_FLYWAY_ENABLED: "true"
+  STORAGE_TYPE: "LOCAL"
+  CORS_ALLOWED_ORIGIN_PATTERNS: "*"
+
+# Sensitive values — override per environment (never commit real values).
+# These are rendered into a Kubernetes Secret and injected via envFrom.
+secret:
+  SPRING_DATASOURCE_URL: ""
+  SPRING_DATASOURCE_USERNAME: ""
+  SPRING_DATASOURCE_PASSWORD: ""

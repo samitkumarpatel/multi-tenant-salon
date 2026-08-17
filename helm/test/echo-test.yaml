@@ -1,0 +1,72 @@
+---
+# Deployment — lightweight nginx serving the default welcome page
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-test
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-test
+  template:
+    metadata:
+      labels:
+        app: echo-test
+    spec:
+      tolerations:
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      containers:
+        - name: echo-test
+          image: nginxdemos/hello:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-test
+  namespace: default
+spec:
+  selector:
+    app: echo-test
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+# Ingress — routes api.salonsaas.org → echo-test Service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: echo-test
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.salonsaas.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo-test
+                port:
+                  number: 80

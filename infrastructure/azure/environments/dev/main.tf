@@ -239,3 +239,42 @@ resource "azurerm_dns_cname_record" "wildcard" {
   depends_on = [module.dns_bootstrapping]
 }
 
+# ── nginx Ingress — static public IP ──────────────────────────────────────────
+# One shared IP for all backend services (api, auth, …) routed by hostname via
+# nginx ingress controller. Pass this IP when installing ingress-nginx:
+#   --set controller.service.loadBalancerIP=$(terraform output -raw nginx_ingress_ip)
+
+resource "azurerm_public_ip" "nginx_ingress" {
+  name                = "${local.resource_group_name}-nginx-ingress"
+  resource_group_name = local.resource_group_name
+  location            = local.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  tags = {
+    Project     = "multi-tenant-salon"
+    Environment = local.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "azurerm_dns_a_record" "api" {
+  name                = "api"
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+  records             = [azurerm_public_ip.nginx_ingress.ip_address]
+
+  depends_on = [module.dns_bootstrapping]
+}
+
+resource "azurerm_dns_a_record" "auth" {
+  name                = "auth"
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+  records             = [azurerm_public_ip.nginx_ingress.ip_address]
+
+  depends_on = [module.dns_bootstrapping]
+}
+

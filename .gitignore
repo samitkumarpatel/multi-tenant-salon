@@ -64,3 +64,7 @@ infrastructure/environments/**/.env
 **/.env/**
 .claude/
 **/.claude/**
+
+kubeconfig
+kube-config
+**/kube-config/**

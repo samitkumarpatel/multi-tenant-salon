@@ -50,6 +50,17 @@ module "aks" {
   tags = local.common_tags
 }
 
+# ── AKS Network Contributor ────────────────────────────────────────────────────
+# The AKS control-plane identity must be able to read/manage public IPs in the
+# resource group so it can attach a static IP to a LoadBalancer Service
+# (e.g. the nginx ingress controller).
+
+resource "azurerm_role_assignment" "aks_network_contributor" {
+  principal_id         = module.aks.cluster_identity_principal_id
+  role_definition_name = "Network Contributor"
+  scope                = var.resource_group_id
+}
+
 # ── Key Vault ──────────────────────────────────────────────────────────────────
 # Name must be globally unique, 3-24 chars, alphanumeric + hyphens.
 

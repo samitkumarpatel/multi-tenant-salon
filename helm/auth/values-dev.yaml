@@ -1,0 +1,13 @@
+replicaCount: 1
+
+image:
+  tag: "latest"
+
+hpa:
+  enabled: false
+
+ingress:
+  host: auth.salonsaas.org
+
+env:
+  IDENTITY_SERVICE_URL: "https://api.salonsaas.org"
