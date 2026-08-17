@@ -8,7 +8,6 @@ locals {
   cdn_custom_hostnames = {
     onboarding-web  = local.domain
     admin-web       = "admin.${local.domain}"
-    public-web      = "app.${local.domain}"
     super-admin-web = "super-admin.${local.domain}"
     booking-web     = "book.${local.domain}"
     staff-web       = "staff.${local.domain}"
@@ -125,7 +124,10 @@ module "frontend" {
   }
 
   cdn_custom_hostnames = local.cdn_custom_hostnames
-  dns_zone_id          = module.dns_bootstrapping.zone_id
+  cdn_extra_hostnames  = {
+    public-web = ["*.${local.domain}"]
+  }
+  dns_zone_id = module.dns_bootstrapping.zone_id
 }
 
 # ── Backend ────────────────────────────────────────────────────────────────────
@@ -152,9 +154,12 @@ module "backend" {
 # Ownership validation TXT records (_dnsauth.*) so Front Door can provision
 # managed TLS certificates. CNAME/alias records route traffic to the endpoints.
 
-# TXT: _dnsauth and _dnsauth.<sub> — one per custom domain
+# TXT: _dnsauth.<sub> — one per non-apex custom domain
 resource "azurerm_dns_txt_record" "cdn_validation" {
-  for_each = module.frontend.custom_domain_validation_tokens
+  for_each = {
+    for k, v in module.frontend.custom_domain_validation_tokens : k => v
+    if can(local.cdn_dnsauth_names[k]) && local.cdn_dnsauth_names[k] != "_dnsauth"
+  }
 
   name                = local.cdn_dnsauth_names[each.key]
   zone_name           = local.domain
@@ -166,6 +171,31 @@ resource "azurerm_dns_txt_record" "cdn_validation" {
   }
 
   depends_on = [module.dns_bootstrapping]
+}
+
+# TXT: _dnsauth (apex) — shared by onboarding-web (salonsaas.org) and wildcard (*.salonsaas.org)
+# Both domains validate at the same DNS name; a single record holds both tokens.
+resource "azurerm_dns_txt_record" "cdn_apex_validation" {
+  name                = "_dnsauth"
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+
+  record {
+    value = module.frontend.custom_domain_validation_tokens["onboarding-web"]
+  }
+
+  record {
+    value = module.frontend.custom_domain_validation_tokens["public-web--extra-0"]
+  }
+
+  depends_on = [module.dns_bootstrapping]
+}
+
+# State migration: onboarding-web's _dnsauth record is now managed by cdn_apex_validation
+moved {
+  from = azurerm_dns_txt_record.cdn_validation["onboarding-web"]
+  to   = azurerm_dns_txt_record.cdn_apex_validation
 }
 
 # Alias A record for apex domain (@) → Front Door endpoint
@@ -196,3 +226,16 @@ resource "azurerm_dns_cname_record" "cdn" {
 
   depends_on = [module.dns_bootstrapping]
 }
+
+# Wildcard CNAME: *.salonsaas.org → public-web Front Door endpoint
+# Catches all tenant subdomains (e.g. mysalon.salonsaas.org) not matched by explicit records above.
+resource "azurerm_dns_cname_record" "wildcard" {
+  name                = "*"
+  zone_name           = local.domain
+  resource_group_name = local.resource_group_name
+  ttl                 = 300
+  record              = module.frontend.cdn_endpoints["public-web"]
+
+  depends_on = [module.dns_bootstrapping]
+}
+

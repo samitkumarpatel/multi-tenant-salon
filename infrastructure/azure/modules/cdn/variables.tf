@@ -14,6 +14,7 @@ variable "endpoints" {
   type = map(object({
     origin_host     = string
     custom_hostname = optional(string, null)
+    extra_hostnames = optional(list(string), [])
   }))
 }
 

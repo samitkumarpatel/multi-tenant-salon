@@ -73,9 +73,10 @@ resource "azurerm_cdn_frontdoor_route" "this" {
   https_redirect_enabled = true
   link_to_default_domain = true
 
-  cdn_frontdoor_custom_domain_ids = each.value.custom_hostname != null ? [
-    azurerm_cdn_frontdoor_custom_domain.this[each.key].id
-  ] : []
+  cdn_frontdoor_custom_domain_ids = concat(
+    each.value.custom_hostname != null ? [azurerm_cdn_frontdoor_custom_domain.this[each.key].id] : [],
+    [for k, d in azurerm_cdn_frontdoor_custom_domain.extra : d.id if local.extra_domains[k].app_key == each.key]
+  )
 
   depends_on = [azurerm_cdn_frontdoor_origin.this]
 }
@@ -91,6 +92,31 @@ resource "azurerm_cdn_frontdoor_custom_domain" "this" {
   name                     = replace(each.value.custom_hostname, ".", "-")
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
   host_name                = each.value.custom_hostname
+  dns_zone_id              = var.dns_zone_id
+
+  tls {
+    certificate_type = "ManagedCertificate"
+    minimum_version  = "TLS12"
+  }
+}
+
+# ── Extra custom domains (e.g. wildcard *.salonsaas.org) ──────────────────────
+
+locals {
+  extra_domains = merge([
+    for app_key, ep in var.endpoints : {
+      for i, h in ep.extra_hostnames :
+      "${app_key}--extra-${i}" => { app_key = app_key, hostname = h }
+    }
+  ]...)
+}
+
+resource "azurerm_cdn_frontdoor_custom_domain" "extra" {
+  for_each = local.extra_domains
+
+  name                     = replace(replace(each.value.hostname, ".", "-"), "*", "wildcard")
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+  host_name                = each.value.hostname
   dns_zone_id              = var.dns_zone_id
 
   tls {

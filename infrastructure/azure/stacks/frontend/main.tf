@@ -36,6 +36,7 @@ module "cdn" {
     for k, v in var.storage_accounts : k => {
       origin_host     = try(module.storage.accounts[k].primary_web_host, "${v.storage_account_name}.z1.web.core.windows.net")
       custom_hostname = lookup(var.cdn_custom_hostnames, k, null)
+      extra_hostnames = lookup(var.cdn_extra_hostnames, k, [])
     }
   }
 

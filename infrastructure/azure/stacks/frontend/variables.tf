@@ -39,6 +39,12 @@ variable "cdn_custom_hostnames" {
   default = {}
 }
 
+# Map of logical app name → list of additional custom FQDNs (e.g. wildcard domains).
+variable "cdn_extra_hostnames" {
+  type    = map(list(string))
+  default = {}
+}
+
 variable "dns_zone_id" {
   type        = string
   description = "Azure DNS zone resource ID for Front Door managed certificate validation"
