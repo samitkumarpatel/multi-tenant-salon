@@ -1,8 +1,5 @@
 replicaCount: 1
 
-image:
-  tag: "latest"
-
 hpa:
   enabled: false
 
@@ -11,3 +8,7 @@ ingress:
 
 env:
   IDENTITY_SERVICE_URL: "https://api.salonsaas.org"
+
+secret:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon"
+  SPRING_DATASOURCE_USERNAME: "postgres"

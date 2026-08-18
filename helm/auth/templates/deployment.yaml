@@ -45,6 +45,11 @@ spec:
             - name: http
               containerPort: 9000
               protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ include "auth.fullname" . }}-secret
+            - secretRef:
+                name: postgres-secret
           env:
             {{- range $key, $val := .Values.env }}
             - name: {{ $key }}

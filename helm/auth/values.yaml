@@ -41,3 +41,9 @@ hpa:
 
 env:
   IDENTITY_SERVICE_URL: "https://api.salonsaas.org"
+
+# Sensitive values — override per environment (never commit real values).
+# These are rendered into a Kubernetes Secret and injected via envFrom.
+secret:
+  SPRING_DATASOURCE_URL: ""
+  SPRING_DATASOURCE_USERNAME: ""

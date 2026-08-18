@@ -61,6 +61,24 @@ resource "azurerm_role_assignment" "aks_network_contributor" {
   scope                = var.resource_group_id
 }
 
+# ── AKS Disk Attach permissions ────────────────────────────────────────────────
+# The CSI external-attacher (runs in the AKS managed control plane, uses the
+# cluster identity) needs Contributor on the disk to call Azure Compute attach
+# APIs. The kubelet identity needs it to format and mount the disk on the node.
+# Both are scoped to the postgres disk only, not the whole resource group.
+
+resource "azurerm_role_assignment" "aks_cluster_disk_contributor" {
+  principal_id         = module.aks.cluster_identity_principal_id
+  role_definition_name = "Contributor"
+  scope                = module.aks.postgres_disk_id
+}
+
+resource "azurerm_role_assignment" "aks_kubelet_disk_contributor" {
+  principal_id         = module.aks.kubelet_identity_object_id
+  role_definition_name = "Contributor"
+  scope                = module.aks.postgres_disk_id
+}
+
 # ── Key Vault ──────────────────────────────────────────────────────────────────
 # Name must be globally unique, 3-24 chars, alphanumeric + hyphens.
 

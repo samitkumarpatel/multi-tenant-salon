@@ -1,8 +1,5 @@
 replicaCount: 1
 
-image:
-  tag: "latest"
-
 ingress:
   host: api.salonsaas.org
 
@@ -11,10 +8,11 @@ hpa:
 
 env:
   CORS_ALLOWED_ORIGIN_PATTERNS: "https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org"
+  MEDIA_STAFF_CDN_BASE_URL: "https://staff.salonsaas.org"
+  MEDIA_LOCAL_BASE_URL: "https://api.salonsaas.org"
+  # MEDIA_STAFF_BUCKET_NAME: ""  # only needed when STORAGE_TYPE=S3
+  # MEDIA_LOCAL_STORAGE_PATH: "/tmp/salon-photos"  # ephemeral — mount a PV here when storage is revisited
 
-# secret values are injected at deploy time from CI secrets — do not hardcode here
-# helm upgrade api ./infrastructure/helm/api \
-#   -f infrastructure/helm/api/values-dev.yaml \
-#   --set secret.SPRING_DATASOURCE_URL="..." \
-#   --set secret.SPRING_DATASOURCE_USERNAME="..." \
-#   --set secret.SPRING_DATASOURCE_PASSWORD="..."
+secret:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon"
+  SPRING_DATASOURCE_USERNAME: "postgres"

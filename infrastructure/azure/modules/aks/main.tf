@@ -104,12 +104,3 @@ resource "azurerm_managed_disk" "postgres" {
   tags                 = var.tags
 }
 
-# NOTE: The role assignment below requires an Owner/UAA account, not the CI SP.
-# Run this once manually with az cli using an account that has Owner role:
-#
-#   KUBELET_OID=$(az aks show -g multi-tenant-salon-dev -n salon-saas-dev \
-#                   --query identityProfile.kubeletidentity.objectId -o tsv)
-#   az role assignment create \
-#     --assignee "$KUBELET_OID" \
-#     --role "Contributor" \
-#     --scope "/subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev"

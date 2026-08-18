@@ -31,6 +31,14 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: managed-premium
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - "0"
   csi:
     driver: disk.csi.azure.com
     volumeHandle: /subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev/providers/Microsoft.Compute/disks/salon-saas-dev-postgres-data

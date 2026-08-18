@@ -1,5 +1,11 @@
 name: AKS On Off Scheduler
 
+run-name: >-
+  AKS ${{
+    (github.event.inputs.action == 'shutdown' || github.event.schedule == '0 22 * * *')
+    && 'Off' || 'On'
+  }} Scheduler
+
 on:
   schedule:
     - cron: '0 22 * * *'   # 00:00 CEST (UTC+2) — shutdown
