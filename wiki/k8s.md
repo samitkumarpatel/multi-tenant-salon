@@ -56,10 +56,8 @@ kubectl get namespaces
 The Terraform backend stack exposes a `kube_config_raw` sensitive output. To use it directly:
 
 ```bash
-cd infrastructure/azure/environments/dev
-terraform output -raw kube_config_raw > ~/.kube/salon-dev-config
-export KUBECONFIG=~/.kube/salon-dev-config
-kubectl get nodes
+terraform -chdir=./infrastructure/azure/environments/dev output -raw kube_config_raw > kube-config
+export KUBECONFIG=./kube-config
 ```
 
 ## Related

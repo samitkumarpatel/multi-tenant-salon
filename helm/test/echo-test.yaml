@@ -59,6 +59,10 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.salonsaas.org
+      secretName: salonsaas.org-prod
   rules:
     - host: api.salonsaas.org
       http:

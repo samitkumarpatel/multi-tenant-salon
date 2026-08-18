@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: salonsaas.org-staging
+spec:
+  secretName: salonsaas.org-staging
+  dnsNames:
+    - api.salonsaas.org
+    - auth.salonsaas.org
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
