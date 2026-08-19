@@ -5,6 +5,8 @@ import { DEFAULT_THEME, BookingWizard, GenerativeUIBooking, SalonErrorPage, apiF
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, Country } from "@salon/ui-website";
 import { CalendarCheck, Sparkles } from "lucide-react";
 
+const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
+
 // ── types ─────────────────────────────────────────────────────────────────────
 
 type LoaderOk = {
@@ -149,7 +151,7 @@ function BookingUnavailablePage({ salonName }: { salonName?: string }) {
       <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
         This salon hasn't enabled online booking yet. Please contact them directly to make an appointment.
       </p>
-      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">my-salon.online</p>
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">{SALON_DOMAIN}</p>
     </div>
   );
 }

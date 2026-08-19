@@ -27,7 +27,7 @@ export function AppLogo({
     <div
       className={`inline-flex items-center gap-2 select-none ${className}`}
       role="img"
-      aria-label="my-salon"
+      aria-label={import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org"}
     >
       <span
         className={`logo-snip shrink-0 ${snipping ? "is-snipping" : ""}`}

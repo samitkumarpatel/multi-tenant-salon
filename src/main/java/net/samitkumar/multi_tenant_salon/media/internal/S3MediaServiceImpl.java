@@ -10,7 +10,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 @Service
-@ConditionalOnProperty(name = "media.storage-type", havingValue = "S3")
+@ConditionalOnProperty(name = "spring.application.media.storage-type", havingValue = "S3")
 class S3MediaServiceImpl implements MediaService {
 
     private final S3Template s3Template;
@@ -18,8 +18,8 @@ class S3MediaServiceImpl implements MediaService {
     private final String cdnBaseUrl;
 
     S3MediaServiceImpl(S3Template s3Template,
-                       @Value("${media.staff-bucket-name}") String bucketName,
-                       @Value("${media.staff-cdn-base-url:https://staff.my-salon.online}") String cdnBaseUrl) {
+                       @Value("${spring.application.media.staff-bucket-name}") String bucketName,
+                       @Value("${spring.application.media.staff-cdn-base-url:https://staff.salonsaas.org}") String cdnBaseUrl) {
         this.s3Template = s3Template;
         this.bucketName = bucketName;
         this.cdnBaseUrl = cdnBaseUrl;

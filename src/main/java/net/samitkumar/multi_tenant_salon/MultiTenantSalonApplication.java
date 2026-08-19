@@ -18,7 +18,7 @@ public class MultiTenantSalonApplication {
 	}
 
 	@Bean
-	WebMvcConfigurer corsConfigurer(@Value("${cors.allowed-origin-patterns:*}") String[] allowedOriginPatterns) {
+	WebMvcConfigurer corsConfigurer(@Value("${spring.application.cors.allowed-origin-patterns:*}") String[] allowedOriginPatterns) {
 		return new WebMvcConfigurer() {
 			@Override
 			public void addCorsMappings(@NonNull CorsRegistry registry) {

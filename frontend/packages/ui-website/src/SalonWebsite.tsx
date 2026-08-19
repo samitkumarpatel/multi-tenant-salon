@@ -13,6 +13,8 @@ import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, Sal
 
 export type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme };
 
+const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -193,7 +195,7 @@ export function SalonErrorPage({ is404 }: { is404: boolean }) {
           </button>
         )}
       </div>
-      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">my-salon.online</p>
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">{SALON_DOMAIN}</p>
     </div>
   );
 }
@@ -223,7 +225,7 @@ export function SalonDisabledPage({ salonName }: { salonName?: string }) {
       <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
         This salon's website hasn't been published yet. Check back soon — good things take a little time to set up.
       </p>
-      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">my-salon.online</p>
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">{SALON_DOMAIN}</p>
     </div>
   );
 }

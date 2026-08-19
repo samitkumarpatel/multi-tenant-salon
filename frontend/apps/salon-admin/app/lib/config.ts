@@ -1,5 +1,5 @@
 export const SALON_DOMAIN =
-  import.meta.env.VITE_SALON_DOMAIN ?? "my-salon.online";
+  import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org";
 
 export const CONTACT_EMAIL = `contact@${SALON_DOMAIN}`;
 export const SUPPORT_EMAIL  = `support@${SALON_DOMAIN}`;

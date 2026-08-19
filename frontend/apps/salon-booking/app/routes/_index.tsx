@@ -1,8 +1,10 @@
+const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
+
 export default function IndexPage() {
   const exampleUrl =
     typeof window !== "undefined" && window.location.hostname === "localhost"
       ? `${window.location.host}/your-salon`
-      : "book.my-salon.online/your-salon";
+      : `book.${SALON_DOMAIN}/your-salon`;
 
   return (
     <div
@@ -32,7 +34,7 @@ export default function IndexPage() {
         </code>
       </p>
 
-      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">my-salon.online</p>
+      <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">{SALON_DOMAIN}</p>
     </div>
   );
 }

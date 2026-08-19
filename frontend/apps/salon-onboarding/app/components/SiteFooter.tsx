@@ -1,5 +1,5 @@
 import { Mail, Phone } from "lucide-react";
-import { CONTACT_EMAIL } from "~/lib/config";
+import { CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
 
 export function SiteFooter() {
   return (
@@ -22,7 +22,7 @@ export function SiteFooter() {
             </a>
           </div>
           <p className="text-[11px] text-stone-400">
-            © {new Date().getFullYear()} my-salon · All rights reserved.
+            © {new Date().getFullYear()} {SALON_DOMAIN} · All rights reserved.
           </p>
         </div>
       </div>

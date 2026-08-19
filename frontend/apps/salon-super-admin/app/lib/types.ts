@@ -150,7 +150,8 @@ export function clearSession() {
   sessionStorage.removeItem(SESSION_KEY);
 }
 
-export const SUPER_ADMIN_EMAIL = "admin@my-salon.online";
+export const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org";
+export const SUPER_ADMIN_EMAIL = `admin@${SALON_DOMAIN}`;
 export const DUMMY_OTP = "123456";
 
 export const ALL_FEATURES: SalonFeature[] = [

@@ -24,13 +24,29 @@ function buildFaviconHref(name: string, bgColor: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "my-salon.online";
+const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 function slugFromRequest(request: Request): string | null {
   const url = new URL(request.url);
-  if (url.hostname.endsWith(`.${SALON_DOMAIN}`)) {
-    return url.hostname.slice(0, -(SALON_DOMAIN.length + 1)) || null;
+  const hostname = url.hostname;
+
+  // Local dev: hostname is localhost or 127.0.0.1 — use slug query param
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return url.searchParams.get("slug");
   }
+
+  // Production: if the hostname ends with the configured domain, extract the subdomain
+  if (hostname.endsWith(`.${SALON_DOMAIN}`)) {
+    return hostname.slice(0, -(SALON_DOMAIN.length + 1)) || null;
+  }
+
+  // Fallback for any other real domain: if there is a subdomain (3+ labels, e.g. btw.salonsaas.org),
+  // treat the first label as the slug so subdomain routing works regardless of VITE_SALON_DOMAIN
+  const parts = hostname.split(".");
+  if (parts.length > 2) {
+    return parts[0] || null;
+  }
+
   return url.searchParams.get("slug");
 }
 

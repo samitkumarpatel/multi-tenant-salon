@@ -7,7 +7,7 @@
     "apps/*"
   ],
   "scripts": {
-    "dev:admin":"npm run dev --workspace=apps/salon-admin",
+    "dev:admin": "npm run dev --workspace=apps/salon-admin",
     "dev:public": "npm run dev --workspace=apps/salon-public-website",
     "dev:onboarding": "npm run dev --workspace=apps/salon-onboarding",
     "dev:super-admin": "npm run dev --workspace=apps/salon-super-admin",

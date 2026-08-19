@@ -10,15 +10,15 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "media.storage-type", havingValue = "LOCAL", matchIfMissing = true)
+@ConditionalOnProperty(name = "spring.application.media.storage-type", havingValue = "LOCAL", matchIfMissing = true)
 class LocalMediaServiceImpl implements MediaService {
 
     private final String storageDir;
     private final String baseUrl;
 
     LocalMediaServiceImpl(
-            @Value("${media.local-storage-path:/tmp/salon-photos}") String storageDir,
-            @Value("${media.local-base-url:http://localhost:8080}") String baseUrl) {
+            @Value("${spring.application.media.local-storage-path:/tmp/salon-photos}") String storageDir,
+            @Value("${spring.application.media.local-base-url:http://localhost:8080}") String baseUrl) {
         this.storageDir = storageDir;
         this.baseUrl = baseUrl;
         log.info("[LocalMediaService] Photo storage: {} (served via {})", storageDir, baseUrl);

@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { Shield, Mail, KeyRound, ArrowLeft } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
-import { setSession, SUPER_ADMIN_EMAIL, DUMMY_OTP } from "~/lib/types";
+import { setSession, SUPER_ADMIN_EMAIL, DUMMY_OTP, SALON_DOMAIN } from "~/lib/types";
 
 const inputCls =
   "w-full px-3 py-2 border border-stone-200 rounded-md text-sm bg-stone-100 text-stone-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-stone-400";
@@ -122,7 +122,7 @@ export default function SuperAdminLogin() {
                         autoFocus
                         value={email}
                         onChange={(e) => { setEmail(e.target.value); setEmailErr(""); }}
-                        placeholder="admin@my-salon.online"
+                        placeholder={SUPER_ADMIN_EMAIL}
                         className={`${inputCls} pl-8 ${emailErr ? "border-red-500/60 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                       />
                     </div>
@@ -215,7 +215,7 @@ export default function SuperAdminLogin() {
       <footer className="h-10 border-t border-stone-200 bg-white/50 flex items-center px-6 shrink-0">
         <AppLogo size={16} textColor="#475569" />
         <p className="text-[10px] text-stone-400 ml-auto">
-          © {new Date().getFullYear()} · my-salon platform
+          © {new Date().getFullYear()} · {SALON_DOMAIN}
         </p>
       </footer>
     </div>

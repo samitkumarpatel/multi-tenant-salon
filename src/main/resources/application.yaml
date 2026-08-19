@@ -4,6 +4,18 @@ spring:
     utility:
       static-geo-data: classpath:data/countries.json
       static-currency-data: classpath:data/currencies.json
+    media:
+      # STORAGE_TYPE=LOCAL (default) — photos stored locally and served by the backend
+      # STORAGE_TYPE=S3              — photos stored in S3; also set SPRING_CLOUD_AWS_S3_ENABLED=true
+      storage-type: ${STORAGE_TYPE:LOCAL}
+      staff-bucket-name: ${MEDIA_STAFF_BUCKET_NAME:}
+      staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.salonsaas.org}
+      local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
+      local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/salon-photos}
+    cors:
+      # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
+      # e.g. https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
   cloud:
     aws:
       s3:
@@ -35,19 +47,6 @@ spring:
     password: ${spring.datasource.password}
     url: ${spring.datasource.url}
 
-media:
-  # STORAGE_TYPE=LOCAL (default) — photos stored locally and served by the backend
-  # STORAGE_TYPE=S3              — photos stored in S3; also set SPRING_CLOUD_AWS_S3_ENABLED=true
-  storage-type: ${STORAGE_TYPE:LOCAL}
-  staff-bucket-name: ${MEDIA_STAFF_BUCKET_NAME:}
-  staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.my-salon.online}
-  local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
-  local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/salon-photos}
-
-cors:
-  # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
-  # e.g. https://my-salon.online,https://www.my-salon.online,https://*.my-salon.online
-  allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
 
 management:
   endpoints:
@@ -57,12 +56,6 @@ management:
           - health
           - info
           - metrics
-
 logging:
   level:
-    root: INFO
-    net.samitkumar.multi_tenant_salon: DEBUG
-    org.springframework.jdbc: DEBUG
-    com.zaxxer.hikari: DEBUG
-    org.flywaydb: DEBUG
-    org.postgresql: DEBUG
+    root: info

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail, Phone } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
-import { CONTACT_EMAIL } from "~/lib/config";
+import { CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
 
 type CookieChoice = "all" | "essential";
 
@@ -10,13 +10,13 @@ function CookieBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!localStorage.getItem("my-salon:cookie-consent")) {
+    if (!localStorage.getItem(`${SALON_DOMAIN}:cookie-consent`)) {
       setVisible(true);
     }
   }, []);
 
   function save(choice: CookieChoice) {
-    localStorage.setItem("my-salon:cookie-consent", choice);
+    localStorage.setItem(`${SALON_DOMAIN}:cookie-consent`, choice);
     setVisible(false);
   }
 
@@ -132,7 +132,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto">
           <hr className="border-stone-200 mb-3" />
           <p className="text-right text-[11px] text-stone-400">
-            © {new Date().getFullYear()} my-salon · All rights reserved.
+            © {new Date().getFullYear()} {SALON_DOMAIN} · All rights reserved.
           </p>
         </div>
       </footer>

@@ -9,6 +9,7 @@ import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight
 import { AppLogo, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSalonUUID } from "~/lib/api";
+import { SALON_DOMAIN } from "~/lib/config";
 import type { Salon, LayoutContext, WebsiteMode } from "~/lib/types";
 
 export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
@@ -288,7 +289,7 @@ export default function Layout() {
 
   useEffect(() => {
     if (!salon?.name) return;
-    document.title = `${salon.name} · my-salon`;
+    document.title = `${salon.name} · ${SALON_DOMAIN}`;
     const initials = salon.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='32' y2='32' gradientUnits='userSpaceOnUse'><stop offset='0' stop-color='#4ade80'/><stop offset='1' stop-color='#059669'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(#g)'/><text x='16' y='22' font-family='system-ui,sans-serif' font-size='13' font-weight='700' fill='white' text-anchor='middle'>${initials}</text></svg>`;
     let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");

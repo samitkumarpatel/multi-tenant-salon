@@ -15,12 +15,12 @@ import java.nio.file.Path;
 @Slf4j
 @RestController
 @RequestMapping("/api/media/photos")
-@ConditionalOnProperty(name = "media.storage-type", havingValue = "LOCAL", matchIfMissing = true)
+@ConditionalOnProperty(name = "spring.application.media.storage-type", havingValue = "LOCAL", matchIfMissing = true)
 class MediaServiceController {
 
     private final Path root;
 
-    MediaServiceController(@Value("${media.local-storage-path:/tmp/salon-photos}") String storageDir) {
+    MediaServiceController(@Value("${spring.application.media.local-storage-path:/tmp/salon-photos}") String storageDir) {
         this.root = Path.of(storageDir).toAbsolutePath().normalize();
     }
 
