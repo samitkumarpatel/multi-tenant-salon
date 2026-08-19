@@ -44,6 +44,15 @@ hpa:
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
 
+# Postgres connection — mirrors helm/postgres/postgres.yaml:
+#   Service   postgres (ClusterIP) in namespace salon, port 5432
+#   ConfigMap postgres-config -> POSTGRES_DB=salon, POSTGRES_USER=postgres
+#   Secret    postgres-secret -> POSTGRES_PASSWORD (created out-of-band, never committed)
+# Only the password is read from the Secret; host/db/user are plain env vars below.
+postgres:
+  secretName: postgres-secret
+  passwordKey: POSTGRES_PASSWORD
+
 # Non-sensitive environment variables
 env:
   SPRING_SQL_INIT_MODE: "never"
@@ -58,9 +67,16 @@ env:
   MEDIA_STAFF_BUCKET_NAME: ""
   MEDIA_LOCAL_BASE_URL: ""
   MEDIA_LOCAL_STORAGE_PATH: "/tmp/salon-photos"
+  # Postgres runs in the same namespace (salon), so the ClusterIP Service name
+  # resolves directly. Database name and user come from the postgres-config ConfigMap.
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  # SPRING_DATASOURCE_PASSWORD is deliberately absent — it is injected from the
+  # postgres-secret Secret by templates/deployment.yaml (see postgres.* above).
+  # Setting it here would put the password in plain text in git, and a value in
+  # `env` also silently overrides anything supplied via envFrom.
 
 # Sensitive values — override per environment (never commit real values).
-# These are rendered into a Kubernetes Secret and injected via envFrom.
-secret:
-  SPRING_DATASOURCE_URL: ""
-  SPRING_DATASOURCE_USERNAME: ""
+# Rendered into a Kubernetes Secret and injected via envFrom. Empty by default:
+# the datasource password comes from postgres-secret, not from here.
+secret: {}

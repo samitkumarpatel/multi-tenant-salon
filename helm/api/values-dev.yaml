@@ -13,6 +13,6 @@ env:
   # MEDIA_STAFF_BUCKET_NAME: ""  # only needed when STORAGE_TYPE=S3
   # MEDIA_LOCAL_STORAGE_PATH: "/tmp/salon-photos"  # ephemeral — mount a PV here when storage is revisited
 
-secret:
-  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon"
-  SPRING_DATASOURCE_USERNAME: "postgres"
+# SPRING_DATASOURCE_URL / _USERNAME live in values.yaml `env` (they are not secrets);
+# SPRING_DATASOURCE_PASSWORD is injected from the postgres-secret Secret.
+secret: {}

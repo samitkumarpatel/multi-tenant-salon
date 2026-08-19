@@ -47,11 +47,11 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          {{- if .Values.secret }}
           envFrom:
             - secretRef:
                 name: {{ include "api.fullname" . }}-secret
-            - secretRef:
-                name: postgres-secret
+          {{- end }}
           env:
             {{- range $key, $val := .Values.env }}
             {{- if $val }}
@@ -59,6 +59,13 @@ spec:
               value: {{ $val | quote }}
             {{- end }}
             {{- end }}
+            # Postgres only exposes POSTGRES_PASSWORD, so map it onto the key
+            # Spring actually reads (spring.datasource.password).
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: {{ .Values.postgres.passwordKey }}
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
