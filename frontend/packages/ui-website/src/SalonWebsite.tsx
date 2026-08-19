@@ -8,7 +8,7 @@ import { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText } from
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
 import { FEATURE_NAV } from "./SiteChrome";
-import { apiFetch } from "./api";
+import { apiFetch, API_BASE } from "./api";
 import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, SalonHoliday } from "./types";
 
 export type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme };
@@ -260,7 +260,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const heroRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    apiFetch<SalonHoliday[]>(`/api/salon/${salon.id}/holidays`)
+    apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salon.id}/holidays`)
       .then(setHolidays)
       .catch(() => {});
   }, [salon.id]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -1715,7 +1715,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
           <Tooltip content="Mark a day or date range when the whole salon won't accept any bookings" side="left">
             <button onClick={() => { setShowAdd(true); setFormErr(""); }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-              <Plus className="w-3 h-3" /> Add Holiday
+              <Plus className="w-3 h-3" /> Add Closure
             </button>
           </Tooltip>
         </div>
