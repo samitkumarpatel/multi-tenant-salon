@@ -635,7 +635,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                           <span className="hidden sm:inline-flex items-center justify-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full w-[5.5rem] shrink-0">
                             <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                           </span>
-                          <span className="text-sm font-bold text-slate-900 w-16 text-right tabular-nums shrink-0">{formatPrice(s.price, s.currency)}</span>
+                          <span className="text-sm font-bold text-slate-900 whitespace-nowrap text-right tabular-nums shrink-0">{formatPrice(s.price, s.currency)}</span>
                           {hasBooking && (
                             <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
                               className="inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline sm:opacity-0 sm:group-hover/svc:opacity-100 transition-opacity w-[4.5rem] shrink-0"
