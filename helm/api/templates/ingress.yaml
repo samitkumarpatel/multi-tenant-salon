@@ -20,7 +20,14 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "api.fullname" . }}
+                port:
+                  name: http
+          - path: /actuator
             pathType: Prefix
             backend:
               service:

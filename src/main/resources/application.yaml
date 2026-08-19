@@ -58,4 +58,7 @@ management:
           - metrics
 logging:
   level:
-    root: info
+    root: ${LOGGING_LEVEL:info}
+    web: ${LOGGING_LEVEL:info}
+    sql: ${LOGGING_LEVEL:info}
+    org.springframework: ${LOGGING_LEVEL:info}
