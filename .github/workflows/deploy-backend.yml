@@ -138,10 +138,25 @@ jobs:
 
       - name: Deploy API via Helm
         run: |
+          # Namespace is created by helm/pre-req-manifest/create-secrets.sh —
+          # deliberately no --create-namespace here, so this chart is never
+          # a second owner of that resource.
+          # --debug makes helm print the rendered manifests and per-resource
+          # status as it applies them — plain --wait stays silent until it
+          # either succeeds or times out.
           helm upgrade --install api ./helm/api \
             --namespace ${{ env.AKS_NAMESPACE }} \
-            --create-namespace \
-            -f helm/api/values-dev.yaml \
             --set image.tag=${{ github.sha }} \
             --wait \
-            --timeout 5m
+            --timeout 5m \
+            --debug
+
+      - name: Show pod diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n ${{ env.AKS_NAMESPACE }} get pods -o wide
+          kubectl -n ${{ env.AKS_NAMESPACE }} describe pods -l app.kubernetes.io/instance=api
+          echo "── api logs ──"
+          kubectl -n ${{ env.AKS_NAMESPACE }} logs deploy/api --tail=200 || true
+          echo "── api previous logs (if crash-looping) ──"
+          kubectl -n ${{ env.AKS_NAMESPACE }} logs deploy/api --tail=200 --previous || true

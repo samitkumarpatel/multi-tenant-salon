@@ -39,19 +39,10 @@ spot:
   enabled: true
 
 hpa:
-  enabled: true
+  enabled: false
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
-
-# Postgres connection — mirrors helm/postgres/postgres.yaml:
-#   Service   postgres (ClusterIP) in namespace salon, port 5432
-#   ConfigMap postgres-config -> POSTGRES_DB=salon, POSTGRES_USER=postgres
-#   Secret    postgres-secret -> POSTGRES_PASSWORD (created out-of-band, never committed)
-# Only the password is read from the Secret; host/db/user are plain env vars below.
-postgres:
-  secretName: postgres-secret
-  passwordKey: POSTGRES_PASSWORD
 
 # Non-sensitive environment variables
 env:
@@ -59,22 +50,23 @@ env:
   SPRING_MODULITH_EVENTS_JDBC_SCHEMA_INITIALIZATION_ENABLED: "false"
   SPRING_FLYWAY_ENABLED: "true"
   STORAGE_TYPE: "LOCAL"
-  CORS_ALLOWED_ORIGIN_PATTERNS: "*"
+  CORS_ALLOWED_ORIGIN_PATTERNS: "https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org"
   BPL_JVM_THREAD_COUNT: "100"
   SPRING_CLOUD_AWS_S3_ENABLED: "false"
   AWS_DEFAULT_REGION: "eu-north-1"
-  MEDIA_STAFF_CDN_BASE_URL: ""
-  MEDIA_STAFF_BUCKET_NAME: ""
-  MEDIA_LOCAL_BASE_URL: ""
-  MEDIA_LOCAL_STORAGE_PATH: "/tmp/salon-photos"
+  MEDIA_STAFF_CDN_BASE_URL: "https://staff.salonsaas.org"
+  MEDIA_STAFF_BUCKET_NAME: ""  # only needed when STORAGE_TYPE=S3
+  MEDIA_LOCAL_BASE_URL: "https://api.salonsaas.org"
+  MEDIA_LOCAL_STORAGE_PATH: "/tmp/salon-photos"  # ephemeral — mount a PV here when storage is revisited
   # Postgres runs in the same namespace (salon), so the ClusterIP Service name
   # resolves directly. Database name and user come from the postgres-config ConfigMap.
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon"
   SPRING_DATASOURCE_USERNAME: "postgres"
-  # SPRING_DATASOURCE_PASSWORD is deliberately absent — it is injected from the
-  # postgres-secret Secret by templates/deployment.yaml (see postgres.* above).
-  # Setting it here would put the password in plain text in git, and a value in
-  # `env` also silently overrides anything supplied via envFrom.
+  # SPRING_DATASOURCE_PASSWORD is deliberately absent — templates/deployment.yaml
+  # injects it directly from the postgres-secret Secret (created by
+  # helm/pre-req-manifest/create-secrets.sh). Setting it here would put the
+  # password in plain text in git, and a value in `env` also silently
+  # overrides anything supplied via envFrom.
 
 # Sensitive values — override per environment (never commit real values).
 # Rendered into a Kubernetes Secret and injected via envFrom. Empty by default:

@@ -1,11 +1,7 @@
 ---
-# Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: salon
+# Namespace "salon" is created by helm/pre-req-manifest/create-secrets.sh —
+# not here, so there is exactly one owner of that resource.
 
----
 # ConfigMap — non-sensitive Postgres config
 apiVersion: v1
 kind: ConfigMap
@@ -91,6 +87,10 @@ spec:
             - configMapRef:
                 name: postgres-config
           env:
+            # postgres-secret is created out-of-band by
+            # helm/pre-req-manifest/create-secrets.sh — never define it here,
+            # applying a duplicate Secret manifest in this directory would
+            # silently overwrite it with a placeholder password.
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -98,6 +98,33 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+            # psql (used by postStart below) reads PGPASSWORD, not POSTGRES_PASSWORD.
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+          lifecycle:
+            postStart:
+              exec:
+                # Idempotently ensures $POSTGRES_DB exists. POSTGRES_DB only
+                # creates a database on first init of an EMPTY data directory,
+                # which has no effect once a cluster is already initialized
+                # (e.g. this PV is a pre-provisioned Azure disk). Runs on every
+                # container start; safe to re-run — no-ops if already present.
+                command:
+                  - sh
+                  - -c
+                  - |
+                    set -eu
+                    until pg_isready -h localhost -U "$POSTGRES_USER" -q; do
+                      sleep 1
+                    done
+                    exists=$(psql -h localhost -U "$POSTGRES_USER" -d postgres -tAc \
+                      "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'")
+                    if [ "$exists" != "1" ]; then
+                      psql -h localhost -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\""
+                    fi
           resources:
             requests:
               cpu: 100m

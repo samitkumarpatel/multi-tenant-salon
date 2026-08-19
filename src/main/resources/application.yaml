@@ -57,3 +57,12 @@ management:
           - health
           - info
           - metrics
+
+logging:
+  level:
+    root: INFO
+    net.samitkumar.multi_tenant_salon: DEBUG
+    org.springframework.jdbc: DEBUG
+    com.zaxxer.hikari: DEBUG
+    org.flywaydb: DEBUG
+    org.postgresql: DEBUG
