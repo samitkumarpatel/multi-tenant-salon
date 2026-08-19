@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "helm/api/**"
       - "pom.xml"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
