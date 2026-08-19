@@ -23,7 +23,8 @@ ingress:
   host: api.salonsaas.org
   tls:
     enabled: true
-    secretName: api-tls
+    # Must match the secretName produced by helm/tools/cert-manager/certificate-prod.yaml
+    secretName: salonsaas.org-prod
 
 resources:
   requests:

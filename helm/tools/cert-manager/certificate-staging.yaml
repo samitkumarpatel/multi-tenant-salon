@@ -2,6 +2,10 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: salonsaas.org-staging
+  # Must be the same namespace as any Ingress referencing spec.secretName below
+  # (a Kubernetes Ingress can only use a TLS Secret from its own namespace) —
+  # helm/api's Ingress lives in "salon", so this does too.
+  namespace: salon
 spec:
   secretName: salonsaas.org-staging
   dnsNames:
