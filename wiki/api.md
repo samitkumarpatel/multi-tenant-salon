@@ -69,6 +69,7 @@ Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/h
 | `features` | array | no | See [SalonFeature](#salonfeature) values |
 | `businessRegistrationId` | string | no | Business reg. number (e.g. CVR, EIN) shown on the public website |
 | `showBusinessId` | boolean | no | Whether to display the registration number publicly; defaults to `false` |
+| `termsAccepted` | boolean | **yes** | Must be `true` — the owner explicitly accepted the terms and conditions |
 
 **Response** `201 Created`
 
@@ -128,7 +129,9 @@ The `salonHandler` is derived from the salon name: lowercased, spaces replaced w
     "showBusinessId": true,
     "businessIdLabel": "EIN",
     "createdAt": "2026-07-08T10:00:00Z",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "termsAccepted": true,
+    "termsAcceptedAt": "2026-07-08T10:00:00Z"
   }
 ]
 ```

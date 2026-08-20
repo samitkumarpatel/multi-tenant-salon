@@ -63,7 +63,8 @@ class IntegrationTests {
                                 "email": "contact@integration.com",
                                 "website": "https://integration-salon.com"
                             },
-                            "features": ["BOOKING", "STATIC_WEBSITE"]
+                            "features": ["BOOKING", "STATIC_WEBSITE"],
+                            "termsAccepted": true
                         }
                         """)
                 .exchange()

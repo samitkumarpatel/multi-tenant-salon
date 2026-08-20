@@ -1707,15 +1707,15 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Closures</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Blocked Dates</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Mark days or date ranges when the salon won't accept any bookings — public holidays, vacation, emergency closures, or special occasions.
+              Mark days or date ranges when the salon won't accept any bookings — public holidays, vacation, emergencies, or special occasions.
             </p>
           </div>
-          <Tooltip content="Mark a day or date range when the whole salon won't accept any bookings" side="left">
+          <Tooltip content="Block a day or date range so no bookings can be made" side="left">
             <button onClick={() => { setShowAdd(true); setFormErr(""); }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-              <Plus className="w-3 h-3" /> Add Closure
+              <Plus className="w-3 h-3" /> Block Dates
             </button>
           </Tooltip>
         </div>
@@ -1727,7 +1727,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
           </div>
         ) : upcoming.length === 0 && past.length === 0 ? (
           <p className="text-xs text-slate-400 px-5 py-6 text-center">
-            No closures yet. Add one to mark public holidays, vacation, or any day the salon won't accept bookings.
+            No blocked dates yet. Add one to mark public holidays, vacation, or any day the salon won't accept bookings.
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -1759,7 +1759,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                       </div>
                     </div>
                     {c.holidayId ? (
-                      <Tooltip content="Managed via the Holidays page — delete the holiday to remove this closure" side="left">
+                      <Tooltip content="Managed via the Holidays page — delete the holiday to remove this blocked date" side="left">
                         <span className="text-slate-200 ml-4 cursor-not-allowed">
                           <Trash2 className="w-4 h-4" />
                         </span>
@@ -1832,7 +1832,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                 <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
                   <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
                 </div>
-                <span className="text-base font-bold text-slate-900">Block dates</span>
+                <span className="text-base font-bold text-slate-900">Block Dates</span>
               </div>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setShowAdd(false)}>
                 <X className="w-5 h-5" />
@@ -1875,7 +1875,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
               <button onClick={addClosure} disabled={saving}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 cursor-pointer disabled:opacity-50">
                 <CalendarOff className="w-3.5 h-3.5" />
-                {saving ? "Saving…" : "Block dates"}
+                {saving ? "Saving…" : "Block Dates"}
               </button>
             </div>
           </div>
@@ -2150,7 +2150,7 @@ export default function BookingPage() {
         {infoVisible && (
           <div className="relative">
             <InfoBar>
-              Manage customer appointments and staff availability. Use <strong>Appointments</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Closures</strong> to mark ad-hoc blocked date ranges — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
+              Manage customer appointments and staff availability. Use <strong>Appointments</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark date ranges when the salon won't accept bookings — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
             </InfoBar>
             <button
               onClick={dismissInfo}
@@ -2180,7 +2180,7 @@ export default function BookingPage() {
         </Tooltip>
         <Tooltip content="Mark days or date ranges when the salon won't accept any bookings — holidays, vacation, emergencies." side="bottom">
           <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
-            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Closures</span>
+            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Blocked Dates</span>
           </button>
         </Tooltip>
         <Tooltip content="Control how far ahead customers can book appointments." side="bottom">

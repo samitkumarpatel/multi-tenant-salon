@@ -31,6 +31,7 @@ spring:
       mode: always
       schema-locations:
         - classpath:db/V1__schema.sql
+        - classpath:db/V2__add_terms_accepted.sql
   modulith:
     events:
       jdbc:

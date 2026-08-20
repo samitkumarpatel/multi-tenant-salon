@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.salon.internal;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
@@ -35,7 +36,8 @@ class SalonController {
             List<Salon.OperatingHours> operatingHours,
             List<SalonFeature> features,
             String businessRegistrationId,
-            Boolean showBusinessId) {}
+            Boolean showBusinessId,
+            @AssertTrue(message = "You must accept the terms and conditions") boolean termsAccepted) {}
 
     record CreateSalonResponse(UUID salonId, String salonHandler, String emailId, String message) {}
 
@@ -53,7 +55,7 @@ class SalonController {
         var owner = new Salon.Owner(request.ownerName(), request.ownerEmail(), request.ownerPhone());
         var salon = service.create(request.name(), owner, request.location(), request.contact(),
                 request.operatingHours(), request.features(),
-                request.businessRegistrationId(), request.showBusinessId());
+                request.businessRegistrationId(), request.showBusinessId(), request.termsAccepted());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .replacePath("/api/salon/{id}")
                 .buildAndExpand(salon.id())

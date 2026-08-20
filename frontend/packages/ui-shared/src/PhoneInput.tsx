@@ -40,6 +40,16 @@ export function PhoneInput({ value, onChange, countries, defaultCountry, autoFoc
   const listRef    = useRef<HTMLUListElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
+  // Sync internal state when value is changed externally (e.g. autofill from parent)
+  useEffect(() => {
+    const p = parsePhone(value);
+    const current = dialCode && local ? `${dialCode} ${local}` : local;
+    if (value !== current) {
+      if (p.dialCode) setDialCode(p.dialCode);
+      setLocal(p.local);
+    }
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (open) {
       const idx = filtered.findIndex((c) => c.dialCode === dialCode);

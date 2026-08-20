@@ -28,7 +28,9 @@ public record Salon(
         Boolean bookingRequiresConfirmation,
         String businessIdLabel,
         Instant createdAt,
-        SalonStatus status
+        SalonStatus status,
+        Boolean termsAccepted,
+        Instant termsAcceptedAt
 ) {
     public enum SalonStatus { ACTIVE, DISABLED }
 
@@ -39,6 +41,7 @@ public record Salon(
         if (showBusinessId == null) showBusinessId = false;
         if (bookingRequiresConfirmation == null) bookingRequiresConfirmation = false;
         if (status == null) status = SalonStatus.ACTIVE;
+        if (termsAccepted == null) termsAccepted = false;
     }
 
     public record Owner(

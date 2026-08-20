@@ -56,7 +56,8 @@ class SalonService implements SalonApi {
         return new Salon(salon.id(), salon.name(), salon.handler(), salon.owner(),
                 salon.location(), salon.contact(), salon.operatingHours(), salon.features(),
                 salon.bookingAdvanceDays(), salon.businessRegistrationId(), salon.showBusinessId(),
-                salon.bookingRequiresConfirmation(), label, salon.createdAt(), salon.status());
+                salon.bookingRequiresConfirmation(), label, salon.createdAt(), salon.status(),
+                salon.termsAccepted(), salon.termsAcceptedAt());
     }
 
     private String deriveUniqueHandler(String name) {
@@ -74,14 +75,16 @@ class SalonService implements SalonApi {
     @Transactional
     Salon create(String name, Salon.Owner owner, Salon.Location location, Salon.ContactInfo contact,
                   List<Salon.OperatingHours> operatingHours, List<SalonFeature> features,
-                  String businessRegistrationId, Boolean showBusinessId) {
+                  String businessRegistrationId, Boolean showBusinessId, boolean termsAccepted) {
         log.info("[SalonService] Creating salon name='{}' owner='{}'", name, owner.email());
         var handler = deriveUniqueHandler(name);
         var featureRefs = features != null
                 ? features.stream().map(Salon.SalonFeatureRef::new).toList()
                 : List.<Salon.SalonFeatureRef>of();
+        var now = Instant.now();
         var salon = new Salon(null, name, handler, owner, location, contact, operatingHours, featureRefs, 60,
-                businessRegistrationId, showBusinessId, false, deriveBusinessIdLabel(location), Instant.now(), Salon.SalonStatus.ACTIVE);
+                businessRegistrationId, showBusinessId, false, deriveBusinessIdLabel(location), now, Salon.SalonStatus.ACTIVE,
+                termsAccepted, termsAccepted ? now : null);
         var saved = repository.save(salon);
         log.info("[SalonService] Salon created id={} handler='{}'", saved.id(), saved.handler());
         var eventFeatures = saved.features().stream().map(Salon.SalonFeatureRef::feature).toList();
@@ -140,7 +143,8 @@ class SalonService implements SalonApi {
             var needsConfirm = bookingRequiresConfirmation != null ? bookingRequiresConfirmation : existing.bookingRequiresConfirmation();
             var bizLabel = location != null ? deriveBusinessIdLabel(location) : existing.businessIdLabel();
             var updated = new Salon(existing.id(), nameToSave, existing.handler(), existing.owner(), location, contact,
-                    operatingHours, existing.features(), days, bizId, showBiz, needsConfirm, bizLabel, existing.createdAt(), existing.status());
+                    operatingHours, existing.features(), days, bizId, showBiz, needsConfirm, bizLabel, existing.createdAt(), existing.status(),
+                    existing.termsAccepted(), existing.termsAcceptedAt());
             var saved = repository.save(updated);
             if (operatingHours != null && !operatingHours.isEmpty()) {
                 log.info("[SalonService] Publishing SalonOperatingHoursUpdatedEvent for salon={} days={}", saved.id(), operatingHours.size());
@@ -157,7 +161,8 @@ class SalonService implements SalonApi {
             var updated = new Salon(existing.id(), existing.name(), existing.handler(), owner,
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
-                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status());
+                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status(),
+                    existing.termsAccepted(), existing.termsAcceptedAt());
             return repository.save(updated);
         });
     }
@@ -171,7 +176,8 @@ class SalonService implements SalonApi {
             var updated = new Salon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), featureRefs,
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
-                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status());
+                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status(),
+                    existing.termsAccepted(), existing.termsAcceptedAt());
             return repository.save(updated);
         });
     }
@@ -184,7 +190,8 @@ class SalonService implements SalonApi {
             var updated = new Salon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
                     days, existing.businessRegistrationId(), existing.showBusinessId(),
-                    confirm, existing.businessIdLabel(), existing.createdAt(), existing.status());
+                    confirm, existing.businessIdLabel(), existing.createdAt(), existing.status(),
+                    existing.termsAccepted(), existing.termsAcceptedAt());
             return repository.save(updated);
         });
     }
@@ -298,7 +305,8 @@ class SalonService implements SalonApi {
             var updated = new Salon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
-                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), Salon.SalonStatus.DISABLED);
+                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), Salon.SalonStatus.DISABLED,
+                    existing.termsAccepted(), existing.termsAcceptedAt());
             var saved = repository.save(updated);
             eventPublisher.publishEvent(new SalonDisabledEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email()));
             return saved;
@@ -312,7 +320,8 @@ class SalonService implements SalonApi {
             var updated = new Salon(existing.id(), existing.name(), existing.handler(), existing.owner(),
                     existing.location(), existing.contact(), existing.operatingHours(), existing.features(),
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
-                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), Salon.SalonStatus.ACTIVE);
+                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), Salon.SalonStatus.ACTIVE,
+                    existing.termsAccepted(), existing.termsAcceptedAt());
             return repository.save(updated);
         });
     }

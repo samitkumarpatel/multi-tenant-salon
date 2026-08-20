@@ -391,7 +391,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
     <div className="min-h-[100dvh] flex flex-col bg-white text-slate-900" style={{ fontFamily: fontStack }}>
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
+      <header className="sticky top-0 z-50 backdrop-blur-md border-b" style={{ backgroundColor: `${headerBg}CC`, borderColor: headerBorder }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-8 min-w-0">
             <a href="#top" className="flex items-center gap-2 no-underline group shrink-0">
@@ -595,7 +595,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
       {/* ── Services + Team ─────────────────────────────────────────────── */}
       {(activeServices.length > 0 || activeStaff.length > 0) && (
         <section id="services" className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 w-full scroll-mt-16">
-          <div className={`grid grid-cols-1 gap-10 lg:gap-12 items-start ${activeServices.length > 0 && activeStaff.length > 0 ? "lg:grid-cols-[1fr_300px]" : ""}`}>
+          <div className={`grid grid-cols-1 gap-10 md:gap-12 items-start ${activeServices.length > 0 && activeStaff.length > 0 ? "md:grid-cols-2" : ""}`}>
 
             {activeServices.length > 0 && (
               <div>
@@ -624,21 +624,22 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   </FadeIn>
                 )}
                 <FadeIn delay={80}>
-                  <div className="bg-white rounded-2xl border border-slate-200 px-3.5 overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
                     {visibleServices.map((s) => (
-                      <div key={s.id} className="group/svc flex items-center gap-4 py-3.5 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 -mx-1.5 px-1.5 rounded-lg transition-colors">
-                        <div className="flex-1 min-w-0">
+                      <div key={s.id} className="group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors">
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
                         </div>
-                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                          <span className="hidden sm:inline-flex items-center justify-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full w-[5.5rem] shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
                             <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                           </span>
-                          <span className="text-sm font-bold text-slate-900 whitespace-nowrap text-right tabular-nums shrink-0">{formatPrice(s.price, s.currency)}</span>
+                          <span className="text-xs text-slate-400">-</span>
+                          <span className="text-xs font-semibold text-slate-900 tabular-nums">{formatPrice(s.price, s.currency)}</span>
                           {hasBooking && (
                             <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
-                              className="inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline sm:opacity-0 sm:group-hover/svc:opacity-100 transition-opacity w-[4.5rem] shrink-0"
+                              className="ml-auto inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-0 group-hover/svc:opacity-100 transition-opacity shrink-0"
                               style={{ backgroundColor: theme.accentColor, color: accentText }}>
                               Book <ChevronRight className="w-3 h-3" />
                             </a>
@@ -652,7 +653,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
             )}
 
             {activeStaff.length > 0 && (
-              <aside id="team" className="lg:sticky lg:top-20 scroll-mt-16">
+              <aside id="team" className="md:sticky md:top-20 scroll-mt-16">
                 <FadeIn delay={100}>
                   <div className="mb-4">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>

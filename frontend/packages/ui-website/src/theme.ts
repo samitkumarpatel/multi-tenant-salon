@@ -1,13 +1,13 @@
 import type { WebsiteTheme } from "./types";
 
 export const DEFAULT_THEME: WebsiteTheme = {
-  heroBg: "#EEF2F4",
+  heroBg: "#F8F9FF",
   heroTextColor: "#0F172A",
-  accentColor: "#7C3AED",
+  accentColor: "#4C1D95",
   fontFamily: "nunito",
-  logoBgColor: "#7C3AED",
-  headerBg: "#E2E8F0",
-  footerBg: "#E2E8F0",
+  logoBgColor: "#4C1D95",
+  headerBg: "#F8F9FF",
+  footerBg: "#EFF4FF",
   chatLayout: "app",
 };
 

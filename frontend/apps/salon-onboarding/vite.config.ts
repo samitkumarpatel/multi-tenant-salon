@@ -34,10 +34,14 @@ export default defineConfig({
       "react-router",
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
+      "lucide-react",
     ],
   },
   server: {
     port: 5175,
+    watch: {
+      ignored: ["!**/node_modules/@salon/**"],
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8080",

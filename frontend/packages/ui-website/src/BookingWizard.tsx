@@ -1223,8 +1223,19 @@ function StepDetails({
   onSubmit: () => void;
   busy: boolean;
 }) {
-  const valid = form.name.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const [contactTab, setContactTab] = useState<"email" | "phone">("email");
   const ringStyle = { ["--tw-ring-color" as string]: `${accent.color}33` };
+
+  function switchTab(tab: "email" | "phone") {
+    setContactTab(tab);
+    if (tab === "email") setForm({ ...form, phone: "" });
+    else setForm({ ...form, email: "" });
+  }
+
+  const contactValid = contactTab === "email"
+    ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+    : form.phone.trim().length > 4;
+  const valid = form.name.trim() && contactValid;
 
   return (
     <div>
@@ -1237,15 +1248,28 @@ function StepDetails({
           <input className={inputCls} style={ringStyle} placeholder="Jane Smith" value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </div>
+
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Email address <span className="text-red-500">*</span></label>
-          <input type="email" className={inputCls} style={ringStyle} placeholder="jane@example.com" value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <div className="flex rounded-xl bg-slate-100 p-1 mb-3 gap-1">
+            {(["email", "phone"] as const).map((tab) => (
+              <button key={tab} type="button" onClick={() => switchTab(tab)}
+                className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all ${contactTab === tab ? "bg-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                style={contactTab === tab ? { color: accent.color } : {}}>
+                {tab === "email" ? "Email" : "Phone"}
+              </button>
+            ))}
+          </div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            {contactTab === "email" ? "Email address" : "Phone number"} <span className="text-red-500">*</span>
+          </label>
+          {contactTab === "email" ? (
+            <input type="email" className={inputCls} style={ringStyle} placeholder="jane@example.com" value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          ) : (
+            <PhoneInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} countries={countries} defaultCountry={salonCountry} />
+          )}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone <span className="text-slate-400 font-normal">(optional)</span></label>
-          <PhoneInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} countries={countries} defaultCountry={salonCountry} />
-        </div>
+
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
           <textarea className={`${inputCls} resize-none`} style={ringStyle} rows={2} placeholder="Anything we should know?" value={form.notes}
@@ -1448,7 +1472,7 @@ export function BookingWizard({
           serviceId: service.id,
           staffId: slot.staffId,
           customerName: form.name,
-          customerEmail: form.email,
+          customerEmail: form.email || null,
           customerPhone: form.phone || null,
           appointmentDate: date,
           startTime: slot.startTime,

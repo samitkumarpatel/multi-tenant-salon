@@ -39,6 +39,7 @@ export default defineConfig({
       "react-router",
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
+      "lucide-react",
     ],
   },
   server: {

@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
-import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe } from "lucide-react";
+import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard } from "lucide-react";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { SALON_DOMAIN, ADMIN_APP_URL, websiteUrl } from "~/lib/config";
+import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl } from "~/lib/config";
 import { SiteFooter } from "~/components/SiteFooter";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
@@ -45,6 +45,7 @@ interface FormState {
   features: string[];
   businessRegistrationId: string;
   showBusinessId: boolean;
+  termsAccepted: boolean;
 }
 
 function emptyForm(): FormState {
@@ -57,6 +58,7 @@ function emptyForm(): FormState {
     features: ["STATIC_WEBSITE"],
     businessRegistrationId: "",
     showBusinessId: false,
+    termsAccepted: false,
   };
 }
 
@@ -92,11 +94,63 @@ function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () 
   );
 }
 
-function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => void }) {
+const TERMS_TEXT = `1. Introduction
+By registering a salon on this platform you enter into a legally binding agreement with Salon SaaS ("we", "us", "our"). Please read these terms carefully before proceeding.
+
+2. Account Responsibilities
+You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to notify us immediately of any unauthorised use.
+
+3. Acceptable Use
+You may not use this platform for any unlawful purpose or in any way that could damage, disable, or impair the service. You agree not to attempt to gain unauthorised access to any part of the platform.
+
+4. Data and Privacy
+We collect and process personal data in accordance with our Privacy Policy. By using this service you consent to such processing and warrant that all data provided by you is accurate.
+
+5. Subscription and Billing
+Access to premium features is subject to the applicable subscription plan. Fees are billed in advance and are non-refundable except as required by applicable law.
+
+6. Termination
+We reserve the right to suspend or terminate your account if you breach these terms. You may close your account at any time by contacting support.
+
+7. Limitation of Liability
+To the maximum extent permitted by law, we shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform.
+
+8. Changes to Terms
+We may update these terms from time to time. Continued use of the platform after changes constitutes your acceptance of the updated terms.
+
+9. Governing Law
+These terms are governed by the laws of the jurisdiction in which we operate. Any disputes shall be resolved in the courts of that jurisdiction.`;
+
+const PRIVACY_TEXT = `1. What We Collect
+We collect information you provide when registering: salon name, owner name, email address, phone number, location, and business details. We also collect usage data and technical information such as IP addresses and browser type.
+
+2. How We Use It
+We use your data to provide and improve the platform, send transactional and account-related communications, and comply with legal obligations. We do not sell your personal data to third parties.
+
+3. Data Sharing
+We may share data with trusted service providers (e.g. cloud hosting, email delivery) strictly to operate the platform. All providers are bound by data processing agreements.
+
+4. Data Retention
+We retain your data for as long as your account is active and for a reasonable period thereafter to comply with legal obligations.
+
+5. Your Rights
+You have the right to access, correct, or delete your personal data. To exercise these rights please contact us at privacy@salonsaas.org.
+
+6. Cookies
+We use essential cookies to operate the platform. No advertising or tracking cookies are used.
+
+7. Security
+We implement industry-standard security measures to protect your data, including encryption in transit and at rest.
+
+8. Contact
+For privacy-related queries contact: privacy@salonsaas.org`;
+
+function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: (s: number) => void; onTermsChange: (v: boolean) => void }) {
   const url      = previewUrl(form.name);
   const openDays = form.hours.filter((h) => !h.closed).map((h) => DAY_SHORT[h.day] ?? h.day).join(", ");
   const hasLoc   = form.location.address || form.location.city || form.location.country;
   const hasCon   = form.contact.phone   || form.contact.email  || form.contact.website;
+  const [expanded, setExpanded] = useState<"terms" | "privacy" | null>(null);
 
   return (
     <div className="flex flex-col gap-3">
@@ -169,6 +223,47 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
           )}
         </ReviewSection>
       </div>
+
+      <div className="border border-stone-200 rounded-xl overflow-hidden bg-stone-50">
+        <label className="flex items-start gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-stone-100 transition-colors">
+          <input
+            type="checkbox"
+            checked={form.termsAccepted}
+            onChange={(e) => onTermsChange(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-matcha-600 shrink-0 cursor-pointer"
+          />
+          <span className="text-sm text-stone-600 leading-relaxed">
+            I have read and agree to the{" "}
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); setExpanded(expanded === "terms" ? null : "terms"); }}
+              className="text-matcha-600 underline hover:text-matcha-700 font-medium cursor-pointer"
+            >
+              Terms and Conditions {expanded === "terms" ? "▲" : "▼"}
+            </button>{" "}
+            and{" "}
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); setExpanded(expanded === "privacy" ? null : "privacy"); }}
+              className="text-matcha-600 underline hover:text-matcha-700 font-medium cursor-pointer"
+            >
+              Privacy Policy {expanded === "privacy" ? "▲" : "▼"}
+            </button>
+            .
+          </span>
+        </label>
+
+        {expanded && (
+          <div className="border-t border-stone-200 bg-white px-4 py-3 max-h-52 overflow-y-auto">
+            <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide mb-2">
+              {expanded === "terms" ? "Terms and Conditions" : "Privacy Policy"}
+            </p>
+            <pre className="text-xs text-stone-600 leading-relaxed whitespace-pre-wrap font-sans">
+              {expanded === "terms" ? TERMS_TEXT : PRIVACY_TEXT}
+            </pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -184,7 +279,7 @@ const PROCESSING_STEPS = [
 
 const STEP_DURATION = 900; // ms per step
 
-type CopyKey = "admin" | "website";
+type CopyKey = "admin" | "staff" | "website" | "booking";
 
 function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: { salonId: string; salonHandler: string; emailId: string; salonName: string; features: string[] }) {
   const [completedSteps, setCompletedSteps] = useState(0);
@@ -206,31 +301,44 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
     });
   }
 
-  function CopyBtn({ text, copyKey }: { text: string; copyKey: CopyKey }) {
+  function LinkRow({ icon, label, hint, url, copyKey, copied: c, onCopy }: {
+    icon: React.ReactNode; label: string; hint: string;
+    url: string; copyKey: CopyKey; copied: CopyKey | null;
+    onCopy: (text: string, key: CopyKey) => void;
+  }) {
     return (
-      <button
-        onClick={() => copy(text, copyKey)}
-        className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
-        title="Copy"
-      >
-        {copied === copyKey
-          ? <Check className="w-4 h-4 text-matcha-600" />
-          : <Copy className="w-4 h-4" />}
-      </button>
+      <div className="flex items-start gap-3 px-4 py-3 border-t border-stone-100 first:border-t-0">
+        <span className="mt-0.5 shrink-0">{icon}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-0.5">{label}</p>
+          <p className="text-xs font-mono text-stone-700 truncate">{url}</p>
+          <p className="text-[10px] text-stone-400 mt-0.5">{hint}</p>
+        </div>
+        <button
+          onClick={() => onCopy(url, copyKey)}
+          className="shrink-0 p-2 -m-2 mt-[-3px] text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
+          title="Copy"
+        >
+          {c === copyKey
+            ? <Check className="w-4 h-4 text-matcha-600" />
+            : <Copy className="w-4 h-4" />}
+        </button>
+      </div>
     );
   }
 
-  const adminUrl        = ADMIN_APP_URL;
   const hasWebsite      = features.includes("STATIC_WEBSITE");
+  const hasBooking      = features.includes("BOOKING");
   const salonWebsiteUrl = websiteUrl(salonHandler);
+  const salonBookingUrl = bookingUrl(salonHandler);
   const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
 
   // ── Processing phase ────────────────────────────────────────────────────────
   if (!ready) {
     return (
       <div className="min-h-[100dvh] bg-cream flex flex-col">
-        <div className="flex-1 flex items-center justify-center px-5 py-12">
-        <div className="w-full max-w-sm">
+        <div className="flex-1 overflow-y-auto px-5 py-10 flex flex-col items-center">
+        <div className="w-full max-w-sm my-auto">
           <div className="flex justify-center mb-7">
             <div className="w-16 h-16 rounded-full bg-matcha-100 border-2 border-matcha-300 flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-matcha-600 animate-spin" />
@@ -287,8 +395,8 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
   // ── Done phase ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-[100dvh] bg-cream flex flex-col">
-      <div className="flex-1 flex items-center justify-center px-5 py-12">
-      <div className="w-full max-w-sm animate-[fade-in_0.4s_ease_both]">
+      <div className="flex-1 overflow-y-auto px-5 py-10 flex flex-col items-center">
+      <div className="w-full max-w-sm my-auto animate-[fade-in_0.4s_ease_both]">
 
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-full bg-matcha-100 border-2 border-matcha-400 flex items-center justify-center mb-4">
@@ -302,18 +410,6 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
         </div>
 
         <div className="flex flex-col gap-3">
-          {/* Admin panel */}
-          <div className="bg-white border border-stone-200 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Your admin panel</p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminUrl}</span>
-              <CopyBtn text={adminUrl} copyKey="admin" />
-            </div>
-            <p className="text-xs text-stone-400 mt-3 pt-3 border-t border-stone-100">
-              Sign in with <span className="font-mono text-stone-600">{emailId}</span>
-            </p>
-          </div>
-
           {/* Email sent hint */}
           <div className="flex items-start gap-3 px-4 py-3 bg-matcha-50 border border-matcha-100 rounded-2xl">
             <Mail className="w-4 h-4 text-matcha-600 mt-0.5 shrink-0" />
@@ -322,24 +418,62 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
             </p>
           </div>
 
-          {/* Website URL — only when STATIC_WEBSITE feature selected */}
-          {hasWebsite && (
-            <div className="bg-white border border-stone-200 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Globe className="w-3.5 h-3.5 text-stone-400" />
-                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Your website</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-matcha-700 flex-1 truncate font-mono">{salonWebsiteUrl}</span>
-                <CopyBtn text={salonWebsiteUrl} copyKey="website" />
-              </div>
-              <p className="text-[10px] text-stone-400 mt-2">Your public website — share it with your customers.</p>
-            </div>
-          )}
+          {/* Links section */}
+          <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 px-4 pt-3.5 pb-2">Your links</p>
+
+            {/* Admin panel */}
+            <LinkRow
+              icon={<LayoutDashboard className="w-3.5 h-3.5 text-stone-400" />}
+              label="Admin panel"
+              hint={`Sign in with ${emailId}`}
+              url={ADMIN_APP_URL}
+              copyKey="admin"
+              copied={copied}
+              onCopy={copy}
+            />
+
+            {/* Staff portal */}
+            <LinkRow
+              icon={<Users className="w-3.5 h-3.5 text-stone-400" />}
+              label="Staff portal"
+              hint="Share with your team members"
+              url={STAFF_APP_URL}
+              copyKey="staff"
+              copied={copied}
+              onCopy={copy}
+            />
+
+            {/* Booking link — only when BOOKING feature selected */}
+            {hasBooking && (
+              <LinkRow
+                icon={<CalendarCheck className="w-3.5 h-3.5 text-stone-400" />}
+                label="Booking link"
+                hint="Share with customers to accept appointments"
+                url={salonBookingUrl}
+                copyKey="booking"
+                copied={copied}
+                onCopy={copy}
+              />
+            )}
+
+            {/* Public website — only when STATIC_WEBSITE feature selected */}
+            {hasWebsite && (
+              <LinkRow
+                icon={<Globe className="w-3.5 h-3.5 text-stone-400" />}
+                label="Public website"
+                hint="Your customer-facing page — share it freely"
+                url={salonWebsiteUrl}
+                copyKey="website"
+                copied={copied}
+                onCopy={copy}
+              />
+            )}
+          </div>
 
           {/* CTA */}
           <a
-            href={adminUrl}
+            href={ADMIN_APP_URL}
             className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
           >
             Go to admin panel &amp; sign in →
@@ -369,12 +503,20 @@ export default function NewSalon() {
   const [created,  setCreated]  = useState<{ salonId: string; salonHandler: string; emailId: string } | null>(null);
   const { toast, notify }       = useToast();
 
-  const [reuseOwnerContact,  setReuseOwnerContact]  = useState<boolean | null>(null);
+  const [reuseOwnerContact,  setReuseOwnerContact]  = useState(true);
   const [formShaking,        setFormShaking]        = useState(false);
 
   function setOwner(patch: Partial<Owner>)         { setForm((f) => ({ ...f, owner:    { ...f.owner,    ...patch } })); }
   function setLocation(patch: Partial<Location>)   { setForm((f) => ({ ...f, location: { ...f.location, ...patch } })); }
   function setContact(patch: Partial<ContactInfo>) { setForm((f) => ({ ...f, contact:  { ...f.contact,  ...patch } })); }
+
+  // Auto-fill contact from owner details when entering step 3 with reuse enabled
+  useEffect(() => {
+    if (step === 3 && reuseOwnerContact) {
+      setForm((f) => ({ ...f, contact: { ...f.contact, phone: f.owner.phone ?? "", email: f.owner.email } }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   function handleReuseToggle(reuse: boolean) {
     setReuseOwnerContact(reuse);
@@ -463,6 +605,7 @@ export default function NewSalon() {
           features:       form.features,
           businessRegistrationId: form.businessRegistrationId?.trim() || null,
           showBusinessId: form.showBusinessId,
+          termsAccepted:  form.termsAccepted,
         }),
       });
       setCreated({ salonId: result.salonId, salonHandler: result.salonHandler, emailId: result.emailId });
@@ -678,7 +821,7 @@ export default function NewSalon() {
         );
 
       case 6:
-        return <ReviewStep form={form} onEdit={goTo} />;
+        return <ReviewStep form={form} onEdit={goTo} onTermsChange={(v) => setForm((f) => ({ ...f, termsAccepted: v }))} />;
     }
   }
 
@@ -771,8 +914,9 @@ export default function NewSalon() {
               ) : (
                 <button
                   onClick={handleCreate}
-                  disabled={saving}
+                  disabled={saving || !form.termsAccepted}
                   className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!form.termsAccepted ? "Please accept the terms and conditions" : undefined}
                 >
                   {saving ? "Launching…" : "Launch salon"}
                 </button>

@@ -6,6 +6,8 @@ import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.time.LocalDate;
@@ -45,6 +47,11 @@ class BookingController {
     @PostMapping({"/api/salon/{salonId}/booking", "/api/salon-admin/{salonId}/booking"})
     ResponseEntity<Booking> createBooking(@PathVariable UUID salonId,
                                           @RequestBody CreateBookingRequest request) {
+        var hasEmail = request.customerEmail() != null && !request.customerEmail().isBlank();
+        var hasPhone = request.customerPhone() != null && !request.customerPhone().isBlank();
+        if (!hasEmail && !hasPhone) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Either email or phone number is required");
+        }
         var booking = service.create(salonId, request.serviceId(), request.staffId(),
                 request.customerName(), request.customerEmail(), request.customerPhone(),
                 request.appointmentDate(), request.startTime(), request.notes());
