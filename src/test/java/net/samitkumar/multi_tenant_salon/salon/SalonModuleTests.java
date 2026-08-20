@@ -32,7 +32,8 @@ class SalonModuleTests {
                             "ownerName": "Jane Doe",
                             "ownerEmail": "jane@glamsalon.com",
                             "ownerPhone": "+1234567890",
-                            "features": ["BOOKING", "STATIC_WEBSITE"]
+                            "features": ["BOOKING", "STATIC_WEBSITE"],
+                            "termsAccepted": true
                         }
                         """)
                 .exchange()
@@ -87,7 +88,8 @@ class SalonModuleTests {
                             "ownerName": "John Smith",
                             "ownerEmail": "john@stylehub.com",
                             "ownerPhone": "+9876543210",
-                            "features": ["BOOKING"]
+                            "features": ["BOOKING"],
+                            "termsAccepted": true
                         }
                         """)
                 .exchange()
@@ -119,7 +121,8 @@ class SalonModuleTests {
                         {
                             "name": "Handler Test",
                             "ownerName": "Bob",
-                            "ownerEmail": "bob@test.com"
+                            "ownerEmail": "bob@test.com",
+                            "termsAccepted": true
                         }
                         """)
                 .exchange()
@@ -144,7 +147,8 @@ class SalonModuleTests {
                         {
                             "name": "Old Name",
                             "ownerName": "Carol",
-                            "ownerEmail": "carol@test.com"
+                            "ownerEmail": "carol@test.com",
+                            "termsAccepted": true
                         }
                         """)
                 .exchange()
@@ -180,7 +184,8 @@ class SalonModuleTests {
                             "ownerName": "Alice",
                             "ownerEmail": "alice@temp.com",
                             "ownerPhone": "+1111111111",
-                            "features": []
+                            "features": [],
+                            "termsAccepted": true
                         }
                         """)
                 .exchange()
