@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { apiFetch, ADMIN_API } from "~/lib/api";
-import { getSession, clearSession } from "~/lib/types";
 import type { Salon, SalonManageContext } from "~/lib/types";
+import { getSession, logout as authLogout } from "~/lib/auth";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!getSession()) throw redirect("/login");
@@ -33,8 +33,7 @@ export default function SalonLayout() {
   const navigate = useNavigate();
 
   function handleSignOut() {
-    clearSession();
-    navigate("/login", { replace: true });
+    authLogout(navigate);
   }
 
   const ctx: SalonManageContext = { salon, setSalon };

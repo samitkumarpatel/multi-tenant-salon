@@ -40,15 +40,30 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
   const method = opts.method;
   let lastError: Error = new Error("Request failed");
 
+  // Lazy import avoids a circular dependency (auth.ts also calls apiFetch for /my-salons).
+  const { AUTH_MODE, getAccessToken, clearAdminSession } = await import("~/lib/auth");
+  const accessToken = AUTH_MODE === "oauth2" ? getAccessToken() : null;
+
   for (let attempt = 0; attempt <= MAX_EXTRA_RETRIES; attempt++) {
     if (attempt > 0) await sleep(1000 * attempt);
 
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         ...opts,
       });
+
+      if (res.status === 401 && AUTH_MODE === "oauth2" && url.startsWith(ADMIN_API)) {
+        clearAdminSession();
+        if (!window.location.pathname.endsWith("/login")) {
+          window.location.href = "/login";
+        }
+        throw new Error("Session expired — please sign in again.");
+      }
 
       if (!res.ok) {
         if (isRetryable(method, undefined, res.status) && attempt < MAX_EXTRA_RETRIES) {

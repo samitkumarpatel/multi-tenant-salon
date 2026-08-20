@@ -16,6 +16,11 @@ spring:
       # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
       # e.g. https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org
       allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://auth.salonsaas.org
   cloud:
     aws:
       s3:

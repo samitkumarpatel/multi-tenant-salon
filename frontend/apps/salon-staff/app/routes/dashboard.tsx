@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { CalendarCheck, CalendarDays, Clock, ArrowRight, UserCircle } from "lucide-react";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
-import { getStaffSession } from "~/routes/login";
+import { getStaffSession } from "~/lib/auth";
 import type { Booking } from "~/lib/types";
 
 const STATUS_COLOR: Record<string, string> = {
