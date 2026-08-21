@@ -15,7 +15,7 @@ export const AUTH_MODE: "mock" | "oauth2" =
 
 const AUTH_SERVER = (import.meta.env.VITE_AUTH_SERVER_URL ?? "https://auth.salonsaas.org").replace(/\/$/, "");
 const CLIENT_ID   = import.meta.env.VITE_AUTH_CLIENT_ID ?? "salon-admin";
-const SCOPE       = import.meta.env.VITE_AUTH_SCOPE ?? "openid profile email";
+const SCOPE       = import.meta.env.VITE_AUTH_SCOPE ?? "openid profile";
 const REDIRECT_URI = `${ADMIN_APP_URL}/login`;
 
 const SESSION_KEY  = "admin-session";
