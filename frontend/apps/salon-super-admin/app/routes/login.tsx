@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Mail, KeyRound, ArrowLeft, Lock } from "lucide-react";
+import { Shield, Mail, KeyRound, ArrowLeft } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { SUPER_ADMIN_EMAIL, DUMMY_OTP, SALON_DOMAIN } from "~/lib/types";
 import { AUTH_MODE, setSession, startOAuth2Login, completeOAuth2Login } from "~/lib/auth";
@@ -75,7 +75,7 @@ function MockLogin() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
+    <div className="h-[100dvh] bg-stone-50 flex flex-col overflow-y-auto">
       <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-6 shrink-0">
         <AppLogo size={24} textColor="#e2e8f0" />
         <span className="ml-3 text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded">
@@ -83,30 +83,20 @@ function MockLogin() {
         </span>
       </header>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-12">
+      <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
         <div className="w-full max-w-[360px]">
 
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-matcha-600/20 border border-matcha-600/40 flex items-center justify-center mb-4">
-              <Shield className="w-6 h-6 text-matcha-500" />
-            </div>
-            <h1 className="text-lg font-bold text-stone-900">Platform Super Admin</h1>
-            <p className="text-xs text-stone-400 mt-1 text-center">
-              Restricted access · Platform management portal
-            </p>
-          </div>
-
           {step === "email" ? (
-            <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-2xl">
+            <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-6 py-5 border-b border-stone-200">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-matcha-50 flex items-center justify-center shrink-0">
-                    <Mail className="w-3 h-3 text-matcha-500" />
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                    <Shield className="w-3.5 h-3.5 text-matcha-600" />
                   </div>
-                  <h2 className="text-sm font-semibold text-stone-800">Sign in with admin email</h2>
+                  <h1 className="text-sm font-semibold text-stone-900">Platform Super Admin</h1>
                 </div>
-                <p className="text-xs text-stone-400 mt-2 pl-8 leading-relaxed">
-                  Enter the super-admin email address to receive a verification code.
+                <p className="text-xs text-stone-400 leading-relaxed pl-9">
+                  Restricted access. Enter the super-admin email address to receive a verification code.
                 </p>
               </div>
 
@@ -142,17 +132,18 @@ function MockLogin() {
               </div>
             </div>
           ) : (
-            <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-2xl">
+            <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-6 py-5 border-b border-stone-200">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-matcha-50 flex items-center justify-center shrink-0">
-                    <KeyRound className="w-3 h-3 text-matcha-500" />
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                    <KeyRound className="w-3.5 h-3.5 text-matcha-600" />
                   </div>
-                  <h2 className="text-sm font-semibold text-stone-800">Verification code</h2>
+                  <h1 className="text-sm font-semibold text-stone-900">Enter verification code</h1>
                 </div>
-                <p className="text-xs text-stone-400 mt-2 pl-8 leading-relaxed">
-                  A 6-digit code was sent to{" "}
+                <p className="text-xs text-stone-400 leading-relaxed pl-9">
+                  We sent a 6-digit code to{" "}
                   <span className="font-medium text-stone-600">{email}</span>.
+                  Enter it below to continue.
                 </p>
               </div>
 
@@ -256,7 +247,7 @@ function OAuth2Login() {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
+    <div className="h-[100dvh] bg-stone-50 flex flex-col overflow-y-auto">
       <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-6 shrink-0">
         <AppLogo size={24} textColor="#e2e8f0" />
         <span className="ml-3 text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded">
@@ -264,29 +255,19 @@ function OAuth2Login() {
         </span>
       </header>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-12">
+      <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
         <div className="w-full max-w-[360px]">
 
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-matcha-600/20 border border-matcha-600/40 flex items-center justify-center mb-4">
-              <Shield className="w-6 h-6 text-matcha-500" />
-            </div>
-            <h1 className="text-lg font-bold text-stone-900">Platform Super Admin</h1>
-            <p className="text-xs text-stone-400 mt-1 text-center">
-              Restricted access · Platform management portal
-            </p>
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-2xl">
+          <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
             <div className="px-6 py-5 border-b border-stone-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-matcha-50 flex items-center justify-center shrink-0">
-                  <Lock className="w-3 h-3 text-matcha-500" />
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                  <Shield className="w-3.5 h-3.5 text-matcha-600" />
                 </div>
-                <h2 className="text-sm font-semibold text-stone-800">Sign in securely</h2>
+                <h1 className="text-sm font-semibold text-stone-900">Platform Super Admin</h1>
               </div>
-              <p className="text-xs text-stone-400 mt-2 pl-8 leading-relaxed">
-                You'll be redirected to sign in, then brought back here.
+              <p className="text-xs text-stone-400 leading-relaxed pl-9">
+                Restricted access. You'll be redirected to sign in securely, then brought back here.
               </p>
             </div>
 

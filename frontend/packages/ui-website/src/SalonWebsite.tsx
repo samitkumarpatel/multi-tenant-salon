@@ -289,6 +289,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const activeServices = services.filter((s) => s.active);
   const grouped = groupByCategory(activeServices);
   const visibleServices = selectedCat ? activeServices.filter((s) => s.category === selectedCat) : activeServices;
+  const manyServices = visibleServices.length > 5;
+  const manyStaff = activeStaff.length > 5;
   const openHours = salon.operatingHours?.filter((h) => !h.closed) ?? [];
   const hasBooking = salon.features?.includes("BOOKING");
 
@@ -624,9 +626,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   </FadeIn>
                 )}
                 <FadeIn delay={80}>
-                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                  <div className={manyServices
+                    ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    : "bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100"}>
                     {visibleServices.map((s) => (
-                      <div key={s.id} className="group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors">
+                      <div key={s.id} className={manyServices
+                        ? "group/svc flex flex-col gap-2.5 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
+                        : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"}>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
@@ -659,7 +665,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
                     <h2 className="text-2xl font-bold text-slate-900">Meet our team</h2>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden">
+                  <div className={manyStaff
+                    ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
                     {activeStaff.map((m) => {
                       const isExpanded = expandedStaff.has(m.id!);
                       const photos = m.photoUrls?.length ? m.photoUrls : m.photoUrl ? [m.photoUrl] : [];
@@ -668,7 +676,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         <div key={m.id} role="button" tabIndex={0}
                           onClick={() => toggleStaff(m.id!)}
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStaff(m.id!); } }}
-                          className="w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                          className={manyStaff
+                            ? "w-full text-left p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                            : "w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"}
                           aria-expanded={isExpanded}>
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>

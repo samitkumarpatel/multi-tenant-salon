@@ -105,11 +105,6 @@ public class MultiTenantSalonApplication {
 										return new AuthorizationDecision(false);
 									}
 
-									boolean isSuperAdmin = auth.getAuthorities().stream()
-											.anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"));
-									log.info("isSuperAdmin: {}", isSuperAdmin);
-									if (isSuperAdmin) return new AuthorizationDecision(true); // super admin bypasses tenant check
-
                                     assert context != null;
                                     String salonIdParam = context.getVariables().get("salonId");
 									Jwt jwt = ((JwtAuthenticationToken) auth).getToken();

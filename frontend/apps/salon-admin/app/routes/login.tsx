@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router";
-import { Mail, KeyRound, ShieldCheck, ArrowLeft, Lock } from "lucide-react";
+import { useNavigate, Link } from "react-router";
+import { Mail, KeyRound, ShieldCheck, ArrowLeft, Lock, Store } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { MY_SALONS_API, apiFetch } from "~/lib/api";
-import { AUTH_MODE, setAdminSession, startOAuth2Login, completeOAuth2Login } from "~/lib/auth";
+import { AUTH_MODE, setAdminSession, startOAuth2Login, completeOAuth2Login, NoSalonFoundError } from "~/lib/auth";
 import type { Salon } from "~/lib/types";
 
 const DUMMY_OTP = "123456";
@@ -267,8 +267,9 @@ function MockLogin() {
 
 function OAuth2Login() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
+  const [noSalonEmail, setNoSalonEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const params   = new URLSearchParams(window.location.search);
@@ -289,11 +290,74 @@ function OAuth2Login() {
           navigate(session.salons.length === 1 ? `/${session.salons[0].id}` : "/salons", { replace: true });
         })
         .catch((e: unknown) => {
-          setError(e instanceof Error ? e.message : "Sign-in failed.");
+          window.history.replaceState({}, "", window.location.pathname);
+          if (e instanceof NoSalonFoundError) {
+            setNoSalonEmail(e.email);
+          } else {
+            setError(e instanceof Error ? e.message : "Sign-in failed.");
+          }
           setLoading(false);
         });
     }
   }, []);
+
+  if (noSalonEmail) {
+    return (
+      <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
+        <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
+          <AppLogo size={24} textColor="#374151" />
+          <div className="ml-auto">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+              Admin Portal
+            </span>
+          </div>
+        </header>
+
+        <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
+          <div className="w-full max-w-[360px]">
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                    <Store className="w-3.5 h-3.5 text-matcha-600" />
+                  </div>
+                  <h1 className="text-sm font-semibold text-slate-900">No salon found</h1>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed pl-9">
+                  We couldn't find a salon linked to{" "}
+                  <span className="font-medium text-slate-700">{noSalonEmail}</span>.
+                  Create one to get started.
+                </p>
+              </div>
+
+              <div className="px-6 py-5 flex flex-col gap-2.5">
+                <Link
+                  to={`/new?email=${encodeURIComponent(noSalonEmail)}`}
+                  className="w-full text-center py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 transition cursor-pointer"
+                >
+                  Create your salon →
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setNoSalonEmail(null)}
+                  className="flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-3 h-3" /> Use a different account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
+          <AppLogo size={16} textColor="#94a3b8" />
+          <p className="text-[10px] text-slate-400 ml-auto">
+            © {new Date().getFullYear()} · All rights reserved.
+          </p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">

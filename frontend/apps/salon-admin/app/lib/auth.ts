@@ -27,6 +27,16 @@ export interface AdminSession {
   salons: Salon[];
 }
 
+/** Thrown by completeOAuth2Login when the signed-in account has no salon on file. */
+export class NoSalonFoundError extends Error {
+  email: string;
+  constructor(email: string) {
+    super("No salon found for this email address.");
+    this.name = "NoSalonFoundError";
+    this.email = email;
+  }
+}
+
 interface TokenSet {
   access_token: string;
   id_token?: string;
@@ -185,7 +195,16 @@ export async function completeOAuth2Login(code: string): Promise<AdminSession> {
 
   // The access token authenticates the request; the server derives the
   // caller's identity from it, so no email is passed on the wire here.
-  const salons = await apiFetch<Salon[]>(MY_SALONS_API);
+  let salons: Salon[];
+  try {
+    salons = await apiFetch<Salon[]>(MY_SALONS_API);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("HTTP 404") || msg.toLowerCase().includes("not found")) {
+      throw new NoSalonFoundError(email);
+    }
+    throw e;
+  }
   const session: AdminSession = { email, salons };
   setAdminSession(session);
   return session;

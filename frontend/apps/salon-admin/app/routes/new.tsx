@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLoaderData } from "react-router";
+import { Link, useLoaderData, useSearchParams } from "react-router";
 import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
 import { ONBOARDING_API as SALON_ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { SALON_DOMAIN } from "~/lib/config";
@@ -335,8 +335,13 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
 // ── Main wizard ──────────────────────────────────────────────────────────────
 export default function NewSalon() {
   const { countries, countriesError } = useLoaderData<typeof clientLoader>();
+  const [searchParams] = useSearchParams();
   const [step,      setStep]      = useState(0);
-  const [form,      setForm]      = useState<FormState>(emptyForm);
+  const [form,      setForm]      = useState<FormState>(() => {
+    const email = searchParams.get("email");
+    const base = emptyForm();
+    return email ? { ...base, owner: { ...base.owner, email } } : base;
+  });
   const [errors,    setErrors]    = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
   const [created,  setCreated]  = useState<{ id: string; handler: string } | null>(null);
