@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarCheck, Filter } from "lucide-react";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
-import { getStaffSession } from "~/routes/login";
+import { getStaffSession } from "~/lib/auth";
 import { InfoBar } from "@salon/ui-shared";
 import type { Booking } from "~/lib/types";
 

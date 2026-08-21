@@ -8,10 +8,10 @@ import {
 import { AppLogo } from "@salon/ui-shared";
 import { apiFetch, SUPER_ADMIN_API } from "~/lib/api";
 import {
-  getSession, clearSession,
   ALL_FEATURES, FEATURE_LABEL,
   type Salon, type SalonFeature,
 } from "~/lib/types";
+import { getSession, logout as authLogout } from "~/lib/auth";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -352,8 +352,7 @@ export default function SuperAdminHome() {
   }
 
   function handleSignOut() {
-    clearSession();
-    navigate("/login", { replace: true });
+    authLogout(navigate);
   }
 
   const activeCount   = salons.filter((s) => s.status === "ACTIVE").length;

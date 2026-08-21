@@ -6,11 +6,26 @@ export const COUNTRIES_API = `${API_BASE}/api/salon-utility/countries`;
 const ATTEMPT_TIMEOUT_MS = 8_000;
 
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {
+  // Lazy import avoids a circular dependency (auth.ts also calls fetch directly for tokens).
+  const { AUTH_MODE, getAccessToken, clearSession } = await import("~/lib/auth");
+  const accessToken = AUTH_MODE === "oauth2" ? getAccessToken() : null;
+
   const res = await fetch(url, {
     signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     ...opts,
   });
+
+  if (res.status === 401 && AUTH_MODE === "oauth2" && (url.startsWith(SUPER_ADMIN_API) || url.startsWith(ADMIN_API))) {
+    clearSession();
+    if (!window.location.pathname.endsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new Error("Session expired — please sign in again.");
+  }
 
   if (!res.ok) {
     let message: string | undefined;

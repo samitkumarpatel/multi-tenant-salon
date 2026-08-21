@@ -127,29 +127,6 @@ export interface SalonManageContext {
   setSalon: (s: Salon) => void;
 }
 
-export interface SuperAdminSession {
-  email: string;
-}
-
-const SESSION_KEY = "super-admin-session";
-
-export function getSession(): SuperAdminSession | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as SuperAdminSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function setSession(s: SuperAdminSession) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
-}
-
-export function clearSession() {
-  sessionStorage.removeItem(SESSION_KEY);
-}
-
 export const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org";
 export const SUPER_ADMIN_EMAIL = `admin@${SALON_DOMAIN}`;
 export const DUMMY_OTP = "123456";

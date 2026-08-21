@@ -4,7 +4,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { Pencil, X, Crown, CalendarOff, UserCircle, Camera, RefreshCw } from "lucide-react";
 import { STAFF_PORTAL_API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { getStaffSession } from "~/routes/login";
+import { getStaffSession } from "~/lib/auth";
 import { InfoBar, PhoneInput, TileGrid, Toast, useToast } from "@salon/ui-shared";
 import type { Country, PresignedUpload, StaffMember } from "~/lib/types";
 

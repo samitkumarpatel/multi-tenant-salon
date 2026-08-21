@@ -1,35 +1,17 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Mail, KeyRound, Building2, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Mail, KeyRound, Building2, ShieldCheck, ArrowLeft, Lock } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { MY_SALONS_API, apiFetch } from "~/lib/api";
+import { AUTH_MODE, setAdminSession, startOAuth2Login, completeOAuth2Login } from "~/lib/auth";
 import type { Salon } from "~/lib/types";
 
-const SESSION_KEY = "admin-session";
-const DUMMY_OTP   = "123456";
-
-export interface AdminSession {
-  email: string;
-  salons: Salon[];
-}
-
-export function getAdminSession(): AdminSession | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as AdminSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function clearAdminSession() {
-  sessionStorage.removeItem(SESSION_KEY);
-}
+const DUMMY_OTP = "123456";
 
 const inputCls =
   "w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-white text-slate-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-slate-400";
 
-export default function Login() {
+function MockLogin() {
   const navigate = useNavigate();
 
   const [step, setStep]                     = useState<"email" | "otp">("email");
@@ -116,8 +98,7 @@ export default function Login() {
       setTimeout(() => otpRefs.current[0]?.focus(), 60);
       return;
     }
-    const session: AdminSession = { email, salons: pendingSalons };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    setAdminSession({ email, salons: pendingSalons });
     if (pendingSalons.length === 1) {
       navigate(`/${pendingSalons[0].id}`);
     } else {
@@ -295,4 +276,111 @@ export default function Login() {
 
     </div>
   );
+}
+
+// ── Real OAuth2 (Authorization Code + PKCE) login ────────────────────────────
+
+function OAuth2Login() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    const params   = new URLSearchParams(window.location.search);
+    const code     = params.get("code");
+    const errParam = params.get("error");
+
+    if (errParam) {
+      setError(params.get("error_description") ?? errParam);
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
+    if (code) {
+      setLoading(true);
+      completeOAuth2Login(code)
+        .then((session) => {
+          window.history.replaceState({}, "", window.location.pathname);
+          navigate(session.salons.length === 1 ? `/${session.salons[0].id}` : "/salons", { replace: true });
+        })
+        .catch((e: unknown) => {
+          setError(e instanceof Error ? e.message : "Sign-in failed.");
+          setLoading(false);
+        });
+    }
+  }, []);
+
+  return (
+    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
+
+      <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
+        <AppLogo size={24} textColor="#374151" />
+        <div className="ml-auto">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+            Admin Portal
+          </span>
+        </div>
+      </header>
+
+      <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
+        <div className="w-full max-w-[360px]">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+
+            <div className="px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                  <Lock className="w-3.5 h-3.5 text-matcha-600" />
+                </div>
+                <h1 className="text-sm font-semibold text-slate-900">Sign in to your salon</h1>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed pl-9">
+                You'll be redirected to sign in securely, then brought back here.
+              </p>
+            </div>
+
+            <div className="px-6 py-5">
+              {error && (
+                <p className="text-red-500 text-[11px] mb-3 leading-snug">{error}</p>
+              )}
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => { setLoading(true); startOAuth2Login(); }}
+                className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer"
+              >
+                {loading ? "Redirecting…" : "Sign In →"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2">
+              <Building2 className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Don't have a salon yet?{" "}
+                <a
+                  href={import.meta.env.VITE_ONBOARDING_URL ?? "/"}
+                  className="font-semibold underline text-amber-800"
+                >
+                  Register one here
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
+        <AppLogo size={16} textColor="#94a3b8" />
+        <p className="text-[10px] text-slate-400 ml-auto">
+          © {new Date().getFullYear()} · All rights reserved.
+        </p>
+      </footer>
+
+    </div>
+  );
+}
+
+export default function Login() {
+  return AUTH_MODE === "oauth2" ? <OAuth2Login /> : <MockLogin />;
 }

@@ -1,5 +1,5 @@
 import { redirect } from "react-router";
-import { getStaffSession } from "~/routes/login";
+import { getStaffSession } from "~/lib/auth";
 
 export function clientLoader() {
   const session = getStaffSession();

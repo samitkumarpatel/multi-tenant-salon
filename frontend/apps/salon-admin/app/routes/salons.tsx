@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Building2, MapPin, ArrowRight, LogOut, Power } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
-import { getAdminSession, clearAdminSession } from "~/routes/login";
+import { getAdminSession, logout as authLogout } from "~/lib/auth";
 import { ADMIN_API, apiFetch } from "~/lib/api";
 import type { Salon } from "~/lib/types";
 
@@ -37,8 +37,7 @@ export default function SalonPicker() {
   }
 
   function handleSignOut() {
-    clearAdminSession();
-    navigate("/login", { replace: true });
+    authLogout(navigate);
   }
 
   if (salons.length === 0) return null;

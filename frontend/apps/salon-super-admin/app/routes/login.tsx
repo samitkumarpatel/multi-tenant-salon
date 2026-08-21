@@ -1,13 +1,14 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { Shield, Mail, KeyRound, ArrowLeft, Lock } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
-import { setSession, SUPER_ADMIN_EMAIL, DUMMY_OTP, SALON_DOMAIN } from "~/lib/types";
+import { SUPER_ADMIN_EMAIL, DUMMY_OTP, SALON_DOMAIN } from "~/lib/types";
+import { AUTH_MODE, setSession, startOAuth2Login, completeOAuth2Login } from "~/lib/auth";
 
 const inputCls =
   "w-full px-3 py-2 border border-stone-200 rounded-md text-sm bg-stone-100 text-stone-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-stone-400";
 
-export default function SuperAdminLogin() {
+function MockLogin() {
   const navigate = useNavigate();
 
   const [step, setStep]     = useState<"email" | "otp">("email");
@@ -220,4 +221,101 @@ export default function SuperAdminLogin() {
       </footer>
     </div>
   );
+}
+
+// ── Real OAuth2 (Authorization Code + PKCE) login ────────────────────────────
+
+function OAuth2Login() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    const params   = new URLSearchParams(window.location.search);
+    const code     = params.get("code");
+    const errParam = params.get("error");
+
+    if (errParam) {
+      setError(params.get("error_description") ?? errParam);
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
+    if (code) {
+      setLoading(true);
+      completeOAuth2Login(code)
+        .then(() => {
+          window.history.replaceState({}, "", window.location.pathname);
+          navigate("/", { replace: true });
+        })
+        .catch((e: unknown) => {
+          setError(e instanceof Error ? e.message : "Sign-in failed.");
+          setLoading(false);
+        });
+    }
+  }, []);
+
+  return (
+    <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
+      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-6 shrink-0">
+        <AppLogo size={24} textColor="#e2e8f0" />
+        <span className="ml-3 text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded">
+          Super Admin
+        </span>
+      </header>
+
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
+        <div className="w-full max-w-[360px]">
+
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-12 h-12 rounded-xl bg-matcha-600/20 border border-matcha-600/40 flex items-center justify-center mb-4">
+              <Shield className="w-6 h-6 text-matcha-500" />
+            </div>
+            <h1 className="text-lg font-bold text-stone-900">Platform Super Admin</h1>
+            <p className="text-xs text-stone-400 mt-1 text-center">
+              Restricted access · Platform management portal
+            </p>
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-2xl">
+            <div className="px-6 py-5 border-b border-stone-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full bg-matcha-50 flex items-center justify-center shrink-0">
+                  <Lock className="w-3 h-3 text-matcha-500" />
+                </div>
+                <h2 className="text-sm font-semibold text-stone-800">Sign in securely</h2>
+              </div>
+              <p className="text-xs text-stone-400 mt-2 pl-8 leading-relaxed">
+                You'll be redirected to sign in, then brought back here.
+              </p>
+            </div>
+
+            <div className="px-6 py-5">
+              {error && <p className="text-red-600 text-[11px] mb-3 leading-snug">{error}</p>}
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => { setLoading(true); startOAuth2Login(); }}
+                className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-500 disabled:opacity-40 transition cursor-pointer"
+              >
+                {loading ? "Redirecting…" : "Sign In →"}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <footer className="h-10 border-t border-stone-200 bg-white/50 flex items-center px-6 shrink-0">
+        <AppLogo size={16} textColor="#475569" />
+        <p className="text-[10px] text-stone-400 ml-auto">
+          © {new Date().getFullYear()} · {SALON_DOMAIN}
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+export default function SuperAdminLogin() {
+  return AUTH_MODE === "oauth2" ? <OAuth2Login /> : <MockLogin />;
 }

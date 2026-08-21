@@ -3,7 +3,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState } from "react";
 import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon, Store } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@salon/ui-shared";
-import { getStaffSession, clearStaffSession } from "~/routes/login";
+import { getStaffSession, logout as authLogout } from "~/lib/auth";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
 import type { StaffMember } from "~/lib/types";
 
@@ -82,8 +82,7 @@ export default function Layout() {
     }`;
 
   function handleLogout() {
-    clearStaffSession();
-    navigate("/login");
+    authLogout(navigate);
   }
 
   return (

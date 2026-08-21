@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { getAdminSession, clearAdminSession } from "~/routes/login";
+import { getAdminSession, logout as authLogout } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
 import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, Toast, useToast } from "@salon/ui-shared";
@@ -344,8 +344,7 @@ export default function Layout() {
     }`;
 
   function handleLogout() {
-    clearAdminSession();
-    navigate("/login");
+    authLogout(navigate);
   }
 
   async function handleDisable() {

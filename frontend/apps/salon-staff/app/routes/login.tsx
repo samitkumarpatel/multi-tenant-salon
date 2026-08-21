@@ -1,12 +1,12 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Mail, KeyRound, Scissors, ShieldCheck, ArrowLeft, Users } from "lucide-react";
+import { Mail, KeyRound, Scissors, ShieldCheck, ArrowLeft, Users, Lock } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
-import type { StaffMember, StaffSession } from "~/lib/types";
+import { AUTH_MODE, startOAuth2Login, fetchOAuth2StaffOptions, buildStaffSession } from "~/lib/auth";
+import type { StaffMember } from "~/lib/types";
 
-const SESSION_KEY = "staff-session";
-const DUMMY_OTP   = "123456";
+const DUMMY_OTP = "123456";
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "Manager", STYLIST: "Stylist", COLORIST: "Colorist",
@@ -14,23 +14,10 @@ const ROLE_LABEL: Record<string, string> = {
   RECEPTIONIST: "Receptionist", ASSISTANT: "Assistant",
 };
 
-export function getStaffSession(): StaffSession | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as StaffSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function clearStaffSession() {
-  sessionStorage.removeItem(SESSION_KEY);
-}
-
 const inputCls =
   "w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-white text-slate-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-slate-400";
 
-export default function Login() {
+function MockLogin() {
   const navigate = useNavigate();
 
   const [step, setStep]                       = useState<"email" | "pick" | "otp">("email");
@@ -113,17 +100,7 @@ export default function Login() {
       setTimeout(() => otpRefs.current[0]?.focus(), 60);
       return;
     }
-    const member = selected!;
-    const session: StaffSession = {
-      staffId: member.id,
-      salonId: String(member.salonId),
-      salonName: member.salonName,
-      salonHandler: member.salonHandler,
-      email: member.email,
-      name: member.name,
-      role: member.role,
-    };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    buildStaffSession(selected!);
     navigate("/portal");
   }
 
@@ -325,4 +302,165 @@ export default function Login() {
       </footer>
     </div>
   );
+}
+
+// ── Real OAuth2 (Authorization Code + PKCE) login ────────────────────────────
+
+function OAuth2Login() {
+  const navigate = useNavigate();
+  const [status, setStatus]       = useState<"idle" | "loading" | "pick" | "error">("idle");
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [error, setError]         = useState("");
+
+  useEffect(() => {
+    const params   = new URLSearchParams(window.location.search);
+    const code     = params.get("code");
+    const errParam = params.get("error");
+
+    if (errParam) {
+      setError(params.get("error_description") ?? errParam);
+      setStatus("error");
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
+    if (code) {
+      setStatus("loading");
+      fetchOAuth2StaffOptions(code)
+        .then((members) => {
+          window.history.replaceState({}, "", window.location.pathname);
+          if (members.length === 0) {
+            setError("No staff account found for this email.");
+            setStatus("error");
+            return;
+          }
+          if (members.length === 1) {
+            buildStaffSession(members[0]);
+            navigate("/portal", { replace: true });
+            return;
+          }
+          setStaffList(members);
+          setStatus("pick");
+        })
+        .catch((e: unknown) => {
+          setError(e instanceof Error ? e.message : "Sign-in failed.");
+          setStatus("error");
+        });
+    }
+  }, []);
+
+  function handlePick(member: StaffMember) {
+    buildStaffSession(member);
+    navigate("/portal", { replace: true });
+  }
+
+  const loading = status === "loading";
+
+  return (
+    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
+      <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
+        <AppLogo size={24} textColor="#374151" />
+        <div className="ml-auto">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+            Staff Portal
+          </span>
+        </div>
+      </header>
+
+      <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
+        <div className="w-full max-w-[360px]">
+
+          {status === "pick" ? (
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                    <Users className="w-3.5 h-3.5 text-matcha-600" />
+                  </div>
+                  <h1 className="text-sm font-semibold text-slate-900">Select your account</h1>
+                </div>
+                <p className="text-xs text-slate-500 pl-9">
+                  You're registered at multiple salons. Choose one to continue.
+                </p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {staffList.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => handlePick(m)}
+                    className="w-full flex items-center gap-3 px-6 py-3.5 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    {m.photoUrl ? (
+                      <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-matcha-700">
+                          {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">{m.name}</p>
+                      <p className="text-[11px] text-slate-400">{ROLE_LABEL[m.role] ?? m.role}</p>
+                      {(m.salonName || m.salonHandler) && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {m.salonName && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-matcha-50 text-matcha-700 border border-matcha-200 leading-none">
+                              {m.salonName}
+                            </span>
+                          )}
+                          {m.salonHandler && (
+                            <span className="text-[10px] text-slate-400 font-mono leading-none">
+                              @{m.salonHandler}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
+                    <Lock className="w-3.5 h-3.5 text-matcha-600" />
+                  </div>
+                  <h1 className="text-sm font-semibold text-slate-900">Sign in to Staff Portal</h1>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed pl-9">
+                  You'll be redirected to sign in securely, then brought back here.
+                </p>
+              </div>
+              <div className="px-6 py-5">
+                {error && <p className="text-red-500 text-[11px] mb-3 leading-snug">{error}</p>}
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => { setStatus("loading"); startOAuth2Login(); }}
+                  className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {loading ? "Redirecting…" : "Sign In →"}
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
+        <AppLogo size={16} textColor="#94a3b8" />
+        <p className="text-[10px] text-slate-400 ml-auto">
+          © {new Date().getFullYear()} · All rights reserved.
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+export default function Login() {
+  return AUTH_MODE === "oauth2" ? <OAuth2Login /> : <MockLogin />;
 }

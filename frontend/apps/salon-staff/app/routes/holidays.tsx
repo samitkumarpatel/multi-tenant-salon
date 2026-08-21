@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Plus, Trash2, X, AlertCircle } from "lucide-react";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
-import { getStaffSession } from "~/routes/login";
+import { getStaffSession } from "~/lib/auth";
 import { InfoBar, Toast, useToast } from "@salon/ui-shared";
 import type { StaffHoliday } from "~/lib/types";
 
