@@ -33,6 +33,16 @@ resource "azurerm_kubernetes_cluster" "this" {
     os_disk_size_gb = 50
     type            = "VirtualMachineScaleSets"
     node_labels     = { "workload-type" = "system" }
+
+    # Matches the Azure API's own default — pinning it explicitly stops
+    # Terraform from showing a perpetual "remove upgrade_settings" diff on
+    # every plan (the API always returns this block even when the config
+    # omits it).
+    upgrade_settings {
+      drain_timeout_in_minutes      = 0
+      max_surge                     = "10%"
+      node_soak_duration_in_minutes = 0
+    }
   }
 
   node_provisioning_profile {

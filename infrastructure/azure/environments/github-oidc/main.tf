@@ -52,3 +52,41 @@ resource "azurerm_role_assignment" "github" {
   role_definition_name = each.value
   principal_id         = azuread_service_principal.github.object_id
 }
+
+# ── Role-assignment-writer — narrow permission for AKS RBAC bootstrapping ────
+# stacks/backend creates a few role assignments so the AKS cluster's managed
+# identities can manage a public IP and attach the postgres disk. Writing a
+# role assignment requires Microsoft.Authorization/roleAssignments/write,
+# which Contributor deliberately excludes (Azure's anti-escalation boundary),
+# so `terraform apply` in environments/dev fails on those resources without
+# this. Rather than granting the built-in "User Access Administrator" role
+# (lets the holder grant/revoke ANY role, subscription-wide), this custom
+# role is scoped to exactly roleAssignments read/write/delete, and only
+# within the app's own resource group — a compromised CI credential still
+# can't touch IAM anywhere else in the subscription.
+
+data "azurerm_resource_group" "target" {
+  name = var.resource_group_name
+}
+
+resource "azurerm_role_definition" "role_assignment_writer" {
+  name        = "${local.app_name}-role-assignment-writer"
+  scope       = data.azurerm_resource_group.target.id
+  description = "Manage role assignments within ${var.resource_group_name} only — narrower than the built-in User Access Administrator role."
+
+  permissions {
+    actions = [
+      "Microsoft.Authorization/roleAssignments/read",
+      "Microsoft.Authorization/roleAssignments/write",
+      "Microsoft.Authorization/roleAssignments/delete",
+    ]
+  }
+
+  assignable_scopes = [data.azurerm_resource_group.target.id]
+}
+
+resource "azurerm_role_assignment" "github_role_assignment_writer" {
+  scope              = data.azurerm_resource_group.target.id
+  role_definition_id = azurerm_role_definition.role_assignment_writer.role_definition_resource_id
+  principal_id       = azuread_service_principal.github.object_id
+}

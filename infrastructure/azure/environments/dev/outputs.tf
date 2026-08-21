@@ -23,6 +23,16 @@ output "postgres_disk_id" {
   value       = module.backend.postgres_disk_id
 }
 
+output "aks_cluster_identity_principal_id" {
+  description = "Use with `az role assignment create` if the deploying identity can't write role assignments itself (see azurerm_role_assignment.aks_network_contributor / aks_cluster_disk_contributor in stacks/backend)"
+  value       = module.backend.aks_cluster_identity_principal_id
+}
+
+output "aks_kubelet_identity_object_id" {
+  description = "Use with `az role assignment create` if the deploying identity can't write role assignments itself (see azurerm_role_assignment.aks_kubelet_disk_contributor in stacks/backend)"
+  value       = module.backend.aks_kubelet_identity_object_id
+}
+
 output "key_vault_uri" {
   value = module.backend.key_vault_uri
 }

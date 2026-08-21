@@ -20,6 +20,16 @@ output "postgres_disk_name" {
   value = module.aks.postgres_disk_name
 }
 
+output "aks_cluster_identity_principal_id" {
+  description = "Grant this Network Contributor on the resource group, and Contributor on the postgres disk (see aks_kubelet_identity_object_id too) — needed for the LoadBalancer public IP and CSI disk attach. Only needed manually if the deploying identity lacks Microsoft.Authorization/roleAssignments/write."
+  value       = module.aks.cluster_identity_principal_id
+}
+
+output "aks_kubelet_identity_object_id" {
+  description = "Grant this Contributor on the postgres disk — the kubelet identity needs it to format/mount the disk on the node. Only needed manually if the deploying identity lacks Microsoft.Authorization/roleAssignments/write."
+  value       = module.aks.kubelet_identity_object_id
+}
+
 output "key_vault_uri" {
   value = module.key_vault.vault_uri
 }

@@ -26,3 +26,11 @@ variable "role_definitions" {
   type    = list(string)
   default = ["Contributor"]
 }
+
+# Resource group the deploy-time role-assignment-writer permission is scoped
+# to (see role_assignment_writer below). Must match environments/dev's
+# resource_group_name ("multi-tenant-salon-${environment}").
+variable "resource_group_name" {
+  type    = string
+  default = "multi-tenant-salon-dev"
+}
