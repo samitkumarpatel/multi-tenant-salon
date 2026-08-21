@@ -56,25 +56,37 @@ export function HydrateFallback() {
 export function ErrorBoundary() {
   const error = useRouteError();
   const is404 = isRouteErrorResponse(error) && error.status === 404;
+  const is403 =
+    isRouteErrorResponse(error)
+      ? error.status === 403
+      : error instanceof Error
+      ? /HTTP 403|not authorized/i.test(error.message)
+      : false;
 
   return (
     <html lang="en">
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{is404 ? "Not found" : "Error"}</title>
+        <title>{is403 ? "Not authorized" : is404 ? "Not found" : "Error"}</title>
         <Links />
       </head>
       <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", background: "#f8fafc", color: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh" }}>
         <div style={{ textAlign: "center", maxWidth: 360, padding: "0 24px" }}>
-          <p style={{ fontSize: 48, margin: "0 0 16px" }}>⚙️</p>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{is404 ? "Page not found" : "Something went wrong"}</h1>
+          <p style={{ fontSize: 48, margin: "0 0 16px" }}>{is403 ? "🔒" : "⚙️"}</p>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>
+            {is403 ? "You are not authorized" : is404 ? "Page not found" : "Something went wrong"}
+          </h1>
           <p style={{ fontSize: 14, color: "#64748b", margin: "0 0 24px", lineHeight: 1.6 }}>
-            {is404 ? "This page doesn't exist." : "We couldn't load this page. Please try again."}
+            {is403
+              ? "You don't have permission to view this page."
+              : is404
+              ? "This page doesn't exist."
+              : "We couldn't load this page. Please try again."}
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
             <a href="/" style={{ padding: "10px 20px", borderRadius: 8, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14 }}>← Home</a>
-            {!is404 && (
+            {!is404 && !is403 && (
               <button onClick={() => window.location.reload()} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontSize: 14 }}>
                 ↻ Retry
               </button>

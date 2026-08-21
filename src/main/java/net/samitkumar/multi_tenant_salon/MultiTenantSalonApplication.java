@@ -93,7 +93,12 @@ public class MultiTenantSalonApplication {
 								.requestMatchers("/api/salon-staff", "/api/salon-staff/**").hasRole("STAFF")
 								// Not scoped to a single salonId — just needs a valid caller identity.
 								.requestMatchers("/api/salon-admin/my-salons").authenticated()
-								.requestMatchers("/api/salon-admin","/api/salon-admin/**","/api/salon-admin/{salonId}", "/api/salon-admin/{salonId}/**").access((authentication, context) -> {
+								// Only the {salonId}-templated patterns — NOT a bare "/api/salon-admin/**" catch-all.
+								// RequestMatcherDelegatingAuthorizationManager evaluates matchers in declaration
+								// order and uses the first match's path variables; a wildcard listed ahead of
+								// these would always win first and carry no "salonId" variable, silently
+								// denying every owner (context.getVariables().get("salonId") would be null).
+								.requestMatchers("/api/salon-admin/{salonId}", "/api/salon-admin/{salonId}/**").access((authentication, context) -> {
 									Authentication auth = authentication.get();
 
 									if (auth == null || !auth.isAuthenticated()) {

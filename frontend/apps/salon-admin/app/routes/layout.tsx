@@ -232,6 +232,13 @@ export function ErrorBoundary() {
       ? /HTTP 404|not found/i.test(error.message)
       : false;
 
+  const is403 =
+    isRouteErrorResponse(error)
+      ? error.status === 403
+      : error instanceof Error
+      ? /HTTP 403|not authorized/i.test(error.message)
+      : false;
+
   if (isPublic) {
     return <SalonErrorPage is404={is404} />;
   }
@@ -242,13 +249,15 @@ export function ErrorBoundary() {
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
       <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-5">
-        <span className="text-2xl">✂️</span>
+        <span className="text-2xl">{is403 ? "🔒" : "✂️"}</span>
       </div>
       <h1 className="text-lg font-bold text-slate-800 mb-2">
-        {is404 ? "Salon not found" : "Something went wrong"}
+        {is403 ? "You are not authorized" : is404 ? "Salon not found" : "Something went wrong"}
       </h1>
       <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-6">
-        {is404
+        {is403
+          ? "You don't have permission to view this salon."
+          : is404
           ? "This salon doesn't exist or the link is incorrect."
           : "An error occurred while loading this page."}
       </p>
@@ -259,7 +268,7 @@ export function ErrorBoundary() {
         >
           ← Go home
         </a>
-        {!is404 && (
+        {!is404 && !is403 && (
           <button
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer"

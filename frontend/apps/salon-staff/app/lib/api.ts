@@ -44,6 +44,10 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
         throw new Error("Session expired — please sign in again.");
       }
 
+      if (res.status === 403) {
+        throw new Error("You are not authorized to perform this action.");
+      }
+
       if (!res.ok) {
         if (isRetryable(method, undefined, res.status) && attempt < MAX_EXTRA_RETRIES) {
           lastError = new Error(`HTTP ${res.status}`);
