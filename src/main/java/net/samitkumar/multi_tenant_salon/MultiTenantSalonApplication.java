@@ -90,7 +90,14 @@ public class MultiTenantSalonApplication {
 										"/api/media/photos/**",
 										"/internal/user-identity").permitAll()
 								.requestMatchers("/api/salon-super-admin/**").hasRole("SUPER_ADMIN")
-								.requestMatchers("/api/salon-staff", "/api/salon-staff/**").hasRole("STAFF")
+								// A salon owner is also auto-enrolled as a staff_member row (role=MANAGER,
+								// isOwner=true) so they can use the same portal for their own bookings/holidays —
+								// but the user_identity view gives OWNER precedence over STAFF for the same
+								// (email, salonId), so an owner's token never carries ROLE_STAFF. Gate on either
+								// role here; StaffPortalController's isOwnStaffId check still scopes every
+								// {staffId} route to the caller's own staff record(s) regardless of which role
+								// got them past this gate.
+								.requestMatchers("/api/salon-staff", "/api/salon-staff/**").hasAnyRole("STAFF", "OWNER")
 								// Not scoped to a single salonId — just needs a valid caller identity.
 								.requestMatchers("/api/salon-admin/my-salons").authenticated()
 								// Only the {salonId}-templated patterns — NOT a bare "/api/salon-admin/**" catch-all.

@@ -78,16 +78,29 @@ class StaffPortalController {
         return ResponseEntity.ok(result);
     }
 
+    // The caller's own staffId(s) are resolved from the validated token's email
+    // (never from client input) and compared against the path variable — the same
+    // "identity from the token" rule /me already follows, applied here so one staff
+    // member cannot reach another staff member's profile, bookings, or holidays.
+    private boolean isOwnStaffId(Jwt jwt, Long staffId) {
+        if (jwt == null || jwt.getSubject() == null) return false;
+        return staffApi.findByEmail(jwt.getSubject()).stream().anyMatch(m -> m.id().equals(staffId));
+    }
+
     @GetMapping("/{staffId}")
-    ResponseEntity<StaffMember> findById(@PathVariable Long staffId) {
+    ResponseEntity<StaffMember> findById(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                         @PathVariable Long staffId) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return staffApi.findById(staffId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PatchMapping("/{staffId}/profile")
-    ResponseEntity<StaffMember> updateProfile(@PathVariable Long staffId,
+    ResponseEntity<StaffMember> updateProfile(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                              @PathVariable Long staffId,
                                               @RequestBody ProfileUpdateRequest request) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return staffApi.findById(staffId).map(existing -> {
             String name  = request.name()  != null ? request.name()  : existing.name();
             String phone = request.phone() != null ? request.phone() : existing.phone();
@@ -98,8 +111,10 @@ class StaffPortalController {
     }
 
     @PostMapping("/{staffId}/photo-upload-url")
-    ResponseEntity<MediaService.PresignedUpload> getPhotoUploadUrl(@PathVariable Long staffId,
+    ResponseEntity<MediaService.PresignedUpload> getPhotoUploadUrl(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                                                   @PathVariable Long staffId,
                                                                    @RequestBody PhotoUploadRequest request) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         if (mediaApi == null) return ResponseEntity.status(503).build();
         return staffApi.findById(staffId)
                 .map(m -> ResponseEntity.ok(mediaApi.generateStaffPhotoUploadUrl(staffId, request.contentType())))
@@ -107,14 +122,18 @@ class StaffPortalController {
     }
 
     @GetMapping("/{staffId}/appointments")
-    ResponseEntity<List<Booking>> getAppointments(@PathVariable Long staffId) {
+    ResponseEntity<List<Booking>> getAppointments(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                                  @PathVariable Long staffId) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return staffApi.findById(staffId).map(member ->
                 ResponseEntity.ok(bookingApi.findByStaff(member.salonId(), staffId))
         ).orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{staffId}/holidays")
-    ResponseEntity<List<StaffAvailabilityOverride>> getHolidays(@PathVariable Long staffId) {
+    ResponseEntity<List<StaffAvailabilityOverride>> getHolidays(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                                                 @PathVariable Long staffId) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return staffApi.findById(staffId).map(member ->
                 ResponseEntity.ok(
                         bookingApi.getOverrides(member.salonId(), staffId).stream()
@@ -125,8 +144,10 @@ class StaffPortalController {
     }
 
     @PostMapping("/{staffId}/holidays")
-    ResponseEntity<StaffAvailabilityOverride> addHoliday(@PathVariable Long staffId,
+    ResponseEntity<StaffAvailabilityOverride> addHoliday(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                                          @PathVariable Long staffId,
                                                           @RequestBody HolidayRequest request) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return staffApi.findById(staffId).map(member -> {
             var override = new StaffAvailabilityOverride(
                     null, member.salonId(), staffId,
@@ -143,7 +164,9 @@ class StaffPortalController {
     }
 
     @DeleteMapping("/{staffId}/holidays/{holidayId}")
-    ResponseEntity<Void> removeHoliday(@PathVariable Long staffId, @PathVariable Long holidayId) {
+    ResponseEntity<Void> removeHoliday(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                       @PathVariable Long staffId, @PathVariable Long holidayId) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         var member = staffApi.findById(staffId);
         if (member.isEmpty()) return ResponseEntity.notFound().build();
         bookingApi.removeOverride(member.get().salonId(), staffId, holidayId);

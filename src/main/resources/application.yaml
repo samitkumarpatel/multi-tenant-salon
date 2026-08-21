@@ -12,6 +12,10 @@ spring:
       staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.salonsaas.org}
       local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
       local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/salon-photos}
+      # Signs local-mode upload URLs so /api/media/photos/upload/** can verify a request was
+      # actually issued, the way S3 verifies a pre-signed URL's signature. Set this explicitly
+      # for any multi-instance deployment — unset, each instance generates its own random secret.
+      upload-signing-secret: ${MEDIA_UPLOAD_SIGNING_SECRET:}
     cors:
       # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
       # e.g. https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org
