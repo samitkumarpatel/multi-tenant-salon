@@ -10,6 +10,8 @@ import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonHoliday;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -74,8 +76,16 @@ class SalonController {
     }
 
     @GetMapping("/api/salon-admin/my-salons")
-    ResponseEntity<List<Salon>> findMysSalons(@RequestParam String email) {
-        var salons = service.findByOwnerEmail(email);
+    ResponseEntity<List<Salon>> findMysSalons(
+            @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+            @RequestParam(required = false) String email) {
+        // The caller's own identity always comes from the validated token, never
+        // from client input — a request param would let anyone ask for anyone
+        // else's salons. The param stays only as a fallback for unauthenticated
+        // (e.g. local mock-mode) callers.
+        var ownerEmail = jwt != null ? jwt.getSubject() : email;
+        if (ownerEmail == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        var salons = service.findByOwnerEmail(ownerEmail);
         if (salons.isEmpty()) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(salons);
     }

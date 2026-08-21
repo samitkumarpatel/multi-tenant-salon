@@ -17,7 +17,7 @@ const APP_URL =
 
 const AUTH_SERVER = (import.meta.env.VITE_AUTH_SERVER_URL ?? "https://auth.salonsaas.org").replace(/\/$/, "");
 const CLIENT_ID   = import.meta.env.VITE_AUTH_CLIENT_ID ?? "salon-super-admin";
-const SCOPE       = import.meta.env.VITE_AUTH_SCOPE ?? "openid profile email";
+const SCOPE       = import.meta.env.VITE_AUTH_SCOPE ?? "openid profile";
 const REDIRECT_URI = `${APP_URL}/login`;
 
 const SESSION_KEY  = "super-admin-session";
@@ -89,6 +89,19 @@ export function getAccessToken(): string | null {
     return token.access_token;
   } catch {
     localStorage.removeItem(TOKEN_KEY);
+    return null;
+  }
+}
+
+/** Access token expiry as epoch ms, or null if there's no (valid) token — e.g. mock mode. */
+export function getAccessTokenExpiry(): number | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const token = JSON.parse(raw) as TokenSet;
+    const exp = decodeJwtPayload(token.access_token)?.exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
     return null;
   }
 }
@@ -166,8 +179,8 @@ export async function completeOAuth2Login(code: string): Promise<SuperAdminSessi
   if (!userInfoResp.ok) {
     throw new Error(`Failed to load user info (${userInfoResp.status}).`);
   }
-  const userInfo = (await userInfoResp.json()) as { email?: string };
-  const email = userInfo.email;
+  const userInfo = (await userInfoResp.json()) as { sub?: string };
+  const email = userInfo.sub;
 
   if (email !== SUPER_ADMIN_EMAIL) {
     throw new Error("Access denied. This portal is restricted to the platform super-admin.");

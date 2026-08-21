@@ -92,6 +92,19 @@ export function getAccessToken(): string | null {
   }
 }
 
+/** Access token expiry as epoch ms, or null if there's no (valid) token — e.g. mock mode. */
+export function getAccessTokenExpiry(): number | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const token = JSON.parse(raw) as TokenSet;
+    const exp = decodeJwtPayload(token.access_token)?.exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 function persistToken(token: TokenSet) {
   localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
 }
@@ -166,11 +179,13 @@ export async function completeOAuth2Login(code: string): Promise<AdminSession> {
   if (!userInfoResp.ok) {
     throw new Error(`Failed to load user info (${userInfoResp.status}).`);
   }
-  const userInfo = (await userInfoResp.json()) as { email?: string };
-  const email = userInfo.email;
+  const userInfo = (await userInfoResp.json()) as { sub?: string };
+  const email = userInfo.sub;
   if (!email) throw new Error("Signed-in account has no email on file.");
 
-  const salons = await apiFetch<Salon[]>(`${MY_SALONS_API}?email=${encodeURIComponent(email)}`);
+  // The access token authenticates the request; the server derives the
+  // caller's identity from it, so no email is passed on the wire here.
+  const salons = await apiFetch<Salon[]>(MY_SALONS_API);
   const session: AdminSession = { email, salons };
   setAdminSession(session);
   return session;

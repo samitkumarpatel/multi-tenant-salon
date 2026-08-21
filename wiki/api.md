@@ -427,22 +427,29 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 ## Admin — Login / Session
 
-### Look up salons by owner email
+### Look up the caller's own salons
 
-`GET /api/salon-admin/my-salons?email={email}`
+`GET /api/salon-admin/my-salons`
 
-Used by the admin login flow. The owner enters the email they used during salon onboarding. The backend resolves which salon(s) are tied to that email.
+Used by the admin login flow, after the OAuth2 code exchange. The backend resolves which salon(s) belong to the authenticated caller — identity comes from the `sub` claim of the bearer token, **not** from client input, since trusting a client-supplied email would let a caller ask for someone else's salons.
+
+**Headers**
+
+| Header | Required | Description |
+|---|---|---|
+| `Authorization: Bearer {token}` | yes (real login) | Access token from the OAuth2 token exchange; `sub` is used as the owner email |
 
 **Query Parameters**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `email` | string (email) | yes | The email address used during salon onboarding |
+| `email` | string (email) | no | Fallback owner email, used only when no bearer token is present (local/mock-mode login). Ignored when the caller is authenticated. |
 
 **Responses**
 
 - `200 OK` — Array of `Salon` objects (one or more found)
-- `404 Not Found` — No salon registered with that email
+- `401 Unauthorized` — No bearer token and no `email` fallback provided
+- `404 Not Found` — No salon registered to this owner
 
 **Login flow logic**
 
@@ -455,7 +462,8 @@ Used by the admin login flow. The owner enters the email they used during salon 
 **Example**
 
 ```
-GET /api/salon-admin/my-salons?email=owner@example.com
+GET /api/salon-admin/my-salons
+Authorization: Bearer eyJhbGciOi...
 ```
 
 ---
@@ -1551,17 +1559,33 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 
 ## Staff Portal
 
-Self-service portal for authenticated staff members. Authentication is via email lookup + mock OTP (code `123456` in dev).
+Self-service portal for authenticated staff members. Authentication is via OAuth2 (or, in local/mock mode, an email lookup + mock OTP, code `123456` in dev).
 
 > All endpoints are scoped to the staff member by `staffId` (a `Long`). The `salonId` is derived server-side from the staff record.
 
-### Look up by email (login step 1)
+### Look up the caller's own staff record(s) (login step 1)
 
-`GET /api/salon-staff/me?email={email}`
+`GET /api/salon-staff/me`
 
-Returns all staff records matching the email. Each record is a `StaffMemberSummary` — a superset of `StaffMember` that includes the salon's `name` and `handler` so the login picker can distinguish between accounts at different salons. If multiple salons employ the same email, all records are returned.
+Returns all staff records for the authenticated caller. Identity comes from the `sub` claim of the bearer token — not from client input, since trusting a client-supplied email would let a caller look up someone else's staff record. Each record is a `StaffMemberSummary` — a superset of `StaffMember` that includes the salon's `name` and `handler` so the login picker can distinguish between accounts at different salons. If multiple salons employ the same email, all records are returned.
 
-**Response** `200 OK` — `StaffMemberSummary[]`
+**Headers**
+
+| Header | Required | Description |
+|---|---|---|
+| `Authorization: Bearer {token}` | yes (real login) | Access token from the OAuth2 token exchange; `sub` is used as the lookup email |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `email` | string (email) | no | Fallback email, used only when no bearer token is present (local/mock-mode login). Ignored when the caller is authenticated. |
+
+**Responses**
+
+- `200 OK` — `StaffMemberSummary[]`
+- `401 Unauthorized` — No bearer token and no `email` fallback provided
+- `404 Not Found` — No staff account found for this identity
 
 ```json
 [

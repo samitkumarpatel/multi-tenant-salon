@@ -6,10 +6,10 @@ import {
   ArrowLeft, Shield, LogOut, LayoutDashboard, Pencil,
   Scissors, Users, CalendarDays, CalendarCheck, Menu, X,
 } from "lucide-react";
-import { AppLogo } from "@salon/ui-shared";
+import { AppLogo, SessionBadge } from "@salon/ui-shared";
 import { apiFetch, ADMIN_API } from "~/lib/api";
 import type { Salon, SalonManageContext } from "~/lib/types";
-import { getSession, logout as authLogout } from "~/lib/auth";
+import { getSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!getSession()) throw redirect("/login");
@@ -31,6 +31,7 @@ export default function SalonLayout() {
   const [salon, setSalon] = useState<Salon>(initial);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
+  const session = getSession();
 
   function handleSignOut() {
     authLogout(navigate);
@@ -57,6 +58,7 @@ export default function SalonLayout() {
           {salon.name}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          {session && <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} tone="stone" />}
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors"

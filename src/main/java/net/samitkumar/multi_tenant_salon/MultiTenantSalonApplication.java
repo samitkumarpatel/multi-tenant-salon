@@ -91,6 +91,8 @@ public class MultiTenantSalonApplication {
 										"/internal/user-identity").permitAll()
 								.requestMatchers("/api/salon-super-admin/**").hasRole("SUPER_ADMIN")
 								.requestMatchers("/api/salon-staff", "/api/salon-staff/**").hasRole("STAFF")
+								// Not scoped to a single salonId — just needs a valid caller identity.
+								.requestMatchers("/api/salon-admin/my-salons").authenticated()
 								.requestMatchers("/api/salon-admin","/api/salon-admin/**","/api/salon-admin/{salonId}", "/api/salon-admin/{salonId}/**").access((authentication, context) -> {
 									Authentication auth = authentication.get();
 

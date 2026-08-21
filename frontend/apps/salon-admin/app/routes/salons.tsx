@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Building2, MapPin, ArrowRight, LogOut, Power } from "lucide-react";
-import { AppLogo } from "@salon/ui-shared";
-import { getAdminSession, logout as authLogout } from "~/lib/auth";
+import { AppLogo, SessionBadge } from "@salon/ui-shared";
+import { getAdminSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
 import { ADMIN_API, apiFetch } from "~/lib/api";
 import type { Salon } from "~/lib/types";
 
@@ -48,7 +48,7 @@ export default function SalonPicker() {
       <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
         <AppLogo size={24} textColor="#374151" />
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-slate-400 hidden sm:block truncate max-w-[200px]">{email}</span>
+          {email && <SessionBadge email={email} expiresAt={getAccessTokenExpiry()} />}
           <button
             onClick={handleSignOut}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"

@@ -92,10 +92,11 @@ tags:
       blocks those dates without manual closure entry each year.
   - name: StaffPortal
     description: |
-      Staff self-service portal endpoints. A staff member authenticates by email lookup
-      (`GET /api/salon-staff/me?email=...`) plus a mock OTP, then uses their `staffId`
-      to manage their own profile, view their appointments, and book personal holidays
-      (date-specific unavailability overrides that block new customer bookings).
+      Staff self-service portal endpoints. A staff member authenticates via OAuth2 (or,
+      in local/mock mode, an email lookup plus a mock OTP), then `GET /api/salon-staff/me`
+      resolves their own staff record(s) from the bearer token before they use their
+      `staffId` to manage their own profile, view their appointments, and book personal
+      holidays (date-specific unavailability overrides that block new customer bookings).
   - name: SuperAdmin
     description: |
       Platform super-admin endpoints — cross-tenant management of all salons.
@@ -422,25 +423,34 @@ paths:
   /api/salon-admin/my-salons:
     get:
       tags: [SalonAdmin]
-      summary: Look up salons by owner email (admin login)
+      summary: Look up the caller's own salons (admin login)
       description: |
-        Returns all salons whose owner email matches the given address.
+        Returns all salons owned by the authenticated caller.
         Used by the admin login flow to resolve the salonId before entering the admin UI.
         - **1 result** → proceed directly to the salon-admin UI.
         - **2+ results** → show a salon-picker screen and let the owner choose.
         - **0 results** → show "no salon found" error.
 
-        No authentication is enforced on this endpoint (dummy login flow).
+        The owner's identity is taken from the `sub` claim of the bearer token —
+        never from client input, since that would let a caller ask for someone
+        else's salons. The `email` query parameter is only a fallback for
+        unauthenticated local/mock-mode use and is ignored whenever a bearer
+        token is present.
       operationId: getMySalons
+      security:
+        - BearerAuth: []
+        - {}
       parameters:
         - name: email
           in: query
-          required: true
+          required: false
           schema:
             type: string
             format: email
           example: owner@example.com
-          description: The email address used during salon onboarding
+          description: |
+            Fallback owner email, used only when no bearer token is present
+            (local/mock-mode login). Ignored when the caller is authenticated.
       responses:
         "200":
           description: One or more salons found for this email
@@ -450,6 +460,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Salon"
+        "401":
+          description: No bearer token and no email fallback provided
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -1461,19 +1473,31 @@ paths:
 
   /api/salon-staff/me:
     get:
-      summary: Look up staff member by email (login step 1)
+      summary: Look up the caller's own staff record(s)
       description: |
-        Returns all staff records matching the given email, enriched with the salon's
+        Returns all staff records for the authenticated caller, enriched with the salon's
         `name` and `handler` so the login picker can distinguish between accounts at
         different salons. Used during login to identify the staff member before OTP verification.
+
+        The caller's identity is taken from the `sub` claim of the bearer token —
+        never from client input, since that would let a caller ask for someone
+        else's staff record. The `email` query parameter is only a fallback for
+        unauthenticated local/mock-mode use and is ignored whenever a bearer
+        token is present.
       tags: [StaffPortal]
+      security:
+        - BearerAuth: []
+        - {}
       parameters:
         - in: query
           name: email
-          required: true
+          required: false
           schema:
             type: string
             format: email
+          description: |
+            Fallback email, used only when no bearer token is present
+            (local/mock-mode login). Ignored when the caller is authenticated.
       responses:
         "200":
           description: Staff records found
@@ -1483,6 +1507,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/StaffMemberSummary"
+        "401":
+          description: No bearer token and no email fallback provided
         "404":
           description: No staff account found for this email
 

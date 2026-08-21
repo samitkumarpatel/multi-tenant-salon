@@ -3,10 +3,10 @@ import { createPortal } from "react-dom";
 import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { getAdminSession, logout as authLogout } from "~/lib/auth";
+import { getAdminSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
 import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
-import { AppLogo, Toast, useToast } from "@salon/ui-shared";
+import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, apiFetch, cacheSalonUUID } from "~/lib/api";
 import { SALON_DOMAIN } from "~/lib/config";
@@ -277,6 +277,7 @@ export function ErrorBoundary() {
 export default function Layout() {
   const { salon: loaderSalon, salonId, pendingServices, pendingStaff, pendingWebsite } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
+  const session = getAdminSession();
   const [salon, setSalon]             = useState<Salon>(loaderSalon as Salon);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]         = useState(false);
@@ -397,6 +398,7 @@ export default function Layout() {
         <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{salon.name}</span>
 
         <div className="ml-auto flex items-center gap-2">
+          {session && <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />}
           <SalonSwitcher current={salon} salonId={salonId} onSalonEnabled={(s) => setSalon(s)} />
           <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
             <button

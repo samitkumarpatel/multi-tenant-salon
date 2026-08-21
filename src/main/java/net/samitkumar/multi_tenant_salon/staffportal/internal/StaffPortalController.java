@@ -8,7 +8,10 @@ import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffMember;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -46,8 +49,16 @@ class StaffPortalController {
                               List<String> specializations, Instant createdAt) {}
 
     @GetMapping("/me")
-    ResponseEntity<List<StaffMemberSummary>> findByEmail(@RequestParam String email) {
-        var members = staffApi.findByEmail(email);
+    ResponseEntity<List<StaffMemberSummary>> findByEmail(
+            @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+            @RequestParam(required = false) String email) {
+        // The caller's own identity always comes from the validated token, never
+        // from client input — a request param would let anyone ask for anyone
+        // else's staff record. The param stays only as a fallback for
+        // unauthenticated (e.g. local mock-mode) callers.
+        var callerEmail = jwt != null ? jwt.getSubject() : email;
+        if (callerEmail == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        var members = staffApi.findByEmail(callerEmail);
         if (members.isEmpty()) return ResponseEntity.notFound().build();
         var result = members.stream()
                 .map(m -> {

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Mail, KeyRound, Building2, ShieldCheck, ArrowLeft, Lock } from "lucide-react";
+import { Mail, KeyRound, ShieldCheck, ArrowLeft, Lock } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { MY_SALONS_API, apiFetch } from "~/lib/api";
 import { AUTH_MODE, setAdminSession, startOAuth2Login, completeOAuth2Login } from "~/lib/auth";
@@ -171,21 +171,6 @@ function MockLogin() {
                   </form>
                 </div>
               </div>
-
-              <div className="mt-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <div className="flex items-start gap-2">
-                  <Building2 className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-amber-700 leading-relaxed">
-                    Don't have a salon yet?{" "}
-                    <a
-                      href={import.meta.env.VITE_ONBOARDING_URL ?? "/"}
-                      className="font-semibold underline text-amber-800"
-                    >
-                      Register one here
-                    </a>
-                  </p>
-                </div>
-              </div>
             </>
           ) : (
             <>
@@ -350,21 +335,6 @@ function OAuth2Login() {
               >
                 {loading ? "Redirecting…" : "Sign In →"}
               </button>
-            </div>
-          </div>
-
-          <div className="mt-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <div className="flex items-start gap-2">
-              <Building2 className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-amber-700 leading-relaxed">
-                Don't have a salon yet?{" "}
-                <a
-                  href={import.meta.env.VITE_ONBOARDING_URL ?? "/"}
-                  className="font-semibold underline text-amber-800"
-                >
-                  Register one here
-                </a>
-              </p>
             </div>
           </div>
         </div>

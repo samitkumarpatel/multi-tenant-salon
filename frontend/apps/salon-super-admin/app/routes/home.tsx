@@ -5,13 +5,13 @@ import {
   Trash2, Power, ChevronRight, X, Check, AlertTriangle, RefreshCw,
   LayoutGrid, List, Filter, ExternalLink,
 } from "lucide-react";
-import { AppLogo } from "@salon/ui-shared";
+import { AppLogo, SessionBadge } from "@salon/ui-shared";
 import { apiFetch, SUPER_ADMIN_API } from "~/lib/api";
 import {
   ALL_FEATURES, FEATURE_LABEL,
   type Salon, type SalonFeature,
 } from "~/lib/types";
-import { getSession, logout as authLogout } from "~/lib/auth";
+import { getSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -302,6 +302,7 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
 
 export default function SuperAdminHome() {
   const navigate = useNavigate();
+  const session = getSession();
   const [salons, setSalons]   = useState<Salon[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
@@ -368,6 +369,7 @@ export default function SuperAdminHome() {
           Super Admin
         </span>
         <div className="ml-auto flex items-center gap-2">
+          {session && <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} tone="stone" />}
           <button
             onClick={() => loadSalons(search, statusFilter)}
             className="p-1.5 rounded-md text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"

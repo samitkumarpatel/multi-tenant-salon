@@ -2,8 +2,8 @@ import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResp
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState } from "react";
 import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon, Store } from "lucide-react";
-import { AppLogo, Toast, useToast } from "@salon/ui-shared";
-import { getStaffSession, logout as authLogout } from "~/lib/auth";
+import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
+import { getStaffSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
 import type { StaffMember } from "~/lib/types";
 
@@ -118,6 +118,9 @@ export default function Layout() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <div className="hidden md:flex">
+            <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />
+          </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600">
             <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[session.role] ?? "bg-slate-300"}`} />
             <span className="font-medium">{session.name}</span>
