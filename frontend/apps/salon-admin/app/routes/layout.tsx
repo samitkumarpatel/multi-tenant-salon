@@ -8,7 +8,7 @@ import { SalonErrorPage } from "@salon/ui-website";
 import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
-import { ADMIN_API, apiFetch, cacheSalonUUID } from "~/lib/api";
+import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
 import { SALON_DOMAIN } from "~/lib/config";
 import type { Salon, LayoutContext, WebsiteMode } from "~/lib/types";
 
@@ -17,7 +17,13 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
   const isPreview = new URL(request.url).pathname.endsWith("/website-preview");
 
   if (isPreview) {
-    const salon = await apiFetch<Salon>(`${ADMIN_API}/${salonId}`);
+    // Public, shareable preview — deliberately skips the session check below,
+    // so it must fetch through the public alias (CUSTOMER_API), not the
+    // owner-gated ADMIN_API. Using ADMIN_API here would 401/403 for anyone
+    // but the salon's own owner, defeating the point of a shareable link,
+    // and would surface as an "authorized" error rather than a clean 404
+    // for a bad/unknown id.
+    const salon = await apiFetch<Salon>(`${CUSTOMER_API}/${salonId}`);
     cacheSalonUUID(salonId, String(salon.id));
     return { salon, salonId, pendingServices: false, pendingStaff: false, pendingWebsite: false };
   }

@@ -73,12 +73,53 @@ resource "azurerm_cdn_frontdoor_route" "this" {
   https_redirect_enabled = true
   link_to_default_domain = true
 
+  cdn_frontdoor_rule_set_ids = [azurerm_cdn_frontdoor_rule_set.spa_rewrite[each.key].id]
+
   cdn_frontdoor_custom_domain_ids = concat(
     each.value.custom_hostname != null ? [azurerm_cdn_frontdoor_custom_domain.this[each.key].id] : [],
     [for k, d in azurerm_cdn_frontdoor_custom_domain.extra : d.id if local.extra_domains[k].app_key == each.key]
   )
 
   depends_on = [azurerm_cdn_frontdoor_origin.this]
+}
+
+# ── SPA rewrite (real 200, not the storage error-document fallback) ───────────
+# Azure Storage's error_404_document (see the storage module) serves index.html
+# content for unknown paths, but the response status stays 404 — harmless
+# (the app still loads and works) but shows as a false "404" in the browser
+# console/network tab for every deep link (e.g. the OAuth callback landing on
+# /login?code=...). This rule rewrites any request with no file extension —
+# i.e. a client-side route, not a static asset like /assets/foo.js — to
+# /index.html *before* it reaches the origin, so Front Door gets back a
+# genuine 200 from the origin instead of triggering the error-document path.
+
+resource "azurerm_cdn_frontdoor_rule_set" "spa_rewrite" {
+  for_each                 = var.endpoints
+  name                     = "${replace(each.key, "-", "")}SpaRewrite"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+}
+
+resource "azurerm_cdn_frontdoor_rule" "spa_rewrite" {
+  for_each                  = var.endpoints
+  name                      = "SpaRewrite"
+  cdn_frontdoor_rule_set_id = azurerm_cdn_frontdoor_rule_set.spa_rewrite[each.key].id
+  order                     = 1
+  behaviour_on_match        = "Continue"
+
+  conditions {
+    request_file_extension {
+      operator = "LessThan"
+      values   = ["1"]
+    }
+  }
+
+  actions {
+    url_rewrite {
+      source_pattern                  = "/"
+      destination_path                = "/index.html"
+      preserve_unmatched_path_enabled = false
+    }
+  }
 }
 
 # ── Custom domains + Front Door managed TLS ───────────────────────────────────
