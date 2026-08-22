@@ -100,7 +100,7 @@ function MockLogin() {
       setTimeout(() => otpRefs.current[0]?.focus(), 60);
       return;
     }
-    buildStaffSession(selected!);
+    buildStaffSession(selected!, staffList);
     navigate("/portal");
   }
 
@@ -335,7 +335,7 @@ function OAuth2Login() {
             return;
           }
           if (members.length === 1) {
-            buildStaffSession(members[0]);
+            buildStaffSession(members[0], members);
             navigate("/portal", { replace: true });
             return;
           }
@@ -350,7 +350,7 @@ function OAuth2Login() {
   }, []);
 
   function handlePick(member: StaffMember) {
-    buildStaffSession(member);
+    buildStaffSession(member, staffList);
     navigate("/portal", { replace: true });
   }
 

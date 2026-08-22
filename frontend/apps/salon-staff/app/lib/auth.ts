@@ -188,7 +188,11 @@ export async function fetchOAuth2StaffOptions(code: string): Promise<StaffMember
   return apiFetch<StaffMember[]>(`${STAFF_PORTAL_API}/me`);
 }
 
-export function buildStaffSession(member: StaffMember): StaffSession {
+/** `accounts` is the full list of staff accounts this person signed in with
+ *  (one per salon they belong to). Pass it whenever known so the portal can
+ *  offer a salon switcher; omit only to fall back to whatever the previous
+ *  session already had (e.g. when switching accounts from within the portal). */
+export function buildStaffSession(member: StaffMember, accounts?: StaffMember[]): StaffSession {
   const session: StaffSession = {
     staffId: member.id,
     salonId: String(member.salonId),
@@ -197,6 +201,7 @@ export function buildStaffSession(member: StaffMember): StaffSession {
     email: member.email,
     name: member.name,
     role: member.role,
+    accounts: accounts ?? getStaffSession()?.accounts,
   };
   setStaffSession(session);
   return session;

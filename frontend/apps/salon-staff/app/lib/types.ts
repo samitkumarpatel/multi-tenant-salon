@@ -64,4 +64,7 @@ export interface StaffSession {
   email: string;
   name: string;
   role: string;
+  /** All staff accounts (across salons) this person signed in with — lets the
+   *  portal offer a switcher instead of only picking once at login. */
+  accounts?: StaffMember[];
 }

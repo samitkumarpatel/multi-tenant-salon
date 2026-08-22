@@ -1,11 +1,12 @@
 import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResponse, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { useState } from "react";
-import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon, Store } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon, Store, ChevronDown, Check } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
-import { getStaffSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
+import { getStaffSession, getAccessTokenExpiry, logout as authLogout, buildStaffSession } from "~/lib/auth";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
-import type { StaffMember } from "~/lib/types";
+import type { StaffMember, StaffSession } from "~/lib/types";
 
 export async function clientLoader({ request }: ClientLoaderFunctionArgs) {
   const session = getStaffSession();
@@ -76,6 +77,100 @@ const STATUS_DOT: Record<string, string> = {
   ACTIVE: "bg-green-500", INACTIVE: "bg-slate-300", ON_LEAVE: "bg-amber-500",
 };
 
+// ── Salon switcher ───────────────────────────────────────────────────────────
+// Staff can belong to more than one salon; each shows up as its own account
+// in `session.accounts` (captured at login). Switching means signing into a
+// different account, so we swap the session and reload the portal fresh.
+
+function StaffSwitcher({ session }: { session: StaffSession }) {
+  const accounts = session.accounts ?? [];
+  const [open, setOpen] = useState(false);
+  const [panelPos, setPanelPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  if (accounts.length <= 1) return null;
+
+  function openDropdown() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  function handlePick(m: StaffMember) {
+    setOpen(false);
+    if (m.id === session.staffId) return;
+    buildStaffSession(m, accounts);
+    window.location.assign("/portal");
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => open ? setOpen(false) : openDropdown()}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+      >
+        <Store className="w-3 h-3 text-matcha-500 shrink-0" />
+        <span className="truncate max-w-[100px] sm:max-w-[160px]">{session.salonName ?? "Select salon"}</span>
+        <ChevronDown className={`w-3 h-3 text-slate-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && createPortal(
+        <>
+          <div className="fixed inset-0 z-[59]" onClick={() => setOpen(false)} />
+          <div
+            role="listbox"
+            aria-label="Switch salon"
+            style={{ position: "fixed", top: panelPos.top, right: panelPos.right }}
+            className="z-[60] bg-white border border-slate-200 rounded-xl shadow-lg w-64 overflow-hidden"
+          >
+            <div className="px-3 py-2 border-b border-slate-100">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch salon</p>
+            </div>
+            {accounts.map((m) => {
+              const isActive = m.id === session.staffId;
+              return (
+                <button
+                  key={m.id}
+                  role="option"
+                  aria-selected={isActive}
+                  onClick={() => handlePick(m)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                    isActive ? "bg-matcha-50 text-matcha-700" : "hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <div className="w-7 h-7 rounded-md bg-matcha-100 border border-matcha-200 flex items-center justify-center shrink-0">
+                    <span className="text-[11px] font-bold text-matcha-600">
+                      {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{m.salonName ?? m.salonHandler ?? "Salon"}</p>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{ROLE_LABEL[m.role] ?? m.role}</p>
+                  </div>
+                  {isActive && <Check className="w-3.5 h-3.5 text-matcha-600 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+    </>
+  );
+}
+
 export default function Layout() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -118,7 +213,7 @@ export default function Layout() {
 
         <div className="hidden sm:flex items-center gap-2">
           <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Staff Portal</span>
-          {session.salonName && (
+          {session.salonName && (session.accounts?.length ?? 0) <= 1 && (
             <>
               <span className="text-slate-200 select-none">·</span>
               <span className="text-xs font-semibold text-matcha-600">{session.salonName}</span>
@@ -130,6 +225,7 @@ export default function Layout() {
           <div className="hidden md:flex">
             <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />
           </div>
+          <StaffSwitcher session={session} />
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600">
             <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[session.role] ?? "bg-slate-300"}`} />
             <span className="font-medium">{session.name}</span>
