@@ -145,10 +145,13 @@ module "backend" {
   # Key Vault name: globally unique, 3-24 chars, alphanumeric + hyphens
   key_vault_name = "salon-saas-dev-kv"
 
-  system_node_count     = 2
+  system_node_count     = 1
+  system_vm_size        = "Standard_B2s"
   spot_min_count        = 1
   spot_max_count        = 3
   postgres_disk_size_gb = 32
+  postgres_disk_sku     = "Standard_LRS"
+  enable_monitoring     = false
 }
 
 # ── Front Door DNS records ─────────────────────────────────────────────────────

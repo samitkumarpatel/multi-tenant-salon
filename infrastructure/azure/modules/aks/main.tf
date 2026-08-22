@@ -26,13 +26,14 @@ resource "azurerm_kubernetes_cluster" "this" {
   # System pool: on-demand nodes — hosts K8s system pods and PostgreSQL.
   # PostgreSQL must NOT run on the spot pool (eviction = unclean shutdown → data risk).
   default_node_pool {
-    name            = "system"
-    node_count      = var.system_node_count
-    vm_size         = var.system_vm_size
-    vnet_subnet_id  = var.subnet_id
-    os_disk_size_gb = 50
-    type            = "VirtualMachineScaleSets"
-    node_labels     = { "workload-type" = "system" }
+    name                        = "system"
+    temporary_name_for_rotation = "systemtemp"
+    node_count                  = var.system_node_count
+    vm_size                     = var.system_vm_size
+    vnet_subnet_id              = var.subnet_id
+    os_disk_size_gb             = 50
+    type                        = "VirtualMachineScaleSets"
+    node_labels                 = { "workload-type" = "system" }
 
     # Matches the Azure API's own default — pinning it explicitly stops
     # Terraform from showing a perpetual "remove upgrade_settings" diff on
