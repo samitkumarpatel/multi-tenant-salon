@@ -37,3 +37,8 @@ output "key_vault_uri" {
 output "vnet_id" {
   value = module.vnet.vnet_id
 }
+
+output "nginx_ingress_ip" {
+  description = "Static public IP for the nginx ingress controller — pass to --set controller.service.loadBalancerIP"
+  value       = azurerm_public_ip.nginx_ingress.ip_address
+}

@@ -15,7 +15,7 @@ output "kube_config_raw" {
 
 output "nginx_ingress_ip" {
   description = "Static public IP for the nginx ingress controller — pass to --set controller.service.loadBalancerIP"
-  value       = azurerm_public_ip.nginx_ingress.ip_address
+  value       = module.backend.nginx_ingress_ip
 }
 
 output "postgres_disk_id" {

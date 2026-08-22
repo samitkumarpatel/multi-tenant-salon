@@ -94,3 +94,34 @@ module "key_vault" {
 
   tags = local.common_tags
 }
+
+# ── nginx Ingress — static public IP ──────────────────────────────────────────
+# One shared IP for all backend services (api, auth, …) routed by hostname via
+# nginx ingress controller. Pass this IP when installing ingress-nginx:
+#   --set controller.service.loadBalancerIP=$(terraform output -raw nginx_ingress_ip)
+
+resource "azurerm_public_ip" "nginx_ingress" {
+  # Name intentionally matches resource_group_name, not backend_name — preserves
+  # the resource's identity from when this lived directly in the environment
+  # root module (name = "${local.resource_group_name}-nginx-ingress" there).
+  # Changing it would force a replace, handing out a new static IP.
+  name                = "${var.resource_group_name}-nginx-ingress"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  tags = local.common_tags
+}
+
+resource "azurerm_dns_a_record" "ingress" {
+  for_each = toset(var.ingress_subdomains)
+
+  name                = each.value
+  zone_name           = var.domain
+  resource_group_name = var.resource_group_name
+  ttl                 = 300
+  records             = [azurerm_public_ip.nginx_ingress.ip_address]
+
+  depends_on = [var.dns_zone_id]
+}

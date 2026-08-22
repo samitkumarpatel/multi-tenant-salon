@@ -15,6 +15,11 @@ variable "location" {
   default = "eastus"
 }
 
+variable "domain" {
+  type        = string
+  description = "Root domain (DNS zone name), e.g. salonsaas.org — used as zone_name for CDN validation/CNAME records and to derive their subdomain names from cdn_custom_hostnames."
+}
+
 # storage_accounts keys are logical app names; values carry the globally-unique
 # storage account name and optional CORS / SPA overrides.
 variable "storage_accounts" {
@@ -23,11 +28,11 @@ variable "storage_accounts" {
     index_document       = optional(string, "index.html")
     error_404_document   = optional(string, "index.html")
     cors_rules = optional(list(object({
-      allowed_headers  = list(string)
-      allowed_methods  = list(string)
-      allowed_origins  = list(string)
-      exposed_headers  = optional(list(string), [])
-      max_age_seconds  = optional(number, 3600)
+      allowed_headers = list(string)
+      allowed_methods = list(string)
+      allowed_origins = list(string)
+      exposed_headers = optional(list(string), [])
+      max_age_seconds = optional(number, 3600)
     })), [])
   }))
 }
@@ -47,6 +52,6 @@ variable "cdn_extra_hostnames" {
 
 variable "dns_zone_id" {
   type        = string
-  description = "Azure DNS zone resource ID for Front Door managed certificate validation"
+  description = "Azure DNS zone resource ID for Front Door managed certificate validation. Also used (via depends_on) to order this stack's own DNS records after the zone exists."
   default     = null
 }

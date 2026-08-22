@@ -19,6 +19,30 @@ variable "location" {
   default = "eastus"
 }
 
+# ── DNS ────────────────────────────────────────────────────────────────────────
+
+variable "domain" {
+  type        = string
+  description = "Root domain (DNS zone name), e.g. salonsaas.org — used as zone_name for the ingress A records."
+}
+
+variable "dns_zone_id" {
+  type        = string
+  description = "Azure DNS zone resource ID. Used (via depends_on) to order the ingress A records after the zone exists."
+  default     = null
+}
+
+# One A record per subdomain, all pointing at the same nginx-ingress static IP.
+# Unlike the AWS backend's `ingress` (map of hostname -> ECS service key, since
+# ALB routing rules are defined in Terraform there), host-based routing here is
+# done by the in-cluster nginx Ingress resource (Helm-deployed, not Terraform) —
+# so Terraform only needs to know which subdomains to point at the shared IP.
+variable "ingress_subdomains" {
+  type        = list(string)
+  default     = []
+  description = "Subdomains (e.g. [\"api\", \"auth\"]) that get an A record pointing at the nginx-ingress static IP."
+}
+
 # ── Networking ─────────────────────────────────────────────────────────────────
 
 variable "vnet_address_space" {

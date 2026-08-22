@@ -12,20 +12,6 @@ locals {
     booking-web     = "book.${local.domain}"
     staff-web       = "staff.${local.domain}"
   }
-
-  # DNS subdomain for each app: "@" for apex, otherwise the prefix before .salonsaas.org
-  cdn_dns_subdomains = {
-    for k, h in local.cdn_custom_hostnames : k => (
-      h == local.domain ? "@" : trimsuffix(h, ".${local.domain}")
-    )
-  }
-
-  # _dnsauth.<subdomain> TXT record name for Front Door ownership validation
-  cdn_dnsauth_names = {
-    for k, sub in local.cdn_dns_subdomains : k => (
-      sub == "@" ? "_dnsauth" : "_dnsauth.${sub}"
-    )
-  }
 }
 
 # ── Single Resource Group ──────────────────────────────────────────────────────
@@ -62,8 +48,8 @@ module "dns_bootstrapping" {
       values = ["10 mx.zoho.eu", "20 mx2.zoho.eu", "50 mx3.zoho.eu"]
     }
     spf = {
-      type   = "TXT"
-      name   = "@"
+      type = "TXT"
+      name = "@"
       values = [
         "v=spf1 include:spf.mailjet.com include:zohomail.eu ~all",
         "zoho-verification=zb86027192.zmverify.zoho.eu",
@@ -124,8 +110,9 @@ module "frontend" {
     }
   }
 
+  domain               = local.domain
   cdn_custom_hostnames = local.cdn_custom_hostnames
-  cdn_extra_hostnames  = {
+  cdn_extra_hostnames = {
     public-web = ["*.${local.domain}"]
   }
   dns_zone_id = module.dns_bootstrapping.zone_id
@@ -145,6 +132,10 @@ module "backend" {
   # Key Vault name: globally unique, 3-24 chars, alphanumeric + hyphens
   key_vault_name = "salon-saas-dev-kv"
 
+  domain             = local.domain
+  dns_zone_id        = module.dns_bootstrapping.zone_id
+  ingress_subdomains = ["api", "auth"]
+
   system_node_count     = 1
   system_vm_size        = "Standard_B2s"
   spot_min_count        = 1
@@ -152,133 +143,5 @@ module "backend" {
   postgres_disk_size_gb = 32
   postgres_disk_sku     = "Standard_LRS"
   enable_monitoring     = false
-}
-
-# ── Front Door DNS records ─────────────────────────────────────────────────────
-# Ownership validation TXT records (_dnsauth.*) so Front Door can provision
-# managed TLS certificates. CNAME/alias records route traffic to the endpoints.
-
-# TXT: _dnsauth.<sub> — one per non-apex custom domain
-resource "azurerm_dns_txt_record" "cdn_validation" {
-  for_each = {
-    for k, v in module.frontend.custom_domain_validation_tokens : k => v
-    if can(local.cdn_dnsauth_names[k]) && local.cdn_dnsauth_names[k] != "_dnsauth"
-  }
-
-  name                = local.cdn_dnsauth_names[each.key]
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-
-  record {
-    value = each.value
-  }
-
-  depends_on = [module.dns_bootstrapping]
-}
-
-# TXT: _dnsauth (apex) — shared by onboarding-web (salonsaas.org) and wildcard (*.salonsaas.org)
-# Both domains validate at the same DNS name; a single record holds both tokens.
-resource "azurerm_dns_txt_record" "cdn_apex_validation" {
-  name                = "_dnsauth"
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-
-  record {
-    value = module.frontend.custom_domain_validation_tokens["onboarding-web"]
-  }
-
-  record {
-    value = module.frontend.custom_domain_validation_tokens["public-web--extra-0"]
-  }
-
-  depends_on = [module.dns_bootstrapping]
-}
-
-# State migration: onboarding-web's _dnsauth record is now managed by cdn_apex_validation
-moved {
-  from = azurerm_dns_txt_record.cdn_validation["onboarding-web"]
-  to   = azurerm_dns_txt_record.cdn_apex_validation
-}
-
-# Alias A record for apex domain (@) → Front Door endpoint
-# Azure DNS alias records let you point the root domain to a Front Door endpoint
-# without violating the DNS spec that forbids CNAME at apex.
-resource "azurerm_dns_a_record" "cdn_apex" {
-  name                = "@"
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-  target_resource_id  = module.frontend.cdn_endpoint_ids["onboarding-web"]
-
-  depends_on = [module.dns_bootstrapping]
-}
-
-# CNAME records for all subdomains → their Front Door endpoints
-resource "azurerm_dns_cname_record" "cdn" {
-  for_each = {
-    for k, sub in local.cdn_dns_subdomains : k => sub
-    if sub != "@"
-  }
-
-  name                = each.value
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-  record              = module.frontend.cdn_endpoints[each.key]
-
-  depends_on = [module.dns_bootstrapping]
-}
-
-# Wildcard CNAME: *.salonsaas.org → public-web Front Door endpoint
-# Catches all tenant subdomains (e.g. mysalon.salonsaas.org) not matched by explicit records above.
-resource "azurerm_dns_cname_record" "wildcard" {
-  name                = "*"
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-  record              = module.frontend.cdn_endpoints["public-web"]
-
-  depends_on = [module.dns_bootstrapping]
-}
-
-# ── nginx Ingress — static public IP ──────────────────────────────────────────
-# One shared IP for all backend services (api, auth, …) routed by hostname via
-# nginx ingress controller. Pass this IP when installing ingress-nginx:
-#   --set controller.service.loadBalancerIP=$(terraform output -raw nginx_ingress_ip)
-
-resource "azurerm_public_ip" "nginx_ingress" {
-  name                = "${local.resource_group_name}-nginx-ingress"
-  resource_group_name = local.resource_group_name
-  location            = local.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-
-  tags = {
-    Project     = "multi-tenant-salon"
-    Environment = local.environment
-    ManagedBy   = "terraform"
-  }
-}
-
-resource "azurerm_dns_a_record" "api" {
-  name                = "api"
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-  records             = [azurerm_public_ip.nginx_ingress.ip_address]
-
-  depends_on = [module.dns_bootstrapping]
-}
-
-resource "azurerm_dns_a_record" "auth" {
-  name                = "auth"
-  zone_name           = local.domain
-  resource_group_name = local.resource_group_name
-  ttl                 = 300
-  records             = [azurerm_public_ip.nginx_ingress.ip_address]
-
-  depends_on = [module.dns_bootstrapping]
 }
 
