@@ -68,6 +68,7 @@ env:
   # helm/pre-req-manifest/create-secrets.sh). Setting it here would put the
   # password in plain text in git, and a value in `env` also silently
   # overrides anything supplied via envFrom.
+  OAUTH2_ISSUER_URI: "https://auth.salonsaas.org"
 
 # Sensitive values — override per environment (never commit real values).
 # Rendered into a Kubernetes Secret and injected via envFrom. Empty by default:

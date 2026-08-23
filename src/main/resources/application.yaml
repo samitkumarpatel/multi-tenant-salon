@@ -24,7 +24,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://auth.salonsaas.org
+          issuer-uri: ${OAUTH2_ISSUER_URI:http://localhost:9000}
   cloud:
     aws:
       s3:
