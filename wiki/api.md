@@ -101,7 +101,7 @@ The `salonHandler` is derived from the salon name: lowercased, spaces replaced w
 4. `ApplicationEventPublisher.publishEvent(SalonCreatedEvent)` — Spring Modulith writes the event to `event_publication` before the transaction commits.
 5. Returns `201 Created` with `CreateSalonResponse(salonId, salonHandler, emailId, message)` and a `Location` header.
 6. After commit → **Events** (async):
-   - `SalonNotificationListener.onSalonCreated(SalonCreatedEvent)` logs the registration notice.
+   - `SalonNotificationListener.onSalonCreated(SalonCreatedEvent)` → `NotificationService.notifySalonOnboarded(...)` sends a welcome email to the owner (via Mailjet; logged instead when `MAILJET_API_KEY` is unset) with links to the admin panel and the salon's public website.
    - `OwnerStaffListener.onSalonCreated(SalonCreatedEvent)` auto-creates a `StaffMember` for the owner (`isOwner = true`, `role = MANAGER`, `status = ACTIVE`, `availableForBooking = true`).
 
 ---
@@ -374,9 +374,9 @@ Returns **all** slots within each eligible staff member's working window — bot
 1. `BookingController.create(UUID, CreateBookingRequest)` → `BookingService.create(...)`
 2. Validates the slot is still free. Calculates `endTime` from service `durationMinutes`. Reads `salonApi.bookingRequiresConfirmation(salonId)` to determine initial status (`CONFIRMED` or `PENDING`).
 3. `BookingRepository.save(Booking)` → **DB**: `INSERT INTO booking`.
-4. `ApplicationEventPublisher.publishEvent(BookingCreatedEvent)` → Spring Modulith persists the event before commit.
+4. `ApplicationEventPublisher.publishEvent(BookingCreatedEvent)` → Spring Modulith persists the event before commit. Also looks up the assigned staff member via `StaffApi.findByIdAndSalonId(...)` and publishes `StaffBookingAssignedEvent` (skipped if the staff member has no email on file).
 5. Returns `201 Created`.
-6. After commit → **Event**: `BookingNotificationListener` logs the booking confirmation.
+6. After commit → **Events**: `BookingNotificationListener` → `NotificationService.notifyBookingCreated(...)` emails the customer a booking-received confirmation, and `NotificationService.notifyStaffBookingAssigned(...)` emails the assigned staff member.
 
 ---
 
@@ -532,7 +532,8 @@ Updates name, location, contact, operating hours, and business registration deta
 2. `SalonRepository.findById(UUID)` → `404` if empty.
 3. Builds a new `Salon` record preserving `id`, `handler`, `owner`, `features`, `createdAt`; replacing `name`, `location`, `contact`, `operatingHours`. `businessIdLabel` is re-derived from `location.country` when `location` is provided.
 4. `SalonRepository.save(Salon)` → **DB**: `UPDATE salon SET ...` + `DELETE FROM salon_operating_hours WHERE salon_id = ?` + re-`INSERT`.
-5. Returns `200 OK`.
+5. `ApplicationEventPublisher.publishEvent(SalonUpdatedEvent)` — after commit, `SalonNotificationListener.onSalonUpdated(...)` emails the owner that their salon settings changed.
+6. Returns `200 OK`.
 
 ---
 
@@ -566,7 +567,8 @@ Partially updates only the booking-related settings. Any omitted field retains i
 2. `SalonRepository.findById(UUID)` → `404` if empty.
 3. Merges non-null fields from the request with existing values; all other salon fields preserved.
 4. `SalonRepository.save(Salon)` → `UPDATE salon SET booking_advance_days = ?, booking_requires_confirmation = ?`.
-5. Returns `200 OK`.
+5. `ApplicationEventPublisher.publishEvent(SalonUpdatedEvent)` — owner is emailed that their salon settings changed.
+6. Returns `200 OK`.
 
 ---
 
@@ -592,7 +594,8 @@ Replaces the full feature list for a salon.
 2. `SalonRepository.findById(UUID)` → `404` if empty.
 3. Builds a new `Salon` preserving all fields except `features`.
 4. `SalonRepository.save(Salon)` → **DB**: `DELETE FROM salon_feature WHERE salon_id = ?` + re-`INSERT`.
-5. Returns `200 OK`.
+5. `ApplicationEventPublisher.publishEvent(SalonUpdatedEvent)` — owner is emailed that their salon settings changed.
+6. Returns `200 OK`.
 
 ---
 
@@ -1422,7 +1425,7 @@ Soft-disables the salon (status → `DISABLED`). Data is preserved; salon can be
 
 `PUT /api/salon-super-admin/salons/{id}/enable`
 
-Re-activates a disabled salon (status → `ACTIVE`).
+Re-activates a disabled salon (status → `ACTIVE`). Emits **SalonUpdatedEvent** — owner is emailed that their salon settings changed.
 
 **Response** `200 OK` — updated `Salon` · `404` if not found
 

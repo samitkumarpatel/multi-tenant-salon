@@ -20,6 +20,16 @@ spring:
       # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
       # e.g. https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org
       allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+    notification:
+      mailjet:
+        sender: ${MAILJET_SENDER:noreply@salonsaas.org}
+        sender-name: ${MAILJET_SENDER_NAME:SalonSaaS}
+        # Leave unset to disable actual sending (notifications are logged only) — e.g. in dev/test.
+        api-key: ${MAILJET_API_KEY:}
+        api-secret: ${MAILJET_API_SECRET:}
+      salon-domain: ${SALON_DOMAIN:salonsaas.org}
+      admin-app-url: ${NOTIFICATION_ADMIN_APP_URL:https://admin.salonsaas.org}
+      staff-app-url: ${NOTIFICATION_STAFF_APP_URL:https://staff.salonsaas.org}
   security:
     oauth2:
       resourceserver:

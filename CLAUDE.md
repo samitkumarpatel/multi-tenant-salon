@@ -51,7 +51,7 @@ Key conventions:
 - **`salon`** — Core aggregate: `Salon` entity with embedded `Owner`/`Location`/`ContactInfo` and child tables for `operatingHours`/`features`. Publishes `SalonCreatedEvent`.
 - **`salonservice`** — `ServiceItem` catalog per salon (pricing, duration, category, assigned staff).
 - **`staff`** — `StaffMember` roster per salon (role, status, specializations).
-- **`notification`** — Listens to `SalonCreatedEvent` via `@ApplicationModuleListener` (decoupled, async-safe).
+- **`notification`** — Listens to salon/booking domain events (`SalonCreatedEvent`, `SalonUpdatedEvent`, `SalonDisabledEvent`, `BookingCreatedEvent`, `BookingStatusChangedEvent`, `BookingRescheduledEvent`, `StaffBookingAssignedEvent`) via `@ApplicationModuleListener` (decoupled, async-safe) and sends email via Mailjet. `notification.internal.NotificationService` is the single entry point all listeners funnel through for composing/dispatching every notification; configured under `spring.application.notification.*` (unset `mailjet.api-key` logs instead of sending — the default for dev/test).
 
 ## Data Model
 

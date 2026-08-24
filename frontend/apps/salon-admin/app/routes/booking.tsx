@@ -4,7 +4,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Settings, Filter, List,
-  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Link2, Copy,
+  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Link2, Copy, Search,
 } from "lucide-react";
 import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
@@ -151,7 +151,7 @@ function BookingDetailModal({
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200">
         <div className="flex items-start justify-between mb-4 pb-4 border-b border-slate-100">
           <div>
-            <p className="font-semibold text-slate-900">{booking.customerName}</p>
+            <p className="font-semibold text-slate-900">{booking.customerName} <span className="font-normal text-slate-400">#{booking.id}</span></p>
             <p className="text-xs text-slate-500 mt-0.5">{booking.customerEmail}</p>
             {booking.customerPhone && <p className="text-xs text-slate-400">{booking.customerPhone}</p>}
           </div>
@@ -236,7 +236,7 @@ function BookingDetailModal({
 // ── Booking row (compact list item) ──────────────────────────────────────────
 
 function BookingRow({
-  booking, staffMap, serviceMap, onAction, onReschedule, onDelete,
+  booking, staffMap, serviceMap, onAction, onReschedule, onDelete, showDate,
 }: {
   booking: Booking;
   staffMap: Map<number, StaffMember>;
@@ -244,6 +244,7 @@ function BookingRow({
   onAction: (id: number, action: string) => void;
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
+  showDate?: boolean;
 }) {
   const member  = staffMap.get(booking.staffId);
   const service = serviceMap.get(booking.serviceId);
@@ -252,6 +253,11 @@ function BookingRow({
   return (
     <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3 hover:shadow-sm transition-shadow">
       <div className="shrink-0 w-[4.5rem] text-right border-r border-slate-100 pr-3">
+        {showDate && (
+          <p className="text-[10px] font-semibold text-slate-500 tabular-nums">
+            {new Date(booking.appointmentDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </p>
+        )}
         <p className="text-sm font-bold text-slate-800">{fmt12(booking.startTime)}</p>
         <p className="text-[10px] text-slate-400">{fmt12(booking.endTime)}</p>
       </div>
@@ -259,7 +265,9 @@ function BookingRow({
         {STATUS_LABEL[booking.status]}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-800 truncate">{booking.customerName}</p>
+        <p className="text-sm font-semibold text-slate-800 truncate">
+          {booking.customerName} <span className="font-normal text-slate-400">#{booking.id}</span>
+        </p>
         <p className="text-[11px] text-slate-400 truncate">
           {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}
         </p>
@@ -912,6 +920,8 @@ function BookingsPanel({
   const [selected, setSelected]             = useState<Booking | null>(null);
   const [expanded, setExpanded]             = useState(false);
   const [refreshing, setRefreshing]         = useState(false);
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [searchResults, setSearchResults] = useState<Booking[] | null>(null); // null = no search run yet
   const gridRef = useRef<HTMLDivElement>(null);
 
   const { calStart, calEnd } = deriveCalBounds(operatingHours);
@@ -967,6 +977,35 @@ function BookingsPanel({
     const todayVisible = viewMode === "day" ? isToday : weekInclToday;
     gridRef.current.scrollTop = todayVisible ? Math.max(0, nowY - 120) : 0;
   }, [viewDate, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Search by booking ID (e.g. "#42" from a notification), customer email, or phone number.
+  function runBookingSearch() {
+    const q = searchQuery.trim();
+    if (!q) { setSearchResults(null); return; }
+
+    // A pure numeric query (with an optional leading #) is an exact booking ID — jump
+    // straight into it rather than showing a one-row results list.
+    if (/^#?\d+$/.test(q)) {
+      const found = allBookings.find((b) => b.id === Number(q.replace(/^#/, "")));
+      if (found) {
+        setViewMode("day");
+        setViewDate(found.appointmentDate);
+        setSelected(found);
+        setSearchQuery("");
+        setSearchResults(null);
+        return;
+      }
+    }
+
+    const qLower  = q.toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
+    const matches = allBookings.filter((b) =>
+      b.customerEmail?.toLowerCase().includes(qLower) ||
+      (qDigits.length >= 4 && b.customerPhone?.replace(/\D/g, "").includes(qDigits))
+    ).sort((a, b) => `${b.appointmentDate}${b.startTime}`.localeCompare(`${a.appointmentDate}${a.startTime}`));
+
+    setSearchResults(matches);
+  }
 
   function go(offset: number) {
     const d = new Date(viewDate + "T12:00:00");
@@ -1182,6 +1221,54 @@ function BookingsPanel({
   return (
     <div className="space-y-4">
 
+      {/* ── Find booking(s) by ID, customer email, or phone number ── */}
+      <div>
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 focus-within:border-matcha-400 focus-within:ring-2 focus-within:ring-matcha-500/10 transition-colors">
+          <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSearchResults(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") runBookingSearch(); }}
+            placeholder="Find booking by ID, customer email, or phone — e.g. #42 or jane@example.com"
+            className="flex-1 min-w-0 text-sm outline-none placeholder:text-slate-400"
+          />
+          {searchQuery && (
+            <button onClick={() => { setSearchQuery(""); setSearchResults(null); }}
+              className="text-slate-300 hover:text-slate-500 cursor-pointer shrink-0" aria-label="Clear search">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {searchQuery && (
+            <button onClick={runBookingSearch}
+              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-white hover:bg-slate-900 cursor-pointer shrink-0">
+              Go
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Search results (replaces the calendar/list views while a search is active) ── */}
+      {searchResults !== null && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-slate-500 px-1">
+            {searchResults.length === 0
+              ? `No bookings match "${searchQuery}".`
+              : `${searchResults.length} booking${searchResults.length === 1 ? "" : "s"} found for "${searchQuery}"`}
+          </p>
+          {searchResults.length > 0 && (
+            <div className="space-y-2">
+              {searchResults.map((b) => (
+                <BookingRow key={b.id} booking={b} staffMap={staffMap} serviceMap={serviceMap} showDate
+                  onAction={onAction} onReschedule={onReschedule} onDelete={onDelete} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {searchResults === null && (
+      <>
       {/* ── Summary stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {STAT_CARDS.map(({ label, value, colorCls, status }) => {
@@ -1305,6 +1392,8 @@ function BookingsPanel({
             </div>
           )}
         </div>
+      )}
+      </>
       )}
 
       {/* ── Fullscreen expanded overlay ── */}

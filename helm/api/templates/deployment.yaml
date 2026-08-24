@@ -47,11 +47,16 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
-          {{- if .Values.secret }}
           envFrom:
+            # mailjet-secret is created out-of-band by
+            # helm/pre-req-manifest/create-secrets.sh (shared with the auth
+            # service) — this chart only reads it, it never creates it.
+            - secretRef:
+                name: mailjet-secret
+            {{- if .Values.secret }}
             - secretRef:
                 name: {{ include "api.fullname" . }}-secret
-          {{- end }}
+            {{- end }}
           env:
             {{- range $key, $val := .Values.env }}
             {{- if $val }}

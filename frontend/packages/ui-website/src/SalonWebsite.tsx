@@ -250,6 +250,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const bookUrl = getPagePath ? getPagePath("book") : "/book";
 
   const [selectedCat, setSelectedCat]     = useState<string | null>(null);
+  const [showAllServices, setShowAllServices] = useState(false);
   const [expandedStaff, setExpandedStaff] = useState<Set<number>>(new Set());
   const [hoursExpanded, setHoursExpanded] = useState(false);
   const [heroVisible, setHeroVisible]     = useState(true);
@@ -291,6 +292,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const visibleServices = selectedCat ? activeServices.filter((s) => s.category === selectedCat) : activeServices;
   const manyServices = visibleServices.length > 5;
   const manyStaff = activeStaff.length > 5;
+  const SERVICE_MOBILE_PREVIEW = 4;
+  const hasHiddenServicesOnMobile = visibleServices.length > SERVICE_MOBILE_PREVIEW;
   const openHours = salon.operatingHours?.filter((h) => !h.closed) ?? [];
   const hasBooking = salon.features?.includes("BOOKING");
 
@@ -610,13 +613,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 {grouped.length > 1 && (
                   <FadeIn delay={60}>
                     <div className="flex flex-wrap gap-2 mb-5">
-                      <button onClick={() => setSelectedCat(null)}
+                      <button onClick={() => { setSelectedCat(null); setShowAllServices(false); }}
                         className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
                         style={selectedCat === null ? { backgroundColor: theme.accentColor, color: accentText } : { backgroundColor: "#f1f5f9", color: "#64748b" }}>
                         All
                       </button>
                       {grouped.map(([cat]) => (
-                        <button key={cat} onClick={() => setSelectedCat(cat === selectedCat ? null : cat)}
+                        <button key={cat} onClick={() => { setSelectedCat(cat === selectedCat ? null : cat); setShowAllServices(false); }}
                           className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
                           style={selectedCat === cat ? { backgroundColor: theme.accentColor, color: accentText } : { backgroundColor: "#f1f5f9", color: "#64748b" }}>
                           {CATEGORY_LABEL[cat] ?? cat}
@@ -626,34 +629,46 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   </FadeIn>
                 )}
                 <FadeIn delay={80}>
-                  <div className={manyServices
-                    ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
-                    : "bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100"}>
-                    {visibleServices.map((s) => (
-                      <div key={s.id} className={manyServices
-                        ? "group/svc flex flex-col gap-2.5 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
-                        : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"}>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900">{s.name}</p>
-                          {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
+                  <div className="relative">
+                    <div className={`${manyServices
+                      ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
+                      : "bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100"} ${
+                      hasHiddenServicesOnMobile && !showAllServices ? "max-h-[380px] overflow-hidden sm:max-h-none sm:overflow-visible" : ""}`}>
+                      {visibleServices.map((s) => (
+                        <div key={s.id} className={manyServices
+                          ? "group/svc flex flex-col gap-2.5 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
+                          : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"}>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900">{s.name}</p>
+                            {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
+                          </div>
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
+                              <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
+                            </span>
+                            <span className="text-xs text-slate-400">-</span>
+                            <span className="text-xs font-semibold text-slate-900 tabular-nums">{formatPrice(s.price, s.currency)}</span>
+                            {hasBooking && (
+                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
+                                className="ml-auto inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-100 sm:opacity-0 sm:group-hover/svc:opacity-100 sm:group-focus-within/svc:opacity-100 transition-opacity shrink-0"
+                                style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                                Book <ChevronRight className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center flex-wrap gap-2">
-                          <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
-                            <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
-                          </span>
-                          <span className="text-xs text-slate-400">-</span>
-                          <span className="text-xs font-semibold text-slate-900 tabular-nums">{formatPrice(s.price, s.currency)}</span>
-                          {hasBooking && (
-                            <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
-                              className="ml-auto inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-0 group-hover/svc:opacity-100 transition-opacity shrink-0"
-                              style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                              Book <ChevronRight className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    {hasHiddenServicesOnMobile && !showAllServices && (
+                      <div className="sm:hidden absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none rounded-b-2xl" />
+                    )}
                   </div>
+                  {hasHiddenServicesOnMobile && (
+                    <button onClick={() => setShowAllServices((v) => !v)}
+                      className="sm:hidden mt-3 w-full text-center text-xs font-semibold py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                      {showAllServices ? "Show less" : `Show all ${visibleServices.length} services`}
+                    </button>
+                  )}
                 </FadeIn>
               </div>
             )}
@@ -665,6 +680,34 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
                     <h2 className="text-2xl font-bold text-slate-900">Meet our team</h2>
                   </div>
+                  <div className="sm:hidden -mx-4 px-4">
+                    <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
+                      {activeStaff.map((m) => {
+                        const photos = m.photoUrls?.length ? m.photoUrls : m.photoUrl ? [m.photoUrl] : [];
+                        return (
+                          <div key={m.id} className="snap-start shrink-0 w-32 rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col items-center text-center gap-1.5">
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
+                              {photos[0] ? (
+                                <img src={photos[0]} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                              ) : (
+                                <span className="text-sm font-black text-white">{initials(m.name)}</span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 leading-tight truncate w-full">{m.name}</p>
+                            <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+                            {hasBooking && (
+                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookStaffId(m.id!); onNavigate?.("book"); }}
+                                className="mt-1 w-full inline-flex items-center justify-center text-[11px] font-semibold py-1.5 rounded-lg no-underline"
+                                style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                                Book
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="hidden sm:block">
                   <div className={manyStaff
                     ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
                     : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
@@ -677,8 +720,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                           onClick={() => toggleStaff(m.id!)}
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStaff(m.id!); } }}
                           className={manyStaff
-                            ? "w-full text-left p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                            : "w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"}
+                            ? "group/staff w-full text-left p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                            : "group/staff w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"}
                           aria-expanded={isExpanded}>
                           <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5">
                             <div className="flex items-center gap-3 min-w-0">
@@ -697,9 +740,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                             <div className="flex items-center gap-2 ml-auto shrink-0">
                               {hasBooking && (
                                 <a href={bookUrl} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBookStaffId(m.id!); onNavigate?.("book"); }}
-                                  className="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full no-underline transition-opacity hover:opacity-85 whitespace-nowrap"
-                                  style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}>
-                                  Book<span className="hidden sm:inline"> with me</span>
+                                  className="shrink-0 inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-100 sm:opacity-0 sm:group-hover/staff:opacity-100 sm:group-focus-within/staff:opacity-100 transition-opacity whitespace-nowrap"
+                                  style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                                  Book
                                 </a>
                               )}
                               <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${hasDetails ? "text-slate-300" : "invisible"}`} />
@@ -732,6 +775,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         </div>
                       );
                     })}
+                  </div>
                   </div>
                 </FadeIn>
               </aside>

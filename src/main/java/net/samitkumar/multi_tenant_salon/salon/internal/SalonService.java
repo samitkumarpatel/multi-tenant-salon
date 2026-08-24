@@ -9,6 +9,7 @@ import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonHoliday;
 import net.samitkumar.multi_tenant_salon.salon.SalonOperatingHoursUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,10 @@ class SalonService implements SalonApi {
                 salon.termsAccepted(), salon.termsAcceptedAt());
     }
 
+    private void publishSalonUpdated(Salon saved) {
+        eventPublisher.publishEvent(new SalonUpdatedEvent(saved.id(), saved.name(), saved.handler(), saved.owner().name(), saved.owner().email()));
+    }
+
     private String deriveUniqueHandler(String name) {
         var base = name.toLowerCase().replaceAll("\\s+", "-").replaceAll("[^a-z0-9-]", "");
         if (!repository.existsByHandler(base)) {
@@ -88,7 +93,7 @@ class SalonService implements SalonApi {
         var saved = repository.save(salon);
         log.info("[SalonService] Salon created id={} handler='{}'", saved.id(), saved.handler());
         var eventFeatures = saved.features().stream().map(Salon.SalonFeatureRef::feature).toList();
-        eventPublisher.publishEvent(new SalonCreatedEvent(saved.id(), saved.name(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
+        eventPublisher.publishEvent(new SalonCreatedEvent(saved.id(), saved.name(), saved.handler(), saved.owner().name(), saved.owner().email(), saved.owner().phone(), eventFeatures));
         return saved;
     }
 
@@ -150,6 +155,7 @@ class SalonService implements SalonApi {
                 log.info("[SalonService] Publishing SalonOperatingHoursUpdatedEvent for salon={} days={}", saved.id(), operatingHours.size());
                 eventPublisher.publishEvent(new SalonOperatingHoursUpdatedEvent(saved.id(), operatingHours));
             }
+            publishSalonUpdated(saved);
             return saved;
         });
     }
@@ -178,7 +184,9 @@ class SalonService implements SalonApi {
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
                     existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status(),
                     existing.termsAccepted(), existing.termsAcceptedAt());
-            return repository.save(updated);
+            var saved = repository.save(updated);
+            publishSalonUpdated(saved);
+            return saved;
         });
     }
 
@@ -192,7 +200,9 @@ class SalonService implements SalonApi {
                     days, existing.businessRegistrationId(), existing.showBusinessId(),
                     confirm, existing.businessIdLabel(), existing.createdAt(), existing.status(),
                     existing.termsAccepted(), existing.termsAcceptedAt());
-            return repository.save(updated);
+            var saved = repository.save(updated);
+            publishSalonUpdated(saved);
+            return saved;
         });
     }
 
@@ -322,7 +332,9 @@ class SalonService implements SalonApi {
                     existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
                     existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), Salon.SalonStatus.ACTIVE,
                     existing.termsAccepted(), existing.termsAcceptedAt());
-            return repository.save(updated);
+            var saved = repository.save(updated);
+            publishSalonUpdated(saved);
+            return saved;
         });
     }
 

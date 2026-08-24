@@ -31,14 +31,21 @@ info:
     - `/api/salon-admin/{salonId}/website-type` — get or update the active website presentation type
 
     ## Notification Events
-    Every booking and calendar activity emits an internal Spring Modulith event handled by
-    the `notification` module:
+    Domain events are emitted via Spring Modulith and handled by the `notification` module,
+    which is the single entry point for every outbound email. Emails are sent via Mailjet;
+    when `spring.application.notification.mailjet.api-key` is unset (the default for dev/test),
+    sends are logged instead of dispatched.
+    - **SalonCreatedEvent** → welcome email to the owner with admin and public-website links.
+    - **SalonUpdatedEvent** → owner notified whenever salon settings (profile, features,
+      booking settings, or re-enabling) are changed.
+    - **SalonDisabledEvent** → owner notified the salon has been disabled.
     - **BookingCreatedEvent** → booking confirmation sent to customer.
     - **BookingStatusChangedEvent** → customer notified on confirm/cancel/complete/no-show.
     - **BookingRescheduledEvent** → customer notified of new date/time.
-    - **StaffScheduleUpdatedEvent** → admin notified of weekly schedule replacement.
-    - **StaffAvailabilityOverrideAddedEvent** → admin notified of new date override.
-    - **StaffAvailabilityOverrideRemovedEvent** → admin notified of deleted override.
+    - **StaffBookingAssignedEvent** → the assigned staff member is notified of a new booking.
+    - **StaffScheduleUpdatedEvent** → logged for admin visibility (weekly schedule replacement).
+    - **StaffAvailabilityOverrideAddedEvent** → logged for admin visibility (new date override).
+    - **StaffAvailabilityOverrideRemovedEvent** → logged for admin visibility (deleted override).
   version: 2.0.0
 
 servers:
@@ -353,6 +360,7 @@ paths:
         - `false` (default) → status is **CONFIRMED** immediately.
         - `true` → status is **PENDING**; an admin must confirm before the appointment is active.
         Emits **BookingCreatedEvent** → customer receives a booking confirmation notification.
+        Also emits **StaffBookingAssignedEvent** → the assigned staff member is notified.
       operationId: createBooking
       requestBody:
         required: true
@@ -489,7 +497,9 @@ paths:
     put:
       tags: [SalonAdmin]
       summary: Update salon details (admin)
-      description: Admin-only. Updates name, location, contact info, and operating hours. Handler, features, and owner are never changed here — use PUT /api/salon-super-admin/salons/{id}/owner to change the owner.
+      description: |
+        Admin-only. Updates name, location, contact info, and operating hours. Handler, features, and owner are never changed here — use PUT /api/salon-super-admin/salons/{id}/owner to change the owner.
+        Emits **SalonUpdatedEvent** → owner receives a notification email.
       operationId: updateSalon
       requestBody:
         required: true
@@ -525,7 +535,9 @@ paths:
     put:
       tags: [SalonAdmin]
       summary: Replace salon feature flags (admin)
-      description: Admin-only. Replaces the full set of enabled features for the salon (BOOKING, ANALYTICS, etc.).
+      description: |
+        Admin-only. Replaces the full set of enabled features for the salon (BOOKING, ANALYTICS, etc.).
+        Emits **SalonUpdatedEvent** → owner receives a notification email.
       operationId: updateSalonFeatures
       requestBody:
         required: true
@@ -557,6 +569,7 @@ paths:
         Admin-only. Partially updates only the booking-related salon settings —
         `bookingAdvanceDays` and `bookingRequiresConfirmation`. All other salon fields
         are preserved. Either field may be omitted; omitted fields keep their current value.
+        Emits **SalonUpdatedEvent** → owner receives a notification email.
       operationId: patchBookingSettings
       requestBody:
         required: true
@@ -1432,7 +1445,9 @@ paths:
     put:
       tags: [SuperAdmin]
       summary: Enable a disabled salon (super-admin)
-      description: Re-activates a previously disabled salon (sets status to ACTIVE).
+      description: |
+        Re-activates a previously disabled salon (sets status to ACTIVE).
+        Emits **SalonUpdatedEvent** → owner receives a notification email.
       operationId: superAdminEnableSalon
       parameters:
         - name: id

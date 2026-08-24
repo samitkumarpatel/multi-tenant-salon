@@ -8,8 +8,10 @@ import net.samitkumar.multi_tenant_salon.booking.BookingStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
+import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,7 +37,7 @@ class NotificationModuleTests {
     @Test
     void handlesSalonCreatedEventWithoutError() {
         var event = new SalonCreatedEvent(
-                UUID.randomUUID(), "Test Salon", "Jane Doe", "jane@test.com", "+1234567890",
+                UUID.randomUUID(), "Test Salon", "test-salon", "Jane Doe", "jane@test.com", "+1234567890",
                 List.of(SalonFeature.BOOKING, SalonFeature.STATIC_WEBSITE));
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
@@ -45,7 +47,16 @@ class NotificationModuleTests {
     @Test
     void handlesSalonCreatedEventWithNoFeatures() {
         var event = new SalonCreatedEvent(
-                UUID.randomUUID(), "Minimal Salon", "Bob", "bob@min.com", null, List.of());
+                UUID.randomUUID(), "Minimal Salon", "minimal-salon", "Bob", "bob@min.com", null, List.of());
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void handlesSalonUpdatedEventWithoutError() {
+        var event = new SalonUpdatedEvent(
+                UUID.randomUUID(), "Test Salon", "test-salon", "Jane Doe", "jane@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -114,6 +125,26 @@ class NotificationModuleTests {
                 6L, UUID.randomUUID(), 2L,
                 "Eve Green", "eve@example.com", "+5556667777",
                 LocalDate.of(2027, 5, 15), LocalTime.of(10, 30), LocalTime.of(11, 30));
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void handlesStaffBookingAssignedEventWithoutError() {
+        var event = new StaffBookingAssignedEvent(
+                7L, UUID.randomUUID(), 3L, "Sam Stylist", "sam@salon.com",
+                1L, "Frank Client", LocalDate.of(2027, 7, 1), LocalTime.of(13, 0), LocalTime.of(14, 0));
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void handlesStaffBookingAssignedEventWithoutStaffEmail() {
+        var event = new StaffBookingAssignedEvent(
+                8L, UUID.randomUUID(), 4L, "No Email Stylist", null,
+                1L, "Grace Client", LocalDate.of(2027, 7, 2), LocalTime.of(15, 0), LocalTime.of(16, 0));
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();

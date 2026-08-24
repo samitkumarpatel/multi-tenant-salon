@@ -11,6 +11,7 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailability;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverride;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
+import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
@@ -279,6 +280,11 @@ class BookingService implements BookingApi {
                 saved.id(), salonId, serviceId, staffId,
                 customerName, customerEmail, customerPhone,
                 appointmentDate, startTime, endTime));
+
+        staffApi.findByIdAndSalonId(staffId, salonId).ifPresent(staff ->
+                eventPublisher.publishEvent(new StaffBookingAssignedEvent(
+                        saved.id(), salonId, staffId, staff.name(), staff.email(),
+                        serviceId, customerName, appointmentDate, startTime, endTime)));
 
         return saved;
     }

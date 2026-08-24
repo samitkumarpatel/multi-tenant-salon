@@ -6,6 +6,8 @@
 #   export POSTGRES_PASSWORD="<your-password>"
 #   export GHCR_USER="<github-username>"
 #   export GHCR_PAT="<github-pat-with-read:packages>"
+#   export MAILJET_API_KEY="<your-mailjet-api-key>"
+#   export MAILJET_API_SECRET="<your-mailjet-api-secret>"
 #   ./helm/prereq-manifest/create-secrets.sh
 #
 # GHCR_PAT must be a long-lived Personal Access Token (not GITHUB_TOKEN) with
@@ -20,6 +22,8 @@ NAMESPACE="salon"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
 : "${GHCR_USER:?GHCR_USER is required}"
 : "${GHCR_PAT:?GHCR_PAT is required}"
+: "${MAILJET_API_KEY:?MAILJET_API_KEY is required}"
+: "${MAILJET_API_SECRET:?MAILJET_API_SECRET is required}"
 
 # ── Namespace ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +54,19 @@ kubectl create secret docker-registry ghcr-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "ghcr-secret created/updated"
+
+# ── mailjet-secret ────────────────────────────────────────────────────────────
+# Shared with the auth service (multi-tenant-salon-authz) — both mount it via
+# envFrom so MAILJET_API_KEY and MAILJET_API_SECRET are available at runtime
+# without CI ever touching the values. Safe to re-run from either repo.
+
+kubectl create secret generic mailjet-secret \
+  --namespace "$NAMESPACE" \
+  --from-literal=MAILJET_API_KEY="$MAILJET_API_KEY" \
+  --from-literal=MAILJET_API_SECRET="$MAILJET_API_SECRET" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "mailjet-secret created/updated"
 
 echo ""
 echo "All prerequisites are ready in namespace: $NAMESPACE"
