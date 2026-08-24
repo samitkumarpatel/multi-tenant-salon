@@ -680,26 +680,30 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                             ? "w-full text-left p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                             : "w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"}
                           aria-expanded={isExpanded}>
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
-                              {photos[0] ? (
-                                <img src={photos[0]} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                              ) : (
-                                <span className="text-xs font-black text-white">{initials(m.name)}</span>
+                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
+                                {photos[0] ? (
+                                  <img src={photos[0]} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                ) : (
+                                  <span className="text-xs font-black text-white">{initials(m.name)}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[160px] sm:max-w-[220px]">{m.name}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 ml-auto shrink-0">
+                              {hasBooking && (
+                                <a href={bookUrl} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBookStaffId(m.id!); onNavigate?.("book"); }}
+                                  className="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full no-underline transition-opacity hover:opacity-85 whitespace-nowrap"
+                                  style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}>
+                                  Book<span className="hidden sm:inline"> with me</span>
+                                </a>
                               )}
+                              <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${hasDetails ? "text-slate-300" : "invisible"}`} />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-slate-900 leading-tight truncate">{m.name}</p>
-                              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
-                            </div>
-                            {hasBooking && (
-                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBookStaffId(m.id!); onNavigate?.("book"); }}
-                                className="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full no-underline transition-opacity hover:opacity-85"
-                                style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}>
-                                Book with me
-                              </a>
-                            )}
-                            <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${hasDetails ? "text-slate-300" : "invisible"}`} />
                           </div>
                           {isExpanded && hasDetails && (
                             <div className="mt-2.5 pl-[52px]">
