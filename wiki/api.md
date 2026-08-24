@@ -12,7 +12,7 @@ All request and response bodies are `application/json`. Salon IDs are `UUID` str
 |---|---|---|
 | **Salon Onboarding** | `/api/salon-onboarding` | New tenant registration; platform-level listing |
 | **Customer** | `/api/salon/{salonId}/...` | Public/customer-facing — browse, book, read |
-| **Admin** | `/api/salon-admin/{salonId}/...` | Salon owner/administrator — manage, configure, operate |
+| **Admin** | `/api/salon-admin/{salonId}/...` | Salon owner/administrator — manage, configure, operate. Also callable by a platform super-admin for any salon, since super-admin management of a specific salon reuses these endpoints rather than duplicating them. |
 | **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
 | **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
 | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |

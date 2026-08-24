@@ -637,7 +637,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center flex-wrap gap-2">
                           <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
                             <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                           </span>

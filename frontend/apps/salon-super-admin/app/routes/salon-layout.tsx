@@ -42,14 +42,19 @@ export default function SalonLayout() {
   return (
     <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
       {/* Top bar */}
-      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-4 gap-3 shrink-0 sticky top-0 z-30">
+      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-3 sm:px-4 gap-2 sm:gap-3 shrink-0 sticky top-0 z-30">
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           className="md:hidden p-1.5 text-stone-400 hover:text-stone-800 transition-colors cursor-pointer"
         >
           {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </button>
-        <AppLogo size={24} textColor="#e2e8f0" />
+        <span className="hidden sm:inline-flex">
+          <AppLogo size={24} textColor="#e2e8f0" />
+        </span>
+        <span className="sm:hidden">
+          <AppLogo size={24} showText={false} />
+        </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded hidden sm:inline">
           Super Admin
         </span>
@@ -57,18 +62,22 @@ export default function SalonLayout() {
         <span className="text-sm font-semibold text-stone-600 truncate hidden sm:block max-w-[200px]">
           {salon.name}
         </span>
-        <div className="ml-auto flex items-center gap-2">
-          {session && <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} tone="stone" />}
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {session && (
+            <div className="hidden md:flex">
+              <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} tone="stone" />
+            </div>
+          )}
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             <span className="hidden sm:inline">All Salons</span>
           </Link>
           <button
             onClick={handleSignOut}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
             <span className="hidden sm:inline">Sign out</span>

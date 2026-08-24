@@ -45,13 +45,22 @@ export default function SalonPicker() {
   return (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
 
-      <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
-        <AppLogo size={24} textColor="#374151" />
-        <div className="ml-auto flex items-center gap-3">
-          {email && <SessionBadge email={email} expiresAt={getAccessTokenExpiry()} />}
+      <header className="h-12 border-b border-slate-200 bg-white flex items-center px-3 sm:px-6 gap-2 shrink-0">
+        <span className="hidden sm:inline-flex">
+          <AppLogo size={24} textColor="#374151" />
+        </span>
+        <span className="sm:hidden">
+          <AppLogo size={24} showText={false} />
+        </span>
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
+          {email && (
+            <div className="hidden md:flex">
+              <SessionBadge email={email} expiresAt={getAccessTokenExpiry()} />
+            </div>
+          )}
           <button
             onClick={handleSignOut}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
             <span className="hidden sm:inline">Sign out</span>

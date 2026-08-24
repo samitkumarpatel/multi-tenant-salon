@@ -221,19 +221,19 @@ export default function Layout() {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 min-w-0">
           <div className="hidden md:flex">
             <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />
           </div>
           <StaffSwitcher session={session} />
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600 min-w-0">
             <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[session.role] ?? "bg-slate-300"}`} />
-            <span className="font-medium">{session.name}</span>
-            <span className="text-slate-400 hidden sm:inline">· {ROLE_LABEL[session.role] ?? session.role}</span>
+            <span className="font-medium truncate max-w-[100px] md:max-w-[160px]">{session.name}</span>
+            <span className="text-slate-400 hidden md:inline shrink-0">· {ROLE_LABEL[session.role] ?? session.role}</span>
           </div>
           <button
             onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
             <span className="hidden sm:inline">Sign out</span>

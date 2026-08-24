@@ -214,7 +214,7 @@ export function logout(navigate: (path: string) => void) {
     clearStaffSession();
     const params = new URLSearchParams({ post_logout_redirect_uri: REDIRECT_URI });
     if (idToken) params.set("id_token_hint", idToken);
-    window.location.href = `${AUTH_SERVER}/logout?${params}`;
+    window.location.href = `${AUTH_SERVER}/connect/logout?${params}`;
     return;
   }
   clearStaffSession();

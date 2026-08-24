@@ -112,6 +112,15 @@ public class MultiTenantSalonApplication {
 										return new AuthorizationDecision(false);
 									}
 
+									// A platform super-admin manages every salon on the owner's behalf through
+									// these same /api/salon-admin/{salonId}/** endpoints (there's no separate
+									// per-salon super-admin API), so they bypass the ownership check below.
+									boolean isSuperAdmin = auth.getAuthorities().stream()
+											.anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()));
+									if (isSuperAdmin) {
+										return new AuthorizationDecision(true);
+									}
+
                                     assert context != null;
                                     String salonIdParam = context.getVariables().get("salonId");
 									Jwt jwt = ((JwtAuthenticationToken) auth).getToken();

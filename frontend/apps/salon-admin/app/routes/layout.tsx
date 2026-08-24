@@ -410,15 +410,19 @@ export default function Layout() {
           </span>
         </div>
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:block" />
-        <span className="text-sm text-slate-500 truncate max-w-[160px] sm:max-w-none">{salon.name}</span>
+        <span className="text-sm text-slate-500 truncate max-w-[120px] sm:max-w-none min-w-0">{salon.name}</span>
 
-        <div className="ml-auto flex items-center gap-2">
-          {session && <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />}
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {session && (
+            <div className="hidden md:flex">
+              <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />
+            </div>
+          )}
           <SalonSwitcher current={salon} salonId={salonId} onSalonEnabled={(s) => setSalon(s)} />
           <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
             <button
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+              className="shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <LogOut className="w-3 h-3" />
               <span className="hidden sm:inline">Sign out</span>
