@@ -10,7 +10,7 @@ export default function Help() {
 
       <div className="space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Help &amp; Support</h1>
-        <InfoBar>
+        <InfoBar id="help">
           Need assistance? Reach out to our support team — we typically respond within one business day.
         </InfoBar>
       </div>

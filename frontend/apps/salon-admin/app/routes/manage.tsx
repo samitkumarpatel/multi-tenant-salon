@@ -83,10 +83,10 @@ export default function Manage() {
         </div>
 
         {tab === "details" && (
-          <InfoBar>A read-only snapshot of your salon's current setup. Use the sidebar to edit details or manage staff and services.</InfoBar>
+          <InfoBar id="manage-details">A read-only snapshot of your salon's current setup. Use the sidebar to edit details or manage staff and services.</InfoBar>
         )}
         {tab === "links" && (
-          <InfoBar>All the URLs associated with your salon. Copy and share them with your team and customers.</InfoBar>
+          <InfoBar id="manage-links">All the URLs associated with your salon. Copy and share them with your team and customers.</InfoBar>
         )}
       </div>
 

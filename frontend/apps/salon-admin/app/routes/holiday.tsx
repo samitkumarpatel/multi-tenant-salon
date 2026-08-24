@@ -106,7 +106,7 @@ export default function HolidayPage() {
     <>
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Holidays</h1>
-        <InfoBar>
+        <InfoBar id="holidays">
           Define public or private holidays that block the booking calendar. <strong>Recurring</strong> holidays (e.g. Christmas) apply every year automatically. <strong>One-time</strong> holidays apply to a specific year only. You can set a single day or a <strong>date range</strong> (e.g. Christmas break Dec 24 – Jan 2).
         </InfoBar>
       </div>

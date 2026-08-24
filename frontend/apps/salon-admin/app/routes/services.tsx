@@ -458,7 +458,7 @@ export default function Services() {
     <>
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Salon Services</h1>
-        <InfoBar>
+        <InfoBar id="services">
           Define everything your salon offers — name, price, duration, category, and assigned staff.
           Customers see these on your public website.
         </InfoBar>

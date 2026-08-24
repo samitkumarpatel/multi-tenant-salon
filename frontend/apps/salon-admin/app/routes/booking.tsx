@@ -4,7 +4,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Settings, Filter, List,
-  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Link2, Copy, Search,
+  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Search,
 } from "lucide-react";
 import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
@@ -2083,60 +2083,6 @@ function BookingSettingsPanel({
   );
 }
 
-// ── dismissible info bar ──────────────────────────────────────────────────────
-
-const BOOKING_INFO_KEY = "booking-calendar-info-dismissed";
-
-function useDismissibleInfo() {
-  const [visible, setVisible] = useState(() => {
-    try { return localStorage.getItem(BOOKING_INFO_KEY) !== "1"; } catch { return true; }
-  });
-  function dismiss() {
-    setVisible(false);
-    try { localStorage.setItem(BOOKING_INFO_KEY, "1"); } catch {}
-  }
-  return { visible, dismiss };
-}
-
-// ── booking link banner ───────────────────────────────────────────────────────
-
-const BOOKING_BASE = (import.meta.env.VITE_BOOKING_BASE_URL ?? "http://localhost:5177").replace(/\/$/, "");
-
-function BookingLinkBanner({ handler }: { handler: string }) {
-  const url = `${BOOKING_BASE}/${handler}`;
-  const [copied, setCopied] = useState(false);
-
-  function copy() {
-    navigator.clipboard.writeText(url).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-matcha-50 border border-matcha-200 mb-6 flex-wrap sm:flex-nowrap">
-      <Link2 className="w-4 h-4 text-matcha-600 shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-matcha-800 mb-0.5">Online booking link</p>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-matcha-700 font-mono truncate block hover:underline"
-        >
-          {url}
-        </a>
-      </div>
-      <button
-        onClick={copy}
-        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-matcha-700 bg-white border border-matcha-200 hover:bg-matcha-50 transition-colors cursor-pointer"
-      >
-        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-        {copied ? "Copied!" : "Copy link"}
-      </button>
-    </div>
-  );
-}
-
 export default function BookingPage() {
   const { salon, setSalon } = useOutletContext<LayoutContext>();
   const { bookings: init, staff, services } = useLoaderData<typeof clientLoader>();
@@ -2144,7 +2090,6 @@ export default function BookingPage() {
   const [tab, setTab] = useState<"bookings" | "availability" | "closures" | "settings">("bookings");
   const [busy, setBusy] = useState(false);
   const { toast, notify } = useToast();
-  const { visible: infoVisible, dismiss: dismissInfo } = useDismissibleInfo();
 
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null);
   const [rsForm, setRsForm] = useState({ appointmentDate: "", startTime: "", staffId: 0, notes: "" });
@@ -2236,25 +2181,10 @@ export default function BookingPage() {
     <>
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
-        {infoVisible && (
-          <div className="relative">
-            <InfoBar>
-              Manage customer appointments and staff availability. Use <strong>Appointments</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark date ranges when the salon won't accept bookings — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
-            </InfoBar>
-            <button
-              onClick={dismissInfo}
-              aria-label="Dismiss"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <InfoBar id="booking-calendar">
+          Manage customer appointments and staff availability. Use <strong>Appointments</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark date ranges when the salon won't accept bookings — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
+        </InfoBar>
       </div>
-
-      {salon.handler && salon.features?.includes("BOOKING") && (
-        <BookingLinkBanner handler={salon.handler} />
-      )}
 
       <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit flex-wrap">
         <Tooltip content="View, confirm, reschedule, cancel, or complete customer appointments." side="bottom">

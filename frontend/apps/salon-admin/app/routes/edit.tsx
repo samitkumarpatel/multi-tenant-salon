@@ -228,7 +228,7 @@ export default function Edit() {
       {/* Page intro */}
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-stone-900">Edit Salon</h1>
-        <InfoBar>
+        <InfoBar id="edit-salon">
           Update your salon's name, location, contact info, opening hours, and which features are active.
           Enabling a feature here unlocks its dedicated section in the sidebar.
         </InfoBar>

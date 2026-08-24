@@ -749,7 +749,7 @@ export default function Staff() {
     <>
       <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold text-slate-900">Staff</h1>
-        <InfoBar>
+        <InfoBar id="staff">
           Add and manage the people working at your salon — their roles, contact details, and service specializations.
           Staff members can be assigned to specific services.
         </InfoBar>
