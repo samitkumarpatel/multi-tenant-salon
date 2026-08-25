@@ -4,7 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, LogOut, Menu, X as XIcon, Store, ChevronDown, Check } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
-import { getStaffSession, getAccessTokenExpiry, logout as authLogout, buildStaffSession } from "~/lib/auth";
+import {
+  getStaffSession,
+  getAccessTokenExpiry,
+  logout as authLogout,
+  buildStaffSession,
+  startSilentRenewLoop,
+  startOAuth2Login,
+} from "~/lib/auth";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
 import type { StaffMember, StaffSession } from "~/lib/types";
 
@@ -173,10 +180,33 @@ function StaffSwitcher({ session }: { session: StaffSession }) {
 
 export default function Layout() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast, notify } = useToast();
   const { staff } = useLoaderData<typeof clientLoader>();
   const session = getStaffSession()!;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // getAccessTokenExpiry() is read once here and then only ever updated by
+  // the renew loop below — a silent renew rewrites localStorage but doesn't
+  // otherwise touch React state, so without this the header badge would
+  // keep counting down to the pre-renewal expiry and flash "Expired".
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+
+  // Steps 8-13: keep the access token alive via hidden-iframe silent renew
+  // for as long as the AS session cookie stays valid. Once that cookie has
+  // actually expired the iframe comes back empty-handed, so fall back to a
+  // full, visible re-authentication instead of letting the next API call
+  // just start failing with 401s.
+  useEffect(() => {
+    return startSilentRenewLoop(
+      (expiresAt) => {
+        setTokenExpiry(expiresAt);
+        notify("Session renewed");
+      },
+      () => {
+        notify("Your session expired — signing you in again…", "error");
+        setTimeout(() => startOAuth2Login(), 1200);
+      }
+    );
+  }, []);
 
   const sideNavClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -223,7 +253,7 @@ export default function Layout() {
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 min-w-0">
           <div className="hidden md:flex">
-            <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />
+            <SessionBadge email={session.email} expiresAt={tokenExpiry} />
           </div>
           <StaffSwitcher session={session} />
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600 min-w-0">
