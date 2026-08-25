@@ -3,7 +3,14 @@ import { useNavigate } from "react-router";
 import { Shield, Mail, KeyRound, ArrowLeft } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { SUPER_ADMIN_EMAIL, DUMMY_OTP, SALON_DOMAIN } from "~/lib/types";
-import { AUTH_MODE, setSession, startOAuth2Login, completeOAuth2Login } from "~/lib/auth";
+import {
+  AUTH_MODE,
+  setSession,
+  startOAuth2Login,
+  completeOAuth2Login,
+  isSilentRenewFrame,
+  handleSilentRenewCallback,
+} from "~/lib/auth";
 
 const inputCls =
   "w-full px-3 py-2 border border-stone-200 rounded-md text-sm bg-stone-100 text-stone-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-stone-400";
@@ -222,6 +229,14 @@ function OAuth2Login() {
   const [error, setError]     = useState("");
 
   useEffect(() => {
+    // The hidden silent-renew iframe (auth.ts's silentRenew) also lands on
+    // this same /login route — hand it off before touching any real UI
+    // state or this tab's own session.
+    if (isSilentRenewFrame()) {
+      void handleSilentRenewCallback();
+      return;
+    }
+
     const params   = new URLSearchParams(window.location.search);
     const code     = params.get("code");
     const errParam = params.get("error");

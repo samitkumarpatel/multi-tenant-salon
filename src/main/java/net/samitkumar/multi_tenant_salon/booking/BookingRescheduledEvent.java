@@ -13,5 +13,8 @@ public record BookingRescheduledEvent(
         String customerPhone,
         LocalDate newAppointmentDate,
         LocalTime newStartTime,
-        LocalTime newEndTime
+        LocalTime newEndTime,
+        String salonName,
+        String salonPhone,
+        String salonEmail
 ) {}

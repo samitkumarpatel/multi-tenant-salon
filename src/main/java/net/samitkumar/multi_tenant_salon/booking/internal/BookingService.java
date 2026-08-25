@@ -67,6 +67,16 @@ class BookingService implements BookingApi {
         this.eventPublisher = eventPublisher;
     }
 
+    private record SalonContact(String name, String phone, String email) {}
+
+    private SalonContact salonContact(UUID salonId) {
+        return salonApi.findById(salonId)
+                .map(s -> new SalonContact(s.name(),
+                        s.contact() != null ? s.contact().phone() : null,
+                        s.contact() != null ? s.contact().email() : null))
+                .orElse(new SalonContact(null, null, null));
+    }
+
     private void validateAgainstSalonHours(UUID salonId, DayOfWeek day, LocalTime start, LocalTime end) {
         var hours = salonApi.findOperatingHours(salonId);
         if (hours.isEmpty()) return; // no hours configured — no restriction
@@ -284,10 +294,12 @@ class BookingService implements BookingApi {
                 initialStatus, notes, Instant.now());
         var saved = bookingRepo.save(booking);
         log.info("[BookingService] Booking created id={} status={} staff={}", saved.id(), saved.status(), staffId);
+        var salon = salonContact(salonId);
         eventPublisher.publishEvent(new BookingCreatedEvent(
                 saved.id(), salonId, serviceId, staffId,
                 customerName, customerEmail, customerPhone,
-                appointmentDate, startTime, endTime, initialStatus));
+                appointmentDate, startTime, endTime, initialStatus,
+                salon.name(), salon.phone(), salon.email()));
 
         staffApi.findByIdAndSalonId(staffId, salonId).ifPresent(staff ->
                 eventPublisher.publishEvent(new StaffBookingAssignedEvent(
@@ -305,10 +317,12 @@ class BookingService implements BookingApi {
                     existing.customerPhone(), existing.appointmentDate(), existing.startTime(),
                     existing.endTime(), newStatus, existing.notes(), existing.createdAt());
             var saved = bookingRepo.save(updated);
+            var salon = salonContact(salonId);
             eventPublisher.publishEvent(new BookingStatusChangedEvent(
                     saved.id(), salonId, newStatus,
                     saved.customerName(), saved.customerEmail(), saved.customerPhone(),
-                    saved.appointmentDate(), saved.startTime(), saved.endTime()));
+                    saved.appointmentDate(), saved.startTime(), saved.endTime(),
+                    salon.name(), salon.phone(), salon.email()));
             return saved;
         });
     }
@@ -327,10 +341,12 @@ class BookingService implements BookingApi {
                     existing.customerPhone(), newDate, newStartTime, newEndTime,
                     existing.status(), notes != null ? notes : existing.notes(), existing.createdAt());
             var saved = bookingRepo.save(updated);
+            var salon = salonContact(salonId);
             eventPublisher.publishEvent(new BookingRescheduledEvent(
                     saved.id(), salonId, staffId,
                     saved.customerName(), saved.customerEmail(), saved.customerPhone(),
-                    newDate, newStartTime, newEndTime));
+                    newDate, newStartTime, newEndTime,
+                    salon.name(), salon.phone(), salon.email()));
 
             if (!staffId.equals(existing.staffId())) {
                 staffApi.findByIdAndSalonId(staffId, salonId).ifPresent(staff ->
@@ -347,10 +363,12 @@ class BookingService implements BookingApi {
         log.info("[BookingService] Deleting booking id={} salon={}", bookingId, salonId);
         bookingRepo.findBySalonIdAndId(salonId, bookingId).ifPresent(b -> {
             bookingRepo.deleteById(bookingId);
+            var salon = salonContact(salonId);
             eventPublisher.publishEvent(new BookingStatusChangedEvent(
                     b.id(), salonId, BookingStatus.CANCELLED,
                     b.customerName(), b.customerEmail(), b.customerPhone(),
-                    b.appointmentDate(), b.startTime(), b.endTime()));
+                    b.appointmentDate(), b.startTime(), b.endTime(),
+                    salon.name(), salon.phone(), salon.email()));
         });
     }
 }

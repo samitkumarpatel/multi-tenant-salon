@@ -72,7 +72,8 @@ class NotificationModuleTests {
                 1L, UUID.randomUUID(), 1L, 1L,
                 "John Doe", "john@doe.com", "+1234567890",
                 LocalDate.of(2027, 1, 4), LocalTime.of(10, 0), LocalTime.of(11, 0),
-                BookingStatus.PENDING);
+                BookingStatus.PENDING,
+                "Test Salon", "+1112223333", "salon@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -84,7 +85,8 @@ class NotificationModuleTests {
                 9L, UUID.randomUUID(), 1L, 1L,
                 "Jill Auto", "jill@auto.com", "+1234567890",
                 LocalDate.of(2027, 1, 5), LocalTime.of(10, 0), LocalTime.of(11, 0),
-                BookingStatus.CONFIRMED);
+                BookingStatus.CONFIRMED,
+                "Test Salon", "+1112223333", "salon@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -95,7 +97,8 @@ class NotificationModuleTests {
         var event = new BookingStatusChangedEvent(
                 2L, UUID.randomUUID(), BookingStatus.CONFIRMED,
                 "Alice Smith", "alice@example.com", "+9876543210",
-                LocalDate.of(2027, 2, 10), LocalTime.of(14, 0), LocalTime.of(15, 0));
+                LocalDate.of(2027, 2, 10), LocalTime.of(14, 0), LocalTime.of(15, 0),
+                "Test Salon", "+1112223333", "salon@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -106,7 +109,8 @@ class NotificationModuleTests {
         var event = new BookingStatusChangedEvent(
                 3L, UUID.randomUUID(), BookingStatus.CANCELLED,
                 "Bob Jones", "bob@example.com", null,
-                LocalDate.of(2027, 3, 5), LocalTime.of(9, 0), LocalTime.of(9, 30));
+                LocalDate.of(2027, 3, 5), LocalTime.of(9, 0), LocalTime.of(9, 30),
+                "Test Salon", null, null);
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -117,7 +121,8 @@ class NotificationModuleTests {
         var event = new BookingStatusChangedEvent(
                 4L, UUID.randomUUID(), BookingStatus.COMPLETED,
                 "Carol White", "carol@example.com", "+1122334455",
-                LocalDate.of(2027, 1, 20), LocalTime.of(11, 0), LocalTime.of(11, 45));
+                LocalDate.of(2027, 1, 20), LocalTime.of(11, 0), LocalTime.of(11, 45),
+                "Test Salon", "+1112223333", "salon@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -128,7 +133,8 @@ class NotificationModuleTests {
         var event = new BookingStatusChangedEvent(
                 5L, UUID.randomUUID(), BookingStatus.NO_SHOW,
                 "Dave Brown", "dave@example.com", null,
-                LocalDate.of(2027, 4, 1), LocalTime.of(16, 0), LocalTime.of(17, 0));
+                LocalDate.of(2027, 4, 1), LocalTime.of(16, 0), LocalTime.of(17, 0),
+                "Test Salon", "+1112223333", "salon@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -139,7 +145,8 @@ class NotificationModuleTests {
         var event = new BookingRescheduledEvent(
                 6L, UUID.randomUUID(), 2L,
                 "Eve Green", "eve@example.com", "+5556667777",
-                LocalDate.of(2027, 5, 15), LocalTime.of(10, 30), LocalTime.of(11, 30));
+                LocalDate.of(2027, 5, 15), LocalTime.of(10, 30), LocalTime.of(11, 30),
+                "Test Salon", "+1112223333", "salon@test.com");
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();

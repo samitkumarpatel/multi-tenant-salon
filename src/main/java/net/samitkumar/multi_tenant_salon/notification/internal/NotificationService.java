@@ -67,13 +67,13 @@ class NotificationService {
         var features = event.features();
 
         var textFeatures = features.isEmpty()
-                ? "  (none enabled yet — turn these on anytime from Manage your salon)"
+                ? "  (none enabled yet — turn these on from Manage your salon)"
                 : features.stream()
                         .map(f -> featureBlurb(f, event.salonHandler()))
                         .map(b -> "  - " + b.title() + ": " + b.description())
                         .collect(Collectors.joining("\n"));
         var htmlFeatures = features.isEmpty()
-                ? "<li>None enabled yet — turn these on anytime from Manage your salon.</li>"
+                ? "<li>None enabled yet — turn these on from Manage your salon.</li>"
                 : features.stream()
                         .map(f -> featureBlurb(f, event.salonHandler()))
                         .map(b -> "<li><strong>" + b.title() + "</strong> — " + b.description() + "</li>")
@@ -83,39 +83,31 @@ class NotificationService {
         var text = """
                 Hi %s,
 
-                Welcome to SalonSaaS! Your salon "%s" has been created successfully.
+                Your salon "%s" is now live on SalonSaaS.
 
-                MANAGE YOUR SALON
-                %s
-                Add and manage staff, add your services and pricing, set operating hours, turn features on or off, and handle all your salon's administrative work from here.
+                Manage your salon: %s
+                Your staff portal: %s
 
-                YOUR STAFF PORTAL
-                %s
-                Share this link with your team — each staff member signs in here to manage their own profile, schedule, holidays, and assigned appointments.
-
-                FEATURES ENABLED FOR YOUR SALON
+                Features enabled:
                 %s
 
-                Need a hand? Just reply to this email, or reach us anytime at %s.
+                Need a hand? Reply to this email or reach us at %s.
 
                 — The SalonSaaS Team
                 """.formatted(event.ownerName(), event.salonName(), manageLink, staffAppUrl, textFeatures, supportEmail);
         var html = """
                 <p>Hi %s,</p>
-                <p>Welcome to <strong>SalonSaaS</strong>! Your salon "<strong>%s</strong>" has been created successfully.</p>
+                <p>Your salon "<strong>%s</strong>" is now live on SalonSaaS.</p>
 
-                <p><strong><a href="%s">Manage your salon</a></strong><br>
-                <small>Add and manage staff, add your services and pricing, set operating hours, turn features on or off, and handle all your salon's administrative work from here.</small></p>
+                <p><a href="%s">Manage your salon</a><br>
+                <a href="%s">Your staff portal</a></p>
 
-                <p><strong><a href="%s">Your staff portal</a></strong><br>
-                <small>Share this link with your team — each staff member signs in here to manage their own profile, schedule, holidays, and assigned appointments.</small></p>
-
-                <p><strong>Features enabled for your salon</strong></p>
+                <p><strong>Features enabled</strong></p>
                 <ul>
                 %s
                 </ul>
 
-                <p><small>Need a hand? Just reply to this email, or reach us anytime at <a href="mailto:%s">%s</a>.</small></p>
+                <p><small>Need a hand? Reply to this email or reach us at <a href="mailto:%s">%s</a>.</small></p>
                 """.formatted(event.ownerName(), event.salonName(), manageLink, staffAppUrl, htmlFeatures, supportEmail, supportEmail);
 
         sendEmail(event.ownerEmail(), event.ownerName(), subject, text, html);
@@ -125,19 +117,12 @@ class NotificationService {
 
     private FeatureBlurb featureBlurb(SalonFeature feature, String handler) {
         return switch (feature) {
-            case STATIC_WEBSITE -> new FeatureBlurb("Public Website",
-                    "Live at " + websiteUrl(handler) + ". From Manage your salon you can customize its theme and colors, "
-                            + "edit its text, and build new pages with our Gen-UI/MCP app builder.");
-            case BOOKING -> new FeatureBlurb("Online Booking",
-                    "Customers can book appointments directly at " + bookingUrl(handler) + ". Share this link anywhere — social media, your website, business cards.");
-            case MEMBERSHIP -> new FeatureBlurb("Memberships",
-                    "Sell recurring membership plans to your regulars, managed from Manage your salon.");
-            case LOYALTY_PROGRAM -> new FeatureBlurb("Loyalty Program",
-                    "Reward repeat customers with points and perks for every visit.");
-            case ANALYTICS -> new FeatureBlurb("Analytics",
-                    "Track visits, bookings, and revenue trends from your salon dashboard.");
-            case WEBSHOP -> new FeatureBlurb("Webshop",
-                    "Sell retail products online directly to your customers.");
+            case STATIC_WEBSITE -> new FeatureBlurb("Public Website", "Live at " + websiteUrl(handler));
+            case BOOKING -> new FeatureBlurb("Online Booking", "Live at " + bookingUrl(handler));
+            case MEMBERSHIP -> new FeatureBlurb("Memberships", "Sell membership plans to your regulars");
+            case LOYALTY_PROGRAM -> new FeatureBlurb("Loyalty Program", "Reward repeat customers with points");
+            case ANALYTICS -> new FeatureBlurb("Analytics", "Track visits, bookings, and revenue");
+            case WEBSHOP -> new FeatureBlurb("Webshop", "Sell retail products online");
         };
     }
 
@@ -148,15 +133,15 @@ class NotificationService {
 
                 Your salon "%s" has been disabled and is no longer visible to customers.
 
-                If this wasn't expected, please contact support.
+                If this wasn't expected, write to us at %s.
 
                 — The SalonSaaS Team
-                """.formatted(event.ownerName(), event.salonName());
+                """.formatted(event.ownerName(), event.salonName(), supportEmail);
         var html = """
                 <p>Hi %s,</p>
                 <p>Your salon "<strong>%s</strong>" has been disabled and is no longer visible to customers.</p>
-                <p><small>If this wasn't expected, please contact support.</small></p>
-                """.formatted(event.ownerName(), event.salonName());
+                <p><small>If this wasn't expected, write to us at <a href="mailto:%s">%s</a>.</small></p>
+                """.formatted(event.ownerName(), event.salonName(), supportEmail, supportEmail);
 
         sendEmail(event.ownerEmail(), event.ownerName(), subject, text, html);
     }
@@ -171,16 +156,16 @@ class NotificationService {
 
                 Review your salon: %s
 
-                If this wasn't you, please contact support immediately.
+                If this wasn't you, write to us at %s immediately.
 
                 — The SalonSaaS Team
-                """.formatted(event.ownerName(), event.salonName(), manageLink);
+                """.formatted(event.ownerName(), event.salonName(), manageLink, supportEmail);
         var html = """
                 <p>Hi %s,</p>
                 <p>Your salon "<strong>%s</strong>" settings were just updated.</p>
                 <p><a href="%s">Review your salon</a></p>
-                <p><small>If this wasn't you, please contact support immediately.</small></p>
-                """.formatted(event.ownerName(), event.salonName(), manageLink);
+                <p><small>If this wasn't you, write to us at <a href="mailto:%s">%s</a> immediately.</small></p>
+                """.formatted(event.ownerName(), event.salonName(), manageLink, supportEmail, supportEmail);
 
         sendEmail(event.ownerEmail(), event.ownerName(), subject, text, html);
     }
@@ -195,21 +180,27 @@ class NotificationService {
         var statusLine = autoConfirmed
                 ? "Good news — this salon confirms bookings automatically, so you're all set!"
                 : "We'll let you know as soon as it's confirmed.";
-        var subject = (autoConfirmed ? "Booking confirmed — " : "Booking received — ") + formattedDateTime(event);
+        var subject = salonSubject(event.salonName(), (autoConfirmed ? "Booking confirmed — " : "Booking received — ") + formattedDateTime(event));
         var text = """
                 Hi %s,
 
                 We've received your booking request (#%d) for %s at %s.
 
                 %s
-
-                — The SalonSaaS Team
-                """.formatted(event.customerName(), event.bookingId(), formattedDateTime(event), event.startTime().format(TIME_FMT), statusLine);
+                %s
+                %s
+                """.formatted(event.customerName(), event.bookingId(), formattedDateTime(event), event.startTime().format(TIME_FMT), statusLine,
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
         var html = """
                 <p>Hi %s,</p>
                 <p>We've received your booking request (#%d) for <strong>%s</strong>.</p>
                 <p>%s</p>
-                """.formatted(event.customerName(), event.bookingId(), formattedDateTime(event), statusLine);
+                %s
+                %s
+                """.formatted(event.customerName(), event.bookingId(), formattedDateTime(event), statusLine,
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
     }
@@ -222,44 +213,56 @@ class NotificationService {
             case NO_SHOW -> "Your appointment was marked as no-show. Please contact the salon if this is incorrect.";
             default -> "Your booking status has been updated to " + event.newStatus() + ".";
         };
-        var subject = "Booking update — " + event.newStatus();
+        var subject = salonSubject(event.salonName(), "Booking update — " + event.newStatus());
         var text = """
                 Hi %s,
 
                 %s
 
                 Booking #%d — %s at %s
-
-                — The SalonSaaS Team
+                %s
+                %s
                 """.formatted(event.customerName(), message, event.bookingId(),
                 event.appointmentDate() != null ? event.appointmentDate().format(DATE_FMT) : "—",
-                event.startTime() != null ? event.startTime().format(TIME_FMT) : "—");
+                event.startTime() != null ? event.startTime().format(TIME_FMT) : "—",
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
         var html = """
                 <p>Hi %s,</p>
                 <p>%s</p>
                 <p>Booking #%d — %s at %s</p>
+                %s
+                %s
                 """.formatted(event.customerName(), message, event.bookingId(),
                 event.appointmentDate() != null ? event.appointmentDate().format(DATE_FMT) : "—",
-                event.startTime() != null ? event.startTime().format(TIME_FMT) : "—");
+                event.startTime() != null ? event.startTime().format(TIME_FMT) : "—",
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
     }
 
     void notifyBookingRescheduled(BookingRescheduledEvent event) {
-        var subject = "Your appointment has been rescheduled";
+        var subject = salonSubject(event.salonName(), "Your appointment has been rescheduled");
         var text = """
                 Hi %s,
 
                 Your booking #%d has been rescheduled to %s at %s.
-
-                — The SalonSaaS Team
+                %s
+                %s
                 """.formatted(event.customerName(), event.bookingId(),
-                event.newAppointmentDate().format(DATE_FMT), event.newStartTime().format(TIME_FMT));
+                event.newAppointmentDate().format(DATE_FMT), event.newStartTime().format(TIME_FMT),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
         var html = """
                 <p>Hi %s,</p>
                 <p>Your booking #%d has been rescheduled to <strong>%s at %s</strong>.</p>
+                %s
+                %s
                 """.formatted(event.customerName(), event.bookingId(),
-                event.newAppointmentDate().format(DATE_FMT), event.newStartTime().format(TIME_FMT));
+                event.newAppointmentDate().format(DATE_FMT), event.newStartTime().format(TIME_FMT),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
     }
@@ -316,18 +319,16 @@ class NotificationService {
                 You've been added as a %s at "%s" on SalonSaaS.
 
                 Your staff portal: %s
-                Sign in with this email address to view your schedule, upcoming appointments, and manage your holidays.
 
-                If this doesn't look right, just reply to this email, or reach us at %s.
+                If this doesn't look right, reply to this email or reach us at %s.
 
                 — The SalonSaaS Team
                 """.formatted(event.staffName(), roleLabel, salonName, staffAppUrl, supportEmail);
         var html = """
                 <p>Hi %s,</p>
                 <p>You've been added as a <strong>%s</strong> at "<strong>%s</strong>" on SalonSaaS.</p>
-                <p><strong><a href="%s">Your staff portal</a></strong><br>
-                <small>Sign in with this email address to view your schedule, upcoming appointments, and manage your holidays.</small></p>
-                <p><small>If this doesn't look right, just reply to this email, or reach us at <a href="mailto:%s">%s</a>.</small></p>
+                <p><a href="%s">Your staff portal</a></p>
+                <p><small>If this doesn't look right, reply to this email or reach us at <a href="mailto:%s">%s</a>.</small></p>
                 """.formatted(event.staffName(), roleLabel, salonName, staffAppUrl, supportEmail, supportEmail);
 
         sendEmail(event.staffEmail(), event.staffName(), subject, text, html);
@@ -428,6 +429,40 @@ class NotificationService {
 
     private String formattedDateTime(BookingCreatedEvent event) {
         return event.appointmentDate().format(DATE_FMT) + " " + event.startTime().format(TIME_FMT) + " – " + event.endTime().format(TIME_FMT);
+    }
+
+    private String salonContactDetails(String salonPhone, String salonEmail) {
+        var parts = new java.util.ArrayList<String>();
+        if (StringUtils.hasText(salonPhone)) parts.add(salonPhone);
+        if (StringUtils.hasText(salonEmail)) parts.add(salonEmail);
+        return String.join(" / ", parts);
+    }
+
+    private String salonContactText(String salonName, String salonPhone, String salonEmail) {
+        var contact = salonContactDetails(salonPhone, salonEmail);
+        if (!StringUtils.hasText(contact)) return "";
+        var name = StringUtils.hasText(salonName) ? salonName : "the salon";
+        return "\nQuestions? Contact " + name + " at " + contact + ".\n";
+    }
+
+    private String salonContactHtml(String salonName, String salonPhone, String salonEmail) {
+        var contact = salonContactDetails(salonPhone, salonEmail);
+        if (!StringUtils.hasText(contact)) return "";
+        var name = StringUtils.hasText(salonName) ? salonName : "the salon";
+        return "<p><small>Questions? Contact " + name + " at " + contact + ".</small></p>";
+    }
+
+    /** Customer-facing booking emails are branded per-salon: "SalonSaaS[<salon>] <subject>". */
+    private String salonSubject(String salonName, String subject) {
+        return StringUtils.hasText(salonName) ? "SalonSaaS[" + salonName + "] " + subject : "SalonSaaS " + subject;
+    }
+
+    private String teamSignatureText(String salonName) {
+        return "Regards,\nTeam " + (StringUtils.hasText(salonName) ? salonName : "SalonSaaS");
+    }
+
+    private String teamSignatureHtml(String salonName) {
+        return "<p><small>Regards,<br>Team " + (StringUtils.hasText(salonName) ? salonName : "SalonSaaS") + "</small></p>";
     }
 
     /** "MAKEUP_ARTIST" → "Makeup Artist" — enum constants read fine in logs but not in an email a human reads. */

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Building2, MapPin, ArrowRight, LogOut, Power } from "lucide-react";
-import { AppLogo, SessionBadge } from "@salon/ui-shared";
-import { getAdminSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
+import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
+import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { ADMIN_API, apiFetch } from "~/lib/api";
 import type { Salon } from "~/lib/types";
 
@@ -11,6 +11,8 @@ export default function SalonPicker() {
   const [salons, setSalons] = useState<Salon[]>([]);
   const [email, setEmail]     = useState("");
   const [enablingId, setEnablingId] = useState<string | null>(null);
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const { toast, notify } = useToast();
 
   useEffect(() => {
     const session = getAdminSession();
@@ -20,6 +22,21 @@ export default function SalonPicker() {
     }
     setSalons(session.salons);
     setEmail(session.email);
+  }, []);
+
+  // Steps 8-13: keep the access token alive via hidden-iframe silent renew
+  // for as long as the AS session cookie stays valid.
+  useEffect(() => {
+    return startSilentRenewLoop(
+      (expiresAt) => {
+        setTokenExpiry(expiresAt);
+        notify("Session renewed");
+      },
+      () => {
+        notify("Your session expired — signing you in again…", "error");
+        setTimeout(() => startOAuth2Login(), 1200);
+      }
+    );
   }, []);
 
   function handlePick(salon: Salon) {
@@ -55,7 +72,7 @@ export default function SalonPicker() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
           {email && (
             <div className="hidden md:flex">
-              <SessionBadge email={email} expiresAt={getAccessTokenExpiry()} />
+              <SessionBadge email={email} expiresAt={tokenExpiry} />
             </div>
           )}
           <button
@@ -166,6 +183,7 @@ export default function SalonPicker() {
         </p>
       </footer>
 
+      <Toast toast={toast} />
     </div>
   );
 }

@@ -13,5 +13,8 @@ public record BookingStatusChangedEvent(
         String customerPhone,
         LocalDate appointmentDate,
         LocalTime startTime,
-        LocalTime endTime
+        LocalTime endTime,
+        String salonName,
+        String salonPhone,
+        String salonEmail
 ) {}

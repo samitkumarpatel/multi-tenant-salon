@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { getAdminSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
+import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
 import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
@@ -300,8 +300,31 @@ export default function Layout() {
   const [enabling, setEnabling]         = useState(false);
   const [websiteMode, setWebsiteModeState] = useState<WebsiteMode | null>(null);
   const { toast, notify } = useToast();
+  // getAccessTokenExpiry() is read once here and then only ever updated by
+  // the renew loop below — a silent renew rewrites localStorage but doesn't
+  // otherwise touch React state, so without this the header badge would
+  // keep counting down to the pre-renewal expiry and flash "Expired".
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
 
   useEffect(() => { if (loaderSalon) setSalon(loaderSalon); }, [loaderSalon]);
+
+  // Steps 8-13: keep the access token alive via hidden-iframe silent renew
+  // for as long as the AS session cookie stays valid. Once that cookie has
+  // actually expired the iframe comes back empty-handed, so fall back to a
+  // full, visible re-authentication instead of letting the next API call
+  // just start failing with 401s.
+  useEffect(() => {
+    return startSilentRenewLoop(
+      (expiresAt) => {
+        setTokenExpiry(expiresAt);
+        notify("Session renewed");
+      },
+      () => {
+        notify("Your session expired — signing you in again…", "error");
+        setTimeout(() => startOAuth2Login(), 1200);
+      }
+    );
+  }, []);
 
   useEffect(() => {
     if (!salon?.name) return;
@@ -415,7 +438,7 @@ export default function Layout() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {session && (
             <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} />
+              <SessionBadge email={session.email} expiresAt={tokenExpiry} />
             </div>
           )}
           <SalonSwitcher current={salon} salonId={salonId} onSalonEnabled={(s) => setSalon(s)} />

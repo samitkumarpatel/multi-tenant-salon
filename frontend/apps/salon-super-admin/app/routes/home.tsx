@@ -5,13 +5,19 @@ import {
   Trash2, Power, ChevronRight, X, Check, AlertTriangle, RefreshCw,
   LayoutGrid, List, Filter, ExternalLink,
 } from "lucide-react";
-import { AppLogo, SessionBadge } from "@salon/ui-shared";
+import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { apiFetch, SUPER_ADMIN_API } from "~/lib/api";
 import {
   ALL_FEATURES, FEATURE_LABEL,
   type Salon, type SalonFeature,
 } from "~/lib/types";
-import { getSession, getAccessTokenExpiry, logout as authLogout } from "~/lib/auth";
+import {
+  getSession,
+  getAccessTokenExpiry,
+  logout as authLogout,
+  startSilentRenewLoop,
+  startOAuth2Login,
+} from "~/lib/auth";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -311,11 +317,28 @@ export default function SuperAdminHome() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selected, setSelected] = useState<Salon | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const { toast, notify } = useToast();
 
   useEffect(() => {
     const session = getSession();
     if (!session) { navigate("/login", { replace: true }); return; }
     loadSalons("", "ALL");
+  }, []);
+
+  // Steps 8-13: keep the access token alive via hidden-iframe silent renew
+  // for as long as the AS session cookie stays valid.
+  useEffect(() => {
+    return startSilentRenewLoop(
+      (expiresAt) => {
+        setTokenExpiry(expiresAt);
+        notify("Session renewed");
+      },
+      () => {
+        notify("Your session expired — signing you in again…", "error");
+        setTimeout(() => startOAuth2Login(), 1200);
+      }
+    );
   }, []);
 
   async function loadSalons(q: string, status: "ALL" | "ACTIVE" | "DISABLED") {
@@ -376,7 +399,7 @@ export default function SuperAdminHome() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {session && (
             <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={getAccessTokenExpiry()} tone="stone" />
+              <SessionBadge email={session.email} expiresAt={tokenExpiry} tone="stone" />
             </div>
           )}
           <button
@@ -588,6 +611,8 @@ export default function SuperAdminHome() {
           onUpdated={handleSalonUpdated}
         />
       )}
+
+      <Toast toast={toast} />
     </div>
   );
 }

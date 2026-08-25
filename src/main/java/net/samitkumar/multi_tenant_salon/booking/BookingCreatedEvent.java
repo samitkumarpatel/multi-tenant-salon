@@ -15,5 +15,8 @@ public record BookingCreatedEvent(
         LocalDate appointmentDate,
         LocalTime startTime,
         LocalTime endTime,
-        BookingStatus initialStatus
+        BookingStatus initialStatus,
+        String salonName,
+        String salonPhone,
+        String salonEmail
 ) {}
