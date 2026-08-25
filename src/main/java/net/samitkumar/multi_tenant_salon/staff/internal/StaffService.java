@@ -1,5 +1,7 @@
 package net.samitkumar.multi_tenant_salon.staff.internal;
 
+import net.samitkumar.multi_tenant_salon.salon.Salon;
+import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffMember;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
@@ -22,10 +24,12 @@ import java.util.UUID;
 public class StaffService implements StaffApi {
 
     private final StaffRepository repository;
+    private final SalonApi salonApi;
     private final ApplicationEventPublisher eventPublisher;
 
-    StaffService(StaffRepository repository, ApplicationEventPublisher eventPublisher) {
+    StaffService(StaffRepository repository, SalonApi salonApi, ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
+        this.salonApi = salonApi;
         this.eventPublisher = eventPublisher;
     }
 
@@ -87,7 +91,12 @@ public class StaffService implements StaffApi {
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
                 ? schedule
                 : DEFAULT_SCHEDULE;
-        eventPublisher.publishEvent(new StaffOnboardedEvent(salonId, saved.id(), effectiveSchedule));
+        var salon = salonApi.findById(salonId);
+        eventPublisher.publishEvent(new StaffOnboardedEvent(
+                salonId, saved.id(), saved.name(), saved.email(), saved.role(),
+                salon.map(Salon::name).orElse(null),
+                salon.map(Salon::handler).orElse(null),
+                effectiveSchedule));
         return saved;
     }
 

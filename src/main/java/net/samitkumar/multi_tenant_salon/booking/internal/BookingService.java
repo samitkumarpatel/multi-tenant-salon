@@ -17,6 +17,7 @@ import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
+import net.samitkumar.multi_tenant_salon.staff.StaffMember;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -109,7 +110,10 @@ class BookingService implements BookingApi {
                 .map(s -> new StaffAvailability(null, salonId, staffId, s.dayOfWeek(), s.startTime(), s.endTime(), s.available()))
                 .map(availabilityRepo::save)
                 .toList();
-        eventPublisher.publishEvent(new StaffScheduleUpdatedEvent(salonId, staffId, saved.size()));
+        var staff = staffApi.findByIdAndSalonId(staffId, salonId);
+        eventPublisher.publishEvent(new StaffScheduleUpdatedEvent(
+                salonId, staffId, staff.map(StaffMember::name).orElse(null), staff.map(StaffMember::email).orElse(null),
+                saved.size()));
         return saved;
     }
 
@@ -136,8 +140,10 @@ class BookingService implements BookingApi {
                 override.overrideDate(), override.startTime(), override.endTime(),
                 override.available(), override.reason());
         var saved = overrideRepo.save(toSave);
+        var staff = staffApi.findByIdAndSalonId(staffId, salonId);
         eventPublisher.publishEvent(new StaffAvailabilityOverrideAddedEvent(
-                salonId, staffId, saved.id(), saved.overrideDate(),
+                salonId, staffId, staff.map(StaffMember::name).orElse(null), staff.map(StaffMember::email).orElse(null),
+                saved.id(), saved.overrideDate(),
                 saved.startTime(), saved.endTime(), saved.available(), saved.reason()));
         return saved;
     }
@@ -149,8 +155,10 @@ class BookingService implements BookingApi {
                 .filter(o -> o.salonId().equals(salonId) && o.staffId().equals(staffId))
                 .ifPresent(o -> {
                     overrideRepo.deleteById(overrideId);
+                    var staff = staffApi.findByIdAndSalonId(staffId, salonId);
                     eventPublisher.publishEvent(new StaffAvailabilityOverrideRemovedEvent(
-                            salonId, staffId, overrideId, o.overrideDate()));
+                            salonId, staffId, staff.map(StaffMember::name).orElse(null), staff.map(StaffMember::email).orElse(null),
+                            overrideId, o.overrideDate()));
                 });
     }
 
@@ -279,7 +287,7 @@ class BookingService implements BookingApi {
         eventPublisher.publishEvent(new BookingCreatedEvent(
                 saved.id(), salonId, serviceId, staffId,
                 customerName, customerEmail, customerPhone,
-                appointmentDate, startTime, endTime));
+                appointmentDate, startTime, endTime, initialStatus));
 
         staffApi.findByIdAndSalonId(staffId, salonId).ifPresent(staff ->
                 eventPublisher.publishEvent(new StaffBookingAssignedEvent(
@@ -323,13 +331,26 @@ class BookingService implements BookingApi {
                     saved.id(), salonId, staffId,
                     saved.customerName(), saved.customerEmail(), saved.customerPhone(),
                     newDate, newStartTime, newEndTime));
+
+            if (!staffId.equals(existing.staffId())) {
+                staffApi.findByIdAndSalonId(staffId, salonId).ifPresent(staff ->
+                        eventPublisher.publishEvent(new StaffBookingAssignedEvent(
+                                saved.id(), salonId, staffId, staff.name(), staff.email(),
+                                saved.serviceId(), saved.customerName(), newDate, newStartTime, newEndTime)));
+            }
+
             return saved;
         });
     }
 
     void delete(UUID salonId, Long bookingId) {
         log.info("[BookingService] Deleting booking id={} salon={}", bookingId, salonId);
-        bookingRepo.findBySalonIdAndId(salonId, bookingId)
-                .ifPresent(b -> bookingRepo.deleteById(bookingId));
+        bookingRepo.findBySalonIdAndId(salonId, bookingId).ifPresent(b -> {
+            bookingRepo.deleteById(bookingId);
+            eventPublisher.publishEvent(new BookingStatusChangedEvent(
+                    b.id(), salonId, BookingStatus.CANCELLED,
+                    b.customerName(), b.customerEmail(), b.customerPhone(),
+                    b.appointmentDate(), b.startTime(), b.endTime()));
+        });
     }
 }

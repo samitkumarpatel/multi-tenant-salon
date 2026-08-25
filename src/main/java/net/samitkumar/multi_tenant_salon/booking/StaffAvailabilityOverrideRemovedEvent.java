@@ -6,6 +6,8 @@ import java.util.UUID;
 public record StaffAvailabilityOverrideRemovedEvent(
         UUID salonId,
         Long staffId,
+        String staffName,
+        String staffEmail,
         Long overrideId,
         LocalDate overrideDate
 ) {}

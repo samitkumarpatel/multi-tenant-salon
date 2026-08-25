@@ -12,6 +12,8 @@ import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
+import net.samitkumar.multi_tenant_salon.staff.StaffRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -69,7 +71,20 @@ class NotificationModuleTests {
         var event = new BookingCreatedEvent(
                 1L, UUID.randomUUID(), 1L, 1L,
                 "John Doe", "john@doe.com", "+1234567890",
-                LocalDate.of(2027, 1, 4), LocalTime.of(10, 0), LocalTime.of(11, 0));
+                LocalDate.of(2027, 1, 4), LocalTime.of(10, 0), LocalTime.of(11, 0),
+                BookingStatus.PENDING);
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void handlesBookingCreatedEventWithAutoConfirmWithoutError() {
+        var event = new BookingCreatedEvent(
+                9L, UUID.randomUUID(), 1L, 1L,
+                "Jill Auto", "jill@auto.com", "+1234567890",
+                LocalDate.of(2027, 1, 5), LocalTime.of(10, 0), LocalTime.of(11, 0),
+                BookingStatus.CONFIRMED);
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -150,11 +165,41 @@ class NotificationModuleTests {
                 .doesNotThrowAnyException();
     }
 
+    // ── Staff onboarding ────────────────────────────────────────────────────────
+
+    @Test
+    void handlesStaffOnboardedEventWithoutError() {
+        var event = new StaffOnboardedEvent(
+                UUID.randomUUID(), 20L, "New Hire", "newhire@salon.com", StaffRole.STYLIST,
+                "Test Salon", "test-salon", List.of());
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void handlesStaffOnboardedEventWithoutStaffEmail() {
+        var event = new StaffOnboardedEvent(
+                UUID.randomUUID(), 21L, "No Email Hire", null, StaffRole.RECEPTIONIST,
+                "Test Salon", "test-salon", List.of());
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
     // ── Calendar / availability events ────────────────────────────────────────
 
     @Test
     void handlesStaffScheduleUpdatedEvent() {
-        var event = new StaffScheduleUpdatedEvent(UUID.randomUUID(), 1L, 5);
+        var event = new StaffScheduleUpdatedEvent(UUID.randomUUID(), 1L, "Sam Stylist", "sam@salon.com", 5);
+
+        assertThatCode(() -> eventPublisher.publishEvent(event))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void handlesStaffScheduleUpdatedEventWithoutStaffEmail() {
+        var event = new StaffScheduleUpdatedEvent(UUID.randomUUID(), 1L, "No Email Stylist", null, 5);
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();
@@ -163,7 +208,7 @@ class NotificationModuleTests {
     @Test
     void handlesStaffAvailabilityOverrideAddedEvent() {
         var event = new StaffAvailabilityOverrideAddedEvent(
-                UUID.randomUUID(), 1L, 10L,
+                UUID.randomUUID(), 1L, "Sam Stylist", "sam@salon.com", 10L,
                 LocalDate.of(2027, 6, 1),
                 LocalTime.of(9, 0), LocalTime.of(13, 0),
                 true, "Half-day availability");
@@ -175,7 +220,7 @@ class NotificationModuleTests {
     @Test
     void handlesStaffAvailabilityOverrideAddedWithUnavailableDay() {
         var event = new StaffAvailabilityOverrideAddedEvent(
-                UUID.randomUUID(), 2L, 11L,
+                UUID.randomUUID(), 2L, "Terry Tech", "terry@salon.com", 11L,
                 LocalDate.of(2027, 6, 10),
                 null, null,
                 false, "Staff on leave");
@@ -187,7 +232,7 @@ class NotificationModuleTests {
     @Test
     void handlesStaffAvailabilityOverrideRemovedEvent() {
         var event = new StaffAvailabilityOverrideRemovedEvent(
-                UUID.randomUUID(), 1L, 10L, LocalDate.of(2027, 6, 1));
+                UUID.randomUUID(), 1L, "Sam Stylist", "sam@salon.com", 10L, LocalDate.of(2027, 6, 1));
 
         assertThatCode(() -> eventPublisher.publishEvent(event))
                 .doesNotThrowAnyException();

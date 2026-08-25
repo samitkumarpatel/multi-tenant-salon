@@ -5,6 +5,15 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
-public record StaffOnboardedEvent(UUID salonId, Long staffId, List<DaySchedule> schedule) {
+public record StaffOnboardedEvent(
+        UUID salonId,
+        Long staffId,
+        String staffName,
+        String staffEmail,
+        StaffRole role,
+        String salonName,
+        String salonHandler,
+        List<DaySchedule> schedule
+) {
     public record DaySchedule(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {}
 }

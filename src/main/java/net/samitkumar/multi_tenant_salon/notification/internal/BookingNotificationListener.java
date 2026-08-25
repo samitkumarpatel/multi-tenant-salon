@@ -49,39 +49,22 @@ class BookingNotificationListener {
 
     @ApplicationModuleListener
     void onStaffScheduleUpdated(StaffScheduleUpdatedEvent event) {
-        log.info("""
-                [NOTIFICATION → ADMIN] Staff weekly schedule updated.
-                  Salon      : {}
-                  Staff       : {}
-                  Entries set : {}
-                """,
-                event.salonId(), event.staffId(), event.scheduleEntriesCount());
+        log.info("[NOTIFICATION → STAFF] Weekly schedule updated for staff {} <{}> — {} entries",
+                event.staffName(), event.staffEmail(), event.scheduleEntriesCount());
+        notificationService.notifyStaffScheduleUpdated(event);
     }
 
     @ApplicationModuleListener
     void onStaffAvailabilityOverrideAdded(StaffAvailabilityOverrideAddedEvent event) {
-        log.info("""
-                [NOTIFICATION → ADMIN] Staff availability override added.
-                  Salon      : {}
-                  Staff       : {}
-                  Override #  : {}  Date: {}
-                  Available   : {}  ({} – {})
-                  Reason      : {}
-                """,
-                event.salonId(), event.staffId(),
-                event.overrideId(), event.overrideDate(),
-                event.available(), event.startTime(), event.endTime(),
-                event.reason() != null ? event.reason() : "—");
+        log.info("[NOTIFICATION → STAFF] Availability override added for staff {} <{}> on {}",
+                event.staffName(), event.staffEmail(), event.overrideDate());
+        notificationService.notifyStaffAvailabilityOverrideAdded(event);
     }
 
     @ApplicationModuleListener
     void onStaffAvailabilityOverrideRemoved(StaffAvailabilityOverrideRemovedEvent event) {
-        log.info("""
-                [NOTIFICATION → ADMIN] Staff availability override removed.
-                  Salon      : {}
-                  Staff       : {}
-                  Override #  : {}  Date: {}
-                """,
-                event.salonId(), event.staffId(), event.overrideId(), event.overrideDate());
+        log.info("[NOTIFICATION → STAFF] Availability override removed for staff {} <{}> on {}",
+                event.staffName(), event.staffEmail(), event.overrideDate());
+        notificationService.notifyStaffAvailabilityOverrideRemoved(event);
     }
 }

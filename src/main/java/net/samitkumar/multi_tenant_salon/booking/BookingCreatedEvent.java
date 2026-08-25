@@ -14,5 +14,6 @@ public record BookingCreatedEvent(
         String customerPhone,
         LocalDate appointmentDate,
         LocalTime startTime,
-        LocalTime endTime
+        LocalTime endTime,
+        BookingStatus initialStatus
 ) {}

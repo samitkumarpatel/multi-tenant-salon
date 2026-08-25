@@ -13,7 +13,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.util.UUID;
 
-@ApplicationModuleTest
+@ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
 @Import(TestcontainersConfiguration.class)
 class StaffModuleTests {
 

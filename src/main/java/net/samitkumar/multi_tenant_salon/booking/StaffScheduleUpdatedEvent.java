@@ -5,5 +5,7 @@ import java.util.UUID;
 public record StaffScheduleUpdatedEvent(
         UUID salonId,
         Long staffId,
+        String staffName,
+        String staffEmail,
         int scheduleEntriesCount
 ) {}

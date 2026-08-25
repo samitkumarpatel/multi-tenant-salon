@@ -30,6 +30,8 @@ spring:
       salon-domain: ${SALON_DOMAIN:salonsaas.org}
       admin-app-url: ${NOTIFICATION_ADMIN_APP_URL:https://admin.salonsaas.org}
       staff-app-url: ${NOTIFICATION_STAFF_APP_URL:https://staff.salonsaas.org}
+      booking-app-url: ${NOTIFICATION_BOOKING_APP_URL:https://book.salonsaas.org}
+      support-email: ${NOTIFICATION_SUPPORT_EMAIL:admin@salonsaas.org}
   security:
     oauth2:
       resourceserver:
