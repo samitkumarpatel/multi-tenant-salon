@@ -309,6 +309,7 @@ class BookingService implements BookingApi {
         return saved;
     }
 
+    @Transactional
     Optional<Booking> updateStatus(UUID salonId, Long bookingId, BookingStatus newStatus) {
         log.info("[BookingService] Updating booking id={} salon={} status={}", bookingId, salonId, newStatus);
         return bookingRepo.findBySalonIdAndId(salonId, bookingId).map(existing -> {
@@ -327,6 +328,7 @@ class BookingService implements BookingApi {
         });
     }
 
+    @Transactional
     Optional<Booking> reschedule(UUID salonId, Long bookingId,
                                  LocalDate newDate, LocalTime newStartTime, Long newStaffId, String notes) {
         log.info("[BookingService] Rescheduling booking id={} salon={} newDate={} newTime={}", bookingId, salonId, newDate, newStartTime);
@@ -359,6 +361,7 @@ class BookingService implements BookingApi {
         });
     }
 
+    @Transactional
     void delete(UUID salonId, Long bookingId) {
         log.info("[BookingService] Deleting booking id={} salon={}", bookingId, salonId);
         bookingRepo.findBySalonIdAndId(salonId, bookingId).ifPresent(b -> {
