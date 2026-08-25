@@ -1,3 +1,12 @@
+# Pipeline (stages 3-4 of the environment-level flow; stages 1-2 —
+# resource_group and dns_bootstrapping — run before this stack is invoked):
+#   3a. Storage Accounts   — one static-website storage account per SPA
+#   3b. Front Door mapping — CDN profile/origins/endpoints, origins pointed
+#       at each storage account's web host; custom domains registered here
+#   4.  Subdomain DNS      — CNAME/A records pointing each subdomain at its
+#       Front Door endpoint (never at storage directly — Front Door is what
+#       provides custom-domain TLS, SPA rewrite, and wildcard routing)
+
 locals {
   frontend_name = "${var.name}-${var.environment}-fe"
 
@@ -42,7 +51,7 @@ locals {
   ])
 }
 
-# ── Storage Accounts (one per SPA) ────────────────────────────────────────────
+# ── Stage 3a: Storage Accounts (one per SPA) ──────────────────────────────────
 
 module "storage" {
   source = "../../modules/storage"
@@ -53,10 +62,11 @@ module "storage" {
   tags                = local.common_tags
 }
 
-# ── Azure CDN ─────────────────────────────────────────────────────────────────
-# Endpoints map 1:1 with storage accounts. custom_hostname drives
-# CDN-managed TLS — the CDN profile provisions a free certificate once
-# the CNAME record in dns-bootstrapping points to the endpoint host.
+# ── Stage 3b: Azure Front Door — mapped 1:1 to the storage accounts above ─────
+# Each origin's host_name comes from module.storage.accounts[k].primary_web_host
+# (implicit dependency: Front Door is built after storage). custom_hostname
+# drives CDN-managed TLS — the profile provisions a free certificate once the
+# Stage 4 DNS record below points the subdomain at this endpoint.
 
 module "cdn" {
   source = "../../modules/cdn"
@@ -77,12 +87,15 @@ module "cdn" {
   tags = local.common_tags
 }
 
-# ── Front Door DNS records ─────────────────────────────────────────────────────
+# ── Stage 4: map subdomains → Front Door endpoints ────────────────────────────
 # Ownership validation TXT records (_dnsauth.*) so Front Door can provision
-# managed TLS certificates. CNAME/alias records route traffic to the endpoints.
-# depends_on = [var.dns_zone_id] orders these after the DNS zone itself exists
-# (dns-bootstrapping stack), since zone_name below is a plain string with no
-# other data dependency on it.
+# managed TLS certificates. CNAME/alias records route each subdomain to its
+# Stage 3b Front Door endpoint (module.cdn.endpoints[...] — an implicit
+# dependency, so these are always created after Front Door).
+# depends_on = [var.dns_zone_id] additionally orders these after the DNS zone
+# itself exists (dns-bootstrapping stack): zone_name below is a plain string,
+# not an attribute reference, so it carries no dependency of its own — the
+# explicit depends_on is what's actually load-bearing for that ordering.
 
 # TXT: _dnsauth.<sub> — one per non-apex custom domain
 resource "azurerm_dns_txt_record" "cdn_validation" {
