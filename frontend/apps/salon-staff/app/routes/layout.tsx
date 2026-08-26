@@ -238,10 +238,10 @@ export default function Layout() {
 
         <div className="pr-3 border-r border-slate-200">
           <span className="hidden sm:inline-flex">
-            <AppLogo size={24} textColor="#374151" />
+            <AppLogo size={24} textColor="#374151" onClick={() => navigate("/portal")} />
           </span>
           <span className="sm:hidden">
-            <AppLogo size={24} showText={false} />
+            <AppLogo size={24} showText={false} onClick={() => navigate("/portal")} />
           </span>
         </div>
 

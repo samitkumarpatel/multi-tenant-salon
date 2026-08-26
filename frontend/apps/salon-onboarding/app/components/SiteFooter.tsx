@@ -1,4 +1,4 @@
-import { Mail, Phone } from "lucide-react";
+import { Mail } from "lucide-react";
 import { CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
 
 export function SiteFooter() {
@@ -13,12 +13,6 @@ export function SiteFooter() {
               className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors"
             >
               <Mail className="w-3 h-3 shrink-0" /> {CONTACT_EMAIL}
-            </a>
-            <a
-              href="tel:+4500000000"
-              className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors"
-            >
-              <Phone className="w-3 h-3 shrink-0" /> +45 00 00 00 00
             </a>
           </div>
           <p className="text-[11px] text-stone-400">

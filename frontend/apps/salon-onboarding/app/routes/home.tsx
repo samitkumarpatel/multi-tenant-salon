@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { Building2, Users, ArrowRight, Cookie, Mail, Phone } from "lucide-react";
+import { Building2, Users, ArrowRight, Cookie, Mail } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
 
@@ -72,10 +72,6 @@ export default function Home() {
             <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
               <Mail className="w-3 h-3 shrink-0" />
               <span className="hidden sm:inline">{CONTACT_EMAIL}</span>
-            </a>
-            <a href="tel:+4500000000" className="flex items-center gap-1.5 text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors">
-              <Phone className="w-3 h-3 shrink-0" />
-              <span className="hidden sm:inline">+45 00 00 00 00</span>
             </a>
           </div>
         </div>

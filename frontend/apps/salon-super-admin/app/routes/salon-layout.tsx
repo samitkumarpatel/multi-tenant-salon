@@ -84,10 +84,10 @@ export default function SalonLayout() {
           {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </button>
         <span className="hidden sm:inline-flex">
-          <AppLogo size={24} textColor="#e2e8f0" />
+          <AppLogo size={24} textColor="#e2e8f0" onClick={() => navigate("/")} />
         </span>
         <span className="sm:hidden">
-          <AppLogo size={24} showText={false} />
+          <AppLogo size={24} showText={false} onClick={() => navigate("/")} />
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded hidden sm:inline">
           Super Admin

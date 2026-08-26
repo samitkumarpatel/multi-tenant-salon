@@ -5,6 +5,10 @@ interface AppLogoProps {
   showText?: boolean;
   textColor?: string;
   className?: string;
+  /** When provided, the mark renders as a real button (hover/press affordance,
+   *  focus ring, keyboard-operable) instead of a static image — pass e.g.
+   *  `() => navigate("/salons")` to make it act as a "go home" link. */
+  onClick?: () => void;
 }
 
 export function AppLogo({
@@ -12,6 +16,7 @@ export function AppLogo({
   showText = true,
   textColor = "inherit",
   className = "",
+  onClick,
 }: AppLogoProps) {
   const [snipping, setSnipping] = useState(false);
   const uid      = useId().replace(/:/g, "");
@@ -23,11 +28,19 @@ export function AppLogo({
 
   const rx = Math.round(size * 0.25);
 
+  const Wrapper = onClick ? "button" : "div";
+
   return (
-    <div
-      className={`inline-flex items-center gap-2 select-none ${className}`}
-      role="img"
-      aria-label={import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org"}
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 select-none rounded-md ${
+        onClick
+          ? "cursor-pointer transition-opacity hover:opacity-75 active:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-amber-400"
+          : ""
+      } ${className}`}
+      role={onClick ? undefined : "img"}
+      aria-label={onClick ? "Go home" : (import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org")}
     >
       <span
         className={`logo-snip shrink-0 ${snipping ? "is-snipping" : ""}`}
@@ -122,9 +135,20 @@ export function AppLogo({
           style={{ fontSize: Math.round(size * 0.54), color: textColor }}
         >
           Salon
-          <span style={{ fontWeight: 400, opacity: 0.45 }}>Saas</span>
+          <span
+            className="uppercase"
+            style={{
+              fontSize: "0.62em",
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+              marginLeft: "0.14em",
+              color: "#c9922e",
+            }}
+          >
+            SaaS
+          </span>
         </span>
       )}
-    </div>
+    </Wrapper>
   );
 }
