@@ -44,6 +44,7 @@ export default function SalonLayout() {
   // otherwise touch React state, so without this the header badge would
   // keep counting down to the pre-renewal expiry and flash "Expired".
   const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const [renewing, setRenewing] = useState(false);
 
   // Steps 8-13: keep the access token alive via hidden-iframe silent renew
   // for as long as the AS session cookie stays valid. Once that cookie has
@@ -53,13 +54,16 @@ export default function SalonLayout() {
   useEffect(() => {
     return startSilentRenewLoop(
       (expiresAt) => {
+        setRenewing(false);
         setTokenExpiry(expiresAt);
         notify("Session renewed");
       },
       () => {
+        setRenewing(false);
         notify("Your session expired — signing you in again…", "error");
         setTimeout(() => startOAuth2Login(), 1200);
-      }
+      },
+      () => setRenewing(true)
     );
   }, []);
 
@@ -95,7 +99,7 @@ export default function SalonLayout() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {session && (
             <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={tokenExpiry} tone="stone" />
+              <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} tone="stone" />
             </div>
           )}
           <Link

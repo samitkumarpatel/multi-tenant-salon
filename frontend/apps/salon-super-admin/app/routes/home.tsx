@@ -318,6 +318,7 @@ export default function SuperAdminHome() {
   const [selected, setSelected] = useState<Salon | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const [renewing, setRenewing] = useState(false);
   const { toast, notify } = useToast();
 
   useEffect(() => {
@@ -331,13 +332,16 @@ export default function SuperAdminHome() {
   useEffect(() => {
     return startSilentRenewLoop(
       (expiresAt) => {
+        setRenewing(false);
         setTokenExpiry(expiresAt);
         notify("Session renewed");
       },
       () => {
+        setRenewing(false);
         notify("Your session expired — signing you in again…", "error");
         setTimeout(() => startOAuth2Login(), 1200);
-      }
+      },
+      () => setRenewing(true)
     );
   }, []);
 
@@ -399,7 +403,7 @@ export default function SuperAdminHome() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {session && (
             <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={tokenExpiry} tone="stone" />
+              <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} tone="stone" />
             </div>
           )}
           <button

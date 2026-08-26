@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, RefreshCw } from "lucide-react";
 
 export interface SessionBadgeProps {
   /** The signed-in user's email, shown as-is. */
@@ -7,6 +7,9 @@ export interface SessionBadgeProps {
   /** Access token expiry as epoch ms. Pass null/undefined when there's no
    *  token to expire (e.g. local mock-mode login) — the countdown is hidden. */
   expiresAt?: number | null;
+  /** True while a silent renew is in flight (hidden-iframe PKCE dance),
+   *  swaps the clock for a spinning icon so the renewal is visible. */
+  renewing?: boolean;
   tone?: "slate" | "stone";
   className?: string;
 }
@@ -25,7 +28,7 @@ function formatRemaining(ms: number): string {
 
 /** Header pill showing who's signed in and, when there's an OAuth2 access
  *  token, a live countdown to its expiry. */
-export function SessionBadge({ email, expiresAt, tone = "slate", className = "" }: SessionBadgeProps) {
+export function SessionBadge({ email, expiresAt, renewing = false, tone = "slate", className = "" }: SessionBadgeProps) {
   const [now, setNow] = useState(() => Date.now());
   const c = TONE[tone];
 
@@ -49,11 +52,11 @@ export function SessionBadge({ email, expiresAt, tone = "slate", className = "" 
           <span className={`${c.divider} shrink-0`}>·</span>
           <span
             className={`inline-flex items-center gap-1 font-mono tabular-nums shrink-0 ${
-              expired ? "text-red-500 font-semibold" : expiringSoon ? "text-amber-600 font-semibold" : c.dim
+              renewing ? "text-blue-600 font-semibold" : expired ? "text-red-500 font-semibold" : expiringSoon ? "text-amber-600 font-semibold" : c.dim
             }`}
-            title="Time until your session expires"
+            title={renewing ? "Renewing session…" : "Time until your session expires"}
           >
-            <Clock className="w-3 h-3" />
+            {renewing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
             {expired ? "Expired" : formatRemaining(remaining)}
           </span>
         </>

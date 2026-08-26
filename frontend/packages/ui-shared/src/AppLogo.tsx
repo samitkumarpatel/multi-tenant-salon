@@ -121,9 +121,8 @@ export function AppLogo({
           className="font-bold tracking-tight leading-none"
           style={{ fontSize: Math.round(size * 0.54), color: textColor }}
         >
-          my
-          <span style={{ fontWeight: 400, opacity: 0.45 }}>-</span>
-          salon
+          Salon
+          <span style={{ fontWeight: 400, opacity: 0.45 }}>Saas</span>
         </span>
       )}
     </div>

@@ -629,7 +629,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
       <div className="flex items-center gap-2">
         <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Privacy</a>
         <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Terms</a>
-        <span className="text-[9px] opacity-40" style={{ color: msgDim }}>My Salon</span>
+        <span className="text-[9px] opacity-40" style={{ color: msgDim }}>SalonSaas</span>
       </div>
     </div>
   );

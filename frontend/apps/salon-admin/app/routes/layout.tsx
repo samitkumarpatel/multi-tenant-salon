@@ -305,6 +305,7 @@ export default function Layout() {
   // otherwise touch React state, so without this the header badge would
   // keep counting down to the pre-renewal expiry and flash "Expired".
   const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const [renewing, setRenewing] = useState(false);
 
   useEffect(() => { if (loaderSalon) setSalon(loaderSalon); }, [loaderSalon]);
 
@@ -316,13 +317,16 @@ export default function Layout() {
   useEffect(() => {
     return startSilentRenewLoop(
       (expiresAt) => {
+        setRenewing(false);
         setTokenExpiry(expiresAt);
         notify("Session renewed");
       },
       () => {
+        setRenewing(false);
         notify("Your session expired — signing you in again…", "error");
         setTimeout(() => startOAuth2Login(), 1200);
-      }
+      },
+      () => setRenewing(true)
     );
   }, []);
 
@@ -438,7 +442,7 @@ export default function Layout() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {session && (
             <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={tokenExpiry} />
+              <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} />
             </div>
           )}
           <SalonSwitcher current={salon} salonId={salonId} onSalonEnabled={(s) => setSalon(s)} />

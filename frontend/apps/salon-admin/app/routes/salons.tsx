@@ -12,6 +12,7 @@ export default function SalonPicker() {
   const [email, setEmail]     = useState("");
   const [enablingId, setEnablingId] = useState<string | null>(null);
   const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const [renewing, setRenewing] = useState(false);
   const { toast, notify } = useToast();
 
   useEffect(() => {
@@ -29,13 +30,16 @@ export default function SalonPicker() {
   useEffect(() => {
     return startSilentRenewLoop(
       (expiresAt) => {
+        setRenewing(false);
         setTokenExpiry(expiresAt);
         notify("Session renewed");
       },
       () => {
+        setRenewing(false);
         notify("Your session expired — signing you in again…", "error");
         setTimeout(() => startOAuth2Login(), 1200);
-      }
+      },
+      () => setRenewing(true)
     );
   }, []);
 
@@ -72,7 +76,7 @@ export default function SalonPicker() {
         <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
           {email && (
             <div className="hidden md:flex">
-              <SessionBadge email={email} expiresAt={tokenExpiry} />
+              <SessionBadge email={email} expiresAt={tokenExpiry} renewing={renewing} />
             </div>
           )}
           <button

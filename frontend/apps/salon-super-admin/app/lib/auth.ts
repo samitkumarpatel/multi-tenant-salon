@@ -298,10 +298,13 @@ export async function silentRenew(): Promise<boolean> {
  *  ms) — the UI has no other way to notice, since a renew never touches
  *  React state on its own. `onRenewFailed` fires once the AS session has
  *  actually expired, so the caller can fall back to a full, visible
- *  re-authentication. */
+ *  re-authentication. `onRenewStart`, if given, fires right as each renew
+ *  attempt kicks off — so the UI can show a "renewing…" indicator for the
+ *  couple of seconds the hidden iframe takes to round-trip. */
 export function startSilentRenewLoop(
   onRenewed: (expiresAt: number) => void,
-  onRenewFailed: () => void
+  onRenewFailed: () => void,
+  onRenewStart?: () => void
 ): () => void {
   if (AUTH_MODE !== "oauth2") return () => {};
 
@@ -315,6 +318,7 @@ export function startSilentRenewLoop(
     const delay = Math.max(0, expiry - Date.now() - RENEW_MARGIN_MS);
     timer = setTimeout(async () => {
       if (cancelled) return;
+      onRenewStart?.();
       const ok = await silentRenew();
       if (cancelled) return;
       if (ok) {
