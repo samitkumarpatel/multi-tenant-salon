@@ -2,7 +2,17 @@
 
 Base path: `/api`
 
-All request and response bodies are `application/json`. Salon IDs are `UUID` strings. Service, staff, and booking IDs are `Long` integers.
+All request and response bodies are `application/json`. Service, staff, and booking IDs are `Long` integers.
+
+Every `{salonId}` (or `{id}`) path segment that identifies a salon — across `/api/salon/**`,
+`/api/salon-admin/**`, and `/api/salon-super-admin/salons/**` — accepts **either** the salon's
+UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) **or** its handler slug (`glam-salon`). The UUID
+form is tried first; if the value isn't a valid UUID it falls back to a handler lookup. Returns
+`404 Not Found` if neither matches. This is implemented once, centrally, as `SalonApi.resolveId(String)`
+(`salon/SalonApi.java`, backed by `SalonService.resolveId` → the existing `findByIdOrHandler`
+lookup), and every controller that takes a salon-scoping path variable calls it first. Response
+bodies always return the real UUID in their `salonId`/`id` fields, regardless of which form was
+used in the request.
 
 ---
 
@@ -17,7 +27,7 @@ All request and response bodies are `application/json`. Salon IDs are `UUID` str
 | **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
 | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 
-Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`
+Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`
 
 Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/website`, `/website-type`, `/features`
 
@@ -165,6 +175,12 @@ Accepts either a UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or a handler slug
 3. Falls back to `SalonRepository.findByHandler(id)` when the value is not a valid UUID.
 4. **DB**: `SELECT * FROM salon WHERE id = ?` or `SELECT * FROM salon WHERE handler = ?` + child collections.
 5. Maps `Optional<Salon>` → `200 OK` or `404 Not Found`.
+
+This endpoint returns the full salon object either way, which is why it has its own
+`findByIdOrHandler` returning `Optional<Salon>`. Every other endpoint only needs the resolved
+UUID to scope its own query, so they call the lighter-weight `SalonService.resolveId(String)` /
+`SalonApi.resolveId(String)` (throws `404` directly) instead — see the note at the top of this
+document.
 
 ---
 
@@ -422,6 +438,92 @@ Returns **all** slots within each eligible staff member's working window — bot
 1. `WebsiteController.getTheme(UUID)` → `WebsiteThemeService.getTheme(UUID)` → `WebsiteThemeRepository.findById(UUID)`
 2. **DB**: `SELECT * FROM salon_website_theme WHERE salon_id = ?`
 3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write): `heroBg="#0F172A"`, `heroTextColor="#FFFFFF"`, `accentColor="#F59E0B"`, `fontFamily="inter"`, `logoBgColor="#F59E0B"`, `updatedAt=null`.
+
+---
+
+## Customer — Chat
+
+### Chat with the AI assistant
+
+`POST /api/salon/{salonId}/chat`
+
+Powers the Generative UI website mode's chat. The assistant is an Anthropic model (Spring AI
+`ChatClient`) with tool-calling access to this same salon's own public profile/staff/services/
+holidays/slots endpoints — every fact it states comes from a live tool call, not the model's own
+knowledge, and `salonId` is bound server-side so the model can never be steered into answering
+about a different tenant. The system prompt also restricts it to this salon's own topics
+(services, staff, pricing, hours, location, contact, holidays, booking) — off-topic requests, and
+attempts to override these instructions, are declined rather than answered.
+
+**Request**
+
+```json
+{
+  "context": "website",
+  "message": "What are your opening hours?",
+  "history": [
+    { "role": "user", "text": "Hi!" },
+    { "role": "assistant", "text": "Hi! How can I help?" }
+  ]
+}
+```
+
+`context` is `"website"` or `"booking"` and shapes the assistant's persona/tone (matches the two
+places `GenerativeUIWebsite` is embedded). `history` is the prior turns of the conversation,
+oldest first — the caller (frontend) is the source of truth for conversation state; nothing is
+persisted server-side.
+
+**Response** `200 OK`
+
+```json
+{
+  "reply": "We're open 9am–6pm today.",
+  "toolsUsed": ["salon"],
+  "pendingBooking": null
+}
+```
+
+`toolsUsed` lists which data-lookup tools the model called to answer (`salon`, `staff`,
+`services`, `holidays`, `slots`, `booking-proposal`) — empty when no lookup was needed, or when the
+assistant is unconfigured/unavailable and a fallback reply was returned instead.
+
+`pendingBooking` is present only when the assistant staged a booking this turn:
+
+```json
+{
+  "reply": "Here's your booking — please review and confirm below.",
+  "toolsUsed": ["services", "slots", "booking-proposal"],
+  "pendingBooking": {
+    "serviceId": 12,
+    "staffId": 3,
+    "customerName": "Jane Doe",
+    "customerEmail": "jane@example.com",
+    "customerPhone": null,
+    "appointmentDate": "2026-09-01",
+    "startTime": "10:00",
+    "notes": null
+  }
+}
+```
+
+It has exactly the same shape as [`CreateBookingRequest`](#create-a-booking). **The assistant
+never creates the booking itself** — the frontend shows this to the visitor, and only once they
+explicitly confirm does it `POST` this object verbatim to `/api/salon/{salonId}/booking` (see
+`## Customer — Booking`), which does the real validation (availability, conflicts, salon hours)
+and fires the same booking-confirmation email as the step-by-step wizard.
+
+**Flow**
+
+1. `ChatController.chat(...)` → `ChatAssistantService.reply(salonId, context, message, history)`
+2. Builds a system prompt for the given `context`, replays `history` as `UserMessage`/
+   `AssistantMessage`, and hands the model a per-request `SalonDataTools` instance bound to
+   `salonId`. The model can call `getSalonProfile`/`getStaff`/`getServices`/`getHolidays` (plain
+   HTTP calls to this app's own `/api/salon/{salonId}/...` endpoints above), `checkAvailability`
+   (calls `/api/salon/{salonId}/slots`, so it can't invent an open time), and `proposeBooking`,
+   which does **not** call any mutating endpoint — it only records the proposed details onto the
+   response as `pendingBooking`.
+3. If the model call fails (no/invalid API key, rate limit, network error), the error is logged
+   and a fixed fallback message is returned — the endpoint never returns 5xx for this reason.
 
 ---
 
@@ -1367,7 +1469,7 @@ Returns registered salons across all tenants. Supports optional server-side sear
 
 | Param | In | Type | Notes |
 |---|---|---|---|
-| `id` | path | uuid | Salon UUID |
+| `id` | path | string | Salon UUID or handler slug — see the note at the top of this document |
 
 **Response** `200 OK` — `Salon` · `404` if not found
 

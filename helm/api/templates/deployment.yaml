@@ -53,6 +53,11 @@ spec:
             # service) — this chart only reads it, it never creates it.
             - secretRef:
                 name: mailjet-secret
+            # anthropic-secret is created out-of-band by
+            # helm/pre-req-manifest/create-secrets.sh — this chart only reads
+            # it. Provides ANTHROPIC_API_KEY for the Gen UI chat assistant.
+            - secretRef:
+                name: anthropic-secret
             {{- if .Values.secret }}
             - secretRef:
                 name: {{ include "api.fullname" . }}-secret

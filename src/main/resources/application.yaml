@@ -32,6 +32,15 @@ spring:
       staff-app-url: ${NOTIFICATION_STAFF_APP_URL:https://staff.salonsaas.org}
       booking-app-url: ${NOTIFICATION_BOOKING_APP_URL:https://book.salonsaas.org}
       support-email: ${NOTIFICATION_SUPPORT_EMAIL:admin@salonsaas.org}
+    chat:
+      # Base URL the AI assistant's tools use to call this app's own public /api/salon/** API.
+      internal-api-base-url: ${INTERNAL_API_BASE_URL:http://localhost:8080}
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:3weew334}
+      base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+      chat:
+        model: ${ANTHROPIC_CHAT_MODEL:claude-haiku-4-5-20251001}
   security:
     oauth2:
       resourceserver:
@@ -80,7 +89,7 @@ management:
           - metrics
 logging:
   level:
-    root: ${LOGGING_LEVEL:info}
-    web: ${LOGGING_LEVEL:info}
-    sql: ${LOGGING_LEVEL:info}
-    org.springframework: ${LOGGING_LEVEL:info}
+    root: ${LOGGING_LEVEL:INFO}
+    web: ${LOGGING_LEVEL:INFO}
+    sql: ${LOGGING_LEVEL:INFO}
+    org.springframework: ${LOGGING_LEVEL:INFO}

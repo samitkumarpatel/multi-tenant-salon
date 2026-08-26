@@ -8,6 +8,7 @@
 #   export GHCR_PAT="<github-pat-with-read:packages>"
 #   export MAILJET_API_KEY="<your-mailjet-api-key>"
 #   export MAILJET_API_SECRET="<your-mailjet-api-secret>"
+#   export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
 #   ./helm/prereq-manifest/create-secrets.sh
 #
 # GHCR_PAT must be a long-lived Personal Access Token (not GITHUB_TOKEN) with
@@ -24,6 +25,7 @@ NAMESPACE="salon"
 : "${GHCR_PAT:?GHCR_PAT is required}"
 : "${MAILJET_API_KEY:?MAILJET_API_KEY is required}"
 : "${MAILJET_API_SECRET:?MAILJET_API_SECRET is required}"
+: "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}"
 
 # ── Namespace ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,17 @@ kubectl create secret generic mailjet-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "mailjet-secret created/updated"
+
+# ── anthropic-secret ──────────────────────────────────────────────────────────
+# Used by the api pod for the Gen UI chat assistant (Spring AI's Anthropic
+# starter reads ANTHROPIC_API_KEY directly) — mounted via envFrom.
+
+kubectl create secret generic anthropic-secret \
+  --namespace "$NAMESPACE" \
+  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "anthropic-secret created/updated"
 
 echo ""
 echo "All prerequisites are ready in namespace: $NAMESPACE"

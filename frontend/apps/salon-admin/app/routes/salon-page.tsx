@@ -478,7 +478,10 @@ export default function SalonPreviewPage() {
             background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#1E293B"}`,
           }}
         >
-          <div style={{ width: "100%", maxWidth: "700px", height: "calc(100% - 48px)", flexShrink: 0 }}>
+          <div
+            className="w-full sm:max-w-[700px] lg:max-w-[1080px] rounded-2xl overflow-hidden shadow-2xl"
+            style={{ height: "calc(100% - 48px)", flexShrink: 0 }}
+          >
             <GenerativeUIWebsite
               salon={salon} staff={staff} services={services} theme={theme}
               getPagePath={(page) => `/${salonParam}/website-preview#${page}`}

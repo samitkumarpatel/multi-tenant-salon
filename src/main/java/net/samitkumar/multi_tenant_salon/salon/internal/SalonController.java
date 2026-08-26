@@ -98,8 +98,9 @@ class SalonController {
     }
 
     @PutMapping("/api/salon-admin/{id}")
-    ResponseEntity<Salon> update(@PathVariable UUID id, @Valid @RequestBody UpdateSalonRequest request) {
-        return service.update(id, request.name(), request.location(), request.contact(), request.operatingHours(), request.bookingAdvanceDays(),
+    ResponseEntity<Salon> update(@PathVariable String id, @Valid @RequestBody UpdateSalonRequest request) {
+        var salonId = service.resolveId(id);
+        return service.update(salonId, request.name(), request.location(), request.contact(), request.operatingHours(), request.bookingAdvanceDays(),
                         request.businessRegistrationId(), request.showBusinessId(), request.bookingRequiresConfirmation())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -108,29 +109,33 @@ class SalonController {
     record PatchBookingSettingsRequest(Integer bookingAdvanceDays, Boolean bookingRequiresConfirmation) {}
 
     @PatchMapping("/api/salon-admin/{id}/booking-settings")
-    ResponseEntity<Salon> patchBookingSettings(@PathVariable UUID id, @RequestBody PatchBookingSettingsRequest request) {
-        return service.updateBookingSettings(id, request.bookingAdvanceDays(), request.bookingRequiresConfirmation())
+    ResponseEntity<Salon> patchBookingSettings(@PathVariable String id, @RequestBody PatchBookingSettingsRequest request) {
+        var salonId = service.resolveId(id);
+        return service.updateBookingSettings(salonId, request.bookingAdvanceDays(), request.bookingRequiresConfirmation())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/api/salon-admin/{id}/features")
-    ResponseEntity<Salon> updateFeatures(@PathVariable UUID id, @RequestBody List<SalonFeature> features) {
-        return service.updateFeatures(id, features)
+    ResponseEntity<Salon> updateFeatures(@PathVariable String id, @RequestBody List<SalonFeature> features) {
+        var salonId = service.resolveId(id);
+        return service.updateFeatures(salonId, features)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/api/salon-admin/{id}")
-    ResponseEntity<Salon> disable(@PathVariable UUID id) {
-        return service.disable(id)
+    ResponseEntity<Salon> disable(@PathVariable String id) {
+        var salonId = service.resolveId(id);
+        return service.disable(salonId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/api/salon-admin/{id}/enable")
-    ResponseEntity<Salon> enable(@PathVariable UUID id) {
-        return service.enable(id)
+    ResponseEntity<Salon> enable(@PathVariable String id) {
+        var salonId = service.resolveId(id);
+        return service.enable(salonId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -138,19 +143,19 @@ class SalonController {
     record AddClosureRequest(@NotNull LocalDate startDate, @NotNull LocalDate endDate, String reason) {}
 
     @GetMapping({"/api/salon/{id}/closures", "/api/salon-admin/{id}/closures"})
-    List<SalonClosure> listClosures(@PathVariable UUID id) {
-        return service.findClosures(id);
+    List<SalonClosure> listClosures(@PathVariable String id) {
+        return service.findClosures(service.resolveId(id));
     }
 
     @PostMapping("/api/salon-admin/{id}/closures")
-    ResponseEntity<SalonClosure> addClosure(@PathVariable UUID id, @Valid @RequestBody AddClosureRequest request) {
-        var closure = service.addClosure(id, request.startDate(), request.endDate(), request.reason());
+    ResponseEntity<SalonClosure> addClosure(@PathVariable String id, @Valid @RequestBody AddClosureRequest request) {
+        var closure = service.addClosure(service.resolveId(id), request.startDate(), request.endDate(), request.reason());
         return ResponseEntity.ok(closure);
     }
 
     @DeleteMapping("/api/salon-admin/{id}/closures/{closureId}")
-    ResponseEntity<Void> removeClosure(@PathVariable UUID id, @PathVariable Long closureId) {
-        boolean deleted = service.removeClosure(id, closureId);
+    ResponseEntity<Void> removeClosure(@PathVariable String id, @PathVariable Long closureId) {
+        boolean deleted = service.removeClosure(service.resolveId(id), closureId);
         return deleted
                 ? ResponseEntity.noContent().<Void>build()
                 : ResponseEntity.status(HttpStatus.CONFLICT).<Void>build();
@@ -165,20 +170,20 @@ class SalonController {
             Integer year) {}
 
     @GetMapping({"/api/salon/{id}/holidays", "/api/salon-admin/{id}/holidays"})
-    List<SalonHoliday> listHolidays(@PathVariable UUID id) {
-        return service.findHolidays(id);
+    List<SalonHoliday> listHolidays(@PathVariable String id) {
+        return service.findHolidays(service.resolveId(id));
     }
 
     @PostMapping("/api/salon-admin/{id}/holidays")
-    ResponseEntity<SalonHoliday> addHoliday(@PathVariable UUID id, @Valid @RequestBody AddHolidayRequest request) {
-        var holiday = service.addHoliday(id, request.name(), request.month(), request.day(),
+    ResponseEntity<SalonHoliday> addHoliday(@PathVariable String id, @Valid @RequestBody AddHolidayRequest request) {
+        var holiday = service.addHoliday(service.resolveId(id), request.name(), request.month(), request.day(),
                 request.endMonth(), request.endDay(), request.year());
         return ResponseEntity.ok(holiday);
     }
 
     @DeleteMapping("/api/salon-admin/{id}/holidays/{holidayId}")
-    ResponseEntity<Void> removeHoliday(@PathVariable UUID id, @PathVariable Long holidayId) {
-        service.removeHoliday(id, holidayId);
+    ResponseEntity<Void> removeHoliday(@PathVariable String id, @PathVariable Long holidayId) {
+        service.removeHoliday(service.resolveId(id), holidayId);
         return ResponseEntity.noContent().build();
     }
 }

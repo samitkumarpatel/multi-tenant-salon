@@ -6,6 +6,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface SalonApi {
+    /**
+     * Resolves a path segment that may be either a salon UUID or its handler slug to the real
+     * salon UUID (UUID form tried first, falls back to a handler lookup) — the same rule
+     * {@code GET /api/salon/{salonIdOrHandler}} already applies. Throws 404 if neither matches.
+     */
+    UUID resolveId(String idOrHandler);
+
     List<Salon.OperatingHours> findOperatingHours(UUID salonId);
     boolean isClosedOn(UUID salonId, LocalDate date);
     List<SalonClosure> findClosures(UUID salonId);

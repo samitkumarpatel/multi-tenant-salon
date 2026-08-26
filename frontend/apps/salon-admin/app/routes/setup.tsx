@@ -61,7 +61,7 @@ export default function Setup() {
       key: "website",
       icon: Palette,
       title: "Design your website",
-      description: "Choose how your public page looks — classic layout, AI-generated, or contact form.",
+      description: "Choose how your public page looks — classic layout, AI-generated, or Build based on your Idea.",
       doneDescription: "We've automatically set up your website design. You can still customise it anytime from the Website tab.",
       done: websiteType !== null,
       href: "website",
