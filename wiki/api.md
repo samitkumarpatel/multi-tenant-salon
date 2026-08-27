@@ -417,27 +417,27 @@ Returns **all** slots within each eligible staff member's working window — bot
 ```json
 {
   "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "heroBg": "#F8FAFC",
+  "heroBg": "#EEF2F4",
   "heroTextColor": "#0F172A",
-  "accentColor": "#1D4ED8",
-  "fontFamily": "system",
-  "logoBgColor": "#10B981",
+  "accentColor": "#7C3AED",
+  "fontFamily": "Noto Sans KR",
+  "logoBgColor": "#7C3AED",
   "headerBg": "#E2E8F0",
   "footerBg": "#E2E8F0",
   "mapsUrl": null,
-  "chatLayout": "app",
+  "chatLayout": "fullscreen",
   "websiteType": "STATIC_WEBSITE",
   "updatedAt": null
 }
 ```
 
-`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory). `mapsUrl` is `null` until the admin sets a Google Maps embed URL. `chatLayout` defaults to `"app"` and controls the Generative UI chat widget layout.
+`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory). `mapsUrl` is `null` until the admin sets a Google Maps embed URL. `chatLayout` controls how the Generative UI chat opens — `"windowed"` for a centered card, `"fullscreen"` (the default) otherwise. The legacy value `"app"` is treated as `"fullscreen"`. `fontFamily` is either a preset slug (`"nunito"`, `"playfair"`, …) or any Google Fonts family name (`"Noto Sans KR"`, `"Roboto Slab"`, …) — the admin picker offers both; the default is `"Noto Sans KR"`.
 
 **Flow**
 
 1. `WebsiteController.getTheme(UUID)` → `WebsiteThemeService.getTheme(UUID)` → `WebsiteThemeRepository.findById(UUID)`
 2. **DB**: `SELECT * FROM salon_website_theme WHERE salon_id = ?`
-3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write): `heroBg="#0F172A"`, `heroTextColor="#FFFFFF"`, `accentColor="#F59E0B"`, `fontFamily="inter"`, `logoBgColor="#F59E0B"`, `updatedAt=null`.
+3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write): `heroBg="#EEF2F4"`, `heroTextColor="#0F172A"`, `accentColor="#7C3AED"`, `fontFamily="Noto Sans KR"`, `logoBgColor="#7C3AED"`, `chatLayout="fullscreen"`, `updatedAt=null`.
 
 ---
 
@@ -473,21 +473,61 @@ places `GenerativeUIWebsite` is embedded). `history` is the prior turns of the c
 oldest first — the caller (frontend) is the source of truth for conversation state; nothing is
 persisted server-side.
 
+The chat renders **generative-UI cards** (services/staff/hours/location/contact lists, and the
+interactive booking picker) in place of plain assistant text, and those interactions never pass
+through this endpoint. So the frontend injects **bracketed UI-state clues** as `assistant` turns
+in `history`, e.g.:
+
+```json
+{ "role": "assistant", "text": "[Showed the visitor an interactive services card: Haircut, Colour, Beard trim. They can tap \"Book\" on any of them.]" },
+{ "role": "assistant", "text": "[The visitor is using the interactive booking picker for Haircut — they have NOT confirmed a booking. Selected so far — stylist: any available stylist; date: 2026-09-01; time: not chosen yet. Current step: time. ...]" }
+```
+
+This is what lets the assistant answer a later free-text follow-up ("is that booked yet?", "what
+did I pick?", "show me that list again") with context instead of a blank. The system prompt
+(`UI_STATE_NOTES` in `ChatAssistantService`) instructs the model to treat these as current state
+and never echo the brackets. Booking state specifically: an in-progress picker → "not booked
+yet"; a staged proposal → "awaiting your confirm click"; a confirmed booking → the booking id.
+
 **Response** `200 OK`
 
 ```json
 {
-  "reply": "We're open 9am–6pm today.",
-  "toolsUsed": ["salon"],
-  "pendingBooking": null
+  "reply": "Here's what we offer:",
+  "toolsUsed": ["services"],
+  "pendingBooking": null,
+  "ui": { "component": "services", "forBooking": false }
 }
 ```
 
 `toolsUsed` lists which data-lookup tools the model called to answer (`salon`, `staff`,
 `services`, `holidays`, `slots`, `booking-proposal`) — empty when no lookup was needed, or when the
-assistant is unconfigured/unavailable and a fallback reply was returned instead.
+assistant is unconfigured/unavailable and a fallback reply was returned instead. The `show*` /
+`startBookingPicker` render tools are **not** listed here — they're not data lookups; the `ui`
+field is their output.
 
-`pendingBooking` is present only when the assistant staged a booking this turn:
+`ui` is the **generative-UI render directive**: the model decides which interactive card to show
+by calling a render tool (`showServices`, `showStaff`, `showOpeningHours`, `showLocation`,
+`showContact`, `startBookingPicker`), and its choice is forwarded here — the frontend no longer
+guesses the card from the reply text. `null` for a plain-text turn. Shape:
+
+| field | for | meaning |
+|---|---|---|
+| `component` | — | `services` \| `staff` \| `hours` \| `location` \| `contact` \| `booking-picker` |
+| `serviceId` | `booking-picker` | service to book |
+| `staffId` | `booking-picker` | preferred staff member, if the visitor named one |
+| `forStaffId` | `services` | restrict card to what this staff member offers |
+| `forServiceId` | `staff` | restrict card to who can perform this service |
+| `forBooking` | `services` | `true` frames the card as "pick one to book" |
+
+The frontend maps `component` against a fixed registry and **ignores anything it doesn't
+recognise** (the reply text still renders), so a stray or renamed component can't break a turn.
+Quick-action chips ("Our Services", "Find Us", …) still render their card client-side with no
+model call — `ui` only drives free-text turns.
+
+`pendingBooking` is present only when the assistant staged a booking this turn (the direct-detail
+path — the picker path returns `ui.component: "booking-picker"` instead and the visitor completes
+it client-side):
 
 ```json
 {
@@ -517,13 +557,55 @@ and fires the same booking-confirmation email as the step-by-step wizard.
 1. `ChatController.chat(...)` → `ChatAssistantService.reply(salonId, context, message, history)`
 2. Builds a system prompt for the given `context`, replays `history` as `UserMessage`/
    `AssistantMessage`, and hands the model a per-request `SalonDataTools` instance bound to
-   `salonId`. The model can call `getSalonProfile`/`getStaff`/`getServices`/`getHolidays` (plain
-   HTTP calls to this app's own `/api/salon/{salonId}/...` endpoints above), `checkAvailability`
-   (calls `/api/salon/{salonId}/slots`, so it can't invent an open time), and `proposeBooking`,
-   which does **not** call any mutating endpoint — it only records the proposed details onto the
-   response as `pendingBooking`.
+   `salonId`. The model can call:
+   - **lookup tools** — `getSalonProfile`/`getStaff`/`getServices`/`getHolidays` (plain HTTP
+     calls to this app's own `/api/salon/{salonId}/...` endpoints above) and `checkAvailability`
+     (calls `/api/salon/{salonId}/slots`, so it can't invent an open time);
+   - **render tools** — `showServices`/`showStaff`/`showOpeningHours`/`showLocation`/
+     `showContact`/`startBookingPicker`, which hit nothing and only record a `UiDirective` onto
+     the response as `ui` (which interactive card the frontend should render);
+   - `proposeBooking`, which does **not** call any mutating endpoint — it only records the
+     proposed details onto the response as `pendingBooking`.
 3. If the model call fails (no/invalid API key, rate limit, network error), the error is logged
    and a fixed fallback message is returned — the endpoint never returns 5xx for this reason.
+
+### Suggested follow-up questions
+
+`POST /api/salon/{salonId}/chat/followups`
+
+Powers the chips **above the composer** — which are *only* these dynamic suggestions, never the
+fixed category options. The Generative UI chat calls this after every assistant turn — and after
+an instant card rendered from a fixed sidebar option — passing the conversation. `ChatFollowupsService`
+generates 2-4 short next questions **from the latest message** (the assistant's most recent reply
+or the card it just showed); the earlier turns are sent as context only. Not cached. The chat's
+**sidebar and empty-state** cards remain the fixed category options (Our Services / Our Staff /
+Opening Hours / Find Us / Contact Us / Book).
+
+**Request**
+
+```json
+{
+  "context": "website",
+  "history": [
+    { "role": "user", "text": "What services do you offer?" },
+    { "role": "assistant", "text": "[Showed the visitor an interactive services card: Haircut, Colour]" }
+  ]
+}
+```
+
+`history` is the same shape as [`POST .../chat`](#chat-with-the-ai-assistant) — including the
+bracketed UI-state clue lines.
+
+**Response** `200 OK`
+
+```json
+{ "followups": ["How much is a haircut?", "Who does colour?", "Can I book one?"] }
+```
+
+Scoped to what the assistant can answer (services/pricing, staff, hours, location, contact,
+holidays — plus booking only when the salon has the `BOOKING` feature). `followups` is `[]` when
+the model is unconfigured or the call/parse fails — the frontend then shows its static suggestion
+chips instead. Each string is sent to `POST .../chat` verbatim when tapped.
 
 ---
 
@@ -743,7 +825,7 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
   "headerBg": "#0F172A",
   "footerBg": "#0F172A",
   "mapsUrl": "https://www.google.com/maps/embed?pb=...",
-  "chatLayout": "app"
+  "chatLayout": "fullscreen"
 }
 ```
 
@@ -752,12 +834,12 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 | `heroBg` | string | CSS color for the hero section background |
 | `heroTextColor` | string | CSS color for hero text |
 | `accentColor` | string | Primary accent / CTA color |
-| `fontFamily` | string | Font family slug (e.g. `"system"`, `"poppins"`) |
+| `fontFamily` | string | Preset slug (`"poppins"`, …) or a Google Fonts family name (`"Noto Sans KR"`, …); default `"Noto Sans KR"` |
 | `logoBgColor` | string | Background color behind the salon logo |
 | `headerBg` | string | Navigation bar background color |
 | `footerBg` | string | Footer background color |
 | `mapsUrl` | string | Google Maps embed URL for the salon location |
-| `chatLayout` | string | Generative UI chat widget layout; defaults to `"app"` |
+| `chatLayout` | string | How the Generative UI chat opens: `"windowed"` or `"fullscreen"` (default) |
 
 **Response** `200 OK`
 
@@ -772,7 +854,7 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
   "headerBg": "#0F172A",
   "footerBg": "#0F172A",
   "mapsUrl": "https://www.google.com/maps/embed?pb=...",
-  "chatLayout": "app",
+  "chatLayout": "fullscreen",
   "websiteType": "STATIC_WEBSITE",
   "updatedAt": "2026-07-08T12:00:00Z"
 }

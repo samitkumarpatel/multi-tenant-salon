@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Calendar, CalendarCheck, CheckCircle2, Clock, Loader2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, CalendarCheck, CheckCircle2, Clock, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
-import { FONTS, loadGoogleFont, contrastText, isLightColor } from "./theme";
+import { fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
 import {
   ServicesCard, StaffCard, HoursCard, LocationCard, ContactCard, BookingPickerCard,
-  type CardTokens, type PendingBookingFields,
+  type CardTokens, type PendingBookingFields, type PickerProgress,
 } from "./GenerativeUICards";
-import type { Booking, Salon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
+import { type ClosureRange, resolveHolidayRanges } from "./bookingDates";
+import type { Booking, Salon, SalonHoliday, ServiceItem, StaffMember, WebsiteTheme } from "./types";
 
 export interface GenerativeUIWebsiteProps {
   salon: Salon;
@@ -48,13 +49,14 @@ type PendingBookingUI = {
 type CardType = "services" | "staff" | "hours" | "location" | "contact";
 
 type MessageCard =
-  | { type: "staff" | "hours" | "location" | "contact" }
+  | { type: "hours" | "location" | "contact" }
+  | { type: "staff"; forServiceId?: number }
   | { type: "services"; forStaffId?: number }
   | { type: "booking-picker"; serviceId: number; staffId?: number };
 
 type Message =
   | { role: "user"; text: string; time: string }
-  | { role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book"; pendingBooking?: PendingBookingUI; card?: MessageCard };
+  | { role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book"; pendingBooking?: PendingBookingUI; card?: MessageCard; picker?: PickerProgress };
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -92,6 +94,12 @@ function formatDateLabel(iso: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+function sameProgress(a: PickerProgress, b: PickerProgress): boolean {
+  return a.step === b.step && a.staffId === b.staffId && a.staffChosen === b.staffChosen
+    && a.date === b.date && a.time === b.time
+    && a.name === b.name && a.email === b.email && a.phone === b.phone;
+}
+
 type PendingBookingResponse = {
   serviceId: number;
   staffId: number | null;
@@ -102,7 +110,22 @@ type PendingBookingResponse = {
   customerPhone: string | null;
   notes: string | null;
 };
-type ChatApiResponse = { reply: string; toolsUsed?: string[]; pendingBooking?: PendingBookingResponse | null };
+// The assistant picks which interactive card to render by calling a show* / startBookingPicker
+// tool server-side; the backend forwards its choice here. Unknown components are ignored.
+type UiDirectiveResponse = {
+  component: string;
+  serviceId?: number | null;
+  staffId?: number | null;
+  forStaffId?: number | null;
+  forServiceId?: number | null;
+  forBooking?: boolean | null;
+};
+type ChatApiResponse = {
+  reply: string;
+  toolsUsed?: string[];
+  pendingBooking?: PendingBookingResponse | null;
+  ui?: UiDirectiveResponse | null;
+};
 
 const TOOL_LABELS: Record<string, string> = {
   salon: "salon info",
@@ -131,27 +154,22 @@ const CARD_INTRO: Record<CardType, string> = {
   contact: "Here's how to reach us:",
 };
 
-// Disambiguates a free-form LLM reply into a card type using which tool it called plus a
-// keyword match on the visitor's own question. A tool call alone isn't enough signal — the LLM
-// also calls getServices/getStaff internally mid-booking (e.g. to resolve a name the visitor
-// typed), which isn't the visitor asking to browse. Every domain therefore requires its own
-// keyword match on the visitor's actual message. Never guesses when the match is ambiguous or
-// absent — a wrong/duplicate card is worse than no card.
-const SERVICES_PATTERN = /\b(services?|offer(?:ing)?s?|pric(?:e|ing)|menu|treatments?)\b/i;
-const STAFF_PATTERN = /\b(staff|team|stylists?|barbers?|colorists?|who)\b/i;
-const HOURS_PATTERN = /\b(hour|hours|open|opening|close|closing|time)\b/i;
-const LOCATION_PATTERN = /\b(where|address|located|location|direction|map)\b/i;
-const CONTACT_PATTERN = /\b(contact|phone|email|call|reach)\b/i;
-
-function inferCardType(userText: string, toolsUsed: string[]): CardType | undefined {
-  if (toolsUsed.includes("staff") && STAFF_PATTERN.test(userText)) return "staff";
-  if (toolsUsed.includes("services") && SERVICES_PATTERN.test(userText)) return "services";
-  if (toolsUsed.includes("salon")) {
-    const hits = [HOURS_PATTERN.test(userText), LOCATION_PATTERN.test(userText), CONTACT_PATTERN.test(userText)];
-    if (hits.filter(Boolean).length !== 1) return undefined;
-    return hits[0] ? "hours" : hits[1] ? "location" : "contact";
+// Maps the assistant's render directive onto a message card. Any component the assistant names
+// that isn't in this switch is ignored — the reply text still shows — so a stray/renamed
+// component can never break a turn.
+function directiveToCard(ui: UiDirectiveResponse | null): MessageCard | undefined {
+  switch (ui?.component) {
+    case "services": return { type: "services", forStaffId: ui.forStaffId ?? undefined };
+    case "staff": return { type: "staff", forServiceId: ui.forServiceId ?? undefined };
+    case "hours": return { type: "hours" };
+    case "location": return { type: "location" };
+    case "contact": return { type: "contact" };
+    case "booking-picker":
+      return ui.serviceId != null
+        ? { type: "booking-picker", serviceId: ui.serviceId, staffId: ui.staffId ?? undefined }
+        : undefined;
+    default: return undefined;
   }
-  return undefined;
 }
 
 async function requestChatReply(
@@ -159,18 +177,19 @@ async function requestChatReply(
   context: "website" | "booking",
   message: string,
   history: { role: "user" | "assistant"; text: string }[]
-): Promise<{ text: string; toolsUsed: string[]; pendingBooking: PendingBookingResponse | null }> {
+): Promise<{ text: string; toolsUsed: string[]; pendingBooking: PendingBookingResponse | null; ui: UiDirectiveResponse | null }> {
   try {
     const res = await apiFetch<ChatApiResponse>(`${API_BASE}/api/salon/${salonId}/chat`, {
       method: "POST",
       body: JSON.stringify({ context, message, history }),
     });
-    return { text: res.reply, toolsUsed: res.toolsUsed ?? [], pendingBooking: res.pendingBooking ?? null };
+    return { text: res.reply, toolsUsed: res.toolsUsed ?? [], pendingBooking: res.pendingBooking ?? null, ui: res.ui ?? null };
   } catch {
     return {
       text: "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
       toolsUsed: [],
       pendingBooking: null,
+      ui: null,
     };
   }
 }
@@ -216,7 +235,7 @@ function AnimatedSalonName({ text, color }: { text: string; color: string }) {
 
 export function GenerativeUIWebsite({ salon, staff, services, theme, context = "website", onSwitchToWizard }: GenerativeUIWebsiteProps) {
   const isBooking = context === "booking";
-  const font = FONTS[theme.fontFamily as keyof typeof FONTS] ?? FONTS.system;
+  const font = { stack: fontStack(theme.fontFamily) };
   loadGoogleFont(theme.fontFamily);
 
   const accentText = contrastText(theme.accentColor);
@@ -227,12 +246,75 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const [input, setInput]       = useState("");
   const [thinking, setThinking] = useState(false);
   const [started, setStarted]   = useState(false);
+  // How the chat opens is a salon-admin theme setting: "windowed" = the constrained card,
+  // anything else (default) = fullscreen. The header toggle still flips it at runtime.
+  // (Booking context is always full-page and ignores this.)
+  const [isFullscreen, setIsFullscreen] = useState(!isBooking && theme.chatLayout !== "windowed");
+  const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
+  // LLM-suggested next questions, shown as chips above the composer; refreshed after each
+  // assistant turn / instant card, cleared when the visitor sends something.
+  const [followups, setFollowups] = useState<string[]>([]);
+  const [followupsLoading, setFollowupsLoading] = useState(false);
+  const followupKeyRef = useRef<string>("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  // Fullscreen (website context only): lock body scroll and let Esc collapse it.
+  useEffect(() => {
+    if (!isFullscreen || typeof document === "undefined") return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isFullscreen]);
+
+  // After each completed assistant turn (a reply, or an instant card from a sidebar option),
+  // ask the assistant for the questions the visitor is likely to want next and show them as
+  // chips above the composer. Cleared as soon as the visitor's own message lands.
+  useEffect(() => {
+    const reset = () => { setFollowups([]); setFollowupsLoading(false); followupKeyRef.current = ""; };
+    if (thinking) { reset(); return; }
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    if (last.role === "user") { reset(); return; }
+    if (!(last.text || last.card || last.pendingBooking)) return; // empty placeholder
+    const key = `${messages.length}:${last.text}:${last.card?.type ?? ""}:${last.pendingBooking?.status ?? ""}`;
+    if (key === followupKeyRef.current) return;
+    followupKeyRef.current = key;
+    setFollowups([]);
+    setFollowupsLoading(true);
+    apiFetch<{ followups?: string[] }>(`${API_BASE}/api/salon/${salon.id}/chat/followups`, {
+      method: "POST",
+      body: JSON.stringify({ context: isBooking ? "booking" : "website", history: historySnapshot() }),
+    })
+      .then((r) => setFollowups(Array.isArray(r.followups) ? r.followups.slice(0, 4) : []))
+      .catch(() => setFollowups([]))
+      .finally(() => setFollowupsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, thinking]);
+
+  // One-off closures + resolved holiday dates the booking picker's calendar must block. The
+  // server rejects these too (`/slots` returns nothing, `POST /booking` 400s) — this just keeps
+  // the calendar from offering them.
+  useEffect(() => {
+    if (!salon.features?.includes("BOOKING")) return;
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + (salon.bookingAdvanceDays ?? 60));
+    Promise.all([
+      apiFetch<ClosureRange[]>(`${API_BASE}/api/salon/${salon.id}/closures`).catch((): ClosureRange[] => []),
+      apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salon.id}/holidays`).catch((): SalonHoliday[] => []),
+    ]).then(([closures, holidays]) => {
+      setClosedDateRanges([...closures, ...resolveHolidayRanges(holidays, maxDate)]);
+    });
+  }, [salon.id, salon.bookingAdvanceDays, salon.features]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -260,15 +342,77 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     }
   }
 
+  // A generative-UI card carries no prose of its own, so a card-only assistant turn never
+  // reaches the model through the normal history and it can't answer a later "show me that list
+  // again" / "what did you just show me". These synthetic bracketed lines stand in for it.
+  function cardHistoryClue(card: MessageCard): string | null {
+    switch (card.type) {
+      case "services": {
+        const list = services
+          .filter((s) => s.active && (card.forStaffId == null || !s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
+          .map((s) => s.name)
+          .join(", ");
+        return `[Showed the visitor an interactive services card${card.forStaffId != null ? " (filtered to one stylist)" : ""}: ${list || "no active services"}. They can tap "Book" on any of them.]`;
+      }
+      case "staff": {
+        const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
+        const list = staff
+          .filter((m) => m.status === "ACTIVE" && (!svc || !svc.assignedStaffIds?.length || svc.assignedStaffIds.includes(String(m.id))))
+          .map((m) => m.name)
+          .join(", ");
+        return `[Showed the visitor an interactive team card${svc ? ` (who can do ${svc.name})` : ""}: ${list || "no matching team members"}.]`;
+      }
+      case "hours": return "[Showed the visitor the opening-hours card with this week's hours.]";
+      case "location": return "[Showed the visitor the location card with the salon's address and a map link.]";
+      case "contact": return "[Showed the visitor the contact card with the salon's phone and email.]";
+      case "booking-picker": return null; // covered by the live picker-progress clue instead
+    }
+  }
+
+  // The interactive booking picker owns its own state; this turns a lifted snapshot of it into a
+  // clue so the assistant can answer "is that booked yet?" correctly while the visitor is still
+  // mid-flow (it isn't — and it can say exactly what's left to do).
+  function pickerHistoryClue(serviceId: number, p: PickerProgress): string {
+    const serviceName = services.find((s) => s.id === serviceId)?.name ?? `service #${serviceId}`;
+    const stylist = !p.staffChosen
+      ? "not chosen yet"
+      : p.staffId == null
+        ? "any available stylist"
+        : staff.find((s) => s.id === p.staffId)?.name ?? `staff #${p.staffId}`;
+    const dateChosen = p.step === "time" || p.step === "contact";
+    const timeLabel = p.step === "contact" && p.time ? p.time : "not chosen yet";
+    const contactBits = [
+      p.name ? `name "${p.name}"` : null,
+      p.email ? `email "${p.email}"` : null,
+      p.phone ? `phone "${p.phone}"` : null,
+    ].filter(Boolean);
+    const contactState = p.step === "contact"
+      ? (contactBits.length ? ` They have entered ${contactBits.join(", ")}.` : " They have not filled in their contact details yet.")
+      : "";
+    return `[The visitor is using the interactive booking picker for ${serviceName} — they have NOT confirmed a booking. Selected so far — stylist: ${stylist}; date: ${dateChosen ? p.date : "not chosen yet"}; time: ${timeLabel}. Current step: ${p.step}.${contactState} Nothing is booked and no booking has been staged for confirmation: if they ask whether it's booked, tell them not yet — they still need to finish the picker (pick a time, enter their name and an email or phone) and confirm on the review card.]`;
+  }
+
   // Prior turns, formatted for the chat API — captured before the new user message is appended.
+  function assistantHistoryText(m: Extract<Message, { role: "assistant" }>): string | null {
+    const parts: string[] = [];
+    if (m.text) parts.push(m.text);
+    if (m.card?.type === "booking-picker" && m.picker) {
+      parts.push(pickerHistoryClue(m.card.serviceId, m.picker));
+    } else if (m.card) {
+      const clue = cardHistoryClue(m.card);
+      if (clue) parts.push(clue);
+    }
+    if (m.pendingBooking) parts.push(bookingStatusSummary(m.pendingBooking));
+    return parts.length ? parts.join("\n") : null;
+  }
+
   function historySnapshot(): { role: "user" | "assistant"; text: string }[] {
-    return messages
-      .filter((m) => m.text || (m.role === "assistant" && m.pendingBooking))
-      .map((m) =>
-        m.role === "assistant" && m.pendingBooking
-          ? { role: "assistant" as const, text: bookingStatusSummary(m.pendingBooking) }
-          : { role: m.role, text: m.text }
-      );
+    type Turn = { role: "user" | "assistant"; text: string };
+    return messages.flatMap((m): Turn[] => {
+      if (m.role === "user") return m.text ? [{ role: "user", text: m.text }] : [];
+      const text = assistantHistoryText(m);
+      return text ? [{ role: "assistant", text }] : [];
+    });
   }
 
   function replyCta(userText: string): "book" | undefined {
@@ -276,9 +420,9 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   }
 
   function resolveReply(userText: string, history: ReturnType<typeof historySnapshot>) {
-    requestChatReply(salon.id, isBooking ? "booking" : "website", userText, history).then(({ text: reply, toolsUsed, pendingBooking }) => {
+    requestChatReply(salon.id, isBooking ? "booking" : "website", userText, history).then(({ text: reply, toolsUsed, pendingBooking, ui }) => {
       const cta = replyCta(userText);
-      const cardType = inferCardType(userText, toolsUsed);
+      const card = directiveToCard(ui);
       setMessages((prev) => {
         const next = [...prev];
         next[next.length - 1] = {
@@ -288,7 +432,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           time: nowTime(),
           cta,
           pendingBooking: pendingBooking ? { ...pendingBooking, status: "proposed" } : undefined,
-          card: cardType ? { type: cardType } : undefined,
+          card,
         };
         return next;
       });
@@ -378,6 +522,19 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     });
   }
 
+  // Records the picker's live selections onto the message so historySnapshot can turn them into
+  // a clue for the assistant. Bails when nothing changed so a fresh callback identity per render
+  // doesn't churn state.
+  function updatePickerProgress(messageIndex: number, progress: PickerProgress) {
+    setMessages((prev) => {
+      const m = prev[messageIndex];
+      if (m?.role !== "assistant" || (m.picker && sameProgress(m.picker, progress))) return prev;
+      const next = [...prev];
+      next[messageIndex] = { ...m, picker: progress };
+      return next;
+    });
+  }
+
   function cancelBookingPicker(messageIndex: number) {
     setMessages((prev) => {
       const next = [...prev];
@@ -407,6 +564,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   function newChat() {
     setMessages([]);
     setStarted(false);
+    setFollowups([]);
+    followupKeyRef.current = "";
   }
 
   // ── Booking proposal confirm/dismiss ────────────────────────────────────
@@ -500,7 +659,13 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           : services;
         return <ServicesCard services={filtered} tokens={cardTokens} showBookPill={canBook} onBook={(s) => startBooking(s, card.forStaffId)} />;
       }
-      case "staff": return <StaffCard staff={staff} tokens={cardTokens} showBookPill={canBook} onBook={startBookingWithStaff} />;
+      case "staff": {
+        const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
+        const filtered = svc && svc.assignedStaffIds?.length
+          ? staff.filter((m) => svc.assignedStaffIds!.includes(String(m.id)))
+          : staff;
+        return <StaffCard staff={filtered} tokens={cardTokens} showBookPill={canBook} onBook={startBookingWithStaff} />;
+      }
       case "hours": return <HoursCard salon={salon} tokens={cardTokens} />;
       case "location": return <LocationCard salon={salon} tokens={cardTokens} />;
       case "contact": return <ContactCard salon={salon} tokens={cardTokens} />;
@@ -514,8 +679,10 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
             staff={staff}
             tokens={cardTokens}
             initialStaffId={card.staffId}
+            closedDateRanges={closedDateRanges}
             onComplete={(fields) => completeBookingPicker(messageIndex, fields)}
             onCancel={() => cancelBookingPicker(messageIndex)}
+            onProgress={(p) => updatePickerProgress(messageIndex, p)}
           />
         );
       }
@@ -596,6 +763,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     },
   ].filter(Boolean) as ActionButton[];
 
+  // The sidebar and empty-state cards are the fixed category options. LLM-generated follow-up
+  // questions appear separately, as chips above the composer.
   const actionButtons = isBooking ? bookingButtons : websiteButtons;
 
   const chipStyle = {
@@ -604,20 +773,21 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     color: theme.accentColor,
   };
 
-  // Slim pill strip — docked above the composer for the whole conversation (not just until each
-  // one's been tapped once), so the salon's quick questions stay reachable near the chat window
-  // at all times.
-  const suggestionChips = actionButtons.length > 0 && (
+  // The strip above the composer is *only* the assistant's dynamically-generated follow-up
+  // questions, built from the latest message in the thread — never the fixed category options
+  // (those live in the sidebar / empty state). Nothing shows here until we have some.
+  const followupChips = followups.length > 0 && (
     <div className="flex flex-wrap gap-2 justify-center">
-      {actionButtons.map((btn) => (
+      {followups.map((q) => (
         <button
-          key={btn.label}
-          onClick={() => askQuestion(btn)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer"
-          style={btn.directAction ? { backgroundColor: theme.accentColor, borderColor: theme.accentColor, color: accentText } : chipStyle}
+          key={q}
+          onClick={() => sendMessage(q)}
+          disabled={thinking}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          style={chipStyle}
         >
-          <btn.icon className="w-3.5 h-3.5 shrink-0" />
-          {btn.label}
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          {q}
         </button>
       ))}
     </div>
@@ -784,9 +954,12 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
                   <span>{m.tool.done ? `Used ${m.tool.name}` : m.tool.label}</span>
                 </div>
               )}
-              {m.text && (
-                <div style={{ color: msgText }}>
-                  <MessageText text={m.text} />
+              {(m.text || m.card || m.pendingBooking) && (
+                <div
+                  className="rounded-2xl px-4 py-3"
+                  style={{ color: msgText, backgroundColor: asBubbleBg, border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow }}
+                >
+                  {m.text && <MessageText text={m.text} />}
                   {m.cta === "book" && bookCtaBtn}
                   {m.pendingBooking && bookingCard(i, m.pendingBooking)}
                   {m.card && renderCard(i, m.card)}
@@ -818,6 +991,23 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     </div>
   );
 
+  // ── Fullscreen toggle (website context only — booking is already full-page) ──
+
+  function fullscreenToggle(extra = "") {
+    if (isBooking) return null;
+    return (
+      <button
+        onClick={() => setIsFullscreen((v) => !v)}
+        title={isFullscreen ? "Exit fullscreen (Esc)" : "Expand to fullscreen"}
+        aria-label={isFullscreen ? "Exit fullscreen" : "Expand to fullscreen"}
+        className={`hidden sm:flex shrink-0 w-8 h-8 rounded-lg items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${extra}`}
+        style={{ backgroundColor: `${theme.accentColor}14`, color: theme.accentColor }}
+      >
+        {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+      </button>
+    );
+  }
+
   // ── Empty state ──────────────────────────────────────────────────────────
 
   const emptyState = (
@@ -845,17 +1035,17 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     </div>
   );
 
-  // ── Slim sticky header (once conversation has started) ─────────────────
+  // ── Top bar — always visible, spans the chat column ───────────────────
 
-  const chatHeader = started && (
+  const chatHeader = (
     <div
-      className="shrink-0 sticky top-0 z-10 backdrop-blur-md"
-      style={{ backgroundColor: `${topBg}CC`, borderBottom: `1px solid ${topBorder}` }}
+      className="shrink-0 z-10"
+      style={{ backgroundColor: topBg, borderBottom: `1px solid ${topBorder}` }}
     >
-      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 mx-auto max-w-[760px]">
+      <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
         <div className="relative shrink-0">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
             style={{ backgroundColor: avatarBg, color: avatarText }}
           >
             {initials(salon.name)}
@@ -866,19 +1056,23 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate" style={{ color: topText }}>{salon.name}</p>
+          <p className="text-sm font-bold truncate" style={{ color: topText }}>{salon.name}</p>
           <p className="text-[11px]" style={{ color: topDim }}>
             {thinking ? "Thinking…" : isOpenNow(salon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
           </p>
         </div>
-        <button
-          onClick={newChat}
-          title="Start new conversation"
-          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95"
-          style={{ backgroundColor: `${theme.accentColor}14`, color: theme.accentColor }}
-        >
-          <SquarePen className="w-3.5 h-3.5" />
-        </button>
+        {fullscreenToggle()}
+        {started && (
+          <button
+            onClick={newChat}
+            title="Start a new conversation"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
+            style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
+          >
+            <SquarePen className="w-3.5 h-3.5" />
+            Clear chat
+          </button>
+        )}
       </div>
     </div>
   );
@@ -888,21 +1082,15 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const composer = (
     <div className="mx-auto w-full max-w-[760px]">
       <div
-        className="flex items-end gap-2 pl-3.5 pr-2 py-2.5 rounded-xl"
+        className="flex items-end gap-2 pl-4 pr-2 py-3 rounded-2xl"
         style={{ backgroundColor: inputBg, border: `1.5px solid ${inputBorder}` }}
       >
-        <span
-          className="font-mono text-base font-bold leading-[1.7] select-none shrink-0"
-          style={{ color: theme.accentColor }}
-        >
-          ❯
-        </span>
         <textarea
           ref={inputRef}
           value={input}
           rows={1}
           maxLength={2000}
-          placeholder={isBooking ? "Ask about services, or say what you'd like to book…" : "Message…"}
+          placeholder={isBooking ? `Ask about services, or say what you'd like to book…` : `Message ${salon.name}…`}
           className="flex-1 resize-none text-sm outline-none bg-transparent leading-relaxed py-1.5"
           style={{ color: topText, maxHeight: "160px" }}
           onChange={(e) => {
@@ -915,7 +1103,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
         <button
           onClick={send}
           disabled={!sendActive}
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:cursor-not-allowed"
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:cursor-not-allowed"
           style={{
             backgroundColor: sendActive ? theme.accentColor : `${inputBorder}`,
             opacity: sendActive ? 1 : 0.5,
@@ -924,11 +1112,11 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           <Send className="w-4 h-4" style={{ color: sendActive ? accentText : topDim }} />
         </button>
       </div>
-      {!isBooking && (
-        <div className="flex items-center justify-center gap-2 mt-2.5">
-          <span className="text-[10px]" style={{ color: msgDim }}>© {new Date().getFullYear()} {salon.name} · Powered by AI</span>
-        </div>
-      )}
+      <div className="flex items-center justify-center gap-2 mt-2.5">
+        <span className="text-[10px]" style={{ color: msgDim }}>
+          The assistant can make mistakes — please verify important details.
+        </span>
+      </div>
     </div>
   );
 
@@ -938,7 +1126,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const sidebar = actionButtons.length > 0 && (
     <aside
       className="hidden lg:flex lg:flex-col lg:w-[300px] xl:w-[320px] shrink-0 gap-5 px-5 py-6 overflow-y-auto"
-      style={{ borderLeft: `1px solid ${bubbleBorder}`, backgroundColor: asBubbleBg }}
+      style={{ borderRight: `1px solid ${bubbleBorder}`, backgroundColor: asBubbleBg }}
     >
       <div className="flex items-center gap-2.5">
         <div
@@ -1017,6 +1205,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           from { opacity: 0; transform: translateY(4px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes gai-expand { from { opacity: 0.5; } to { opacity: 1; } }
+        .gai-expand { animation: gai-expand 0.18s ease both; }
       `}</style>
 
       {isBooking && (
@@ -1057,6 +1247,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
         className="flex-1 flex flex-col lg:flex-row min-h-0"
         style={{ background: pageBg, fontFamily: font.stack }}
       >
+        {sidebar}
+
         <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {chatHeader}
 
@@ -1065,16 +1257,19 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           </div>
 
           <div className="shrink-0 px-4 sm:px-6 pb-5 pt-3">
-            {started && suggestionChips && (
-              <div className="mx-auto mb-3 max-w-[760px] lg:hidden">
-                {suggestionChips}
+            {started && (followupsLoading || followupChips) && (
+              <div className="mx-auto mb-3 max-w-[760px]">
+                {followupsLoading ? (
+                  <div className="flex items-center justify-center gap-1.5 py-1.5 text-[11px]" style={{ color: msgDim }}>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Preparing suggestions…</span>
+                  </div>
+                ) : followupChips}
               </div>
             )}
             {composer}
           </div>
         </div>
-
-        {sidebar}
       </div>
     </>
   );
@@ -1088,5 +1283,12 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     );
   }
 
-  return <div className="h-full flex flex-col">{innerContent}</div>;
+  return (
+    <div
+      className={isFullscreen ? "gai-expand fixed inset-0 z-50 flex flex-col" : "h-full flex flex-col"}
+      style={isFullscreen ? { background: pageBg } : undefined}
+    >
+      {innerContent}
+    </div>
+  );
 }

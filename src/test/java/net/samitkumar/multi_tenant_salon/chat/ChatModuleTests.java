@@ -70,6 +70,44 @@ class ChatModuleTests {
                 .jsonPath("$.toolsUsed[0]").isEqualTo("booking-proposal");
     }
 
+    @Test
+    void chatEndpointReturnsUiDirectiveWhenModelCallsAShowTool() {
+        var client = RestTestClient.bindToApplicationContext(context).build();
+        var salonId = UUID.randomUUID().toString();
+
+        client.post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "context": "website", "message": "TRIGGER_SHOW_SERVICES what do you offer?", "history": [] }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.ui.component").isEqualTo("services");
+    }
+
+    @Test
+    void chatFollowupsEndpointReturnsRelatedQuestionsForTheConversation() {
+        var client = RestTestClient.bindToApplicationContext(context).build();
+        var salonId = UUID.randomUUID().toString();
+
+        client.post()
+                .uri("/api/salon/{salonId}/chat/followups", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "context": "website", "history": [
+                          { "role": "user", "text": "What services do you offer?" },
+                          { "role": "assistant", "text": "[Showed the visitor an interactive services card: Haircut, Colour]" }
+                        ] }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.followups.length()").isEqualTo(3)
+                .jsonPath("$.followups[0]").isEqualTo("How much is a haircut?");
+    }
+
     @TestConfiguration
     static class FakeChatModelConfig {
 
@@ -104,6 +142,21 @@ class ChatModuleTests {
                         var toolCall = new AssistantMessage.ToolCall("call-1", "function", "proposeBooking", PROPOSE_BOOKING_ARGUMENTS);
                         var assistantMessage = AssistantMessage.builder().content("").toolCalls(List.of(toolCall)).build();
                         return new ChatResponse(List.of(new Generation(assistantMessage)));
+                    }
+
+                    boolean wantsShowServices = prompt.getInstructions().stream()
+                            .anyMatch(m -> m.getText() != null && m.getText().contains("TRIGGER_SHOW_SERVICES"));
+                    if (wantsShowServices) {
+                        var toolCall = new AssistantMessage.ToolCall("call-2", "function", "showServices", "{}");
+                        var assistantMessage = AssistantMessage.builder().content("").toolCalls(List.of(toolCall)).build();
+                        return new ChatResponse(List.of(new Generation(assistantMessage)));
+                    }
+
+                    boolean wantsFollowups = prompt.getInstructions().stream()
+                            .anyMatch(m -> m.getText() != null && m.getText().contains("ask NEXT"));
+                    if (wantsFollowups) {
+                        return new ChatResponse(List.of(new Generation(new AssistantMessage(
+                                "[\"How much is a haircut?\", \"Who does colour?\", \"Can I book one?\"]"))));
                     }
 
                     return new ChatResponse(List.of(new Generation(new AssistantMessage("This is a fixed test reply."))));

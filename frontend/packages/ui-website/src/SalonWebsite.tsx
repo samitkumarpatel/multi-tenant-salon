@@ -4,7 +4,7 @@ import {
   ChevronRight, CalendarCheck, ArrowUp,
 } from "lucide-react";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice } from "./constants";
-import { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText } from "./theme";
+import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
 import { FEATURE_NAV } from "./SiteChrome";
@@ -282,7 +282,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
   useEffect(() => { loadGoogleFont(theme.fontFamily); }, [theme.fontFamily]);
 
-  const fontStack = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
+  const fontStackCss = fontStack(theme.fontFamily);
   const open = isOpenNow(salon.operatingHours);
   const todayName = DAY_ORDER[new Date().getDay()];
   const city = [salon.location?.city, salon.location?.country].filter(Boolean).join(", ");
@@ -370,7 +370,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
   if (currentPage === "book" && hasBooking) {
     return (
-      <div style={{ fontFamily: fontStack }}>
+      <div style={{ fontFamily: fontStackCss }}>
         <BookingWizard
           salon={salon} services={activeServices} staff={activeStaff} theme={theme}
           initialServiceId={bookServiceId} initialStaffId={bookStaffId}
@@ -393,7 +393,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-white text-slate-900" style={{ fontFamily: fontStack }}>
+    <div className="min-h-[100dvh] flex flex-col bg-white text-slate-900" style={{ fontFamily: fontStackCss }}>
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 backdrop-blur-md border-b" style={{ backgroundColor: `${headerBg}CC`, borderColor: headerBorder }}>

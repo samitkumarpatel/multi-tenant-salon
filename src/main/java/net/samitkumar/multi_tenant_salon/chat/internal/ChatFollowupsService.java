@@ -1,0 +1,138 @@
+package net.samitkumar.multi_tenant_salon.chat.internal;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * Suggests the questions a visitor is likely to want to ask <em>next</em>, given the salon's
+ * data and the conversation so far. The frontend shows these as chips above the composer and
+ * refreshes them after every assistant turn (and after an instant card render from a sidebar
+ * option). Scoped to what the chat assistant can actually answer; returns an empty list on any
+ * failure so the frontend can fall back to its static suggestion chips.
+ */
+@Service
+@Slf4j
+class ChatFollowupsService {
+
+    private static final String SYSTEM_PROMPT = """
+            You suggest what a visitor chatting with this salon's assistant is likely to want to
+            ask NEXT. Produce 2 to 4 very short follow-up questions, phrased in the first person
+            as the visitor would type them, at most 8 words each, plain text, no numbering or
+            surrounding quotes.
+
+            Base them ENTIRELY on the LATEST MESSAGE in the conversation (the assistant's most
+            recent reply or the card it just showed) — go one step deeper into that, or to its
+            natural next step (e.g. right after the services were shown: ask a price, ask who
+            performs one, or start a booking; right after a staff member was named: ask what
+            they do or book with them). The earlier turns are context only. Don't repeat a
+            question already asked.
+
+            Stay strictly within what the assistant can answer: this salon's services and
+            pricing, staff, opening hours, location, contact details, and holidays/closures —
+            plus making a booking, but ONLY if "BOOKING" is in the salon's features list. Never
+            suggest questions about memberships, an online shop, loyalty or rewards, analytics,
+            or anything else, even when such a feature is enabled.
+
+            Return ONLY a JSON array of strings, nothing else.
+            """;
+
+    private static final int MAX_FOLLOWUPS = 4;
+    private static final int MAX_LEN = 80;
+
+    private final ChatClient chatClient;
+    private final SalonApiClient salonApiClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    ChatFollowupsService(ChatClient.Builder chatClientBuilder, SalonApiClient salonApiClient) {
+        this.chatClient = chatClientBuilder.build();
+        this.salonApiClient = salonApiClient;
+    }
+
+    List<String> followups(String salonId, List<ChatTurn> history) {
+        try {
+            var turns = history.stream()
+                    .filter(t -> t.text() != null && !t.text().isBlank())
+                    .toList();
+            if (turns.isEmpty()) return List.of();
+
+            var latest = turns.get(turns.size() - 1);
+            var earlier = turns.subList(0, turns.size() - 1).stream()
+                    .map(ChatFollowupsService::render)
+                    .collect(Collectors.joining("\n"));
+
+            var user = salonData(salonId)
+                    + "\n\nEARLIER TURNS (context only):\n" + (earlier.isBlank() ? "(none)" : earlier)
+                    + "\n\nLATEST MESSAGE (base the follow-ups on THIS):\n" + render(latest);
+
+            String content = chatClient.prompt()
+                    .system(SYSTEM_PROMPT)
+                    .user(user)
+                    .call()
+                    .content();
+
+            return parse(content);
+        } catch (Exception e) {
+            log.warn("Follow-up suggestion generation failed for salon {}: {}", salonId, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private static String render(ChatTurn t) {
+        return ("user".equals(t.role()) ? "Visitor: " : "Assistant: ") + t.text();
+    }
+
+    private String salonData(String salonId) {
+        return """
+                SALON PROFILE (note the "features" array — it lists which capabilities, e.g.
+                BOOKING, are enabled for this salon):
+                %s
+
+                STAFF:
+                %s
+
+                SERVICES:
+                %s
+
+                HOLIDAYS / CLOSURES:
+                %s
+                """.formatted(
+                safe(() -> salonApiClient.getSalon(salonId)),
+                safe(() -> salonApiClient.getStaff(salonId)),
+                safe(() -> salonApiClient.getServices(salonId)),
+                safe(() -> salonApiClient.getHolidays(salonId)));
+    }
+
+    private List<String> parse(String content) {
+        if (content == null || content.isBlank()) return List.of();
+        var cleaned = content.strip();
+        if (cleaned.startsWith("```")) {
+            cleaned = cleaned.replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "").strip();
+        }
+        try {
+            return objectMapper.<List<String>>readValue(cleaned, new TypeReference<List<String>>() {}).stream()
+                    .filter(s -> s != null && !s.isBlank() && s.length() <= MAX_LEN)
+                    .map(String::strip)
+                    .distinct()
+                    .limit(MAX_FOLLOWUPS)
+                    .toList();
+        } catch (Exception e) {
+            log.warn("Could not parse follow-up questions from model output: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private static String safe(java.util.function.Supplier<String> call) {
+        try {
+            var v = call.get();
+            return v == null ? "(unavailable)" : v;
+        } catch (Exception e) {
+            return "(unavailable)";
+        }
+    }
+}

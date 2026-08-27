@@ -90,7 +90,9 @@ export interface WebsiteTheme {
   footerBg: string;
   mapsUrl?: string;
   websiteType?: string;
-  chatLayout?: "fullscreen" | "app";
+  /** How the Generative-UI chat opens. "windowed" = the constrained card; anything else
+   *  (incl. the legacy "app" value and undefined) = fullscreen. */
+  chatLayout?: "fullscreen" | "windowed" | "app";
   chatBg?: string;
   updatedAt?: string;
 }

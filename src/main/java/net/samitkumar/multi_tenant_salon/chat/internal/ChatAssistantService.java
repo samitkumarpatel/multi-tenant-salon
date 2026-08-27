@@ -26,13 +26,37 @@ class ChatAssistantService {
             """;
 
     private static final String BOOKING_FLOW_INSTRUCTIONS = """
-            You can also take a booking, without creating it yourself: resolve the requested \
-            service (and staff, if named) to their ids via your lookup tools, call \
-            checkAvailability to confirm a real open slot (never invent a time), collect the \
-            visitor's name and at least one of email/phone, then call proposeBooking with those \
-            exact details. proposeBooking only stages the booking — it appears in the interface \
-            for the visitor to confirm themselves, so after calling it just tell them their \
-            details are ready to review; never ask them to reply "yes" to confirm.
+            You can also take a booking, without ever creating it yourself. The preferred way is \
+            the interactive picker: resolve the requested service (and staff, if the visitor \
+            named one) to their ids via your lookup tools, then call startBookingPicker — the \
+            visitor picks the date and time against real availability and enters their contact \
+            details there, then confirms it themselves, so don't ask for any of that in chat. \
+            Only if the visitor has already stated the service, a specific date and time, and \
+            their name plus an email or phone, skip the picker: call checkAvailability to confirm \
+            a real open slot (never invent a time), then call proposeBooking with those exact \
+            details for them to review. Either way, never ask them to reply "yes" to confirm.
+            """;
+
+    private static final String RENDER_TOOL_INSTRUCTIONS = """
+            You answer with interactive cards, not walls of text. When the visitor wants to see \
+            services, the team, opening hours, the location, or contact details, call the \
+            matching tool — showServices, showStaff, showOpeningHours, showLocation, showContact \
+            — and keep your written reply to a short one-line lead-in; the card carries the \
+            detail. Call the plain lookup tools (getServices, getStaff, getSalonProfile, \
+            getHolidays) only when you need a fact to answer a specific question. You may call a \
+            lookup and its matching show tool in the same turn.
+            """;
+
+    private static final String UI_STATE_NOTES = """
+            Some assistant turns in the history are wrapped in square brackets, e.g. \
+            "[Showed the visitor an interactive services card: ...]" or "[The visitor is using \
+            the interactive booking picker for ...]". These are not things you actually said — \
+            they record generative-UI cards the visitor saw or is interacting with on the page \
+            (the chat renders those instead of plain text). Treat them as the current, reliable \
+            state of the conversation: use them to answer follow-up questions like "is that \
+            booked yet?", "what did I pick?" or "show me that list again" without making the \
+            visitor repeat themselves. Never read the brackets aloud or mention that you \
+            received them.
             """;
 
     private static final String WEBSITE_SYSTEM_PROMPT = """
@@ -42,7 +66,7 @@ class ChatAssistantService {
             answering any question about them, and never invent facts you haven't looked up.
             Keep answers short, warm, and to the point; you may use **bold** for names, prices,
             and key facts, but avoid headings or long lists unless the visitor asked for one.
-            """ + SCOPE_GUARDRAIL + BOOKING_FLOW_INSTRUCTIONS;
+            """ + SCOPE_GUARDRAIL + RENDER_TOOL_INSTRUCTIONS + BOOKING_FLOW_INSTRUCTIONS + UI_STATE_NOTES;
 
     private static final String BOOKING_SYSTEM_PROMPT = """
             You are the AI booking assistant on a salon's booking page. You have tools to look up
@@ -50,7 +74,7 @@ class ChatAssistantService {
             holidays/closures — call the relevant tool(s) before answering, and never invent
             facts you haven't looked up. Keep answers short and to the point, using **bold** for
             prices, durations, and names.
-            """ + SCOPE_GUARDRAIL + BOOKING_FLOW_INSTRUCTIONS;
+            """ + SCOPE_GUARDRAIL + RENDER_TOOL_INSTRUCTIONS + BOOKING_FLOW_INSTRUCTIONS + UI_STATE_NOTES;
 
     private final ChatClient chatClient;
     private final SalonApiClient salonApiClient;
@@ -72,12 +96,12 @@ class ChatAssistantService {
                     .tools(tools)
                     .call()
                     .content();
-            return new ChatReply(content, tools.invokedToolNames(), tools.pendingBooking());
+            return new ChatReply(content, tools.invokedToolNames(), tools.pendingBooking(), tools.uiDirective());
         } catch (Exception e) {
             log.warn("Chat assistant failed for salon {}: {}", salonId, e.getMessage());
             return new ChatReply(
                     "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
-                    List.of(), null);
+                    List.of(), null, null);
         }
     }
 

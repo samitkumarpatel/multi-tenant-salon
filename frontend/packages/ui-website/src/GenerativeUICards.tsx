@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Users, Clock, MapPin, Phone, Mail, Globe, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { formatPrice, CATEGORY_LABEL, STAFF_ROLE_LABEL, DAY_SHORT } from "./constants";
 import { apiFetch, API_BASE } from "./api";
+import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays } from "./bookingDates";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, OperatingHours, AvailableSlot } from "./types";
 
 // ── Shared tokens & shell ────────────────────────────────────────────────────
@@ -286,12 +287,13 @@ function fmt12(t: string) {
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, tokens }: {
+function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, closedDateRanges, tokens }: {
   value: string;
   onChange: (iso: string) => void;
   minDate: Date;
   maxDate: Date;
   closedDays: Set<string>;
+  closedDateRanges: ClosureRange[];
   tokens: CardTokens;
 }) {
   const sel = new Date(`${value}T00:00:00`);
@@ -337,7 +339,7 @@ function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, tokens }:
         {cells.map((d, i) => {
           if (!d) return <span key={i} />;
           const iso = toIso(d);
-          const disabled = d < minDate || d > maxDate || closedDays.has(DAY_ORDER[d.getDay()]);
+          const disabled = d < minDate || d > maxDate || isDateClosed(iso, closedDays, closedDateRanges);
           const isSel = iso === value;
           return (
             <button
@@ -355,17 +357,43 @@ function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, tokens }:
   );
 }
 
-type PickerStep = "staff" | "date" | "time" | "contact";
+export type PickerStep = "staff" | "date" | "time" | "contact";
 
-export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, onComplete, onCancel }: {
+/**
+ * Snapshot of where the visitor is in the interactive booking picker. The picker owns all this
+ * state internally, so without lifting a summary out the chat assistant has no idea a booking is
+ * being put together when the visitor types a free-text question mid-flow ("is that booked yet?").
+ * The parent turns this into a bracketed history clue — see `pickerHistoryClue` in
+ * GenerativeUIWebsite.
+ */
+export type PickerProgress = {
+  step: PickerStep;
+  staffId: number | null;
+  /** false only while still on the staff step — distinguishes "not picked" from "picked: any". */
+  staffChosen: boolean;
+  date: string;
+  /** HH:mm once a slot is picked (contact step reached); null before that. */
+  time: string | null;
+  name: string;
+  email: string;
+  phone: string;
+};
+
+export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, closedDateRanges = [], onComplete, onCancel, onProgress }: {
   salon: Salon;
   service: ServiceItem;
   staff: StaffMember[];
   tokens: CardTokens;
   /** Pre-picked staff member (e.g. entered via "Book with {name}") — skips the staff step entirely. */
   initialStaffId?: number;
+  /** One-off closure + resolved holiday ranges — dates the salon can't be booked on (server
+   *  enforces this too; this keeps the calendar from offering them). */
+  closedDateRanges?: ClosureRange[];
   onComplete: (fields: PendingBookingFields) => void;
   onCancel: () => void;
+  /** Called whenever the visitor's in-progress selections change, so the parent can record a
+   *  history clue for the chat assistant. */
+  onProgress?: (progress: PickerProgress) => void;
 }) {
   const { theme, msgText, msgDim, bubbleBorder, accentText } = tokens;
 
@@ -379,9 +407,11 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
 
   const today = startOfDay(new Date());
   const maxDate = new Date(today.getTime() + (salon.bookingAdvanceDays ?? 60) * 86400000);
-  const closedDays = new Set((salon.operatingHours ?? []).filter((h) => h.closed).map((h) => h.day));
+  const closedDays = closedWeekdays(salon.operatingHours);
 
-  const [date, setDate] = useState(() => toIso(today));
+  // Start on the first date the salon is actually open — not a closed weekday, holiday or closure.
+  const [date, setDate] = useState(() => firstBookableDate(today, maxDate, closedDays, closedDateRanges));
+  const dateIsClosed = isDateClosed(date, closedDays, closedDateRanges);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
@@ -393,6 +423,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
 
   useEffect(() => {
     if (step !== "time") return;
+    if (isDateClosed(date, closedDays, closedDateRanges)) { setSlots([]); return; }
     setLoadingSlots(true);
     setSlotsError(null);
     const params = new URLSearchParams({ serviceId: String(service.id), date });
@@ -403,6 +434,33 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
       .finally(() => setLoadingSlots(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, date, staffId]);
+
+  // Closures/holidays load a beat after mount; if the date we defaulted to turns out closed,
+  // nudge it forward to the next open day (only while still choosing a date).
+  useEffect(() => {
+    if (step === "time" || step === "contact") return;
+    if (!isDateClosed(date, closedDays, closedDateRanges)) return;
+    const next = firstBookableDate(today, maxDate, closedDays, closedDateRanges);
+    if (next !== date) setDate(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closedDateRanges]);
+
+  // Lift a summary of the in-progress selections up to the parent (kept in a ref so a new
+  // callback identity each render doesn't retrigger the effect).
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+  useEffect(() => {
+    onProgressRef.current?.({
+      step,
+      staffId,
+      staffChosen: step !== "staff",
+      date,
+      time: slot ? slot.startTime.slice(0, 5) : null,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+    });
+  }, [step, staffId, date, slot, name, email, phone]);
 
   // Several staff can share a start time — dedupe to one option per time when no specific
   // stylist was chosen; the actual staffId still comes from the picked slot.
@@ -486,14 +544,15 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
 
       {step === "date" && (
         <div className="space-y-3">
-          <MiniCalendar value={date} onChange={setDate} minDate={today} maxDate={maxDate} closedDays={closedDays} tokens={tokens} />
+          <MiniCalendar value={date} onChange={setDate} minDate={today} maxDate={maxDate} closedDays={closedDays} closedDateRanges={closedDateRanges} tokens={tokens} />
           <button
             type="button"
+            disabled={dateIsClosed}
             onClick={() => setStep("time")}
-            className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+            className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: theme.accentColor, color: accentText }}
           >
-            See available times
+            {dateIsClosed ? "Salon closed — pick another date" : "See available times"}
           </button>
         </div>
       )}
@@ -503,16 +562,19 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
           <p className="text-xs font-semibold" style={{ color: msgText }}>
             {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
           </p>
-          {loadingSlots && (
+          {dateIsClosed && (
+            <p className="text-xs" style={{ color: msgDim }}>The salon is closed on this day — go back and pick another date.</p>
+          )}
+          {!dateIsClosed && loadingSlots && (
             <div className="flex items-center gap-2 text-xs py-2" style={{ color: msgDim }}>
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking availability…
             </div>
           )}
-          {slotsError && <p className="text-xs" style={{ color: "#EF4444" }}>{slotsError}</p>}
-          {!loadingSlots && !slotsError && timeOptions.length === 0 && (
+          {!dateIsClosed && slotsError && <p className="text-xs" style={{ color: "#EF4444" }}>{slotsError}</p>}
+          {!dateIsClosed && !loadingSlots && !slotsError && timeOptions.length === 0 && (
             <p className="text-xs" style={{ color: msgDim }}>No open times this day — try another date.</p>
           )}
-          {!loadingSlots && timeOptions.length > 0 && (
+          {!dateIsClosed && !loadingSlots && timeOptions.length > 0 && (
             <div className="grid grid-cols-3 gap-1.5">
               {timeOptions.map((s) => (
                 <button

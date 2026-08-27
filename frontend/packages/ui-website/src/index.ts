@@ -9,7 +9,10 @@ export { BookingWizard } from "./BookingWizard";
 export { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 export { SiteHeader, SiteFooter, FEATURE_NAV } from "./SiteChrome";
 
-export { DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText, relLuminance } from "./theme";
+export { DEFAULT_THEME, FONTS, loadGoogleFont, fontStack, isLightColor, contrastText, relLuminance } from "./theme";
+// The full Google Fonts list is a large data module — imported directly from
+// "@salon/ui-website/google-fonts" by the admin font picker, deliberately not re-exported here
+// so it stays out of the public website bundle.
 export { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice, formatDate, openDays } from "./constants";
 export { apiFetch, API_BASE } from "./api";
 

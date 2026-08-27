@@ -41,7 +41,9 @@ class WebsiteModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.salonId").isEqualTo(salonId.toString())
-                .jsonPath("$.websiteType").isEqualTo("STATIC_WEBSITE");
+                .jsonPath("$.websiteType").isEqualTo("STATIC_WEBSITE")
+                .jsonPath("$.chatLayout").isEqualTo("fullscreen")
+                .jsonPath("$.fontFamily").isEqualTo("Noto Sans KR");
     }
 
     @Test
