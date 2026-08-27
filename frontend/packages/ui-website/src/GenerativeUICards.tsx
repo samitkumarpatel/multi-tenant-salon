@@ -26,11 +26,11 @@ function CardShell({ title, icon: Icon, tokens, children }: { title: string; ico
       className="mt-2.5 rounded-2xl overflow-hidden"
       style={{ border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow, backgroundColor: asBubbleBg, maxWidth: 420 }}
     >
-      <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
+      <div className="px-3.5 py-2.5 flex items-center gap-2 sm:px-4" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
         <Icon className="w-3.5 h-3.5" style={{ color: theme.accentColor }} />
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: theme.accentColor }}>{title}</p>
       </div>
-      <div className="px-4 py-3">{children}</div>
+      <div className="px-3.5 py-3 sm:px-4">{children}</div>
     </div>
   );
 }
@@ -332,9 +332,9 @@ function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, closedDat
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <span key={i} className="text-[9px] font-bold text-center" style={{ color: msgDim }}>{d}</span>
+          <span key={i} className="text-[10px] font-bold text-center" style={{ color: msgDim }}>{d}</span>
         ))}
         {cells.map((d, i) => {
           if (!d) return <span key={i} />;
@@ -345,7 +345,7 @@ function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, closedDat
             <button
               key={i} type="button" disabled={disabled}
               onClick={() => onChange(iso)}
-              className="aspect-square rounded-lg text-[11px] font-medium flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-25"
+              className="aspect-square min-h-[36px] rounded-lg text-xs font-medium flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-25"
               style={isSel ? { backgroundColor: theme.accentColor, color: accentText } : { color: msgText }}
             >
               {d.getDate()}
@@ -581,7 +581,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
                   key={s.startTime}
                   type="button"
                   onClick={() => { setSlot(s); setStep("contact"); }}
-                  className="px-2 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer"
+                  className="px-1 py-2 rounded-lg text-[11px] font-semibold cursor-pointer tabular-nums"
                   style={{ backgroundColor: `${theme.accentColor}10`, color: theme.accentColor, border: `1px solid ${theme.accentColor}30` }}
                 >
                   {fmt12(s.startTime)}
@@ -599,17 +599,17 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
           </p>
           <div>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name"
-              className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={inputStyle} />
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={inputStyle} />
             {nameError && <p className="text-[10px] mt-1 px-0.5" style={{ color: "#EF4444" }}>{nameError}</p>}
           </div>
           <div>
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" autoComplete="email" inputMode="email"
-              className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={inputStyle} />
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={inputStyle} />
             {emailError && <p className="text-[10px] mt-1 px-0.5" style={{ color: "#EF4444" }}>{emailError}</p>}
           </div>
           <div>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional if email given)" type="tel" autoComplete="tel" inputMode="tel"
-              className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={inputStyle} />
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={inputStyle} />
             {phoneError && <p className="text-[10px] mt-1 px-0.5" style={{ color: "#EF4444" }}>{phoneError}</p>}
             {!hasContact && !emailError && !phoneError && (
               <p className="text-[10px] mt-1 px-0.5" style={{ color: msgDim }}>Add an email or phone number so we can reach you.</p>

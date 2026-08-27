@@ -34,7 +34,11 @@ class ChatAssistantService {
             Only if the visitor has already stated the service, a specific date and time, and \
             their name plus an email or phone, skip the picker: call checkAvailability to confirm \
             a real open slot (never invent a time), then call proposeBooking with those exact \
-            details for them to review. Either way, never ask them to reply "yes" to confirm.
+            details for them to review. Either way, never ask them to reply "yes" to confirm. \
+            Never tell the visitor to pick a date/time from a picker, calendar or "below" unless \
+            you actually called startBookingPicker with a resolved serviceId in this same turn — \
+            if you don't know which service yet, call showServices with forBooking=true and ask \
+            which one instead of referring to a picker that won't appear.
             """;
 
     private static final String RENDER_TOOL_INSTRUCTIONS = """

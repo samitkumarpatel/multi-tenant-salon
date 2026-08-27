@@ -157,17 +157,25 @@ const CARD_INTRO: Record<CardType, string> = {
 // Maps the assistant's render directive onto a message card. Any component the assistant names
 // that isn't in this switch is ignored — the reply text still shows — so a stray/renamed
 // component can never break a turn.
-function directiveToCard(ui: UiDirectiveResponse | null): MessageCard | undefined {
+function directiveToCard(ui: UiDirectiveResponse | null, services: ServiceItem[]): MessageCard | undefined {
   switch (ui?.component) {
     case "services": return { type: "services", forStaffId: ui.forStaffId ?? undefined };
     case "staff": return { type: "staff", forServiceId: ui.forServiceId ?? undefined };
     case "hours": return { type: "hours" };
     case "location": return { type: "location" };
     case "contact": return { type: "contact" };
-    case "booking-picker":
-      return ui.serviceId != null
-        ? { type: "booking-picker", serviceId: ui.serviceId, staffId: ui.staffId ?? undefined }
-        : undefined;
+    case "booking-picker": {
+      if (ui.serviceId != null) {
+        return { type: "booking-picker", serviceId: ui.serviceId, staffId: ui.staffId ?? undefined };
+      }
+      // The model opened the picker but never resolved a service id, so the picker can't render —
+      // don't leave its "pick a date below" reply pointing at nothing. One active service → open it
+      // directly; otherwise show the services card so the visitor taps one to start.
+      const active = services.filter((s) => s.active);
+      return active.length === 1
+        ? { type: "booking-picker", serviceId: active[0].id, staffId: ui.staffId ?? undefined }
+        : { type: "services" };
+    }
     default: return undefined;
   }
 }
@@ -209,7 +217,7 @@ function MdText({ text }: { text: string }) {
 }
 function MessageText({ text }: { text: string }) {
   return (
-    <span className="whitespace-pre-line text-[15px] leading-relaxed">
+    <span className="whitespace-pre-line break-words text-[15px] leading-relaxed">
       {text.split("\n").map((line, i) => (
         <span key={i}>{i > 0 && <br />}<MdText text={line} /></span>
       ))}
@@ -422,7 +430,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   function resolveReply(userText: string, history: ReturnType<typeof historySnapshot>) {
     requestChatReply(salon.id, isBooking ? "booking" : "website", userText, history).then(({ text: reply, toolsUsed, pendingBooking, ui }) => {
       const cta = replyCta(userText);
-      const card = directiveToCard(ui);
+      const card = directiveToCard(ui, services);
       setMessages((prev) => {
         const next = [...prev];
         next[next.length - 1] = {
@@ -840,7 +848,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
       const service = services.find((s) => s.id === pb.serviceId);
       return (
         <div
-          className="mt-2.5 rounded-2xl p-4 flex items-start gap-3"
+          className="mt-2.5 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3"
           style={{ backgroundColor: `${theme.accentColor}12`, border: `1px solid ${theme.accentColor}35` }}
         >
           <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: theme.accentColor }} />
@@ -866,10 +874,10 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
         className="mt-2.5 rounded-2xl overflow-hidden"
         style={{ border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow, backgroundColor: asBubbleBg, maxWidth: 380 }}
       >
-        <div className="px-4 py-2.5" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
+        <div className="px-3.5 py-2.5 sm:px-4" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
           <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: theme.accentColor }}>Review your booking</p>
         </div>
-        <div className="px-4 py-3 space-y-1.5 text-sm">
+        <div className="px-3.5 py-3 space-y-1.5 text-sm sm:px-4">
           <div className="flex justify-between gap-3">
             <span style={{ color: msgDim }}>Service</span>
             <span className="font-medium text-right" style={{ color: msgText }}>{service?.name ?? `Service #${pb.serviceId}`}</span>
@@ -894,7 +902,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           )}
         </div>
         {pb.status === "error" && (
-          <div className="px-4 pb-2 text-xs" style={{ color: errorColor }}>{pb.error}</div>
+          <div className="px-3.5 pb-2 text-xs sm:px-4" style={{ color: errorColor }}>{pb.error}</div>
         )}
         <div className="px-3 pb-3 pt-1 flex gap-2">
           <button
@@ -934,7 +942,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
             </div>
           </div>
         ) : (
-          <div key={i} className="flex items-start gap-3">
+          <div key={i} className="flex items-start gap-2.5 sm:gap-3">
             <div
               className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
               style={{ backgroundColor: avatarBg, color: avatarText }}
@@ -954,17 +962,19 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
                   <span>{m.tool.done ? `Used ${m.tool.name}` : m.tool.label}</span>
                 </div>
               )}
-              {(m.text || m.card || m.pendingBooking) && (
+              {(m.text || m.cta === "book") && (
                 <div
-                  className="rounded-2xl px-4 py-3"
+                  className="rounded-2xl px-3.5 py-3 sm:px-4"
                   style={{ color: msgText, backgroundColor: asBubbleBg, border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow }}
                 >
                   {m.text && <MessageText text={m.text} />}
                   {m.cta === "book" && bookCtaBtn}
-                  {m.pendingBooking && bookingCard(i, m.pendingBooking)}
-                  {m.card && renderCard(i, m.card)}
                 </div>
               )}
+              {/* Interactive cards sit outside the prose bubble — nesting a bordered card inside a
+                  padded bubble stacks 3 layers of horizontal padding and is unusably tight on phones. */}
+              {m.pendingBooking && bookingCard(i, m.pendingBooking)}
+              {m.card && renderCard(i, m.card)}
             </div>
           </div>
         )
