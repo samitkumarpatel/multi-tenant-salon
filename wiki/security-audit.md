@@ -36,6 +36,43 @@ else.
 
 ---
 
+## Follow-up fix — Unconditional dev-mode security bypass found uncommitted (found & fixed 2026-08-26)
+
+Not part of the original audit — found while implementing an unrelated feature (the Gen UI chat) and reviewing
+`git status`/`git diff` before finishing up. `httpSecurityCustomizer()` had an uncommitted local change:
+
+```java
+if (Boolean.TRUE) {
+    log.warn("Running in local dev mode; disabling security for convenience");
+    return http -> http.csrf(AbstractHttpConfigurer::disable)
+            .authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
+}
+```
+
+**Impact:** unconditionally `permitAll()`'d on `/**` — not scoped to any environment check, so every namespace
+including `/api/salon-super-admin/**` and `/api/salon-admin/{salonId}/**` (both otherwise strongly enforced, see
+"What's already solid" below) would have been wide open had this ever reached a commit or a real deployment.
+
+**Fix:** replaced the unconditional bypass with a check on whether `spring.security.oauth2.resourceserver.jwt.issuer-uri`
+is still its `application.yaml` default (`http://localhost:9000`, i.e. `OAUTH2_ISSUER_URI` was never set):
+
+```java
+if (issuerUri.contains("localhost")) {
+    log.warn("No OAuth2 issuer configured (still the localhost default) — running with security disabled for local development.");
+    return http -> ...permitAll...
+}
+```
+
+Deliberately **not** implemented as a check against the incoming request's `Host` header — that would be
+spoofable (anyone could send `Host: localhost` to a real deployed instance and bypass auth). Gating on whether a
+real issuer was ever configured is a startup-time-only signal outside any request's control, and a real deployment
+already has to set `OAUTH2_ISSUER_URI` to an actual issuer for JWT validation to function at all, so the check is
+correct in both directions with no extra configuration needed.
+
+**Location:** `MultiTenantSalonApplication.java:76-83`
+
+---
+
 ## Headline
 
 The tenant boundary is real and well-built: `/api/salon-admin/{salonId}/**` is guarded by a custom

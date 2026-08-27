@@ -22,6 +22,7 @@ info:
     - `/api/salon/{salonId}/staff/...` — view staff members
     - `/api/salon/{salonId}/booking/...` — slot discovery and appointment creation
     - `/api/salon/{salonId}/website` — public website theme
+    - `/api/salon/{salonId}/chat` — AI assistant for the Generative UI website mode
 
     ### Admin sub-paths
     - `/api/salon-admin/{salonId}/services/...` — full CRUD on the service catalog
@@ -69,6 +70,11 @@ tags:
       Customer-facing appointment flow — slot discovery and booking creation/retrieval.
   - name: Website
     description: Customer-facing website theme — read the public visual theme for a salon.
+  - name: Chat
+    description: |
+      Customer-facing AI assistant for the Generative UI website mode. Backed by an Anthropic
+      model with tool-calling access to the salon's own public profile/staff/services/holidays
+      endpoints — answers are grounded in live data, never invented.
   - name: SalonAdmin
     description: |
       Admin operations on the salon aggregate — update details, manage features, delete.
@@ -413,8 +419,9 @@ paths:
       description: |
         Returns the visual theme used to render the salon's public-facing website.
         If no theme has been saved yet, sensible defaults are returned without touching the DB:
-        `heroBg="#F8FAFC"`, `heroTextColor="#0F172A"`, `accentColor="#1D4ED8"`, `fontFamily="system"`,
-        `logoBgColor="#10B981"`, `headerBg="#E2E8F0"`, `footerBg="#E2E8F0"`, `chatLayout="app"`, `updatedAt=null`.
+        `heroBg="#EEF2F4"`, `heroTextColor="#0F172A"`, `accentColor="#7C3AED"`, `fontFamily="Noto Sans KR"`,
+        `logoBgColor="#7C3AED"`, `headerBg="#E2E8F0"`, `footerBg="#E2E8F0"`, `chatLayout="fullscreen"`, `updatedAt=null`.
+        `fontFamily` is either a preset slug or any Google Fonts family name.
       operationId: getTheme
       responses:
         "200":
@@ -425,6 +432,68 @@ paths:
                 $ref: "#/components/schemas/WebsiteTheme"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  # ─── Customer — Chat ──────────────────────────────────────────────────────────
+
+  /api/salon/{salonId}/chat:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+
+    post:
+      tags: [Chat]
+      summary: Send a message to the salon's AI assistant (public)
+      description: |
+        Used by the Generative UI website mode. The assistant is scoped to this `salonId` only —
+        it looks up live data via tool calls against this salon's own profile/staff/services/
+        holidays endpoints and never accepts a salon id from the caller-supplied message. If the
+        underlying model is unavailable or unconfigured, a friendly fallback `reply` is returned
+        with an empty `toolsUsed` instead of an error.
+      operationId: chatWithAssistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+
+  /api/salon/{salonId}/chat/followups:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+
+    post:
+      tags: [Chat]
+      summary: Suggested next questions for the conversation (public)
+      description: |
+        The assistant suggests 2-4 short questions the visitor is likely to want to ask next,
+        derived from the LATEST message in `history` (its most recent reply / the card it just
+        showed); the earlier turns are context only. The Generative UI chat shows these as the
+        chips above the composer — which are exclusively these dynamic suggestions — and
+        refreshes them after every assistant turn (and after an instant card rendered from a
+        sidebar option). Scoped to what the assistant can actually answer (services/pricing,
+        staff, hours, location, contact, holidays — plus booking only if the salon has the
+        `BOOKING` feature). Not cached. Returns an empty `followups` array when the model is
+        unconfigured or errors — nothing is shown above the composer in that case.
+      operationId: getChatFollowups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatFollowupsRequest"
+      responses:
+        "200":
+          description: Follow-up questions (possibly empty)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatFollowupsResponse"
 
   # ─── Admin — Login / Session ─────────────────────────────────────────────────
 
@@ -1343,7 +1412,9 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
+          description: |
+            Salon UUID or handler slug — same resolution rule as the `salonId` parameter used
+            elsewhere (UUID tried first, falls back to a handler lookup; 404 if neither matches).
       responses:
         "200":
           description: Salon found
@@ -1365,7 +1436,9 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
+          description: |
+            Salon UUID or handler slug — same resolution rule as the `salonId` parameter used
+            elsewhere (UUID tried first, falls back to a handler lookup; 404 if neither matches).
       responses:
         "200":
           description: Salon disabled; returns updated salon
@@ -1388,7 +1461,9 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
+          description: |
+            Salon UUID or handler slug — same resolution rule as the `salonId` parameter used
+            elsewhere (UUID tried first, falls back to a handler lookup; 404 if neither matches).
       requestBody:
         required: true
         content:
@@ -1422,7 +1497,9 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
+          description: |
+            Salon UUID or handler slug — same resolution rule as the `salonId` parameter used
+            elsewhere (UUID tried first, falls back to a handler lookup; 404 if neither matches).
       requestBody:
         required: true
         content:
@@ -1455,7 +1532,9 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
+          description: |
+            Salon UUID or handler slug — same resolution rule as the `salonId` parameter used
+            elsewhere (UUID tried first, falls back to a handler lookup; 404 if neither matches).
       responses:
         "200":
           description: Salon enabled; returns updated salon
@@ -1712,8 +1791,11 @@ components:
       required: true
       schema:
         type: string
-        format: uuid
-      description: Salon UUID
+      description: |
+        Salon UUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) or handler slug (`glam-salon`).
+        UUID form is tried first; if the value isn't a valid UUID it falls back to a handler
+        lookup — the same rule `GET /api/salon/{salonIdOrHandler}` uses. Returns `404` if
+        neither matches.
 
     ServiceId:
       name: serviceId
@@ -2615,6 +2697,7 @@ components:
           type: string
         fontFamily:
           type: string
+          description: Preset slug ("nunito", "playfair", ...) or any Google Fonts family name ("Noto Sans KR", ...). Default "Noto Sans KR".
         logoBgColor:
           type: string
         headerBg:
@@ -2628,13 +2711,151 @@ components:
           description: Google Maps embed URL for the salon location
         chatLayout:
           type: string
-          description: Generative UI chat widget layout (e.g. "app"); defaults to "app"
-          example: "app"
+          enum: [fullscreen, windowed]
+          description: |
+            How the Generative UI chat opens: "windowed" = a centered card; anything else
+            (default, and the legacy value "app") = fullscreen.
+          example: "fullscreen"
         websiteType:
           $ref: "#/components/schemas/WebsiteType"
         updatedAt:
           type: string
           format: date-time
+
+    # ── Chat ───────────────────────────────────────────────────────────────────
+
+    ChatTurn:
+      type: object
+      required: [role, text]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        text:
+          type: string
+          description: |
+            The turn's text. An `assistant` turn may also be a synthetic UI-state note authored
+            by the frontend and wrapped in square brackets — e.g.
+            `[Showed the visitor an interactive services card: Haircut, Colour]` or
+            `[The visitor is using the interactive booking picker for Haircut — stylist: any;
+            date: 2026-09-01; time: not chosen yet; ...]`. These stand in for generative-UI
+            cards the visitor saw or is interacting with (which the chat renders instead of
+            prose), so the assistant can answer follow-ups about them. The system prompt tells
+            the model to treat them as current state and never echo the brackets.
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        context:
+          type: string
+          enum: [website, booking]
+          description: Which surface the chat is embedded in; shapes the assistant's persona/tone.
+        message:
+          type: string
+        history:
+          type: array
+          description: |
+            Prior turns of the conversation, oldest first. The frontend is the source of truth
+            for conversation state (nothing is persisted server-side) and injects bracketed
+            UI-state notes as `assistant` turns for interactive cards — see `ChatTurn.text`.
+          items:
+            $ref: "#/components/schemas/ChatTurn"
+
+    ChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        toolsUsed:
+          type: array
+          description: |
+            Names of the data-lookup tools the assistant called to answer (e.g. "salon", "staff",
+            "services", "holidays", "booking-proposal"). Empty when the reply needed no live
+            lookup, or when the assistant is degraded/unconfigured and returned a fallback message.
+          items:
+            type: string
+        pendingBooking:
+          description: |
+            Present only when the assistant staged a booking this turn (after calling
+            checkAvailability and collecting the visitor's details). Same shape as
+            CreateBookingRequest — the client is expected to show this to the visitor for
+            confirmation and, only once they explicitly confirm, POST it verbatim to
+            `/api/salon/{salonId}/booking` to actually create it. The assistant never creates a
+            booking itself.
+          allOf:
+            - $ref: "#/components/schemas/CreateBookingRequest"
+          nullable: true
+        ui:
+          description: |
+            Which interactive generative-UI card the assistant chose to render for this turn, by
+            calling one of its `show*` / `startBookingPicker` tools (the model decides — the
+            client no longer guesses from the reply text). `null` when the turn is plain text.
+            The client maps `component` to a card and ignores any value it doesn't recognise, so
+            an unknown/renamed component degrades to text rather than breaking the turn.
+          allOf:
+            - $ref: "#/components/schemas/UiDirective"
+          nullable: true
+
+    ChatFollowupsRequest:
+      type: object
+      required: [history]
+      properties:
+        context:
+          type: string
+          enum: [website, booking]
+          description: Which surface the chat is on; same meaning as `ChatRequest.context`.
+        history:
+          type: array
+          description: The conversation so far, oldest first — same shape as `ChatRequest.history`.
+          items:
+            $ref: "#/components/schemas/ChatTurn"
+
+    ChatFollowupsResponse:
+      type: object
+      properties:
+        followups:
+          type: array
+          description: |
+            2-4 short first-person questions the visitor is likely to want to ask next, derived
+            from the latest message in the thread. Empty when the assistant is
+            unconfigured/unavailable.
+          items:
+            type: string
+          example: ["How much is a haircut?", "Who does colour?", "Can I book one?"]
+
+    UiDirective:
+      type: object
+      required: [component]
+      properties:
+        component:
+          type: string
+          enum: [services, staff, hours, location, contact, booking-picker]
+          description: The card to render.
+        serviceId:
+          type: integer
+          format: int64
+          nullable: true
+          description: "`booking-picker`: the service to book."
+        staffId:
+          type: integer
+          format: int64
+          nullable: true
+          description: "`booking-picker`: preferred staff member, if the visitor named one."
+        forStaffId:
+          type: integer
+          format: int64
+          nullable: true
+          description: "`services`: restrict the card to what this staff member offers."
+        forServiceId:
+          type: integer
+          format: int64
+          nullable: true
+          description: "`staff`: restrict the card to who can perform this service."
+        forBooking:
+          type: boolean
+          nullable: true
+          description: "`services`: true frames the card as \"pick one to book\" rather than browsing."
 
     SaveThemeRequest:
       type: object
@@ -2647,6 +2868,7 @@ components:
           type: string
         fontFamily:
           type: string
+          description: Preset slug ("nunito", "playfair", ...) or any Google Fonts family name ("Noto Sans KR", ...). Default "Noto Sans KR".
         logoBgColor:
           type: string
         headerBg:
@@ -2660,8 +2882,11 @@ components:
           description: Google Maps embed URL for the salon location
         chatLayout:
           type: string
-          description: Generative UI chat widget layout (e.g. "app"); defaults to "app" when omitted
-          example: "app"
+          enum: [fullscreen, windowed]
+          description: |
+            How the Generative UI chat opens: "windowed" = a centered card; anything else
+            (default when omitted, and the legacy value "app") = fullscreen.
+          example: "fullscreen"
 
     WebsiteType:
       type: string

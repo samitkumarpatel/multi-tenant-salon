@@ -13,7 +13,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.util.UUID;
 
-@ApplicationModuleTest
+@ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
 @Import(TestcontainersConfiguration.class)
 class WebsiteModuleTests {
 
@@ -41,7 +41,9 @@ class WebsiteModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.salonId").isEqualTo(salonId.toString())
-                .jsonPath("$.websiteType").isEqualTo("STATIC_WEBSITE");
+                .jsonPath("$.websiteType").isEqualTo("STATIC_WEBSITE")
+                .jsonPath("$.chatLayout").isEqualTo("fullscreen")
+                .jsonPath("$.fontFamily").isEqualTo("Noto Sans KR");
     }
 
     @Test

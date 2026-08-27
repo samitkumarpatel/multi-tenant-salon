@@ -20,8 +20,9 @@ import {
 import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "./constants";
-import { FONTS, loadGoogleFont, contrastText } from "./theme";
+import { fontStack, loadGoogleFont, contrastText } from "./theme";
 import PhoneInput from "./PhoneInput";
+import { type ClosureRange, isClosedByRange, resolveHolidayRanges } from "./bookingDates";
 import type {
   Salon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country, SalonHoliday,
 } from "./types";
@@ -29,12 +30,6 @@ import type {
 const CUSTOMER_API = `${API_BASE}/api/salon`;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-type ClosureRange = { startDate: string; endDate: string };
-
-function isClosedByRange(iso: string, ranges: ClosureRange[]): boolean {
-  return ranges.some((r) => iso >= r.startDate && iso <= r.endDate);
-}
 
 function fmt12(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -301,30 +296,6 @@ function dedupeByTime(slots: AvailableSlot[]): AvailableSlot[] {
     if (!existing || existing.booked) map.set(s.startTime, s);
   }
   return [...map.values()];
-}
-
-/**
- * Expand holidays into ClosureRange[]  (single-day ranges) for the visible booking window.
- * Recurring holidays (year == null) are generated for the current and next calendar year.
- */
-function resolveHolidayRanges(holidays: SalonHoliday[], maxDate: Date): ClosureRange[] {
-  const todayISO = toISODate(new Date());
-  const maxISO   = toISODate(maxDate);
-  const maxYear  = maxDate.getFullYear();
-  const ranges: ClosureRange[] = [];
-  for (const h of holidays) {
-    const pad2 = (n: number) => String(n).padStart(2, "0");
-    if (h.year == null) {
-      for (let y = new Date().getFullYear(); y <= maxYear + 1; y++) {
-        const iso = `${y}-${pad2(h.month)}-${pad2(h.day)}`;
-        if (iso >= todayISO && iso <= maxISO) ranges.push({ startDate: iso, endDate: iso });
-      }
-    } else {
-      const iso = `${h.year}-${pad2(h.month)}-${pad2(h.day)}`;
-      if (iso >= todayISO && iso <= maxISO) ranges.push({ startDate: iso, endDate: iso });
-    }
-  }
-  return ranges;
 }
 
 /**
@@ -1434,7 +1405,7 @@ export function BookingWizard({
       .catch(() => {});
   }, [salon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fontStack  = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
+  const fontStackCss = fontStack(theme.fontFamily);
   const accent: Accent = {
     color:  theme.accentColor,
     text:   contrastText(theme.accentColor),
@@ -1498,7 +1469,7 @@ export function BookingWizard({
   }
 
   return (
-    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStack }}>
+    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStackCss }}>
       {/* Accent ribbon */}
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 

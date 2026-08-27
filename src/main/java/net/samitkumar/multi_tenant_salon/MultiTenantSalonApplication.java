@@ -74,7 +74,12 @@ public class MultiTenantSalonApplication {
 
 
 	@Bean
-	ThrowingCustomizer<HttpSecurity> httpSecurityCustomizer() {
+	ThrowingCustomizer<HttpSecurity> httpSecurityCustomizer(
+			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
+		if (issuerUri.contains("localhost")) {
+			log.warn("No OAuth2 issuer configured (still the localhost default) — running with security disabled for local development.");
+			return http -> http.csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
+		}
 		return http ->
 				http
 						.csrf(AbstractHttpConfigurer::disable)

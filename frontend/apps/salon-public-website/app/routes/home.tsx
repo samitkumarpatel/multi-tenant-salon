@@ -36,7 +36,7 @@ export default function PublicWebsitePage() {
           background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#1E293B"}`,
         }}
       >
-        <div className="w-full sm:max-w-[700px] h-[100dvh] sm:h-[calc(100dvh-48px)]">
+        <div className="w-full sm:max-w-[700px] lg:max-w-[1080px] h-[100dvh] sm:h-[calc(100dvh-48px)] sm:rounded-2xl sm:overflow-hidden sm:shadow-2xl">
           <GenerativeUIWebsite
             salon={data.salon}
             staff={data.staff}

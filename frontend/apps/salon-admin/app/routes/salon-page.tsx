@@ -2,14 +2,16 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { X, Palette, Check, Wand2, RotateCcw } from "lucide-react";
+import { X, Palette, Check, Wand2, RotateCcw, ChevronDown } from "lucide-react";
 import {
-  SalonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS, loadGoogleFont, isLightColor, contrastText,
+  SalonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS,
+  loadGoogleFont, fontStack, isLightColor, contrastText,
 } from "@salon/ui-website";
 import type { WebsiteTheme, Salon, StaffMember, ServiceItem } from "@salon/ui-website";
+import { GOOGLE_FONTS, type GoogleFontCategory } from "@salon/ui-website/google-fonts";
 import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
 import { SALON_DOMAIN } from "~/lib/config";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -196,6 +198,113 @@ function ColorPicker({ label, value, onChange }: {
   );
 }
 
+// ── Admin-only: font picker (14 presets + searchable full Google Fonts list) ───
+
+const FONT_CATEGORIES = ["All", "Sans Serif", "Serif", "Display", "Handwriting", "Monospace"] as const;
+
+function FontField({ value, onChange, accent }: {
+  value: string;
+  onChange: (v: string) => void;
+  accent: "violet" | "amber";
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [cat, setCat] = useState<GoogleFontCategory | "All">("All");
+
+  const isPreset = value in FONTS;
+  const selCls = accent === "violet"
+    ? "border-violet-400 bg-violet-50 text-violet-800"
+    : "border-amber-400 bg-amber-50 text-amber-800";
+
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return GOOGLE_FONTS
+      .filter((f) => (cat === "All" || f.category === cat) && (!needle || f.family.toLowerCase().includes(needle)))
+      .slice(0, 60);
+  }, [query, cat]);
+
+  // Load the CSS for the rows currently shown, and for the active non-preset selection so its
+  // preview renders in its own face.
+  useEffect(() => { matches.forEach((f) => loadGoogleFont(f.family)); }, [matches]);
+  useEffect(() => { if (!isPreset) loadGoogleFont(value); }, [value, isPreset]);
+
+  return (
+    <section>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
+
+      <div className="grid grid-cols-2 gap-2">
+        {Object.entries(FONTS).map(([id, font]) => (
+          <button
+            key={id} type="button" onClick={() => onChange(id)}
+            className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
+              value === id ? `${selCls} font-semibold` : "border-slate-200 hover:border-slate-300 text-slate-600"
+            }`}
+            style={{ fontFamily: font.stack }}
+          >
+            {font.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-2.5">
+        <button
+          type="button" onClick={() => setOpen((o) => !o)}
+          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-xs rounded-lg border transition-all cursor-pointer ${
+            !isPreset ? `${selCls} font-semibold` : "border-slate-200 hover:border-slate-300 text-slate-600"
+          }`}
+          style={!isPreset ? { fontFamily: fontStack(value) } : undefined}
+        >
+          <span className="truncate">{isPreset ? "More fonts — all of Google Fonts" : value}</span>
+          <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+
+        {open && (
+          <div className="mt-1.5 rounded-lg border border-slate-200 bg-white overflow-hidden">
+            <div className="p-2 border-b border-slate-100 space-y-1.5">
+              <input
+                autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Search ${GOOGLE_FONTS.length.toLocaleString()} fonts…`}
+                className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-slate-300"
+              />
+              <div className="flex flex-wrap gap-1">
+                {FONT_CATEGORIES.map((c) => (
+                  <button
+                    key={c} type="button" onClick={() => setCat(c)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] border cursor-pointer ${
+                      cat === c ? "border-slate-400 bg-slate-100 text-slate-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="max-h-56 overflow-y-auto">
+              {matches.length === 0 && <p className="text-[11px] text-slate-400 px-3 py-3">No fonts match.</p>}
+              {matches.map((f) => (
+                <button
+                  key={f.family} type="button"
+                  onClick={() => { onChange(f.family); setOpen(false); setQuery(""); }}
+                  className={`w-full flex items-baseline justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer ${
+                    value === f.family ? "bg-slate-50 font-semibold" : "text-slate-700"
+                  }`}
+                  style={{ fontFamily: fontStack(f.family) }}
+                >
+                  <span className="truncate">{f.family}</span>
+                  <span className="text-[10px] text-slate-400 shrink-0">{f.category}</span>
+                </button>
+              ))}
+              {matches.length === 60 && (
+                <p className="text-[10px] text-slate-400 px-3 py-2 border-t border-slate-100">Showing the first 60 — refine your search to see more.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── Admin-only: theme panel ───────────────────────────────────────────────────
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -217,7 +326,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
           heroBg: theme.heroBg, heroTextColor: theme.heroTextColor, accentColor: theme.accentColor,
           fontFamily: theme.fontFamily, logoBgColor: theme.logoBgColor,
           headerBg: theme.headerBg, footerBg: theme.footerBg, mapsUrl: theme.mapsUrl ?? null,
-          chatBg: theme.chatBg ?? null,
+          chatBg: theme.chatBg ?? null, chatLayout: theme.chatLayout ?? "fullscreen",
         }),
       });
       setSaveState("saved");
@@ -274,22 +383,34 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
               </div>
             </section>
 
+            <FontField
+              value={theme.fontFamily}
+              onChange={(v) => onChange({ ...theme, fontFamily: v })}
+              accent="violet"
+            />
+
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Layout</p>
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries(FONTS).map(([id, font]) => (
-                  <button
-                    key={id} onClick={() => onChange({ ...theme, fontFamily: id })}
-                    className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
-                      theme.fontFamily === id
-                        ? "border-violet-400 bg-violet-50 text-violet-800 font-semibold"
-                        : "border-slate-200 hover:border-slate-300 text-slate-600"
-                    }`}
-                    style={{ fontFamily: font.stack }}
-                  >
-                    {font.label}
-                  </button>
-                ))}
+                {([
+                  { id: "fullscreen", label: "Fullscreen", desc: "Fills the screen" },
+                  { id: "windowed", label: "Windowed", desc: "Centered card" },
+                ] as const).map((opt) => {
+                  const selected = (theme.chatLayout ?? "fullscreen") === "windowed" ? "windowed" : "fullscreen";
+                  return (
+                    <button
+                      key={opt.id} onClick={() => onChange({ ...theme, chatLayout: opt.id })}
+                      className={`px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        selected === opt.id
+                          ? "border-violet-400 bg-violet-50 text-violet-800"
+                          : "border-slate-200 hover:border-slate-300 text-slate-600"
+                      }`}
+                    >
+                      <span className="block text-xs font-semibold">{opt.label}</span>
+                      <span className="block text-[10px] opacity-70">{opt.desc}</span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           </>
@@ -348,24 +469,11 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
               </div>
             </section>
 
-            <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(FONTS).map(([id, font]) => (
-                  <button
-                    key={id} onClick={() => onChange({ ...theme, fontFamily: id })}
-                    className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
-                      theme.fontFamily === id
-                        ? "border-amber-400 bg-amber-50 text-amber-800 font-semibold"
-                        : "border-slate-200 hover:border-slate-300 text-slate-600"
-                    }`}
-                    style={{ fontFamily: font.stack }}
-                  >
-                    {font.label}
-                  </button>
-                ))}
-              </div>
-            </section>
+            <FontField
+              value={theme.fontFamily}
+              onChange={(v) => onChange({ ...theme, fontFamily: v })}
+              accent="amber"
+            />
           </>
         )}
 
@@ -478,7 +586,10 @@ export default function SalonPreviewPage() {
             background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#1E293B"}`,
           }}
         >
-          <div style={{ width: "100%", maxWidth: "700px", height: "calc(100% - 48px)", flexShrink: 0 }}>
+          <div
+            className="w-full sm:max-w-[700px] lg:max-w-[1080px] rounded-2xl overflow-hidden shadow-2xl"
+            style={{ height: "calc(100% - 48px)", flexShrink: 0 }}
+          >
             <GenerativeUIWebsite
               salon={salon} staff={staff} services={services} theme={theme}
               getPagePath={(page) => `/${salonParam}/website-preview#${page}`}

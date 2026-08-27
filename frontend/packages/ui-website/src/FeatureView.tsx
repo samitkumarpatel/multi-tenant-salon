@@ -1,5 +1,5 @@
 import { ArrowLeft, ShoppingBag, BadgeCheck, Gift, CalendarCheck, type LucideIcon } from "lucide-react";
-import { FONTS, contrastText, isLightColor } from "./theme";
+import { fontStack, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import type { Salon, WebsiteTheme } from "./types";
 
@@ -42,13 +42,13 @@ export function FeatureView({
   const Icon = page.icon;
   const hasBooking = salon.features?.includes("BOOKING");
 
-  const fontStack = FONTS[theme.fontFamily]?.stack ?? FONTS.inter.stack;
+  const fontStackCss = fontStack(theme.fontFamily);
   const accentText = contrastText(theme.accentColor);
   const heroLight = isLightColor(theme.heroBg);
   const sub = heroLight ? "#475569" : "#94A3B8";
 
   return (
-    <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStack, backgroundColor: theme.heroBg }}>
+    <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStackCss, backgroundColor: theme.heroBg }}>
       <SiteHeader salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
 
       <main className="flex-1 flex items-center">

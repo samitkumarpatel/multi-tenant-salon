@@ -24,8 +24,8 @@ class WebsiteThemeService {
 
     WebsiteTheme getTheme(UUID salonId) {
         return repository.findById(salonId)
-                .orElse(new WebsiteTheme(salonId, "#EEF2F4", "#0F172A", "#7C3AED", "nunito", "#7C3AED",
-                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, "app", null, null));
+                .orElse(new WebsiteTheme(salonId, "#EEF2F4", "#0F172A", "#7C3AED", "Noto Sans KR", "#7C3AED",
+                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", null, "fullscreen", null, null));
     }
 
     WebsiteType getWebsiteType(UUID salonId) {
@@ -60,7 +60,7 @@ class WebsiteThemeService {
                 salonId, heroBg, heroTextColor, accentColor, fontFamily, logoBgColor,
                 headerBg != null ? headerBg : "#E2E8F0",
                 footerBg != null ? footerBg : "#E2E8F0",
-                mapsUrl, chatLayout != null ? chatLayout : "app",
+                mapsUrl, chatLayout != null ? chatLayout : "fullscreen",
                 chatBg, Timestamp.from(Instant.now()));
 
         return repository.findById(salonId).orElseThrow();

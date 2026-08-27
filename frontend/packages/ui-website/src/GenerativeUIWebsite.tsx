@@ -1,11 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Calendar, CalendarCheck, ChevronDown, ChevronRight, Clock, MapPin, Mic, MessageCircle, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, CalendarCheck, CheckCircle2, Clock, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
-import { FONTS, loadGoogleFont, contrastText, isLightColor } from "./theme";
-import { formatPrice } from "./constants";
+import { fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import type { Salon, ServiceItem, StaffMember, WebsiteTheme } from "./types";
+import { apiFetch, API_BASE } from "./api";
+import {
+  ServicesCard, StaffCard, HoursCard, LocationCard, ContactCard, BookingPickerCard,
+  type CardTokens, type PendingBookingFields, type PickerProgress,
+} from "./GenerativeUICards";
+import { type ClosureRange, resolveHolidayRanges } from "./bookingDates";
+import type { Booking, Salon, SalonHoliday, ServiceItem, StaffMember, WebsiteTheme } from "./types";
 
 export interface GenerativeUIWebsiteProps {
   salon: Salon;
@@ -25,11 +30,33 @@ export interface GenerativeUIWebsiteProps {
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type ToolCard = { name: string; label: string; done: boolean };
+
+type PendingBookingStatus = "proposed" | "confirming" | "confirmed" | "dismissed" | "error";
+type PendingBookingUI = {
+  serviceId: number;
+  staffId: number | null;
+  appointmentDate: string;
+  startTime: string;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  notes: string | null;
+  status: PendingBookingStatus;
+  error?: string;
+  confirmedBooking?: Booking;
+};
+
+type CardType = "services" | "staff" | "hours" | "location" | "contact";
+
+type MessageCard =
+  | { type: "hours" | "location" | "contact" }
+  | { type: "staff"; forServiceId?: number }
+  | { type: "services"; forStaffId?: number }
+  | { type: "booking-picker"; serviceId: number; staffId?: number };
+
 type Message =
   | { role: "user"; text: string; time: string }
-  | { role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book" };
-
-type ReplyResult = { text: string; cta?: "book" };
+  | { role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book"; pendingBooking?: PendingBookingUI; card?: MessageCard; picker?: PickerProgress };
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -61,110 +88,110 @@ function todayHours(salon: Salon): string | null {
   if (!today || today.closed) return "Closed today";
   return `${today.openTime} – ${today.closeTime}`;
 }
-function mockBookingReply(input: string, salon: Salon, services: ServiceItem[], staff: StaffMember[]): ReplyResult {
-  const lower = input.toLowerCase();
-  const name  = salon.name;
-  const phone = salon.contact?.phone;
-  const email = salon.contact?.email;
-  if (/book|appointment|schedule|slot|reserv/i.test(lower)) {
-    return { text: `Ready to book at **${name}**! The step-by-step wizard will help you pick a service, choose a date and time, and confirm your details.`, cta: "book" };
-  }
-  if (/price|cost|fee|how much/.test(lower)) {
-    const priced = services.filter((s) => s.active && s.price != null).slice(0, 5);
-    if (priced.length) {
-      const list = priced.map((s) => `**${s.name}** — ${formatPrice(s.price!, s.currency ?? "EUR")}`).join("\n");
-      return { text: `Here are some of our services and prices:\n\n${list}`, cta: "book" };
-    }
-    return { text: `Please ${phone ? `call us at ${phone}` : "reach out"} for our current pricing.` };
-  }
-  if (/service|treatment|offer|menu|what can|what do/.test(lower)) {
-    const active = services.filter((s) => s.active).slice(0, 6);
-    if (active.length) {
-      const list = active.map((s) => {
-        const parts = [`**${s.name}**`];
-        if (s.durationMinutes) parts.push(`${s.durationMinutes} min`);
-        if (s.price != null) parts.push(formatPrice(s.price, s.currency ?? "EUR"));
-        return parts.join(" · ");
-      }).join("\n");
-      return { text: `At **${name}** we offer:\n\n${list}`, cta: "book" };
-    }
-    return { text: `**${name}** offers a range of beauty & wellness services. Book now and we'll match you with the perfect treatment!`, cta: "book" };
-  }
-  if (/how long|duration|takes/.test(lower)) {
-    const timed = services.filter((s) => s.active && s.durationMinutes).slice(0, 5);
-    if (timed.length) {
-      return { text: `Here's how long our services take:\n\n${timed.map((s) => `**${s.name}** — ${s.durationMinutes} min`).join("\n")}`, cta: "book" };
-    }
-    return { text: `Session lengths vary by service — you'll see durations when selecting a treatment!`, cta: "book" };
-  }
-  if (/staff|stylist|team|who|person/.test(lower)) {
-    const names = staff.slice(0, 4).map((s) => `**${s.name}**${s.role ? ` (${s.role})` : ""}`);
-    return names.length
-      ? { text: `Our team at **${name}**:\n\n${names.join("\n")}\n\nYou can pick your preferred person when booking!`, cta: "book" }
-      : { text: `**${name}** has a skilled team ready to help!`, cta: "book" };
-  }
-  if (/hour|open|close|when/.test(lower)) {
-    const h = todayHours(salon);
-    const open = isOpenNow(salon);
-    const line = h ? `\n\n${open ? "We're **currently open**." : "We're **currently closed**."} Today: ${h === "Closed today" ? "**closed all day**" : `**${h}**`}.` : "";
-    return { text: `You can find our full hours on our website.${line}`, cta: "book" };
-  }
-  if (/location|address|where|find/.test(lower)) {
-    const loc  = salon.location;
-    const parts = [loc?.address, loc?.city, loc?.country].filter(Boolean).join(", ");
-    return { text: parts ? `You can find us at **${parts}**.` : `Please ${phone ? `call us at ${phone}` : email ? `email ${email}` : "contact us"} for directions.` };
-  }
-  if (/contact|phone|email|reach|call/.test(lower)) {
-    const lines: string[] = [];
-    if (phone) lines.push(`📞 ${phone}`);
-    if (email) lines.push(`📧 ${email}`);
-    return { text: lines.length ? `Reach **${name}**:\n\n${lines.join("\n")}` : `Visit our page for contact details.` };
-  }
-  return { text: `I can help with services, prices, our team, or hours — or just go ahead and book!`, cta: "book" };
+function formatDateLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
-function mockReply(input: string, salon: Salon, services: ServiceItem[], staff: StaffMember[]): string {
-  const lower = input.toLowerCase();
-  const name  = salon.name;
-  const phone = salon.contact?.phone;
-  const email = salon.contact?.email;
-  const contact = phone ? `call us at ${phone}` : email ? `email us at ${email}` : "contact us directly";
-  if (/service|treatment|offer|menu|price|cost/.test(lower)) {
-    const names = services.filter((s) => s.active).slice(0, 5).map((s) => s.name);
-    return names.length
-      ? `At ${name} we offer: **${names.join(", ")}** and more. Feel free to ask about any service in detail!`
-      : `${name} offers a range of beauty & wellness services. Feel free to ask me anything specific!`;
+function sameProgress(a: PickerProgress, b: PickerProgress): boolean {
+  return a.step === b.step && a.staffId === b.staffId && a.staffChosen === b.staffChosen
+    && a.date === b.date && a.time === b.time
+    && a.name === b.name && a.email === b.email && a.phone === b.phone;
+}
+
+type PendingBookingResponse = {
+  serviceId: number;
+  staffId: number | null;
+  appointmentDate: string;
+  startTime: string;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  notes: string | null;
+};
+// The assistant picks which interactive card to render by calling a show* / startBookingPicker
+// tool server-side; the backend forwards its choice here. Unknown components are ignored.
+type UiDirectiveResponse = {
+  component: string;
+  serviceId?: number | null;
+  staffId?: number | null;
+  forStaffId?: number | null;
+  forServiceId?: number | null;
+  forBooking?: boolean | null;
+};
+type ChatApiResponse = {
+  reply: string;
+  toolsUsed?: string[];
+  pendingBooking?: PendingBookingResponse | null;
+  ui?: UiDirectiveResponse | null;
+};
+
+const TOOL_LABELS: Record<string, string> = {
+  salon: "salon info",
+  staff: "staff",
+  services: "services",
+  holidays: "holidays",
+  slots: "availability",
+  "booking-proposal": "booking",
+};
+
+function friendlyToolLabel(tools: string[]): string {
+  return tools.length ? tools.map((t) => TOOL_LABELS[t] ?? t).join(", ") : "salon-data";
+}
+
+// Booking-context replies get a "Book now" CTA unless the visitor asked a location/contact
+// question (nothing to book yet — they just need directions or a way to reach the salon).
+const NO_CTA_PATTERN = /location|address|where|find|contact|phone|email|reach|call/i;
+
+// Short lead-in shown above a data card that was rendered instantly (no LLM call) from a
+// quick-action tap.
+const CARD_INTRO: Record<CardType, string> = {
+  services: "Here's what we offer:",
+  staff: "Meet the team:",
+  hours: "Here's when we're open:",
+  location: "Here's how to find us:",
+  contact: "Here's how to reach us:",
+};
+
+// Maps the assistant's render directive onto a message card. Any component the assistant names
+// that isn't in this switch is ignored — the reply text still shows — so a stray/renamed
+// component can never break a turn.
+function directiveToCard(ui: UiDirectiveResponse | null): MessageCard | undefined {
+  switch (ui?.component) {
+    case "services": return { type: "services", forStaffId: ui.forStaffId ?? undefined };
+    case "staff": return { type: "staff", forServiceId: ui.forServiceId ?? undefined };
+    case "hours": return { type: "hours" };
+    case "location": return { type: "location" };
+    case "contact": return { type: "contact" };
+    case "booking-picker":
+      return ui.serviceId != null
+        ? { type: "booking-picker", serviceId: ui.serviceId, staffId: ui.staffId ?? undefined }
+        : undefined;
+    default: return undefined;
   }
-  if (/book|appointment|schedule|slot|reserv/.test(lower))
-    return `To book at ${name}, you can ${contact} and our team will get you set up. We'd love to see you! 📅`;
-  if (/staff|stylist|team|who|person|employ/.test(lower)) {
-    const names = staff.slice(0, 3).map((s) => s.name);
-    return names.length
-      ? `Our talented team at ${name} includes **${names.join(", ")}** and more talented professionals ready to help you look your best!`
-      : `${name} has a dedicated team of professionals. Reach out and we'll match you with the right person.`;
+}
+
+async function requestChatReply(
+  salonId: number,
+  context: "website" | "booking",
+  message: string,
+  history: { role: "user" | "assistant"; text: string }[]
+): Promise<{ text: string; toolsUsed: string[]; pendingBooking: PendingBookingResponse | null; ui: UiDirectiveResponse | null }> {
+  try {
+    const res = await apiFetch<ChatApiResponse>(`${API_BASE}/api/salon/${salonId}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ context, message, history }),
+    });
+    return { text: res.reply, toolsUsed: res.toolsUsed ?? [], pendingBooking: res.pendingBooking ?? null, ui: res.ui ?? null };
+  } catch {
+    return {
+      text: "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
+      toolsUsed: [],
+      pendingBooking: null,
+      ui: null,
+    };
   }
-  if (/hour|open|close|time|when/.test(lower)) {
-    const h = todayHours(salon);
-    const currently = isOpenNow(salon) ? "We're **currently open**." : "We're **currently closed**.";
-    const line = h ? `\n\n${currently} Today: ${h === "Closed today" ? "**closed all day**" : `**${h}**`}.` : "";
-    return `You can find our full hours on our website.${line}`;
-  }
-  if (/location|address|where|find|direction|map/.test(lower)) {
-    const loc  = salon.location;
-    const parts = [loc?.address, loc?.city, loc?.country].filter(Boolean).join(", ");
-    return parts
-      ? `You can find us at **${parts}**.${phone ? ` Give us a call at ${phone} if you need help finding us!` : ""}`
-      : `Please ${contact} and we'll share our exact location with you.`;
-  }
-  if (/contact|phone|email|reach|call/.test(lower)) {
-    const lines: string[] = [];
-    if (phone) lines.push(`📞 ${phone}`);
-    if (email) lines.push(`📧 ${email}`);
-    return lines.length
-      ? `Here's how to reach **${name}**:\n\n${lines.join("\n")}\n\nWe're always happy to hear from you!`
-      : `Visit our website for full contact details — we'd love to connect!`;
-  }
-  return `Thanks for reaching out to **${name}**! I'm here to help with anything — services, bookings, hours, location, or our team. What would you like to know?`;
 }
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -182,7 +209,7 @@ function MdText({ text }: { text: string }) {
 }
 function MessageText({ text }: { text: string }) {
   return (
-    <span className="whitespace-pre-line text-sm leading-relaxed">
+    <span className="whitespace-pre-line text-[15px] leading-relaxed">
       {text.split("\n").map((line, i) => (
         <span key={i}>{i > 0 && <br />}<MdText text={line} /></span>
       ))}
@@ -190,157 +217,340 @@ function MessageText({ text }: { text: string }) {
   );
 }
 
+// Landing-moment reveal: each character of the salon name fades/rises in with a short stagger,
+// in the salon's chosen accent color and font.
+function AnimatedSalonName({ text, color }: { text: string; color: string }) {
+  return (
+    <h1 className="text-2xl font-bold leading-tight" style={{ color }}>
+      {text.split("").map((ch, i) => (
+        <span key={i} className="inline-block gai-fade-in" style={{ animationDelay: `${i * 28}ms`, whiteSpace: ch === " " ? "pre" : "normal" }}>
+          {ch}
+        </span>
+      ))}
+    </h1>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function GenerativeUIWebsite({ salon, staff, services, theme, context = "website", getPagePath, onNavigate, onSwitchToWizard }: GenerativeUIWebsiteProps) {
+export function GenerativeUIWebsite({ salon, staff, services, theme, context = "website", onSwitchToWizard }: GenerativeUIWebsiteProps) {
   const isBooking = context === "booking";
-  const font = FONTS[theme.fontFamily as keyof typeof FONTS] ?? FONTS.system;
+  const font = { stack: fontStack(theme.fontFamily) };
   loadGoogleFont(theme.fontFamily);
 
   const accentText = contrastText(theme.accentColor);
   const avatarBg   = theme.logoBgColor;
   const avatarText = contrastText(theme.logoBgColor);
 
-  const openingMsg: Message = {
-    role: "assistant",
-    time: nowTime(),
-    text: isBooking
-      ? `Hi! 👋 I'm the AI booking assistant for **${salon.name}**.\n\nAsk me about services, prices, how long things take, or who's on the team — or just go ahead and book!`
-      : `Hi! 👋 I'm the AI assistant for **${salon.name}**, powered by MCP.\n\nAsk me anything — services, team, hours, location, or how to book. I'm here to help!`,
-    cta: isBooking ? "book" : undefined,
-  };
-
-  const [messages, setMessages]   = useState<Message[]>([openingMsg]);
-  const [input, setInput]         = useState("");
-  const [thinking, setThinking]   = useState(false);
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const inputRef   = useRef<HTMLTextAreaElement>(null);
-  const moreRef    = useRef<HTMLDivElement>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
-
-  // Intro phases: "playing" = full-page animation, "exiting" = fade out overlay, "done" = chat visible
-  const [introPhase, setIntroPhase] = useState<"playing" | "exiting" | "done">("playing");
-  // Question phase: "welcome" = initial stack, "answered" = Q clicked (no input), "chatting" = full conversation
-  const [questionPhase, setQuestionPhase] = useState<"welcome" | "answered" | "chatting">("welcome");
-  // Track which question cards have been asked
-  const [askedLabels, setAskedLabels] = useState<Set<string>>(new Set());
-
-  // Typewriter animation states (drive the full-page intro overlay)
-  const fullTitle = isBooking ? `Book at ${salon.name}` : salon.name;
-  const [labelVisible, setLabelVisible] = useState(false);
-  const [typedTitle, setTypedTitle]     = useState("");
-  const [titleDone, setTitleDone]       = useState(false);
-  const [cursorHidden, setCursorHidden] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput]       = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [started, setStarted]   = useState(false);
+  // How the chat opens is a salon-admin theme setting: "windowed" = the constrained card,
+  // anything else (default) = fullscreen. The header toggle still flips it at runtime.
+  // (Booking context is always full-page and ignores this.)
+  const [isFullscreen, setIsFullscreen] = useState(!isBooking && theme.chatLayout !== "windowed");
+  const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
+  // LLM-suggested next questions, shown as chips above the composer; refreshed after each
+  // assistant turn / instant card, cleared when the visitor sends something.
+  const [followups, setFollowups] = useState<string[]>([]);
+  const [followupsLoading, setFollowupsLoading] = useState(false);
+  const followupKeyRef = useRef<string>("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
+  // Fullscreen (website context only): lock body scroll and let Esc collapse it.
   useEffect(() => {
-    if (questionPhase === "chatting") inputRef.current?.focus();
-  }, [questionPhase]);
-
-  // Typewriter plays in the full-page overlay; once typing is done, transition to chat
-  useEffect(() => {
-    let i = 0;
-    let iv: ReturnType<typeof setInterval>;
-    let nameStart: ReturnType<typeof setTimeout>;
-    let exitTimer: ReturnType<typeof setTimeout>;
-    let doneTimer: ReturnType<typeof setTimeout>;
-    let cursorTimer: ReturnType<typeof setTimeout>;
-    setLabelVisible(false);
-    setTypedTitle("");
-    setTitleDone(false);
-    setCursorHidden(false);
-    setIntroPhase("playing");
-    const labelTimer = setTimeout(() => {
-      setLabelVisible(true);
-      nameStart = setTimeout(() => {
-        iv = setInterval(() => {
-          i++;
-          setTypedTitle(fullTitle.slice(0, i));
-          if (i >= fullTitle.length) {
-            clearInterval(iv);
-            setTitleDone(true);
-            cursorTimer = setTimeout(() => setCursorHidden(true), 2000);
-            // After subtitle settles, begin cross-fade to chat layout
-            exitTimer = setTimeout(() => {
-              setIntroPhase("exiting");
-              doneTimer = setTimeout(() => setIntroPhase("done"), 600);
-            }, 1400);
-          }
-        }, 60);
-      }, 300);
-    }, 350);
+    if (!isFullscreen || typeof document === "undefined") return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      clearTimeout(labelTimer); clearTimeout(nameStart); clearInterval(iv);
-      clearTimeout(exitTimer); clearTimeout(doneTimer); clearTimeout(cursorTimer);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
     };
-  }, [fullTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isFullscreen]);
+
+  // After each completed assistant turn (a reply, or an instant card from a sidebar option),
+  // ask the assistant for the questions the visitor is likely to want next and show them as
+  // chips above the composer. Cleared as soon as the visitor's own message lands.
+  useEffect(() => {
+    const reset = () => { setFollowups([]); setFollowupsLoading(false); followupKeyRef.current = ""; };
+    if (thinking) { reset(); return; }
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    if (last.role === "user") { reset(); return; }
+    if (!(last.text || last.card || last.pendingBooking)) return; // empty placeholder
+    const key = `${messages.length}:${last.text}:${last.card?.type ?? ""}:${last.pendingBooking?.status ?? ""}`;
+    if (key === followupKeyRef.current) return;
+    followupKeyRef.current = key;
+    setFollowups([]);
+    setFollowupsLoading(true);
+    apiFetch<{ followups?: string[] }>(`${API_BASE}/api/salon/${salon.id}/chat/followups`, {
+      method: "POST",
+      body: JSON.stringify({ context: isBooking ? "booking" : "website", history: historySnapshot() }),
+    })
+      .then((r) => setFollowups(Array.isArray(r.followups) ? r.followups.slice(0, 4) : []))
+      .catch(() => setFollowups([]))
+      .finally(() => setFollowupsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, thinking]);
+
+  // One-off closures + resolved holiday dates the booking picker's calendar must block. The
+  // server rejects these too (`/slots` returns nothing, `POST /booking` 400s) — this just keeps
+  // the calendar from offering them.
+  useEffect(() => {
+    if (!salon.features?.includes("BOOKING")) return;
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + (salon.bookingAdvanceDays ?? 60));
+    Promise.all([
+      apiFetch<ClosureRange[]>(`${API_BASE}/api/salon/${salon.id}/closures`).catch((): ClosureRange[] => []),
+      apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salon.id}/holidays`).catch((): SalonHoliday[] => []),
+    ]).then(([closures, holidays]) => {
+      setClosedDateRanges([...closures, ...resolveHolidayRanges(holidays, maxDate)]);
+    });
+  }, [salon.id, salon.bookingAdvanceDays, salon.features]);
 
   useEffect(() => {
-    if (!moreOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
-        setMoreOpen(false);
-      }
+    inputRef.current?.focus();
+  }, [started]);
+
+  // Ground truth for a booking, regardless of whether it was proposed by the LLM's own tool call
+  // or created entirely client-side via the interactive picker — the LLM never sees the picker,
+  // so without this it has no way to know a booking exists when asked a later free-text question
+  // like "is my booking confirmed?".
+  function bookingStatusSummary(pb: PendingBookingUI): string {
+    const serviceName = services.find((s) => s.id === pb.serviceId)?.name ?? `service #${pb.serviceId}`;
+    const when = `${pb.appointmentDate} at ${pb.startTime}`;
+    switch (pb.status) {
+      case "confirmed":
+        return pb.confirmedBooking
+          ? `[Booking ${pb.confirmedBooking.status === "PENDING" ? "requested — pending the salon's confirmation" : "confirmed"}: ${serviceName} on ${when}, booking #${pb.confirmedBooking.id}.]`
+          : `[Booking confirmed: ${serviceName} on ${when}.]`;
+      case "proposed":
+      case "confirming":
+        return `[A booking for ${serviceName} on ${when} is staged in the interface, awaiting the visitor's confirm click — not booked yet.]`;
+      case "dismissed":
+        return `[The visitor dismissed the booking proposal for ${serviceName} on ${when}.]`;
+      case "error":
+        return `[The last booking attempt for ${serviceName} on ${when} failed: ${pb.error ?? "unknown error"}.]`;
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [moreOpen]);
-
-  // Called from the input box — switches to full chat mode
-  function startInteraction() {
-    setQuestionPhase("chatting");
   }
 
-  function getReply(text: string): ReplyResult {
-    return isBooking
-      ? mockBookingReply(text, salon, services, staff)
-      : { text: mockReply(text, salon, services, staff) };
+  // A generative-UI card carries no prose of its own, so a card-only assistant turn never
+  // reaches the model through the normal history and it can't answer a later "show me that list
+  // again" / "what did you just show me". These synthetic bracketed lines stand in for it.
+  function cardHistoryClue(card: MessageCard): string | null {
+    switch (card.type) {
+      case "services": {
+        const list = services
+          .filter((s) => s.active && (card.forStaffId == null || !s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
+          .map((s) => s.name)
+          .join(", ");
+        return `[Showed the visitor an interactive services card${card.forStaffId != null ? " (filtered to one stylist)" : ""}: ${list || "no active services"}. They can tap "Book" on any of them.]`;
+      }
+      case "staff": {
+        const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
+        const list = staff
+          .filter((m) => m.status === "ACTIVE" && (!svc || !svc.assignedStaffIds?.length || svc.assignedStaffIds.includes(String(m.id))))
+          .map((m) => m.name)
+          .join(", ");
+        return `[Showed the visitor an interactive team card${svc ? ` (who can do ${svc.name})` : ""}: ${list || "no matching team members"}.]`;
+      }
+      case "hours": return "[Showed the visitor the opening-hours card with this week's hours.]";
+      case "location": return "[Showed the visitor the location card with the salon's address and a map link.]";
+      case "contact": return "[Showed the visitor the contact card with the salon's phone and email.]";
+      case "booking-picker": return null; // covered by the live picker-progress clue instead
+    }
   }
 
-  // Called when a question card is clicked — answers inline, stays in answered phase
+  // The interactive booking picker owns its own state; this turns a lifted snapshot of it into a
+  // clue so the assistant can answer "is that booked yet?" correctly while the visitor is still
+  // mid-flow (it isn't — and it can say exactly what's left to do).
+  function pickerHistoryClue(serviceId: number, p: PickerProgress): string {
+    const serviceName = services.find((s) => s.id === serviceId)?.name ?? `service #${serviceId}`;
+    const stylist = !p.staffChosen
+      ? "not chosen yet"
+      : p.staffId == null
+        ? "any available stylist"
+        : staff.find((s) => s.id === p.staffId)?.name ?? `staff #${p.staffId}`;
+    const dateChosen = p.step === "time" || p.step === "contact";
+    const timeLabel = p.step === "contact" && p.time ? p.time : "not chosen yet";
+    const contactBits = [
+      p.name ? `name "${p.name}"` : null,
+      p.email ? `email "${p.email}"` : null,
+      p.phone ? `phone "${p.phone}"` : null,
+    ].filter(Boolean);
+    const contactState = p.step === "contact"
+      ? (contactBits.length ? ` They have entered ${contactBits.join(", ")}.` : " They have not filled in their contact details yet.")
+      : "";
+    return `[The visitor is using the interactive booking picker for ${serviceName} — they have NOT confirmed a booking. Selected so far — stylist: ${stylist}; date: ${dateChosen ? p.date : "not chosen yet"}; time: ${timeLabel}. Current step: ${p.step}.${contactState} Nothing is booked and no booking has been staged for confirmation: if they ask whether it's booked, tell them not yet — they still need to finish the picker (pick a time, enter their name and an email or phone) and confirm on the review card.]`;
+  }
+
+  // Prior turns, formatted for the chat API — captured before the new user message is appended.
+  function assistantHistoryText(m: Extract<Message, { role: "assistant" }>): string | null {
+    const parts: string[] = [];
+    if (m.text) parts.push(m.text);
+    if (m.card?.type === "booking-picker" && m.picker) {
+      parts.push(pickerHistoryClue(m.card.serviceId, m.picker));
+    } else if (m.card) {
+      const clue = cardHistoryClue(m.card);
+      if (clue) parts.push(clue);
+    }
+    if (m.pendingBooking) parts.push(bookingStatusSummary(m.pendingBooking));
+    return parts.length ? parts.join("\n") : null;
+  }
+
+  function historySnapshot(): { role: "user" | "assistant"; text: string }[] {
+    type Turn = { role: "user" | "assistant"; text: string };
+    return messages.flatMap((m): Turn[] => {
+      if (m.role === "user") return m.text ? [{ role: "user", text: m.text }] : [];
+      const text = assistantHistoryText(m);
+      return text ? [{ role: "assistant", text }] : [];
+    });
+  }
+
+  function replyCta(userText: string): "book" | undefined {
+    return isBooking && !NO_CTA_PATTERN.test(userText) ? "book" : undefined;
+  }
+
+  function resolveReply(userText: string, history: ReturnType<typeof historySnapshot>) {
+    requestChatReply(salon.id, isBooking ? "booking" : "website", userText, history).then(({ text: reply, toolsUsed, pendingBooking, ui }) => {
+      const cta = replyCta(userText);
+      const card = directiveToCard(ui);
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = {
+          role: "assistant",
+          text: reply,
+          tool: toolsUsed.length ? { name: friendlyToolLabel(toolsUsed), label: "salon-data", done: true } : undefined,
+          time: nowTime(),
+          cta,
+          pendingBooking: pendingBooking ? { ...pendingBooking, status: "proposed" } : undefined,
+          card,
+        };
+        return next;
+      });
+      setThinking(false);
+    });
+  }
+
+  function sendMessage(text: string) {
+    if (!text.trim() || thinking) return;
+    setStarted(true);
+    const history = historySnapshot();
+    setMessages((prev) => [...prev, { role: "user", text, time: nowTime() }]);
+    setThinking(true);
+    const tool: ToolCard = { name: "salon-data", label: "Thinking…", done: false };
+    setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
+    resolveReply(text, history);
+  }
+
+  // A card-tagged quick-action renders instantly from data already on the page — no LLM call,
+  // no latency, no risk of the model getting a fact wrong. A short "thinking" beat keeps the feel
+  // consistent with the rest of the chat.
+  function showCard(cardType: CardType, question: string, intro?: string) {
+    setStarted(true);
+    setMessages((prev) => [...prev, { role: "user", text: question, time: nowTime() }]);
+    setThinking(true);
+    setTimeout(() => {
+      setMessages((prev) => [...prev, { role: "assistant", text: intro ?? CARD_INTRO[cardType], time: nowTime(), card: { type: cardType } }]);
+      setThinking(false);
+    }, 350);
+  }
+
+  // Tapping "Book" on a specific service jumps straight to the interactive picker (calendar +
+  // time slots, real availability) instead of asking the visitor to type a date in chat.
+  function startBooking(service: ServiceItem, staffId?: number) {
+    setStarted(true);
+    setMessages((prev) => [...prev, { role: "user", text: `I'd like to book ${service.name}`, time: nowTime() }]);
+    setThinking(true);
+    setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: `Great choice — let's find a time for ${service.name}:`,
+          time: nowTime(),
+          card: { type: "booking-picker", serviceId: service.id, staffId },
+        },
+      ]);
+      setThinking(false);
+    }, 350);
+  }
+
+  // "Book with {staff}" needs a service first. If that stylist only offers one active service,
+  // skip straight to the picker; otherwise show a services card filtered to what they can do.
+  function startBookingWithStaff(member: StaffMember) {
+    const eligible = services.filter(
+      (s) => s.active && (!s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(member.id)))
+    );
+    if (eligible.length === 0) { sendMessage(`I'd like to book with ${member.name}`); return; }
+    if (eligible.length === 1) { startBooking(eligible[0], member.id); return; }
+
+    setStarted(true);
+    setMessages((prev) => [...prev, { role: "user", text: `I'd like to book with ${member.name}`, time: nowTime() }]);
+    setThinking(true);
+    setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: `Sure — which service would you like with ${member.name}?`,
+          time: nowTime(),
+          card: { type: "services", forStaffId: member.id },
+        },
+      ]);
+      setThinking(false);
+    }, 350);
+  }
+
+  // The picker's own review step hands off into the exact same confirm/dismiss card (and the
+  // same real POST /booking call) already used by the LLM's propose-booking flow.
+  function completeBookingPicker(messageIndex: number, fields: PendingBookingFields) {
+    setMessages((prev) => {
+      const next = [...prev];
+      const m = next[messageIndex];
+      if (m.role !== "assistant") return prev;
+      next[messageIndex] = { ...m, card: undefined, pendingBooking: { ...fields, status: "proposed" } };
+      return next;
+    });
+  }
+
+  // Records the picker's live selections onto the message so historySnapshot can turn them into
+  // a clue for the assistant. Bails when nothing changed so a fresh callback identity per render
+  // doesn't churn state.
+  function updatePickerProgress(messageIndex: number, progress: PickerProgress) {
+    setMessages((prev) => {
+      const m = prev[messageIndex];
+      if (m?.role !== "assistant" || (m.picker && sameProgress(m.picker, progress))) return prev;
+      const next = [...prev];
+      next[messageIndex] = { ...m, picker: progress };
+      return next;
+    });
+  }
+
+  function cancelBookingPicker(messageIndex: number) {
+    setMessages((prev) => {
+      const next = [...prev];
+      const m = next[messageIndex];
+      if (m.role !== "assistant") return prev;
+      next[messageIndex] = { ...m, card: undefined, text: "No problem — let me know if you'd like a different service or time." };
+      return next;
+    });
+  }
+
+  // Called when a suggestion chip is clicked
   function askQuestion(btn: ActionButton) {
     if (btn.directAction) { btn.directAction(); return; }
     if (thinking) return;
-    setAskedLabels(prev => new Set([...prev, btn.label]));
-    setQuestionPhase("answered");
-    setMessages(prev => [...prev, { role: "user", text: btn.question, time: nowTime() }]);
-    setThinking(true);
-    setTimeout(() => {
-      const tool: ToolCard = { name: "salon-data", label: "Querying salon data…", done: false };
-      setMessages(prev => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
-      setTimeout(() => {
-        const { text: reply, cta } = getReply(btn.question);
-        setMessages(prev => {
-          const next = [...prev];
-          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "salon-data" }, time: nowTime(), cta };
-          return next;
-        });
-        setThinking(false);
-      }, 900);
-    }, 600);
-  }
-
-  function dispatch(text: string) {
-    if (!text.trim() || thinking) return;
-    startInteraction();
-    setMessages((prev) => [...prev, { role: "user", text, time: nowTime() }]);
-    setThinking(true);
-    setTimeout(() => {
-      const tool: ToolCard = { name: "salon-data", label: "Querying salon data…", done: false };
-      setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
-      setTimeout(() => {
-        const { text: reply, cta } = getReply(text);
-        setMessages((prev) => {
-          const next = [...prev];
-          next[next.length - 1] = { role: "assistant", text: reply, tool: { ...tool, done: true, label: "salon-data" }, time: nowTime(), cta };
-          return next;
-        });
-        setThinking(false);
-      }, 900);
-    }, 600);
+    if (btn.cardType) { showCard(btn.cardType, btn.question, btn.cardIntro); return; }
+    sendMessage(btn.question);
   }
 
   function send() {
@@ -348,7 +558,66 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     if (!text) return;
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
-    dispatch(text);
+    sendMessage(text);
+  }
+
+  function newChat() {
+    setMessages([]);
+    setStarted(false);
+    setFollowups([]);
+    followupKeyRef.current = "";
+  }
+
+  // ── Booking proposal confirm/dismiss ────────────────────────────────────
+
+  function confirmPendingBooking(messageIndex: number) {
+    const target = messages[messageIndex];
+    if (target.role !== "assistant" || !target.pendingBooking) return;
+    const { status: _status, error: _error, confirmedBooking: _cb, ...payload } = target.pendingBooking;
+
+    setMessages((prev) => {
+      const next = [...prev];
+      const m = next[messageIndex];
+      if (m.role !== "assistant" || !m.pendingBooking) return prev;
+      next[messageIndex] = { ...m, pendingBooking: { ...m.pendingBooking, status: "confirming" } };
+      return next;
+    });
+
+    apiFetch<Booking>(`${API_BASE}/api/salon/${salon.id}/booking`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+      .then((booking) => {
+        setMessages((prev) => {
+          const next = [...prev];
+          const m = next[messageIndex];
+          if (m.role !== "assistant" || !m.pendingBooking) return prev;
+          next[messageIndex] = { ...m, pendingBooking: { ...m.pendingBooking, status: "confirmed", confirmedBooking: booking } };
+          return next;
+        });
+      })
+      .catch((err) => {
+        setMessages((prev) => {
+          const next = [...prev];
+          const m = next[messageIndex];
+          if (m.role !== "assistant" || !m.pendingBooking) return prev;
+          next[messageIndex] = {
+            ...m,
+            pendingBooking: { ...m.pendingBooking, status: "error", error: err instanceof Error ? err.message : "Something went wrong" },
+          };
+          return next;
+        });
+      });
+  }
+
+  function dismissPendingBooking(messageIndex: number) {
+    setMessages((prev) => {
+      const next = [...prev];
+      const m = next[messageIndex];
+      if (m.role !== "assistant" || !m.pendingBooking) return prev;
+      next[messageIndex] = { ...m, pendingBooking: { ...m.pendingBooking, status: "dismissed" } };
+      return next;
+    });
   }
 
   // ── Colour tokens ──────────────────────────────────────────────────────
@@ -364,273 +633,185 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const topBorder   = isLightColor(topBg) ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.07)";
   const topDim      = isLightColor(topBg) ? "#94A3B8" : "#475569";
 
-  const inputBg     = isLightColor(topBg) ? "#F8FAFC" : "#0F172A";
+  const inputBg     = isLightColor(topBg) ? "#FFFFFF" : "#111C30";
   const inputBorder = isLightColor(topBg) ? "#E2E8F0" : "#334155";
-  const inputShadow = isLightColor(topBg)
-    ? "0 1px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)"
-    : "0 1px 8px rgba(0,0,0,0.3),  0 0 0 1px rgba(255,255,255,0.04)";
 
   const sendActive  = Boolean(input.trim()) && !thinking;
 
-  // Booking mode: own header uses theme.headerBg
-  const headerBg      = theme.headerBg ?? "#FFFFFF";
-  const headerIsLight = isLightColor(headerBg);
-  const headerText    = headerIsLight ? "#0F172A" : "#FFFFFF";
-  const headerBorder  = headerIsLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)";
-
-  const chatBorder  = chatLight ? "rgba(148,163,184,0.35)" : "rgba(255,255,255,0.12)";
-  const bubbleBorder = chatLight ? "rgba(148,163,184,0.3)" : "rgba(255,255,255,0.08)";
+  const bubbleBorder = chatLight ? "rgba(148,163,184,0.28)" : "rgba(255,255,255,0.08)";
   const bubbleShadow = chatLight
-    ? "0 1px 3px rgba(0,0,0,0.05), 0 0 0 1px rgba(148,163,184,0.15)"
+    ? "0 1px 3px rgba(0,0,0,0.05), 0 0 0 1px rgba(148,163,184,0.14)"
     : "0 1px 3px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04)";
+  const errorColor = "#EF4444";
 
-  const pageBg = `radial-gradient(ellipse 80% 50% at 50% -10%, ${theme.accentColor}18 0%, transparent 60%), ${chatBg}`;
+  const pageBg = `radial-gradient(ellipse 90% 60% at 50% -10%, ${theme.accentColor}16 0%, transparent 55%), ${chatBg}`;
 
-  // ── Dynamic action buttons (based on available salon data) ────────────
+  // ── Interactive data cards (staff / services / hours / location / contact) ────
+
+  const canBook = Boolean(salon.features?.includes("BOOKING"));
+  const cardTokens: CardTokens = { theme, msgText, msgDim, bubbleBorder, bubbleShadow, asBubbleBg, accentText };
+
+  function renderCard(messageIndex: number, card: MessageCard) {
+    switch (card.type) {
+      case "services": {
+        const filtered = card.forStaffId != null
+          ? services.filter((s) => s.active && (!s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
+          : services;
+        return <ServicesCard services={filtered} tokens={cardTokens} showBookPill={canBook} onBook={(s) => startBooking(s, card.forStaffId)} />;
+      }
+      case "staff": {
+        const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
+        const filtered = svc && svc.assignedStaffIds?.length
+          ? staff.filter((m) => svc.assignedStaffIds!.includes(String(m.id)))
+          : staff;
+        return <StaffCard staff={filtered} tokens={cardTokens} showBookPill={canBook} onBook={startBookingWithStaff} />;
+      }
+      case "hours": return <HoursCard salon={salon} tokens={cardTokens} />;
+      case "location": return <LocationCard salon={salon} tokens={cardTokens} />;
+      case "contact": return <ContactCard salon={salon} tokens={cardTokens} />;
+      case "booking-picker": {
+        const service = services.find((s) => s.id === card.serviceId);
+        if (!service) return null;
+        return (
+          <BookingPickerCard
+            salon={salon}
+            service={service}
+            staff={staff}
+            tokens={cardTokens}
+            initialStaffId={card.staffId}
+            closedDateRanges={closedDateRanges}
+            onComplete={(fields) => completeBookingPicker(messageIndex, fields)}
+            onCancel={() => cancelBookingPicker(messageIndex)}
+            onProgress={(p) => updatePickerProgress(messageIndex, p)}
+          />
+        );
+      }
+    }
+  }
+
+  // ── Dynamic suggestion chips (based on available salon data) ──────────
 
   type ActionButton = {
     label: string;
     icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
     question: string;
-    iconAnim: string;
     /** When set, clicking calls this directly instead of dispatching a question */
     directAction?: () => void;
+    /** When set, clicking renders this card instantly instead of dispatching a question */
+    cardType?: CardType;
+    /** Overrides the default per-cardType lead-in text (e.g. to frame a services card as a booking start) */
+    cardIntro?: string;
+    /** One-line live hint shown under the label in the empty-state card grid */
+    hint?: string;
   };
 
+  const activeServicesCount = services.filter((s) => s.active).length;
+  const activeStaffCount = staff.filter((m) => m.status === "ACTIVE").length;
+
   const websiteButtons: ActionButton[] = [
-    salon.features?.includes("BOOKING") && {
-      label: "Book with us",
-      icon: Calendar,
-      question: "How do I book an appointment?",
-      iconAnim: "group-hover:rotate-12 group-hover:scale-110",
+    salon.features?.includes("BOOKING") && activeServicesCount > 0 && {
+      label: "Book with us", icon: Calendar, question: "I'd like to book an appointment", cardType: "services",
+      cardIntro: "Let's get you booked — pick a service to start:",
+      hint: `${activeServicesCount} service${activeServicesCount === 1 ? "" : "s"} available`,
     },
-    services.filter((s) => s.active).length > 0 && {
-      label: "Our Services",
-      icon: Sparkles,
-      question: "What services do you offer?",
-      iconAnim: "group-hover:scale-125 group-hover:rotate-6",
+    activeServicesCount > 0 && {
+      label: "Our Services", icon: Sparkles, question: "What services do you offer?", cardType: "services",
+      hint: `${activeServicesCount} service${activeServicesCount === 1 ? "" : "s"} available`,
     },
-    staff.length > 0 && {
-      label: "Our Staff",
-      icon: Users,
-      question: "Who's on the team?",
-      iconAnim: "group-hover:scale-110",
+    activeStaffCount > 0 && {
+      label: "Our Staff", icon: Users, question: "Who's on the team?", cardType: "staff",
+      hint: `${activeStaffCount} team member${activeStaffCount === 1 ? "" : "s"}`,
     },
     (salon.operatingHours?.length ?? 0) > 0 && {
-      label: "Opening Hours",
-      icon: Clock,
-      question: "What are your opening hours?",
-      iconAnim: "group-hover:rotate-45",
+      label: "Opening Hours", icon: Clock, question: "What are your opening hours?", cardType: "hours",
+      hint: isOpenNow(salon) ? "Open now" : "See this week's hours",
     },
     (salon.location?.address || salon.location?.city) && {
-      label: "Find Us",
-      icon: MapPin,
-      question: "Where are you located?",
-      iconAnim: "group-hover:-translate-y-1 group-hover:scale-110",
+      label: "Find Us", icon: MapPin, question: "Where are you located?", cardType: "location",
+      hint: salon.location?.city,
     },
     (salon.contact?.phone || salon.contact?.email) && {
-      label: "Contact Us",
-      icon: Phone,
-      question: "How can I contact you?",
-      iconAnim: "group-hover:rotate-12 group-hover:scale-110",
+      label: "Contact Us", icon: Phone, question: "How can I contact you?", cardType: "contact",
+      hint: salon.contact?.phone || salon.contact?.email,
     },
   ].filter(Boolean) as ActionButton[];
 
   const bookingButtons: ActionButton[] = [
-    {
-      label: "Book appointment",
-      icon: CalendarCheck,
-      question: "",
-      iconAnim: "group-hover:rotate-12 group-hover:scale-110",
-      directAction: onSwitchToWizard,
+    { label: "Book appointment", icon: CalendarCheck, question: "", directAction: onSwitchToWizard },
+    activeServicesCount > 0 && {
+      label: "Our services", icon: Sparkles, question: "What services do you offer?", cardType: "services",
+      hint: `${activeServicesCount} service${activeServicesCount === 1 ? "" : "s"} available`,
     },
-    services.filter((s) => s.active).length > 0 && {
-      label: "Our services",
-      icon: Sparkles,
-      question: "What services do you offer?",
-      iconAnim: "group-hover:scale-125 group-hover:rotate-6",
-    },
-    staff.length > 0 && {
-      label: "Our team",
-      icon: Users,
-      question: "Who are your stylists?",
-      iconAnim: "group-hover:scale-110",
+    activeStaffCount > 0 && {
+      label: "Our team", icon: Users, question: "Who are your stylists?", cardType: "staff",
+      hint: `${activeStaffCount} team member${activeStaffCount === 1 ? "" : "s"}`,
     },
     services.some((s) => s.durationMinutes) && {
-      label: "How long?",
-      icon: Clock,
-      question: "How long do your services take?",
-      iconAnim: "group-hover:rotate-45",
+      label: "How long?", icon: Clock, question: "How long do your services take?",
+    },
+    (salon.operatingHours?.length ?? 0) > 0 && {
+      label: "Opening hours", icon: Clock, question: "What are your opening hours?", cardType: "hours",
+      hint: isOpenNow(salon) ? "Open now" : "See this week's hours",
     },
     (salon.location?.address || salon.location?.city) && {
-      label: "Find us",
-      icon: MapPin,
-      question: "Where are you located?",
-      iconAnim: "group-hover:-translate-y-1 group-hover:scale-110",
+      label: "Find us", icon: MapPin, question: "Where are you located?", cardType: "location",
+      hint: salon.location?.city,
     },
     (salon.contact?.phone || salon.contact?.email) && {
-      label: "Contact us",
-      icon: Phone,
-      question: "How can I contact you?",
-      iconAnim: "group-hover:rotate-12 group-hover:scale-110",
+      label: "Contact us", icon: Phone, question: "How can I contact you?", cardType: "contact",
+      hint: salon.contact?.phone || salon.contact?.email,
     },
   ].filter(Boolean) as ActionButton[];
 
+  // The sidebar and empty-state cards are the fixed category options. LLM-generated follow-up
+  // questions appear separately, as chips above the composer.
   const actionButtons = isBooking ? bookingButtons : websiteButtons;
 
-  // Shuffle once on mount; first 3 (or 2 for booking) shown, rest in "More" dropdown
-  const [visibleButtons, dropdownButtons] = useMemo(() => {
-    const shufflable = actionButtons.filter((b) => !b.directAction);
-    const arr = [...shufflable];
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return isBooking ? [arr.slice(0, 2), arr.slice(2)] : [arr.slice(0, 3), arr.slice(3)];
-  }, [actionButtons.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const chipStyle = {
+    backgroundColor: `${theme.accentColor}10`,
+    borderColor: `${theme.accentColor}30`,
+    color: theme.accentColor,
+  };
 
-  const inputCard = (
-    <div
-      className="flex items-end gap-2 px-4 py-3 rounded-2xl"
-      style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, boxShadow: inputShadow }}
-    >
-      <textarea
-        ref={inputRef}
-        value={input}
-        rows={3}
-        placeholder="Ask me anything…"
-        className="flex-1 resize-none text-sm outline-none bg-transparent leading-relaxed"
-        style={{ color: topText, maxHeight: "200px" }}
-        onChange={(e) => {
-          setInput(e.target.value);
-          e.currentTarget.style.height = "auto";
-          e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 200)}px`;
-        }}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-      />
-      {/* Mic — disabled, voice input not yet available */}
-      <button
-        disabled
-        title="Voice input coming soon"
-        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-not-allowed"
-        style={{
-          backgroundColor: "transparent",
-          border: `1.5px solid ${inputBorder}`,
-          opacity: 0.3,
-        }}
-      >
-        <Mic className="w-4 h-4" style={{ color: topDim }} />
-      </button>
-      <button
-        onClick={send}
-        disabled={!sendActive}
-        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:cursor-not-allowed"
-        style={{
-          backgroundColor: sendActive ? theme.accentColor : "transparent",
-          border: `1.5px solid ${sendActive ? theme.accentColor : inputBorder}`,
-          opacity: sendActive ? 1 : 0.4,
-        }}
-      >
-        <Send className="w-4 h-4" style={{ color: sendActive ? accentText : topDim }} />
-      </button>
+  // The strip above the composer is *only* the assistant's dynamically-generated follow-up
+  // questions, built from the latest message in the thread — never the fixed category options
+  // (those live in the sidebar / empty state). Nothing shows here until we have some.
+  const followupChips = followups.length > 0 && (
+    <div className="flex flex-wrap gap-2 justify-center">
+      {followups.map((q) => (
+        <button
+          key={q}
+          onClick={() => sendMessage(q)}
+          disabled={thinking}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          style={chipStyle}
+        >
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          {q}
+        </button>
+      ))}
     </div>
   );
 
-  const btnStyle = {
-    backgroundColor: `${theme.accentColor}10`,
-    borderColor: `${theme.accentColor}35`,
-    color: theme.accentColor,
-    boxShadow: `0 1px 3px ${theme.accentColor}15`,
-  };
-
-  const actionButtonsPanel = visibleButtons.length > 0 || isBooking ? (
-    <div className="flex gap-1.5 mb-3 w-full">
-      {/* Booking: prominent "Book" primary button */}
-      {isBooking && (
-        <button
-          onClick={onSwitchToWizard}
-          className="group flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer"
-          style={{ backgroundColor: theme.accentColor, color: accentText }}
-        >
-          <CalendarCheck className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform duration-200" />
-          <span>Book</span>
-        </button>
-      )}
-      {visibleButtons.map((btn) => (
-        <button
-          key={btn.label}
-          onClick={() => askQuestion(btn)}
-          title={btn.label}
-          className="group flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer overflow-hidden"
-          style={btnStyle}
-        >
-          <btn.icon className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${btn.iconAnim}`} />
-          <span className="truncate hidden sm:inline">{btn.label}</span>
-        </button>
-      ))}
-
-      {dropdownButtons.length > 0 && (
-        <div ref={moreRef} className="relative flex-1 min-w-0">
+  // Richer "card" grid — the pre-chat landing screen's quick-question tiles, each with a live
+  // one-line hint pulled straight from the salon's own data.
+  const suggestionCards = actionButtons.length > 0 && (
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 w-full max-w-[380px] lg:max-w-[560px]">
+      {actionButtons.map((btn) => {
+        const active = Boolean(btn.directAction);
+        return (
           <button
-            onClick={() => setMoreOpen((o) => !o)}
-            title="More"
-            className="group w-full inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 cursor-pointer overflow-hidden"
-            style={btnStyle}
+            key={btn.label}
+            onClick={() => askQuestion(btn)}
+            className="flex flex-col items-start gap-2 p-3.5 rounded-2xl border text-left transition-all duration-150 hover:shadow-sm hover:-translate-y-0.5 active:scale-95 active:translate-y-0 cursor-pointer"
+            style={active ? { backgroundColor: theme.accentColor, borderColor: theme.accentColor, color: accentText } : chipStyle}
           >
-            <span className="truncate hidden sm:inline">More</span>
-            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`} />
+            <btn.icon className="w-4 h-4 shrink-0" />
+            <span className="text-xs font-semibold leading-tight">{btn.label}</span>
+            {btn.hint && <span className="text-[10px] leading-snug opacity-70">{btn.hint}</span>}
           </button>
-
-          {moreOpen && (
-            <div
-              className="absolute bottom-full mb-1.5 right-0 z-50 min-w-[140px] rounded-xl border py-1 shadow-lg"
-              style={{
-                backgroundColor: topBg,
-                borderColor: `${theme.accentColor}35`,
-                boxShadow: `0 4px 16px ${theme.accentColor}20`,
-              }}
-            >
-              {dropdownButtons.map((btn) => (
-                <button
-                  key={btn.label}
-                  onClick={() => { askQuestion(btn); setMoreOpen(false); }}
-                  className="group w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors duration-150 hover:opacity-80 cursor-pointer"
-                  style={{ color: theme.accentColor }}
-                >
-                  <btn.icon className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${btn.iconAnim}`} />
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  ) : null;
-
-  const footerStrip = (
-    <div className="flex items-center justify-between flex-wrap gap-x-3 mt-2 px-1">
-      <div className="flex items-center gap-2.5">
-        <span className="text-[9px]" style={{ color: msgDim }}>© {new Date().getFullYear()} {salon.name}.</span>
-        {salon.contact?.phone && (
-          <a
-            href={`tel:${salon.contact.phone}`}
-            className="inline-flex items-center gap-0.5 text-[9px] no-underline hover:opacity-70"
-            style={{ color: msgDim }}
-          >
-            <Phone className="w-2.5 h-2.5" /> {salon.contact.phone}
-          </a>
-        )}
-        {salon.showBusinessId && salon.businessRegistrationId && (
-          <span className="text-[9px]" style={{ color: msgDim }}>· {salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</span>
-        )}
-        <span className="text-[9px]" style={{ color: msgDim }}>Powered by AI.</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Privacy</a>
-        <a href="#" className="text-[9px] hover:opacity-70 no-underline" style={{ color: msgDim }}>Terms</a>
-        <span className="text-[9px] opacity-40" style={{ color: msgDim }}>SalonSaas</span>
-      </div>
+        );
+      })}
     </div>
   );
 
@@ -647,709 +828,467 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     </button>
   ) : null;
 
-  // ── Shared card for "start conversation" ──────────────────────────────
+  // ── Booking proposal card — the interactive "MCP-style" tool result ────
 
-  const startConversationCard = (animDelay: number) => (
-    <button
-      onClick={() => { setQuestionPhase("chatting"); setTimeout(() => inputRef.current?.focus(), 80); }}
-      className="group flex items-center gap-3 px-4 py-3.5 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-      style={{
-        backgroundColor: `${theme.accentColor}12`,
-        borderColor: `${theme.accentColor}40`,
-        opacity: 0,
-        animation: `gai-question-in 0.4s ease forwards`,
-        animationDelay: `${animDelay}ms`,
-      }}
-    >
+  function bookingCard(messageIndex: number, pb: PendingBookingUI) {
+    if (pb.status === "dismissed") {
+      return <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>Booking request dismissed.</p>;
+    }
+
+    if (pb.status === "confirmed" && pb.confirmedBooking) {
+      const isPending = pb.confirmedBooking.status === "PENDING";
+      const service = services.find((s) => s.id === pb.serviceId);
+      return (
+        <div
+          className="mt-2.5 rounded-2xl p-4 flex items-start gap-3"
+          style={{ backgroundColor: `${theme.accentColor}12`, border: `1px solid ${theme.accentColor}35` }}
+        >
+          <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: theme.accentColor }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: theme.accentColor }}>
+              {isPending ? "Booking request sent!" : "You're booked!"}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: msgText }}>
+              {service?.name ?? "Appointment"} · {formatDateLabel(pb.appointmentDate)} at {pb.startTime}
+              {isPending ? " — the salon will confirm shortly." : ""}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const service = services.find((s) => s.id === pb.serviceId);
+    const staffMember = pb.staffId != null ? staff.find((s) => s.id === pb.staffId) : undefined;
+    const confirming = pb.status === "confirming";
+
+    return (
       <div
-        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
-        style={{ backgroundColor: `${theme.accentColor}25` }}
+        className="mt-2.5 rounded-2xl overflow-hidden"
+        style={{ border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow, backgroundColor: asBubbleBg, maxWidth: 380 }}
       >
-        <MessageCircle className="w-4 h-4" style={{ color: theme.accentColor }} />
+        <div className="px-4 py-2.5" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
+          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: theme.accentColor }}>Review your booking</p>
+        </div>
+        <div className="px-4 py-3 space-y-1.5 text-sm">
+          <div className="flex justify-between gap-3">
+            <span style={{ color: msgDim }}>Service</span>
+            <span className="font-medium text-right" style={{ color: msgText }}>{service?.name ?? `Service #${pb.serviceId}`}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span style={{ color: msgDim }}>With</span>
+            <span className="font-medium text-right" style={{ color: msgText }}>{staffMember?.name ?? "Any available stylist"}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span style={{ color: msgDim }}>When</span>
+            <span className="font-medium text-right" style={{ color: msgText }}>{formatDateLabel(pb.appointmentDate)} · {pb.startTime}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span style={{ color: msgDim }}>Name</span>
+            <span className="font-medium text-right" style={{ color: msgText }}>{pb.customerName}</span>
+          </div>
+          {(pb.customerEmail || pb.customerPhone) && (
+            <div className="flex justify-between gap-3">
+              <span style={{ color: msgDim }}>Contact</span>
+              <span className="font-medium text-right truncate" style={{ color: msgText }}>{pb.customerEmail || pb.customerPhone}</span>
+            </div>
+          )}
+        </div>
+        {pb.status === "error" && (
+          <div className="px-4 pb-2 text-xs" style={{ color: errorColor }}>{pb.error}</div>
+        )}
+        <div className="px-3 pb-3 pt-1 flex gap-2">
+          <button
+            onClick={() => confirmPendingBooking(messageIndex)}
+            disabled={confirming}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all disabled:cursor-not-allowed"
+            style={{ backgroundColor: theme.accentColor, color: accentText, opacity: confirming ? 0.7 : 1 }}
+          >
+            {confirming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            {confirming ? "Booking…" : "Confirm booking"}
+          </button>
+          <button
+            onClick={() => dismissPendingBooking(messageIndex)}
+            disabled={confirming}
+            className="px-3 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ color: msgDim, border: `1px solid ${bubbleBorder}` }}
+          >
+            Never mind
+          </button>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: theme.accentColor }}>
-          Want to start a conversation?
-        </p>
-        <p className="text-xs mt-0.5" style={{ color: msgDim }}>
-          Type anything — I'm here to help.
-        </p>
-      </div>
-      <ChevronRight className="w-4 h-4 shrink-0 group-hover:translate-x-0.5 transition-transform" style={{ color: theme.accentColor }} />
-    </button>
+    );
+  }
+
+  // ── Message thread ──────────────────────────────────────────────────────
+
+  const messageThread = (
+    <div className="mx-auto px-4 sm:px-6 py-6 space-y-6 max-w-[760px]">
+      {messages.map((m, i) =>
+        m.role === "user" ? (
+          <div key={i} className="flex justify-end">
+            <div
+              className="max-w-[80%] px-4 py-2.5 text-[15px] leading-relaxed"
+              style={{ backgroundColor: theme.accentColor, color: accentText, borderRadius: "1.25rem 1.25rem 0.25rem 1.25rem" }}
+            >
+              {m.text}
+            </div>
+          </div>
+        ) : (
+          <div key={i} className="flex items-start gap-3">
+            <div
+              className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
+              style={{ backgroundColor: avatarBg, color: avatarText }}
+            >
+              {initials(salon.name)[0]}
+            </div>
+            <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
+              {m.tool && (
+                <div
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium"
+                  style={{
+                    backgroundColor: m.tool.done ? `${theme.accentColor}10` : `${msgDim}15`,
+                    color: m.tool.done ? theme.accentColor : msgDim,
+                  }}
+                >
+                  {m.tool.done ? <Wrench className="w-2.5 h-2.5" /> : <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                  <span>{m.tool.done ? `Used ${m.tool.name}` : m.tool.label}</span>
+                </div>
+              )}
+              {(m.text || m.card || m.pendingBooking) && (
+                <div
+                  className="rounded-2xl px-4 py-3"
+                  style={{ color: msgText, backgroundColor: asBubbleBg, border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow }}
+                >
+                  {m.text && <MessageText text={m.text} />}
+                  {m.cta === "book" && bookCtaBtn}
+                  {m.pendingBooking && bookingCard(i, m.pendingBooking)}
+                  {m.card && renderCard(i, m.card)}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+
+      {thinking && (
+        <div className="flex items-start gap-3">
+          <div
+            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
+            style={{ backgroundColor: avatarBg, color: avatarText }}
+          >
+            {initials(salon.name)[0]}
+          </div>
+          <div className="flex items-center gap-1 pt-3">
+            {[0, 150, 300].map((delay) => (
+              <span key={delay} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                style={{ backgroundColor: msgDim, animationDelay: `${delay}ms` }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div ref={bottomRef} />
+    </div>
   );
 
-  // ── Welcome view (shown when no questions asked yet) ───────────────────
+  // ── Fullscreen toggle (website context only — booking is already full-page) ──
 
-  const welcomeView = (
-    <div className="flex flex-col" style={{ height: "100%", overflow: "hidden", maxWidth: 680, margin: "0 auto", width: "100%" }}>
+  function fullscreenToggle(extra = "") {
+    if (isBooking) return null;
+    return (
+      <button
+        onClick={() => setIsFullscreen((v) => !v)}
+        title={isFullscreen ? "Exit fullscreen (Esc)" : "Expand to fullscreen"}
+        aria-label={isFullscreen ? "Exit fullscreen" : "Expand to fullscreen"}
+        className={`hidden sm:flex shrink-0 w-8 h-8 rounded-lg items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${extra}`}
+        style={{ backgroundColor: `${theme.accentColor}14`, color: theme.accentColor }}
+      >
+        {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+      </button>
+    );
+  }
 
-      {/* Upper: greeting centred in the remaining space above the input */}
-      <div className="flex-1 flex flex-col items-start justify-start min-h-0 overflow-y-auto px-8 pt-16 pb-4">
-        {/* Greeting */}
-        <div className="flex items-start gap-4 mb-8">
+  // ── Empty state ──────────────────────────────────────────────────────────
+
+  const emptyState = (
+    <div className="h-full flex flex-col items-center justify-center px-6 gap-7 gai-fade-in">
+      <div className="flex flex-col items-center text-center gap-3 max-w-md">
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold"
+          style={{
+            backgroundColor: avatarBg, color: avatarText,
+            boxShadow: `0 0 0 4px ${theme.accentColor}18, 0 8px 24px ${theme.accentColor}30`,
+          }}
+        >
+          {initials(salon.name)}
+        </div>
+        <div>
+          <AnimatedSalonName text={isBooking ? `Book at ${salon.name}` : salon.name} color={theme.accentColor} />
+          <p className="text-sm mt-1.5" style={{ color: msgDim }}>
+            {isBooking
+              ? "Tell me what you'd like, and I'll get it booked."
+              : "Ask me anything about services, hours, location, or booking."}
+          </p>
+        </div>
+      </div>
+      <div className="lg:hidden">{suggestionCards}</div>
+    </div>
+  );
+
+  // ── Top bar — always visible, spans the chat column ───────────────────
+
+  const chatHeader = (
+    <div
+      className="shrink-0 z-10"
+      style={{ backgroundColor: topBg, borderBottom: `1px solid ${topBorder}` }}
+    >
+      <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
+        <div className="relative shrink-0">
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold shrink-0 mt-0.5"
-            style={{
-              backgroundColor: avatarBg,
-              color: avatarText,
-              boxShadow: `0 0 0 4px ${theme.accentColor}20, 0 6px 20px ${theme.accentColor}30`,
-            }}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
+            style={{ backgroundColor: avatarBg, color: avatarText }}
           >
             {initials(salon.name)}
           </div>
-
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-sm font-medium tracking-wide"
-              style={{
-                color: msgDim,
-                opacity: labelVisible ? 1 : 0,
-                transform: labelVisible ? "translateY(0)" : "translateY(6px)",
-                transition: "opacity 0.4s ease, transform 0.4s ease",
-              }}
-            >
-              {isBooking ? "AI Booking Assistant" : "Welcome to"}
-            </p>
-
-            <h1 className="text-2xl font-bold leading-tight mb-2" style={{ color: msgText, minHeight: "1.9rem" }}>
-              {typedTitle || "​"}
-              {!cursorHidden && (
-                <span
-                  aria-hidden
-                  className="inline-block w-[2px] h-6 ml-0.5 rounded-sm"
-                  style={{
-                    backgroundColor: theme.accentColor,
-                    animation: "gai-cursor-blink 0.65s ease-in-out infinite",
-                    verticalAlign: "middle",
-                  }}
-                />
-              )}
-            </h1>
-
-            <div
-              style={{
-                opacity: titleDone ? 1 : 0,
-                transform: titleDone ? "translateY(0)" : "translateY(10px)",
-                transition: "opacity 0.5s ease, transform 0.5s ease",
-              }}
-            >
-              <p className="text-sm mb-1" style={{ color: msgText, opacity: 0.8 }}>
-                {isBooking ? "Ask about services, prices, or our team — or just book now." : "Your AI assistant — ask me anything about us."}
-              </p>
-              <p className="flex items-center gap-2 text-xs" style={{ color: msgDim }}>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-                Online · How can I help you today?
-              </p>
-            </div>
-          </div>
+          <span
+            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
+            style={{ backgroundColor: thinking ? theme.accentColor : "#34D399", borderColor: topBg }}
+          />
         </div>
-
-        {/* Question stack */}
-        <div className="flex flex-col gap-2.5 w-full">
-          {actionButtons.map((btn, i) => (
-            <button
-              key={btn.label}
-              onClick={() => askQuestion(btn)}
-              className="group flex items-center gap-3 px-4 py-3 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.98]"
-              style={{
-                backgroundColor: btn.directAction ? theme.accentColor : asBubbleBg,
-                borderColor: btn.directAction ? theme.accentColor : bubbleBorder,
-                opacity: 0,
-                animation: `gai-question-in 0.4s ease forwards`,
-                animationDelay: `${i * 70}ms`,
-              }}
-            >
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
-                style={{ backgroundColor: btn.directAction ? `${accentText}20` : `${theme.accentColor}15` }}
-              >
-                <btn.icon className="w-4 h-4" style={{ color: btn.directAction ? accentText : theme.accentColor }} />
-              </div>
-              <span className="flex-1 text-sm font-medium" style={{ color: btn.directAction ? accentText : msgText }}>
-                {btn.directAction ? btn.label : btn.question}
-              </span>
-              <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: btn.directAction ? accentText : theme.accentColor }} />
-            </button>
-          ))}
-
-          {/* Conversation starter — shown only in website context */}
-          {!isBooking && (
-            <div className="mt-1">
-              {startConversationCard(actionButtons.length * 70)}
-            </div>
-          )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold truncate" style={{ color: topText }}>{salon.name}</p>
+          <p className="text-[11px]" style={{ color: topDim }}>
+            {thinking ? "Thinking…" : isOpenNow(salon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
+          </p>
         </div>
-      </div>
-    </div>
-  );
-
-  // ── Answered view (question asked, reply shown, remaining questions below) ──
-
-  const unansweredButtons = actionButtons.filter(btn => !btn.directAction && !askedLabels.has(btn.label));
-
-  const answeredView = (
-    <div className="flex flex-col" style={{ height: "100%", overflow: "hidden", maxWidth: 680, margin: "0 auto", width: "100%" }}>
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-8 pt-8 pb-4">
-
-        {/* Q&A history (skip the opening assistant message) */}
-        <div className="space-y-3 mb-5">
-          {messages.slice(1).map((m, i) =>
-            m.role === "user" ? (
-              <div key={i} className="flex justify-end">
-                <div
-                  className="max-w-[80%] px-4 py-2.5 text-sm leading-relaxed"
-                  style={{ backgroundColor: theme.accentColor, color: accentText, borderRadius: "1.2rem 0.2rem 1.2rem 1.2rem" }}
-                >
-                  {m.text}
-                </div>
-              </div>
-            ) : (
-              <div key={i} className="flex items-end gap-2.5">
-                <div
-                  className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
-                  style={{ backgroundColor: avatarBg, color: avatarText }}
-                >
-                  {initials(salon.name)[0]}
-                </div>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  {m.tool && (
-                    <div
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-medium"
-                      style={{
-                        backgroundColor: m.tool.done ? `${theme.accentColor}10` : asBubbleBg,
-                        borderColor:     m.tool.done ? `${theme.accentColor}30` : inputBorder,
-                        color:           m.tool.done ? theme.accentColor : topDim,
-                      }}
-                    >
-                      <Wrench className={`w-3 h-3 ${!m.tool.done ? "animate-spin" : ""}`} />
-                      <span className="font-mono">{m.tool.name}</span>
-                      <span>{m.tool.done ? "✓ done" : m.tool.label}</span>
-                    </div>
-                  )}
-                  {m.text && (
-                    <div
-                      className="inline-block max-w-[90%] px-4 py-2.5"
-                      style={{
-                        backgroundColor: asBubbleBg,
-                        color: msgText,
-                        borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
-                        border: `1px solid ${bubbleBorder}`,
-                        boxShadow: bubbleShadow,
-                      }}
-                    >
-                      <MessageText text={m.text} />
-                      {(m as Extract<Message, { role: "assistant" }>).cta === "book" && bookCtaBtn}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          )}
-
-          {/* Thinking indicator */}
-          {thinking && (
-            <div className="flex items-end gap-2.5">
-              <div
-                className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
-                style={{ backgroundColor: avatarBg, color: avatarText }}
-              >
-                {initials(salon.name)[0]}
-              </div>
-              <div
-                className="px-4 py-3 flex items-center gap-1"
-                style={{
-                  backgroundColor: asBubbleBg,
-                  borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
-                  border: `1px solid ${bubbleBorder}`,
-                  boxShadow: bubbleShadow,
-                }}
-              >
-                {[0, 150, 300].map((delay) => (
-                  <span key={delay} className="w-2 h-2 rounded-full animate-bounce"
-                    style={{ backgroundColor: theme.accentColor, animationDelay: `${delay}ms` }} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Remaining questions + start conversation — shown after reply arrives */}
-        {!thinking && (
-          <div className="flex flex-col gap-2.5 w-full">
-            {unansweredButtons.length > 0 && (
-              <>
-                <p className="text-xs font-medium px-1 mb-0.5" style={{ color: msgDim }}>More questions</p>
-                {unansweredButtons.map((btn, i) => (
-                  <button
-                    key={btn.label}
-                    onClick={() => askQuestion(btn)}
-                    className="group flex items-center gap-3 px-4 py-3 rounded-xl border text-left w-full cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.98]"
-                    style={{
-                      backgroundColor: asBubbleBg,
-                      borderColor: bubbleBorder,
-                      opacity: 0,
-                      animation: `gai-question-in 0.4s ease forwards`,
-                      animationDelay: `${i * 50}ms`,
-                    }}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
-                      style={{ backgroundColor: `${theme.accentColor}15` }}
-                    >
-                      <btn.icon className="w-4 h-4" style={{ color: theme.accentColor }} />
-                    </div>
-                    <span className="flex-1 text-sm font-medium" style={{ color: msgText }}>{btn.question}</span>
-                    <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" style={{ color: theme.accentColor }} />
-                  </button>
-                ))}
-              </>
-            )}
-
-            {!isBooking && (
-              <div className={unansweredButtons.length > 0 ? "mt-1" : ""}>
-                {startConversationCard(unansweredButtons.length * 50 + 80)}
-              </div>
-            )}
-            {isBooking && (
-              <div className={unansweredButtons.length > 0 ? "mt-3" : ""}>
-                {actionButtonsPanel}
-              </div>
-            )}
-          </div>
+        {fullscreenToggle()}
+        {started && (
+          <button
+            onClick={newChat}
+            title="Start a new conversation"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
+            style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
+          >
+            <SquarePen className="w-3.5 h-3.5" />
+            Clear chat
+          </button>
         )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      <div className="shrink-0 px-8 pb-4 pt-1">
-        {footerStrip}
       </div>
     </div>
   );
+
+  // ── Composer ─────────────────────────────────────────────────────────────
+
+  const composer = (
+    <div className="mx-auto w-full max-w-[760px]">
+      <div
+        className="flex items-end gap-2 pl-4 pr-2 py-3 rounded-2xl"
+        style={{ backgroundColor: inputBg, border: `1.5px solid ${inputBorder}` }}
+      >
+        <textarea
+          ref={inputRef}
+          value={input}
+          rows={1}
+          maxLength={2000}
+          placeholder={isBooking ? `Ask about services, or say what you'd like to book…` : `Message ${salon.name}…`}
+          className="flex-1 resize-none text-sm outline-none bg-transparent leading-relaxed py-1.5"
+          style={{ color: topText, maxHeight: "160px" }}
+          onChange={(e) => {
+            setInput(e.target.value);
+            e.currentTarget.style.height = "auto";
+            e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 160)}px`;
+          }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+        />
+        <button
+          onClick={send}
+          disabled={!sendActive}
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: sendActive ? theme.accentColor : `${inputBorder}`,
+            opacity: sendActive ? 1 : 0.5,
+          }}
+        >
+          <Send className="w-4 h-4" style={{ color: sendActive ? accentText : topDim }} />
+        </button>
+      </div>
+      <div className="flex items-center justify-center gap-2 mt-2.5">
+        <span className="text-[10px]" style={{ color: msgDim }}>
+          The assistant can make mistakes — please verify important details.
+        </span>
+      </div>
+    </div>
+  );
+
+  // ── Sidebar (lg screens and up) — persistent salon facts + quick questions,
+  // so the extra desktop width goes toward something useful instead of stretching message text.
+
+  const sidebar = actionButtons.length > 0 && (
+    <aside
+      className="hidden lg:flex lg:flex-col lg:w-[300px] xl:w-[320px] shrink-0 gap-5 px-5 py-6 overflow-y-auto"
+      style={{ borderRight: `1px solid ${bubbleBorder}`, backgroundColor: asBubbleBg }}
+    >
+      <div className="flex items-center gap-2.5">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+          style={{ backgroundColor: avatarBg, color: avatarText }}
+        >
+          {initials(salon.name)}
+        </div>
+        <p className="text-sm font-bold leading-tight" style={{ color: msgText }}>{salon.name}</p>
+      </div>
+
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: isOpenNow(salon) ? "#34D399" : msgDim }} />
+          <span className="text-xs font-semibold" style={{ color: isOpenNow(salon) ? theme.accentColor : msgDim }}>
+            {isOpenNow(salon) ? "Open now" : todayHours(salon) ?? "Closed"}
+          </span>
+        </div>
+        {(salon.location?.address || salon.location?.city) && (
+          <p className="text-xs leading-snug flex items-start gap-1.5" style={{ color: msgDim }}>
+            <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>{[salon.location?.address, salon.location?.city].filter(Boolean).join(", ")}</span>
+          </p>
+        )}
+        {salon.contact?.phone && (
+          <a href={`tel:${salon.contact.phone}`} className="text-xs flex items-center gap-1.5 no-underline" style={{ color: msgDim }}>
+            <Phone className="w-3.5 h-3.5 shrink-0" />
+            {salon.contact.phone}
+          </a>
+        )}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${bubbleBorder}` }} />
+
+      <div className="space-y-1.5 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: msgDim }}>Quick questions</p>
+        {actionButtons.map((btn) => (
+          <button
+            key={btn.label}
+            onClick={() => askQuestion(btn)}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all duration-150 hover:shadow-sm active:scale-[0.98] cursor-pointer"
+            style={btn.directAction ? { backgroundColor: theme.accentColor, color: accentText } : chipStyle}
+          >
+            <btn.icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-semibold leading-tight">{btn.label}</span>
+              {btn.hint && <span className="block text-[10px] opacity-70 leading-snug truncate">{btn.hint}</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {started && (
+        <button
+          onClick={newChat}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all hover:opacity-80"
+          style={{ color: theme.accentColor, border: `1px solid ${bubbleBorder}` }}
+        >
+          <SquarePen className="w-3.5 h-3.5" /> New conversation
+        </button>
+      )}
+    </aside>
+  );
+
+  // ── Shell ────────────────────────────────────────────────────────────────
 
   const innerContent = (
     <>
-    <style>{`
-      @keyframes gai-cursor-blink {
-        0%, 100% { opacity: 1; }
-        50%       { opacity: 0; }
-      }
-      @keyframes gai-scale-in {
-        from { opacity: 0; transform: scale(0.6); }
-        to   { opacity: 1; transform: scale(1); }
-      }
-      @keyframes gai-slide-down {
-        from { opacity: 0; transform: translateY(-100%); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes gai-card-in {
-        0%   { opacity: 0; transform: scale(0.94) translateY(20px); }
-        60%  { opacity: 1; transform: scale(1.01) translateY(-3px); }
-        100% { opacity: 1; transform: scale(1)    translateY(0); }
-      }
-      @keyframes gai-question-in {
-        from { opacity: 0; transform: translateY(10px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      @media (max-width: 639px) {
-        .gai-card-mobile { border-radius: 0 !important; }
-        .gai-booking-card { border-radius: 0 !important; margin: 0 !important; border-left: none !important; border-right: none !important; }
-      }
-      @media (min-width: 640px) {
-        .gai-booking-card { max-width: 720px; width: 100%; margin-left: auto; margin-right: auto; margin-top: 0.75rem; margin-bottom: 0.75rem; border-radius: 12px !important; }
-      }
-    `}</style>
-
-    {/* ── Full-page intro overlay (website mode only; booking mode has its own in-card overlay) ── */}
-    {!isBooking && introPhase !== "done" && (
-      <div
-        style={{
-          position: "fixed", inset: 0, zIndex: 9999,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: pageBg, fontFamily: font.stack,
-          opacity: introPhase === "exiting" ? 0 : 1,
-          transition: "opacity 0.6s ease",
-          pointerEvents: introPhase === "exiting" ? "none" : "auto",
-        }}
-      >
-        <div style={{ maxWidth: 640, width: "100%", padding: "0 40px" }}>
-          <div className="flex items-start gap-5">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shrink-0 mt-1"
-              style={{
-                backgroundColor: avatarBg, color: avatarText,
-                boxShadow: `0 0 0 5px ${theme.accentColor}20, 0 8px 28px ${theme.accentColor}35`,
-                animation: "gai-scale-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-                opacity: 0,
-              }}
-            >
-              {initials(salon.name)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-base font-medium tracking-wide mb-1"
-                style={{
-                  color: msgDim,
-                  opacity: labelVisible ? 1 : 0,
-                  transform: labelVisible ? "translateY(0)" : "translateY(8px)",
-                  transition: "opacity 0.4s ease, transform 0.4s ease",
-                }}
-              >
-                {isBooking ? "AI Booking Assistant" : "Welcome to"}
-              </p>
-              <h1 className="text-4xl font-bold leading-tight" style={{ color: msgText, minHeight: "3rem" }}>
-                {typedTitle || "​"}
-                {!cursorHidden && (
-                  <span
-                    aria-hidden
-                    className="inline-block w-[3px] h-9 ml-1 rounded-sm"
-                    style={{
-                      backgroundColor: theme.accentColor,
-                      animation: "gai-cursor-blink 0.65s ease-in-out infinite",
-                      verticalAlign: "middle",
-                    }}
-                  />
-                )}
-              </h1>
-              <div
-                className="mt-3"
-                style={{
-                  opacity: titleDone ? 1 : 0,
-                  transform: titleDone ? "translateY(0)" : "translateY(10px)",
-                  transition: "opacity 0.5s ease, transform 0.5s ease",
-                }}
-              >
-                <p className="text-lg" style={{ color: msgText, opacity: 0.8 }}>
-                  {isBooking ? "Ask about services, prices, or our team." : "Your AI assistant — ask me anything about us."}
-                </p>
-                <p className="flex items-center gap-2 text-sm mt-1" style={{ color: msgDim }}>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-                  {isBooking ? "Online · Powered by AI" : "Online · Powered by MCP"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* ── Booking mode: shared SiteHeader with the same toggle used in wizard mode ── */}
-    {isBooking && (
-      <SiteHeader
-        salon={salon}
-        theme={theme}
-        current="ai"
-        onBack={onSwitchToWizard ?? (() => {})}
-        standalone
-        headerExtra={
-          <div
-            className="inline-flex items-center rounded-xl p-1 gap-0.5"
-            style={{ backgroundColor: `${theme.accentColor}12`, border: `1.5px solid ${theme.accentColor}30` }}
-          >
-            <button
-              title="Book with GenAI (current)"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-default select-none"
-              style={{ backgroundColor: theme.accentColor, color: accentText, boxShadow: `0 2px 10px ${theme.accentColor}55` }}
-            >
-              <Sparkles className="w-3.5 h-3.5 shrink-0" />
-              Book with GenAI
-            </button>
-            <button
-              onClick={onSwitchToWizard}
-              title="Switch to step-by-step booking wizard"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:opacity-80 cursor-pointer"
-              style={{ color: theme.accentColor }}
-            >
-              <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
-              Book Now
-            </button>
-          </div>
+      <style>{`
+        @keyframes gai-fade-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-      />
-    )}
+        .gai-fade-in { animation: gai-fade-in 0.45s ease both; }
+        @keyframes gai-msg-in {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes gai-expand { from { opacity: 0.5; } to { opacity: 1; } }
+        .gai-expand { animation: gai-expand 0.18s ease both; }
+      `}</style>
 
-    {/* ── Chat card ── */}
-    <div
-      className={isBooking ? "flex-1 flex flex-col min-h-0 overflow-hidden relative gai-booking-card" : "flex flex-col gai-card-mobile"}
-      style={{
-        background: pageBg,
-        border: `1px solid ${chatBorder}`,
-        borderRadius: "12px",
-        boxShadow: chatLight
-          ? "0 0 0 1px rgba(148,163,184,0.12), 0 4px 24px rgba(0,0,0,0.06)"
-          : "0 0 0 1px rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.35)",
-        ...(!isBooking && {
-          height: "100%", overflow: "hidden", fontFamily: font.stack,
-          opacity: introPhase === "done" ? 1 : 0,
-          animation: introPhase === "done" ? "gai-card-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards" : "none",
-        }),
-      }}
-    >
-      {/* ── In-card intro overlay (booking mode only — header/footer stay visible above/below the card) ── */}
-      {isBooking && introPhase !== "done" && (
-        <div
-          style={{
-            position: "absolute", inset: 0, zIndex: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: pageBg, fontFamily: font.stack,
-            opacity: introPhase === "exiting" ? 0 : 1,
-            transition: "opacity 0.6s ease",
-            pointerEvents: introPhase === "exiting" ? "none" : "auto",
-          }}
-        >
-          <div style={{ maxWidth: 560, width: "100%", padding: "0 32px" }}>
-            <div className="flex items-start gap-5">
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 mt-1"
-                style={{
-                  backgroundColor: avatarBg, color: avatarText,
-                  boxShadow: `0 0 0 5px ${theme.accentColor}20, 0 8px 28px ${theme.accentColor}35`,
-                  animation: "gai-scale-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-                  opacity: 0,
-                }}
-              >
-                {initials(salon.name)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p
-                  className="text-sm font-medium tracking-wide mb-1"
-                  style={{
-                    color: msgDim,
-                    opacity: labelVisible ? 1 : 0,
-                    transform: labelVisible ? "translateY(0)" : "translateY(8px)",
-                    transition: "opacity 0.4s ease, transform 0.4s ease",
-                  }}
-                >
-                  AI Booking Assistant
-                </p>
-                <h1 className="text-3xl font-bold leading-tight" style={{ color: msgText, minHeight: "2.4rem" }}>
-                  {typedTitle || "​"}
-                  {!cursorHidden && (
-                    <span
-                      aria-hidden
-                      className="inline-block w-[3px] h-8 ml-1 rounded-sm"
-                      style={{
-                        backgroundColor: theme.accentColor,
-                        animation: "gai-cursor-blink 0.65s ease-in-out infinite",
-                        verticalAlign: "middle",
-                      }}
-                    />
-                  )}
-                </h1>
-                <div
-                  className="mt-2"
-                  style={{
-                    opacity: titleDone ? 1 : 0,
-                    transform: titleDone ? "translateY(0)" : "translateY(10px)",
-                    transition: "opacity 0.5s ease, transform 0.5s ease",
-                  }}
-                >
-                  <p className="text-base" style={{ color: msgText, opacity: 0.8 }}>
-                    Ask about services, prices, or our team.
-                  </p>
-                  <p className="flex items-center gap-2 text-sm mt-1" style={{ color: msgDim }}>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-                    Online · Powered by AI
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Chat header — only visible in chatting phase ── */}
-      {questionPhase === "chatting" && (
-        <div
-          className="shrink-0"
-          style={{
-            backgroundColor: topBg,
-            borderBottom: `1px solid ${topBorder}`,
-            animation: "gai-slide-down 0.25s ease forwards",
-          }}
-        >
-          <div style={{ height: 2, background: `linear-gradient(90deg, ${theme.accentColor} 0%, ${theme.accentColor}55 65%, transparent 100%)` }} />
-          <div className="flex items-center gap-3 px-4 py-3 mx-auto" style={{ maxWidth: 720 }}>
-            <div className="relative shrink-0">
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300"
-                style={{
-                  backgroundColor: avatarBg,
-                  color: avatarText,
-                  boxShadow: thinking
-                    ? `0 0 0 2px ${topBg}, 0 0 0 3.5px ${theme.accentColor}`
-                    : `0 0 0 2px ${topBg}, 0 0 0 3.5px ${avatarBg}40`,
-                }}
-              >
-                {initials(salon.name)}
-              </div>
-              <span
-                className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-                style={{
-                  backgroundColor: thinking ? theme.accentColor : "#34D399",
-                  borderColor: topBg,
-                  transition: "background-color 0.4s ease",
-                }}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: topText }}>{salon.name}</p>
-              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: topDim }}>
-                {thinking ? (
-                  <>
-                    {[0, 150, 300].map((d) => (
-                      <span key={d} className="w-1 h-1 rounded-full animate-bounce inline-block"
-                        style={{ backgroundColor: theme.accentColor, animationDelay: `${d}ms` }} />
-                    ))}
-                    <span className="ml-0.5">Thinking…</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block shrink-0" />
-                    {isOpenNow(salon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
-                  </>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => { setMessages([openingMsg]); setQuestionPhase("welcome"); setAskedLabels(new Set()); }}
-              title="Start new conversation"
-              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95"
-              style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}
+      {isBooking && (
+        <SiteHeader
+          salon={salon}
+          theme={theme}
+          current="ai"
+          onBack={onSwitchToWizard ?? (() => {})}
+          standalone
+          headerExtra={
+            <div
+              className="inline-flex items-center rounded-xl p-1 gap-0.5"
+              style={{ backgroundColor: `${theme.accentColor}12`, border: `1.5px solid ${theme.accentColor}30` }}
             >
-              <SquarePen className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+              <button
+                title="Book with GenAI (current)"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-default select-none"
+                style={{ backgroundColor: theme.accentColor, color: accentText, boxShadow: `0 2px 10px ${theme.accentColor}55` }}
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                Book with GenAI
+              </button>
+              <button
+                onClick={onSwitchToWizard}
+                title="Switch to step-by-step booking wizard"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:opacity-80 cursor-pointer"
+                style={{ color: theme.accentColor }}
+              >
+                <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+                Book Now
+              </button>
+            </div>
+          }
+        />
       )}
 
-      {/* ── Scrollable area ── */}
-      <div className="flex-1 overflow-y-auto">
-        {questionPhase === "welcome" ? welcomeView :
-         questionPhase === "answered" ? answeredView : (
-          // ── Active chat messages ─────────────────────────────────────
-          <div className="mx-auto px-4 py-6 space-y-4" style={{ maxWidth: 720 }}>
-            {messages.map((m, i) =>
-              m.role === "user" ? (
-                <div key={i} className="flex flex-col items-end gap-1">
-                  <div
-                    className="max-w-[80%] px-4 py-2.5 text-sm leading-relaxed"
-                    style={{ backgroundColor: theme.accentColor, color: accentText, borderRadius: "1.2rem 0.2rem 1.2rem 1.2rem" }}
-                  >
-                    {m.text}
-                  </div>
-                  <span className="text-[10px] px-1" style={{ color: msgDim }}>{m.time}</span>
-                </div>
-              ) : (
-                <div key={i} className="flex items-end gap-2.5">
-                  <div
-                    className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold mb-5"
-                    style={{ backgroundColor: avatarBg, color: avatarText }}
-                  >
-                    {initials(salon.name)[0]}
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    {m.tool && (
-                      <div
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-medium"
-                        style={{
-                          backgroundColor: m.tool.done ? `${theme.accentColor}10` : asBubbleBg,
-                          borderColor:     m.tool.done ? `${theme.accentColor}30` : inputBorder,
-                          color:           m.tool.done ? theme.accentColor : topDim,
-                        }}
-                      >
-                        <Wrench className={`w-3 h-3 ${!m.tool.done ? "animate-spin" : ""}`} />
-                        <span className="font-mono">{m.tool.name}</span>
-                        <span>{m.tool.done ? "✓ done" : m.tool.label}</span>
-                      </div>
-                    )}
-                    {m.text && (
-                      <div
-                        className="inline-block max-w-[90%] px-4 py-2.5"
-                        style={{
-                          backgroundColor: asBubbleBg,
-                          color: msgText,
-                          borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
-                          border: `1px solid ${bubbleBorder}`,
-                          boxShadow: bubbleShadow,
-                        }}
-                      >
-                        <MessageText text={m.text} />
-                        {(m as Extract<Message, { role: "assistant" }>).cta === "book" && bookCtaBtn}
-                      </div>
-                    )}
-                    {m.text && (
-                      <span className="block text-[10px] pl-1" style={{ color: msgDim }}>{m.time}</span>
-                    )}
-                  </div>
-                </div>
-              )
-            )}
+      <div
+        className="flex-1 flex flex-col lg:flex-row min-h-0"
+        style={{ background: pageBg, fontFamily: font.stack }}
+      >
+        {sidebar}
 
-            {thinking && (
-              <div className="flex items-end gap-2.5">
-                <div
-                  className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold"
-                  style={{ backgroundColor: avatarBg, color: avatarText }}
-                >
-                  {initials(salon.name)[0]}
-                </div>
-                <div
-                  className="px-4 py-3 flex items-center gap-1"
-                  style={{
-                    backgroundColor: asBubbleBg,
-                    borderRadius: "0.2rem 1.2rem 1.2rem 1.2rem",
-                    border: `1px solid ${bubbleBorder}`,
-                    boxShadow: bubbleShadow,
-                  }}
-                >
-                  {[0, 150, 300].map((delay) => (
-                    <span
-                      key={delay}
-                      className="w-2 h-2 rounded-full animate-bounce"
-                      style={{ backgroundColor: theme.accentColor, animationDelay: `${delay}ms` }}
-                    />
-                  ))}
-                </div>
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {chatHeader}
+
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {started ? messageThread : emptyState}
+          </div>
+
+          <div className="shrink-0 px-4 sm:px-6 pb-5 pt-3">
+            {started && (followupsLoading || followupChips) && (
+              <div className="mx-auto mb-3 max-w-[760px]">
+                {followupsLoading ? (
+                  <div className="flex items-center justify-center gap-1.5 py-1.5 text-[11px]" style={{ color: msgDim }}>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Preparing suggestions…</span>
+                  </div>
+                ) : followupChips}
               </div>
             )}
-
-            <div ref={bottomRef} />
-          </div>
-        )}
-      </div>
-
-      {/* ── Bottom input dock — visible only in chatting phase ── */}
-      {questionPhase === "chatting" && (
-        <div className="shrink-0 px-4 pb-6 pt-8">
-          <div className="mx-auto" style={{ maxWidth: 720 }}>
-            {inputCard}
-            {!isBooking && footerStrip}
+            {composer}
           </div>
         </div>
-      )}
-    </div>
+      </div>
     </>
   );
 
   if (isBooking) {
     return (
-      <div
-        className="min-h-[100dvh] flex flex-col"
-        style={{ fontFamily: font.stack, background: pageBg }}
-      >
+      <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: font.stack, background: pageBg }}>
         {innerContent}
-        <SiteFooter
-          salon={salon}
-          theme={theme}
-          current="book"
-          onBack={onSwitchToWizard ?? (() => {})}
-          standalone
-        />
+        <SiteFooter salon={salon} theme={theme} current="book" onBack={onSwitchToWizard ?? (() => {})} standalone />
       </div>
     );
   }
 
-  return innerContent;
+  return (
+    <div
+      className={isFullscreen ? "gai-expand fixed inset-0 z-50 flex flex-col" : "h-full flex flex-col"}
+      style={isFullscreen ? { background: pageBg } : undefined}
+    >
+      {innerContent}
+    </div>
+  );
 }

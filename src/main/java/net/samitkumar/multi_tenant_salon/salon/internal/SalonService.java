@@ -12,8 +12,10 @@ import net.samitkumar.multi_tenant_salon.salon.SalonOperatingHoursUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -133,6 +135,13 @@ class SalonService implements SalonApi {
         } catch (IllegalArgumentException e) {
             return repository.findByHandler(id).map(this::withLabel);
         }
+    }
+
+    @Override
+    public UUID resolveId(String idOrHandler) {
+        return findByIdOrHandler(idOrHandler)
+                .map(Salon::id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Salon not found"));
     }
 
     @Transactional

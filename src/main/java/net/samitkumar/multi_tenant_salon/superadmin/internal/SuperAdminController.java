@@ -9,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 class SuperAdminController {
@@ -28,8 +27,8 @@ class SuperAdminController {
     }
 
     @GetMapping("/api/salon-super-admin/salons/{id}")
-    ResponseEntity<Salon> findById(@PathVariable UUID id) {
-        return salonApi.findById(id)
+    ResponseEntity<Salon> findById(@PathVariable String id) {
+        return salonApi.findById(salonApi.resolveId(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -37,30 +36,30 @@ class SuperAdminController {
     record UpdateOwnerRequest(@NotBlank String name, @NotBlank String email, String phone) {}
 
     @PutMapping("/api/salon-super-admin/salons/{id}/owner")
-    ResponseEntity<Salon> updateOwner(@PathVariable UUID id, @Valid @RequestBody UpdateOwnerRequest request) {
+    ResponseEntity<Salon> updateOwner(@PathVariable String id, @Valid @RequestBody UpdateOwnerRequest request) {
         var owner = new Salon.Owner(request.name(), request.email(), request.phone());
-        return salonApi.updateOwner(id, owner)
+        return salonApi.updateOwner(salonApi.resolveId(id), owner)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/api/salon-super-admin/salons/{id}/features")
-    ResponseEntity<Salon> updateFeatures(@PathVariable UUID id, @RequestBody List<SalonFeature> features) {
-        return salonApi.updateFeatures(id, features)
+    ResponseEntity<Salon> updateFeatures(@PathVariable String id, @RequestBody List<SalonFeature> features) {
+        return salonApi.updateFeatures(salonApi.resolveId(id), features)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/api/salon-super-admin/salons/{id}")
-    ResponseEntity<Salon> disable(@PathVariable UUID id) {
-        return salonApi.disable(id)
+    ResponseEntity<Salon> disable(@PathVariable String id) {
+        return salonApi.disable(salonApi.resolveId(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/api/salon-super-admin/salons/{id}/enable")
-    ResponseEntity<Salon> enable(@PathVariable UUID id) {
-        return salonApi.enable(id)
+    ResponseEntity<Salon> enable(@PathVariable String id) {
+        return salonApi.enable(salonApi.resolveId(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
