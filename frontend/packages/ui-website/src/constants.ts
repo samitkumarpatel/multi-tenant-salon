@@ -20,6 +20,10 @@ export const CATEGORY_LABEL: Record<string, string> = {
   BEARD: "Beard", MASSAGE: "Massage", WAXING: "Waxing", OTHER: "Other",
 };
 
+/** Staff work-gallery URLs mix images and video; branch on the file extension. */
+export const isVideoUrl = (url?: string | null) =>
+  !!url && /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(url);
+
 export const formatPrice = (price: number | null | undefined, currency: string | null = "USD") => {
   if (price == null) return "-";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: currency ?? "USD" }).format(price);

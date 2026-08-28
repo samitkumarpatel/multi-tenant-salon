@@ -69,6 +69,56 @@ class StaffModuleTests {
     }
 
     @Test
+    void onboardAndUpdatePreservesBioAndWorkMedia() {
+        var created = client.post()
+                .uri("/api/salon-admin/{id}/staff", salonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Cara Vega",
+                            "email": "cara@salon.com",
+                            "role": "MAKEUP_ARTIST",
+                            "bio": "Ten years doing editorial makeup.",
+                            "photoUrls": [
+                                "https://cdn.example.com/staff/cara-1.jpg",
+                                "https://cdn.example.com/staff/cara-reel.mp4"
+                            ]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.bio").isEqualTo("Ten years doing editorial makeup.")
+                .jsonPath("$.photoUrls").isArray()
+                .jsonPath("$.photoUrls.length()").isEqualTo(2)
+                .jsonPath("$.photoUrls[1]").isEqualTo("https://cdn.example.com/staff/cara-reel.mp4")
+                .returnResult();
+
+        String location = created.getResponseHeaders().getLocation().getPath();
+        String staffId = location.substring(location.lastIndexOf('/') + 1);
+
+        client.put()
+                .uri("/api/salon-admin/{salonId}/staff/{staffId}", salonId, staffId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Cara Vega",
+                            "email": "cara@salon.com",
+                            "role": "MAKEUP_ARTIST",
+                            "status": "ACTIVE",
+                            "bio": "Now also teaching bridal.",
+                            "photoUrls": ["https://cdn.example.com/staff/cara-2.jpg"]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.bio").isEqualTo("Now also teaching bridal.")
+                .jsonPath("$.photoUrls.length()").isEqualTo(1)
+                .jsonPath("$.photoUrls[0]").isEqualTo("https://cdn.example.com/staff/cara-2.jpg");
+    }
+
+    @Test
     void staffLifecycle() {
         var created = client.post()
                 .uri("/api/salon-admin/{id}/staff", salonId)

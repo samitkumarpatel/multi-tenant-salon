@@ -37,7 +37,8 @@ class StaffPortalController {
         this.mediaApi = mediaApi.orElse(null);
     }
 
-    record ProfileUpdateRequest(String name, String phone, List<String> specializations, Boolean availableForBooking, String photoUrl) {}
+    record ProfileUpdateRequest(String name, String phone, List<String> specializations, Boolean availableForBooking,
+                                String photoUrl, String bio, List<String> photoUrls) {}
 
     record PhotoUploadRequest(String contentType) {}
 
@@ -45,8 +46,8 @@ class StaffPortalController {
 
     record StaffMemberSummary(Long id, UUID salonId, String salonName, String salonHandler,
                               String name, String email, String phone, String role, String status,
-                              boolean isOwner, boolean availableForBooking, String photoUrl,
-                              List<String> specializations, Instant createdAt) {}
+                              boolean isOwner, boolean availableForBooking, String photoUrl, String bio,
+                              List<String> specializations, List<String> photoUrls, Instant createdAt) {}
 
     @GetMapping("/me")
     ResponseEntity<List<StaffMemberSummary>> findByEmail(
@@ -69,8 +70,9 @@ class StaffPortalController {
                             salon.map(Salon::handler).orElse(null),
                             m.name(), m.email(), m.phone(),
                             m.role().name(), m.status().name(),
-                            m.isOwner(), m.availableForBooking(), m.photoUrl(),
+                            m.isOwner(), m.availableForBooking(), m.photoUrl(), m.bio(),
                             m.specializations().stream().map(StaffMember.Specialization::value).toList(),
+                            m.photoUrls().stream().map(StaffMember.PhotoUrl::value).toList(),
                             m.createdAt()
                     );
                 })
@@ -104,7 +106,8 @@ class StaffPortalController {
         return staffApi.findById(staffId).map(existing -> {
             String name  = request.name()  != null ? request.name()  : existing.name();
             String phone = request.phone() != null ? request.phone() : existing.phone();
-            return staffApi.updateProfile(staffId, name, phone, request.specializations(), request.availableForBooking(), request.photoUrl())
+            return staffApi.updateProfile(staffId, name, phone, request.specializations(), request.availableForBooking(),
+                            request.photoUrl(), request.bio(), request.photoUrls())
                     .map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         }).orElse(ResponseEntity.notFound().build());

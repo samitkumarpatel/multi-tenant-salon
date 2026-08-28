@@ -13,7 +13,7 @@ export { DEFAULT_THEME, FONTS, loadGoogleFont, fontStack, isLightColor, contrast
 // The full Google Fonts list is a large data module — imported directly from
 // "@salon/ui-website/google-fonts" by the admin font picker, deliberately not re-exported here
 // so it stays out of the public website bundle.
-export { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice, formatDate, openDays } from "./constants";
+export { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice, formatDate, openDays } from "./constants";
 export { apiFetch, API_BASE } from "./api";
 
 export type {

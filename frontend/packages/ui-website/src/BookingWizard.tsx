@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import { CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "./constants";
+import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { fontStack, loadGoogleFont, contrastText } from "./theme";
 import PhoneInput from "./PhoneInput";
 import { type ClosureRange, isClosedByRange, resolveHolidayRanges } from "./bookingDates";
@@ -45,6 +45,12 @@ function fmtDate(d: string) {
 
 function initials(name: string) {
   return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+/** First image (not video) from a staff member's work gallery, falling back to the avatar. */
+function staffAvatar(m: { photoUrls?: string[]; photoUrl?: string }) {
+  return (m.photoUrls ?? []).find((u) => !isVideoUrl(u))
+    ?? (m.photoUrl && !isVideoUrl(m.photoUrl) ? m.photoUrl : undefined);
 }
 
 const inputCls =
@@ -661,8 +667,8 @@ function DesignerGrid({
                       className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden"
                       style={{ backgroundColor: accent.tint, color: accent.color }}
                     >
-                      {(m.photoUrls?.[0] ?? m.photoUrl) ? (
-                        <img src={m.photoUrls?.[0] ?? m.photoUrl} alt={m.name}
+                      {staffAvatar(m) ? (
+                        <img src={staffAvatar(m)} alt={m.name}
                           className="w-full h-full object-cover" loading="lazy"
                           onError={(e) => { e.currentTarget.style.display = "none"; }} />
                       ) : (
@@ -920,9 +926,9 @@ function StepDate({
               className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden shrink-0"
               style={{ backgroundColor: accent.tint, color: accent.color }}
             >
-              {(s.photoUrls?.[0] ?? s.photoUrl) ? (
+              {staffAvatar(s) ? (
                 <img
-                  src={s.photoUrls?.[0] ?? s.photoUrl}
+                  src={staffAvatar(s)}
                   alt={s.name}
                   className="w-full h-full object-cover"
                   loading="lazy"

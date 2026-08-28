@@ -270,7 +270,8 @@ document.
     "isOwner": false,
     "availableForBooking": true,
     "specializations": ["coloring", "balayage"],
-    "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg"],
+    "photoUrl": "https://cdn.example.com/staff/alice-avatar.jpg",
+    "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-reel.mp4"],
     "bio": "Alice has 10 years of experience in color and balayage.",
     "createdAt": "2026-07-08T10:00:00Z"
   }
@@ -279,10 +280,16 @@ document.
 
 > **Note**: When a salon is first created, the owner is automatically enrolled as a staff member with `isOwner = true` and `availableForBooking = true`.
 
+| Field | Type | Notes |
+|---|---|---|
+| `photoUrl` | string | Profile photo (avatar). |
+| `bio` | string | Free-text "About me" blurb shown on the public website. |
+| `photoUrls` | array | Image **or video** URLs of the staff member's work (`.mp4` / `.webm` / `.mov` render as video on the site). |
+
 **Flow**
 
 1. `StaffController.findAll(UUID)` → `StaffService.findBySalonId(UUID)` → `StaffRepository.findBySalonId(UUID)`
-2. **DB**: `SELECT * FROM staff_member WHERE salon_id = ?` + `staff_member_specialization` rows per member.
+2. **DB**: `SELECT * FROM staff_member WHERE salon_id = ?` + `staff_member_specialization` and `staff_member_photo` rows per member.
 3. Returns `List<StaffMember>` — empty array if none.
 
 ---
@@ -1061,8 +1068,8 @@ Same response as the public endpoint. See [List staff](#list-staff).
 | `phone` | string | no | |
 | `role` | string | yes | See [StaffRole](#staffrole) values |
 | `specializations` | array | no | Free-text strings |
-| `photoUrls` | array | no | Photo URLs shown on the public website |
-| `bio` | string | no | Short bio shown on the public website |
+| `photoUrls` | array | no | Image or video URLs of the staff member's work, shown on the public website |
+| `bio` | string | no | Free-text "About me" blurb shown on the public website |
 
 New staff members are set to `status = ACTIVE` automatically.
 
@@ -1074,7 +1081,7 @@ New staff members are set to `status = ACTIVE` automatically.
 
 1. `StaffController.onboard(UUID, OnboardRequest)` → `StaffService.onboard(UUID, ...)`
 2. Builds a `StaffMember` with `id = null`, `status = ACTIVE`, `createdAt = Instant.now()`.
-3. `StaffRepository.save(StaffMember)` → **DB**: `INSERT INTO staff_member` + `INSERT INTO staff_member_specialization`.
+3. `StaffRepository.save(StaffMember)` → **DB**: `INSERT INTO staff_member` + `INSERT INTO staff_member_specialization` + `INSERT INTO staff_member_photo`.
 4. Returns `201 Created`.
 
 ---
@@ -1120,7 +1127,7 @@ Setting `availableForBooking` to `false` removes the staff member from slot disc
 1. `StaffController.update(UUID, Long, UpdateRequest)` → `StaffService.update(UUID, Long, ...)`
 2. `StaffRepository.findById(Long)` — filtered by `salonId`, `404` on mismatch.
 3. Builds a new `StaffMember` preserving `id`, `salonId`, `createdAt` — all other fields are replaced.
-4. `StaffRepository.save(StaffMember)` → **DB**: `UPDATE staff_member SET ...` + `DELETE FROM staff_member_specialization WHERE staff_member_id = ?` + re-`INSERT`.
+4. `StaffRepository.save(StaffMember)` → **DB**: `UPDATE staff_member SET ...` + `DELETE`/re-`INSERT` of the `staff_member_specialization` and `staff_member_photo` child rows.
 5. Returns `200 OK`.
 
 ---
@@ -1820,28 +1827,45 @@ Returns all staff records for the authenticated caller. Identity comes from the 
 
 `PATCH /api/salon-staff/{staffId}/profile`
 
-Staff may only update their name and phone number. Email, role, status, and specializations are admin-managed.
+Self-service update of the caller's own record. Any omitted field is left unchanged. Email, role, and status stay admin-managed.
 
 **Request**
 
 ```json
-{ "name": "Anna Nguyen", "phone": "+1 555 0123" }
+{
+  "name": "Anna Nguyen",
+  "phone": "+1 555 0123",
+  "specializations": ["HAIR", "MAKEUP"],
+  "availableForBooking": true,
+  "photoUrl": "https://cdn.example.com/staff/42/avatar.jpg",
+  "bio": "Bridal and editorial specialist.",
+  "photoUrls": [
+    "https://cdn.example.com/staff/42/work-1.jpg",
+    "https://cdn.example.com/staff/42/reel.mp4"
+  ]
+}
 ```
+
+| Field | Type | Notes |
+|---|---|---|
+| `photoUrl` | string | Profile photo (avatar). |
+| `bio` | string | Free-text "About me" blurb shown on the public website. |
+| `photoUrls` | array | Image or video URLs of the staff member's work, shown on the public website. |
 
 **Response** `200 OK` — `StaffMember`
 
 ---
 
-### Get a photo upload URL
+### Get a photo/video upload URL
 
 `POST /api/salon-staff/{staffId}/photo-upload-url`
 
-Returns a pre-signed PUT URL the browser uses to upload a profile photo directly to S3 (or to the backend in local dev when S3 is not configured). The client should PUT the file to `presignedUrl` with the matching `Content-Type` header, then save `publicUrl` on the staff profile via `PATCH /profile`.
+Returns a pre-signed PUT URL the browser uses to upload a file directly to S3 (or to the backend in local dev when S3 is not configured). The client PUTs the file to `presignedUrl` with the matching `Content-Type` header, then saves `publicUrl` on the staff profile via `PATCH /profile` — as `photoUrl` (avatar) or appended to `photoUrls` (work gallery). `contentType` accepts `image/*` and `video/*` (`video/mp4`, `video/webm`, `video/quicktime`). The same endpoint exists under `/api/salon-admin/{salonId}/staff/{staffId}/photo-upload-url` for admins.
 
 **Request**
 
 ```json
-{ "contentType": "image/jpeg" }
+{ "contentType": "video/mp4" }
 ```
 
 **Response** `200 OK` — `PresignedUpload`

@@ -3,7 +3,7 @@ import {
   MapPin, Phone, Mail, Globe, Clock, Timer,
   ChevronRight, CalendarCheck, ArrowUp,
 } from "lucide-react";
-import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, formatPrice } from "./constants";
+import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
@@ -684,11 +684,12 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
                       {activeStaff.map((m) => {
                         const photos = m.photoUrls?.length ? m.photoUrls : m.photoUrl ? [m.photoUrl] : [];
+                        const avatar = photos.find((p) => !isVideoUrl(p));
                         return (
                           <div key={m.id} className="snap-start shrink-0 w-32 rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col items-center text-center gap-1.5">
                             <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
-                              {photos[0] ? (
-                                <img src={photos[0]} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                              {avatar ? (
+                                <img src={avatar} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                               ) : (
                                 <span className="text-sm font-black text-white">{initials(m.name)}</span>
                               )}
@@ -714,6 +715,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     {activeStaff.map((m) => {
                       const isExpanded = expandedStaff.has(m.id!);
                       const photos = m.photoUrls?.length ? m.photoUrls : m.photoUrl ? [m.photoUrl] : [];
+                      const avatar = photos.find((p) => !isVideoUrl(p));
                       const hasDetails = photos.length > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
                       return (
                         <div key={m.id} role="button" tabIndex={0}
@@ -726,8 +728,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                           <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
-                                {photos[0] ? (
-                                  <img src={photos[0]} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                {avatar ? (
+                                  <img src={avatar} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                                 ) : (
                                   <span className="text-xs font-black text-white">{initials(m.name)}</span>
                                 )}
@@ -751,12 +753,20 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                           {isExpanded && hasDetails && (
                             <div className="mt-2.5 pl-[52px]">
                               {photos.length === 1 && (
-                                <img src={photos[0]} alt={m.name} className="w-full h-36 object-cover rounded-xl mb-2.5" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                isVideoUrl(photos[0]) ? (
+                                  <video src={photos[0]} controls preload="metadata" className="w-full h-36 object-cover rounded-xl mb-2.5 bg-black" />
+                                ) : (
+                                  <img src={photos[0]} alt={m.name} className="w-full h-36 object-cover rounded-xl mb-2.5" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                )
                               )}
                               {photos.length > 1 && (
                                 <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory mb-2.5 pb-1 -mr-3.5 pr-3.5">
                                   {photos.map((url, pi) => (
-                                    <img key={url} src={url} alt={`${m.name} — photo ${pi + 1}`} className="h-32 w-40 shrink-0 object-cover rounded-xl snap-start" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                    isVideoUrl(url) ? (
+                                      <video key={url} src={url} controls preload="metadata" className="h-32 w-40 shrink-0 object-cover rounded-xl snap-start bg-black" />
+                                    ) : (
+                                      <img key={url} src={url} alt={`${m.name} — photo ${pi + 1}`} className="h-32 w-40 shrink-0 object-cover rounded-xl snap-start" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                    )
                                   ))}
                                 </div>
                               )}

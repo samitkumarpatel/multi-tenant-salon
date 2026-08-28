@@ -1625,7 +1625,10 @@ paths:
 
   /api/salon-staff/{staffId}/profile:
     patch:
-      summary: Update own profile (name and phone only)
+      summary: Update own profile
+      description: >
+        Self-service update of the caller's own staff record. Any omitted field is
+        left unchanged. Email, role, and status remain admin-managed.
       tags: [StaffPortal]
       parameters:
         - $ref: "#/components/parameters/StaffId"
@@ -1640,6 +1643,25 @@ paths:
                   type: string
                 phone:
                   type: string
+                specializations:
+                  type: array
+                  items:
+                    type: string
+                availableForBooking:
+                  type: boolean
+                photoUrl:
+                  type: string
+                  format: uri
+                  description: Profile photo (avatar) URL.
+                bio:
+                  type: string
+                  description: Free-text "About me" blurb shown on the public website.
+                photoUrls:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  description: Image or video URLs of the staff member's work, shown on the public website.
       responses:
         "200":
           description: Updated staff member
@@ -1720,11 +1742,13 @@ paths:
 
   /api/salon-staff/{staffId}/photo-upload-url:
     post:
-      summary: Get a pre-signed URL to upload a profile photo
+      summary: Get a pre-signed URL to upload a photo or video
       description: |
-        Returns a pre-signed PUT URL the browser can use to upload a photo directly to
+        Returns a pre-signed PUT URL the browser can use to upload a file directly to
         S3 (or to the local dev endpoint when S3 is not configured). The `publicUrl`
-        is the CDN URL to save on the staff profile after the upload completes.
+        is the CDN URL to save on the staff profile after the upload completes — as
+        `photoUrl` (avatar) or appended to `photoUrls` (work gallery), at the caller's
+        choice. `contentType` accepts `image/*` and `video/*` (mp4, webm, quicktime).
         Returns `503` when media storage is not configured.
       tags: [StaffPortal]
       parameters:
@@ -2327,7 +2351,7 @@ components:
           items:
             type: string
             format: uri
-          description: Photo URLs shown on the public website
+          description: Image or video URLs of the staff member's work, shown on the public website
         bio:
           type: string
           description: Short bio shown on the public website
@@ -2381,10 +2405,21 @@ components:
           type: string
           format: uri
           nullable: true
+          description: Profile photo (avatar) URL.
+        bio:
+          type: string
+          nullable: true
+          description: Free-text "About me" blurb shown on the public website.
         specializations:
           type: array
           items:
             type: string
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Image or video URLs of the staff member's work, shown on the public website.
         createdAt:
           type: string
           format: date-time
@@ -2429,8 +2464,10 @@ components:
           items:
             type: string
             format: uri
+          description: Image or video URLs of the staff member's work, shown on the public website
         bio:
           type: string
+          description: Free-text "About me" blurb shown on the public website
 
     UpdateStaffRequest:
       type: object
@@ -2459,8 +2496,10 @@ components:
           items:
             type: string
             format: uri
+          description: Image or video URLs of the staff member's work, shown on the public website
         bio:
           type: string
+          description: Free-text "About me" blurb shown on the public website
 
     StaffRole:
       type: string

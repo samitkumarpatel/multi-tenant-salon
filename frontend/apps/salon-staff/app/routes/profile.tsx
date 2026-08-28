@@ -253,6 +253,85 @@ function PhotoPicker({
   );
 }
 
+// ── Work gallery (images + video) ─────────────────────────────────────────────
+
+const isVideoUrl = (u?: string | null) => !!u && /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(u);
+
+/** Uploads one file via the staff portal's pre-signed URL flow, returns the public URL. */
+async function uploadWorkFile(staffId: number, file: File): Promise<string> {
+  const upload = await apiFetch<PresignedUpload>(`${STAFF_PORTAL_API}/${staffId}/photo-upload-url`, {
+    method: "POST",
+    body: JSON.stringify({ contentType: file.type }),
+  });
+  await fetch(upload.presignedUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type },
+  });
+  return upload.publicUrl;
+}
+
+function WorkMedia({ url, className }: { url: string; className: string }) {
+  return isVideoUrl(url)
+    ? <video src={url} controls preload="metadata" className={`${className} bg-black`} />
+    : <img src={url} alt="Work sample" className={className} loading="lazy" />;
+}
+
+function WorkGalleryEditor({
+  urls, files, onChangeUrls, onChangeFiles,
+}: {
+  urls: string[];
+  files: File[];
+  onChangeUrls: (u: string[]) => void;
+  onChangeFiles: (f: File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const previews = files.map((f) => ({ f, src: URL.createObjectURL(f), video: f.type.startsWith("video/") }));
+  useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.src)), [files]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function addFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length) onChangeFiles([...files, ...picked]);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="mb-4">
+      <label className={fieldLabel}>My work</label>
+      <p className="text-xs text-slate-400 mb-2">Photos or short videos of your work — shown on the salon website.</p>
+      <div className="flex flex-wrap gap-2">
+        {urls.map((url) => (
+          <div key={url} className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200">
+            <WorkMedia url={url} className="w-full h-full object-cover" />
+            <button type="button" title="Remove"
+              onClick={() => onChangeUrls(urls.filter((u) => u !== url))}
+              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        {previews.map((p, i) => (
+          <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-matcha-300">
+            {p.video
+              ? <video src={p.src} className="w-full h-full object-cover bg-black" />
+              : <img src={p.src} alt="Pending upload" className="w-full h-full object-cover" />}
+            <button type="button" title="Remove"
+              onClick={() => onChangeFiles(files.filter((_, j) => j !== i))}
+              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={() => inputRef.current?.click()}
+          className="w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 hover:border-matcha-400 hover:bg-matcha-50 hover:text-matcha-500 transition-colors cursor-pointer">
+          <Camera className="w-6 h-6" />
+        </button>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={addFiles} />
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Profile() {
@@ -264,6 +343,7 @@ export default function Profile() {
     name: "", phone: "", photo: null as string | null,
     photoFile: null as File | null,
     specializations: [] as string[], availableForBooking: true,
+    bio: "", workUrls: [] as string[], workFiles: [] as File[],
   });
   const { toast, notify } = useToast();
 
@@ -275,6 +355,9 @@ export default function Profile() {
       photoFile: null,
       specializations: [...(member.specializations ?? [])],
       availableForBooking: member.availableForBooking ?? true,
+      bio: member.bio ?? "",
+      workUrls: [...(member.photoUrls ?? [])],
+      workFiles: [],
     });
     setEditing(true);
   }
@@ -298,11 +381,18 @@ export default function Profile() {
         photoUrl = upload.publicUrl;
       }
 
+      const uploadedWork: string[] = [];
+      for (const file of form.workFiles) {
+        uploadedWork.push(await uploadWorkFile(member.id, file));
+      }
+
       const body: Record<string, unknown> = {
         name: form.name.trim(),
         phone: form.phone.trim() || null,
         specializations: form.specializations,
         availableForBooking: form.availableForBooking,
+        bio: form.bio.trim() || null,
+        photoUrls: [...form.workUrls, ...uploadedWork],
       };
       if (photoUrl !== undefined) body.photoUrl = photoUrl;
 
@@ -403,6 +493,27 @@ export default function Profile() {
               </div>
             )}
           </div>
+
+          {(member.bio || (member.photoUrls?.length ?? 0) > 0) && (
+            <div className="px-5 pb-4 pt-1 border-t border-slate-100 space-y-3">
+              {member.bio && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">About me</p>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{member.bio}</p>
+                </div>
+              )}
+              {(member.photoUrls?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">My work</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {member.photoUrls!.map((url) => (
+                      <WorkMedia key={url} url={url} className="h-24 w-32 shrink-0 object-cover rounded-lg border border-slate-200" />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-500">
@@ -485,6 +596,27 @@ export default function Profile() {
                 onChange={(specs) => setForm((p) => ({ ...p, specializations: specs }))}
               />
             </div>
+
+            {/* About me + work gallery */}
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
+              About me &amp; work
+            </div>
+            <div className="mb-4">
+              <label className={fieldLabel}>About me</label>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={3}
+                value={form.bio}
+                onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
+                placeholder="A short introduction shown on the salon website…"
+              />
+            </div>
+            <WorkGalleryEditor
+              urls={form.workUrls}
+              files={form.workFiles}
+              onChangeUrls={(u) => setForm((p) => ({ ...p, workUrls: u }))}
+              onChangeFiles={(f) => setForm((p) => ({ ...p, workFiles: f }))}
+            />
 
             {/* Status (read-only) */}
             <div className="mb-4">

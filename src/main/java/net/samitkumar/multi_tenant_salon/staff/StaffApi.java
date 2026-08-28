@@ -11,5 +11,6 @@ public interface StaffApi {
     List<StaffMember> findAvailableForBookingBySalonId(UUID salonId);
     List<StaffMember> findByEmail(String email);
     Optional<StaffMember> updateProfile(Long staffId, String name, String phone,
-                                        List<String> specializations, Boolean availableForBooking, String photoUrl);
+                                        List<String> specializations, Boolean availableForBooking, String photoUrl,
+                                        String bio, List<String> photoUrls);
 }

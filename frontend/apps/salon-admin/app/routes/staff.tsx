@@ -10,6 +10,7 @@ import {
 } from "~/lib/constants";
 import type { Country, LayoutContext, OperatingHours, StaffMember } from "~/lib/types";
 import { InfoBar, TileGrid, PhoneInput, Toast, useToast } from "@salon/ui-shared";
+import { isVideoUrl } from "@salon/ui-website";
 
 const toHHMM = (t: string) => t.slice(0, 5);
 
@@ -54,6 +55,9 @@ interface StaffFormFields {
   specializations: string[];
   photo: string | null;
   photoFile: File | null;
+  bio: string;
+  workUrls: string[];
+  workFiles: File[];
 }
 
 // ── Schedule editor ───────────────────────────────────────────────────────────
@@ -429,6 +433,78 @@ function PhotoPicker({
   );
 }
 
+// ── Work gallery (images + video) ─────────────────────────────────────────────
+
+/** Uploads one work-sample file via the admin pre-signed URL flow, returns the public URL. */
+async function uploadWorkFile(apiBase: string, sid: string | number, staffId: number, file: File): Promise<string> {
+  const upload = await apiFetch<PresignedUpload>(`${apiBase}/${sid}/staff/${staffId}/photo-upload-url`, {
+    method: "POST",
+    body: JSON.stringify({ contentType: file.type }),
+  });
+  await fetch(upload.presignedUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+  return upload.publicUrl;
+}
+
+function WorkMedia({ url, className }: { url: string; className: string }) {
+  return isVideoUrl(url)
+    ? <video src={url} controls preload="metadata" className={`${className} bg-black`} />
+    : <img src={url} alt="Work sample" className={className} loading="lazy" />;
+}
+
+function WorkGalleryEditor({ urls, files, onChangeUrls, onChangeFiles }: {
+  urls: string[];
+  files: File[];
+  onChangeUrls: (u: string[]) => void;
+  onChangeFiles: (f: File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const previews = files.map((f) => ({ src: URL.createObjectURL(f), video: f.type.startsWith("video/") }));
+  useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.src)), [files]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div>
+      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
+        Work gallery
+      </div>
+      <p className="text-[11px] text-slate-400 mb-2">Photos or short videos of this person's work — shown on the salon website.</p>
+      <div className="flex flex-wrap gap-2">
+        {urls.map((url) => (
+          <div key={url} className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200">
+            <WorkMedia url={url} className="w-full h-full object-cover" />
+            <button type="button" title="Remove"
+              onClick={() => onChangeUrls(urls.filter((u) => u !== url))}
+              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        {previews.map((p, i) => (
+          <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-matcha-300">
+            {p.video
+              ? <video src={p.src} className="w-full h-full object-cover bg-black" />
+              : <img src={p.src} alt="Pending upload" className="w-full h-full object-cover" />}
+            <button type="button" title="Remove"
+              onClick={() => onChangeFiles(files.filter((_, j) => j !== i))}
+              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={() => inputRef.current?.click()}
+          className="w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 hover:border-matcha-400 hover:bg-matcha-50 hover:text-matcha-500 transition-colors cursor-pointer">
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*,video/*" multiple className="hidden"
+        onChange={(e) => {
+          const picked = Array.from(e.target.files ?? []);
+          if (picked.length) onChangeFiles([...files, ...picked]);
+          e.target.value = "";
+        }} />
+    </div>
+  );
+}
+
 // ── Add / onboarding flow ─────────────────────────────────────────────────────
 
 function AddStaffFlow({
@@ -446,6 +522,7 @@ function AddStaffFlow({
 }) {
   const [f, setF] = useState<StaffFormFields>({
     name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null, photoFile: null,
+    bio: "", workUrls: [], workFiles: [],
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>(() => defaultSchedule(operatingHours));
@@ -539,6 +616,22 @@ function AddStaffFlow({
               onChange={(specs) => setF((p) => ({ ...p, specializations: specs }))}
             />
           </div>
+          <div>
+            <label className={fieldLabel}>About me</label>
+            <textarea
+              className={`${inputCls} resize-none`}
+              rows={3}
+              value={f.bio}
+              onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
+              placeholder="A short introduction shown on the salon website…"
+            />
+          </div>
+          <WorkGalleryEditor
+            urls={f.workUrls}
+            files={f.workFiles}
+            onChangeUrls={(u) => setF((p) => ({ ...p, workUrls: u }))}
+            onChangeFiles={(files) => setF((p) => ({ ...p, workFiles: files }))}
+          />
           <ScheduleEditor
             schedule={schedule}
             onChange={setSchedule}
@@ -629,6 +722,23 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
         selected={f.specializations}
         onChange={(specs) => setF((p) => ({ ...p, specializations: specs }))}
       />
+
+      <div className="mt-4 mb-4">
+        <label className={fieldLabel}>About me</label>
+        <textarea
+          className={`${inputCls} resize-none`}
+          rows={3}
+          value={f.bio}
+          onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
+          placeholder="A short introduction shown on the salon website…"
+        />
+      </div>
+      <WorkGalleryEditor
+        urls={f.workUrls}
+        files={f.workFiles}
+        onChangeUrls={(u) => setF((p) => ({ ...p, workUrls: u }))}
+        onChangeFiles={(files) => setF((p) => ({ ...p, workFiles: files }))}
+      />
     </>
   );
 }
@@ -650,7 +760,7 @@ export default function Staff() {
     () => Boolean(localStorage.getItem(`setup-alert-dismissed:staff:${salon.id}`))
   );
 
-  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null, photoFile: null });
+  const blank = (): StaffFormFields => ({ name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null, photoFile: null, bio: "", workUrls: [], workFiles: [] });
   const [ef, setEf] = useState<StaffFormFields & { status: string; availableForBooking: boolean }>({ ...blank(), status: "ACTIVE", availableForBooking: true });
 
   function closeModal(k: keyof typeof modal) { setModal((m) => ({ ...m, [k]: false })); }
@@ -665,6 +775,9 @@ export default function Staff() {
       specializations: [...(m.specializations ?? [])],
       photo: m.photoUrl ?? null,
       photoFile: null,
+      bio: m.bio ?? "",
+      workUrls: [...(m.photoUrls ?? [])],
+      workFiles: [],
     });
     setModal((p) => ({ ...p, edit: true }));
   }
@@ -680,21 +793,29 @@ export default function Staff() {
         .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
       let member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff`, {
         method: "POST",
-        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, schedule: sched }),
+        body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, bio: fields.bio.trim() || null, schedule: sched }),
       });
-      if (fields.photoFile) {
-        const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/staff/${member.id}/photo-upload-url`, {
-          method: "POST",
-          body: JSON.stringify({ contentType: fields.photoFile.type }),
-        });
-        await fetch(upload.presignedUrl, {
-          method: "PUT",
-          body: fields.photoFile,
-          headers: { "Content-Type": fields.photoFile.type },
-        });
+      if (fields.photoFile || fields.workFiles.length) {
+        let photoUrl: string | undefined;
+        if (fields.photoFile) {
+          const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/staff/${member.id}/photo-upload-url`, {
+            method: "POST",
+            body: JSON.stringify({ contentType: fields.photoFile.type }),
+          });
+          await fetch(upload.presignedUrl, {
+            method: "PUT",
+            body: fields.photoFile,
+            headers: { "Content-Type": fields.photoFile.type },
+          });
+          photoUrl = upload.publicUrl;
+        }
+        const uploadedWork: string[] = [];
+        for (const file of fields.workFiles) {
+          uploadedWork.push(await uploadWorkFile(ADMIN_API, sid, member.id, file));
+        }
         member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${member.id}`, {
           method: "PUT",
-          body: JSON.stringify({ name: member.name, email: member.email, phone: member.phone, role: member.role, status: member.status, availableForBooking: member.availableForBooking, specializations: member.specializations, photoUrl: upload.publicUrl }),
+          body: JSON.stringify({ name: member.name, email: member.email, phone: member.phone, role: member.role, status: member.status, availableForBooking: member.availableForBooking, specializations: member.specializations, bio: fields.bio.trim() || null, photoUrl, photoUrls: [...fields.workUrls, ...uploadedWork] }),
         });
       }
       setStaff((p) => [member, ...p]);
@@ -721,9 +842,13 @@ export default function Staff() {
         });
         photoUrl = upload.publicUrl;
       }
+      const uploadedWork: string[] = [];
+      for (const file of ef.workFiles) {
+        uploadedWork.push(await uploadWorkFile(ADMIN_API, sid, target.id, file));
+      }
       const updated = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${target.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl }),
+        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl, bio: ef.bio.trim() || null, photoUrls: [...ef.workUrls, ...uploadedWork] }),
       });
       setStaff((p) => p.map((m) => m.id === updated.id ? updated : m));
       closeModal("edit");
@@ -857,6 +982,13 @@ export default function Staff() {
                       ))}
                     </div>
                   ) : null}
+                  {(m.bio || (m.photoUrls?.length ?? 0) > 0) && (
+                    <div className="text-[0.62rem] text-slate-400 mt-1 truncate">
+                      {m.bio ? m.bio : null}
+                      {m.bio && (m.photoUrls?.length ?? 0) > 0 ? " · " : null}
+                      {(m.photoUrls?.length ?? 0) > 0 ? `${m.photoUrls!.length} work item${m.photoUrls!.length !== 1 ? "s" : ""}` : null}
+                    </div>
+                  )}
                 </div>
 
                 <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">

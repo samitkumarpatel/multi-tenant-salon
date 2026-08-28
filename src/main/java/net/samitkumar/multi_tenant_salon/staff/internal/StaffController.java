@@ -27,11 +27,12 @@ class StaffController {
     }
 
     record OnboardRequest(String name, String email, String phone, StaffRole role,
-                          List<String> specializations,
+                          List<String> specializations, String bio, List<String> photoUrls,
                           List<StaffOnboardedEvent.DaySchedule> schedule) {}
 
     record UpdateRequest(String name, String email, String phone, StaffRole role, StaffStatus status,
-                         Boolean availableForBooking, List<String> specializations, String photoUrl) {}
+                         Boolean availableForBooking, List<String> specializations, String photoUrl,
+                         String bio, List<String> photoUrls) {}
 
     record PhotoUploadRequest(String contentType) {}
 
@@ -43,7 +44,8 @@ class StaffController {
     @PostMapping("/api/salon-admin/{salonId}/staff")
     ResponseEntity<StaffMember> onboard(@PathVariable String salonId, @RequestBody OnboardRequest request) {
         var member = service.onboard(salonApi.resolveId(salonId), request.name(), request.email(), request.phone(),
-                request.role(), false, request.specializations(), request.schedule());
+                request.role(), false, request.specializations(), request.bio(), request.photoUrls(),
+                request.schedule());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(member.id())
@@ -64,7 +66,7 @@ class StaffController {
         return service.update(salonApi.resolveId(salonId), staffId, request.name(), request.email(), request.phone(),
                         request.role(), request.status(),
                         request.availableForBooking() == null || request.availableForBooking(),
-                        request.specializations(), request.photoUrl())
+                        request.specializations(), request.photoUrl(), request.bio(), request.photoUrls())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

@@ -28,10 +28,13 @@ class S3MediaServiceImpl implements MediaService {
     @Override
     public PresignedUpload generateStaffPhotoUploadUrl(Long staffId, String contentType) {
         String ext = switch (contentType == null ? "" : contentType.toLowerCase()) {
-            case "image/png"  -> ".png";
-            case "image/webp" -> ".webp";
-            case "image/gif"  -> ".gif";
-            default           -> ".jpg";
+            case "image/png"       -> ".png";
+            case "image/webp"      -> ".webp";
+            case "image/gif"       -> ".gif";
+            case "video/mp4"       -> ".mp4";
+            case "video/webm"      -> ".webm";
+            case "video/quicktime" -> ".mov";
+            default                -> ".jpg";
         };
         String key = "uploads/profile/" + staffId + "/" + UUID.randomUUID() + ext;
         String presignedUrl = s3Template.createSignedPutURL(bucketName, key, Duration.ofMinutes(15)).toString();

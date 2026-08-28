@@ -21,6 +21,10 @@ export interface StaffMember {
   availableForBooking?: boolean;
   specializations?: string[];
   photoUrl?: string;
+  /** Free-text "About me" blurb shown on the public website. */
+  bio?: string;
+  /** Image and video URLs of the staff member's work, shown on the public website. */
+  photoUrls?: string[];
   createdAt?: string;
 }
 
