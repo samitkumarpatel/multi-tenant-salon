@@ -25,9 +25,9 @@ class DefaultWebsiteThemeSeeder {
         jdbc.update("""
                 INSERT INTO salon_website_theme
                   (salon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color,
-                   header_bg, footer_bg, website_mode, updated_at)
+                   header_bg, footer_bg, chat_bg, website_mode, updated_at)
                 VALUES
-                  (?, '#EEF2F4', '#0F172A', '#7C3AED', 'nunito', '#7C3AED', '#E2E8F0', '#E2E8F0', ?, ?)
+                  (?, '#EEF2F4', '#0F172A', '#4B5563', 'Noto Sans KR', '#DB2777', '#E2E8F0', '#E2E8F0', '#EEF2F4', ?, ?)
                 ON CONFLICT (salon_id) DO NOTHING
                 """,
                 event.salonId(), WebsiteType.STATIC_WEBSITE.name(), Timestamp.from(Instant.now()));

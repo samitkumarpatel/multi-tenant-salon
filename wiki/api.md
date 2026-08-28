@@ -419,13 +419,14 @@ Returns **all** slots within each eligible staff member's working window — bot
   "salonId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "heroBg": "#EEF2F4",
   "heroTextColor": "#0F172A",
-  "accentColor": "#7C3AED",
+  "accentColor": "#4B5563",
   "fontFamily": "Noto Sans KR",
-  "logoBgColor": "#7C3AED",
+  "logoBgColor": "#DB2777",
   "headerBg": "#E2E8F0",
   "footerBg": "#E2E8F0",
   "mapsUrl": null,
   "chatLayout": "fullscreen",
+  "chatBg": "#EEF2F4",
   "websiteType": "STATIC_WEBSITE",
   "updatedAt": null
 }
@@ -437,7 +438,7 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 1. `WebsiteController.getTheme(UUID)` → `WebsiteThemeService.getTheme(UUID)` → `WebsiteThemeRepository.findById(UUID)`
 2. **DB**: `SELECT * FROM salon_website_theme WHERE salon_id = ?`
-3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write): `heroBg="#EEF2F4"`, `heroTextColor="#0F172A"`, `accentColor="#7C3AED"`, `fontFamily="Noto Sans KR"`, `logoBgColor="#7C3AED"`, `chatLayout="fullscreen"`, `updatedAt=null`.
+3. If no row exists, returns a hard-coded default `WebsiteTheme` (no DB write): `heroBg="#EEF2F4"`, `heroTextColor="#0F172A"`, `accentColor="#4B5563"`, `fontFamily="Noto Sans KR"`, `logoBgColor="#DB2777"`, `chatBg="#EEF2F4"`, `chatLayout="fullscreen"`, `updatedAt=null`.
 
 ---
 

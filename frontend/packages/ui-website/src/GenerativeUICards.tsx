@@ -379,13 +379,17 @@ export type PickerProgress = {
   phone: string;
 };
 
-export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, closedDateRanges = [], onComplete, onCancel, onProgress }: {
+export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, resume, closedDateRanges = [], onComplete, onCancel, onProgress }: {
   salon: Salon;
   service: ServiceItem;
   staff: StaffMember[];
   tokens: CardTokens;
   /** Pre-picked staff member (e.g. entered via "Book with {name}") — skips the staff step entirely. */
   initialStaffId?: number;
+  /** Selections lifted from an earlier picker this one replaces (carry-forward). Seeds staff, date
+   *  and contact fields so the visitor resumes where they were. A picked time slot isn't carried —
+   *  it's re-fetched — so a picker resumed from the contact step lands back on the time step. */
+  resume?: PickerProgress;
   /** One-off closure + resolved holiday ranges — dates the salon can't be booked on (server
    *  enforces this too; this keeps the calendar from offering them). */
   closedDateRanges?: ClosureRange[];
@@ -402,24 +406,28 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     : staff.filter((m) => m.status === "ACTIVE");
   const needsStaffStep = initialStaffId == null && eligibleStaff.length > 1;
 
-  const [step, setStep] = useState<PickerStep>(needsStaffStep ? "staff" : "date");
-  const [staffId, setStaffId] = useState<number | null>(initialStaffId ?? (needsStaffStep ? null : (eligibleStaff[0]?.id ?? null)));
+  const [step, setStep] = useState<PickerStep>(
+    resume ? (resume.step === "contact" ? "time" : resume.step) : needsStaffStep ? "staff" : "date",
+  );
+  const [staffId, setStaffId] = useState<number | null>(
+    resume?.staffChosen ? resume.staffId : initialStaffId ?? (needsStaffStep ? null : (eligibleStaff[0]?.id ?? null)),
+  );
 
   const today = startOfDay(new Date());
   const maxDate = new Date(today.getTime() + (salon.bookingAdvanceDays ?? 60) * 86400000);
   const closedDays = closedWeekdays(salon.operatingHours);
 
   // Start on the first date the salon is actually open — not a closed weekday, holiday or closure.
-  const [date, setDate] = useState(() => firstBookableDate(today, maxDate, closedDays, closedDateRanges));
+  const [date, setDate] = useState(() => resume?.date || firstBookableDate(today, maxDate, closedDays, closedDateRanges));
   const dateIsClosed = isDateClosed(date, closedDays, closedDateRanges);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [slot, setSlot] = useState<AvailableSlot | null>(null);
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(resume?.name ?? "");
+  const [email, setEmail] = useState(resume?.email ?? "");
+  const [phone, setPhone] = useState(resume?.phone ?? "");
 
   useEffect(() => {
     if (step !== "time") return;

@@ -53,7 +53,14 @@ type MessageCard =
   | { type: "hours" | "location" | "contact" }
   | { type: "staff"; forServiceId?: number }
   | { type: "services"; forStaffId?: number }
-  | { type: "booking-picker"; serviceId: number; staffId?: number };
+  | {
+      type: "booking-picker";
+      serviceId: number;
+      staffId?: number;
+      /** Selections lifted from the picker's previous position — seeds it so the visitor doesn't
+       *  restart from scratch when it's moved down next to a later message. */
+      resume?: PickerProgress;
+    };
 
 type Message =
   | { role: "user"; text: string; time: string }
@@ -166,12 +173,14 @@ function directiveToCard(ui: UiDirectiveResponse | null, services: ServiceItem[]
     case "location": return { type: "location" };
     case "contact": return { type: "contact" };
     case "booking-picker": {
-      if (ui.serviceId != null) {
-        return { type: "booking-picker", serviceId: ui.serviceId, staffId: ui.staffId ?? undefined };
+      // The id must match a real service — the model can pass one that never resolved (null) or
+      // one it hallucinated. Either way the picker can't render, so don't leave its "pick a date
+      // below" reply pointing at nothing: one active service → open it directly; otherwise show
+      // the services card so the visitor taps one to start.
+      const wanted = ui.serviceId != null ? services.find((s) => s.id === ui.serviceId) : undefined;
+      if (wanted) {
+        return { type: "booking-picker", serviceId: wanted.id, staffId: ui.staffId ?? undefined };
       }
-      // The model opened the picker but never resolved a service id, so the picker can't render —
-      // don't leave its "pick a date below" reply pointing at nothing. One active service → open it
-      // directly; otherwise show the services card so the visitor taps one to start.
       const active = services.filter((s) => s.active);
       return active.length === 1
         ? { type: "booking-picker", serviceId: active[0].id, staffId: ui.staffId ?? undefined }
@@ -179,6 +188,17 @@ function directiveToCard(ui: UiDirectiveResponse | null, services: ServiceItem[]
     }
     default: return undefined;
   }
+}
+
+// The model is shown bracketed UI-state notes in the history ("[Showed the visitor …]") and
+// occasionally parrots one back as its own reply instead of calling the matching show* tool.
+// Drop any line that is wholly such a stage-direction so the raw bracket never reaches the visitor.
+function stripStageDirections(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !/^\s*\[[^\]]*\]\s*$/.test(line))
+    .join("\n")
+    .trim();
 }
 
 async function requestChatReply(
@@ -471,12 +491,39 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   function resolveReply(userText: string, history: ReturnType<typeof historySnapshot>) {
     requestChatReply(salon.id, isBooking ? "booking" : "website", userText, history).then(({ text: reply, toolsUsed, pendingBooking, ui }) => {
       const cta = replyCta(userText);
-      const card = directiveToCard(ui, services);
+      let card = directiveToCard(ui, services);
+      const cleanedReply = stripStageDirections(reply);
       setMessages((prev) => {
         const next = [...prev];
-        next[next.length - 1] = {
+        const lastIdx = next.length - 1;
+
+        // A booking picker that's still in progress always follows the conversation down to the
+        // newest assistant turn, so it stays next to the last chat instead of being orphaned
+        // higher up after a few more messages. This runs whether or not the model re-called
+        // startBookingPicker this turn — the model tends not to, because the history clue tells it
+        // the picker is already on screen. Skip only when the model is deliberately swapping in a
+        // different card (e.g. a services card because the visitor asked about something else).
+        if (!card || card.type === "booking-picker") {
+          const liveIdx = next.findIndex(
+            (m, i) => i !== lastIdx && m.role === "assistant" && m.card?.type === "booking-picker",
+          );
+          const live = liveIdx >= 0 ? next[liveIdx] : undefined;
+          if (live && live.role === "assistant" && live.card?.type === "booking-picker") {
+            const liveCard = live.card;
+            card = {
+              type: "booking-picker",
+              serviceId: (card?.type === "booking-picker" ? card.serviceId : undefined) ?? liveCard.serviceId,
+              staffId: (card?.type === "booking-picker" ? card.staffId : undefined) ?? liveCard.staffId,
+              resume: live.picker,
+            };
+            // Clear it from its old spot — it's relocating, not spawning a copy.
+            next[liveIdx] = { ...live, card: undefined, picker: undefined };
+          }
+        }
+
+        next[lastIdx] = {
           role: "assistant",
-          text: reply,
+          text: cleanedReply,
           tool: toolsUsed.length ? { name: friendlyToolLabel(toolsUsed), label: "salon-data", done: true } : undefined,
           time: nowTime(),
           cta,
@@ -671,7 +718,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
 
   // ── Colour tokens ──────────────────────────────────────────────────────
 
-  const chatBg      = theme.chatBg ?? theme.heroBg ?? "#F8FAFC";
+  const chatBg      = theme.chatBg ?? theme.heroBg ?? "#EEF2F4";
   const chatLight   = isLightColor(chatBg);
   const msgText     = chatLight ? "#1E293B" : "#F1F5F9";
   const msgDim      = chatLight ? "#94A3B8" : "#64748B";
@@ -700,12 +747,16 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const canBook = Boolean(salon.features?.includes("BOOKING"));
   const cardTokens: CardTokens = { theme, msgText, msgDim, bubbleBorder, bubbleShadow, asBubbleBg, accentText };
 
+  // Each data card renders `null` when it has nothing to show. Mirror that same guard here and
+  // return `null` too, so the caller can drop in a graceful fallback instead of a blank turn
+  // (the model called the show* tool but the salon data behind it is empty).
   function renderCard(messageIndex: number, card: MessageCard) {
     switch (card.type) {
       case "services": {
         const filtered = card.forStaffId != null
           ? services.filter((s) => s.active && (!s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
           : services;
+        if (!filtered.some((s) => s.active)) return null;
         return <ServicesCard services={filtered} tokens={cardTokens} showBookPill={canBook} onBook={(s) => startBooking(s, card.forStaffId)} />;
       }
       case "staff": {
@@ -713,11 +764,15 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
         const filtered = svc && svc.assignedStaffIds?.length
           ? staff.filter((m) => svc.assignedStaffIds!.includes(String(m.id)))
           : staff;
+        if (!filtered.some((m) => m.status === "ACTIVE")) return null;
         return <StaffCard staff={filtered} tokens={cardTokens} showBookPill={canBook} onBook={startBookingWithStaff} />;
       }
-      case "hours": return <HoursCard salon={salon} tokens={cardTokens} />;
-      case "location": return <LocationCard salon={salon} tokens={cardTokens} />;
-      case "contact": return <ContactCard salon={salon} tokens={cardTokens} />;
+      case "hours":
+        return salon.operatingHours?.length ? <HoursCard salon={salon} tokens={cardTokens} /> : null;
+      case "location":
+        return salon.location?.address || salon.location?.city ? <LocationCard salon={salon} tokens={cardTokens} /> : null;
+      case "contact":
+        return salon.contact?.phone || salon.contact?.email || salon.contact?.website ? <ContactCard salon={salon} tokens={cardTokens} /> : null;
       case "booking-picker": {
         const service = services.find((s) => s.id === card.serviceId);
         if (!service) return null;
@@ -728,6 +783,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
             staff={staff}
             tokens={cardTokens}
             initialStaffId={card.staffId}
+            resume={card.resume}
             closedDateRanges={closedDateRanges}
             onComplete={(fields) => completeBookingPicker(messageIndex, fields)}
             onCancel={() => cancelBookingPicker(messageIndex)}
@@ -826,16 +882,15 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   // questions, built from the latest message in the thread — never the fixed category options
   // (those live in the sidebar / empty state). Nothing shows here until we have some.
   const followupChips = followups.length > 0 && (
-    <div className="flex flex-wrap gap-2 justify-center">
+    <div className="flex flex-wrap gap-2 justify-start px-1">
       {followups.map((q) => (
         <button
           key={q}
           onClick={() => sendMessage(q)}
           disabled={thinking}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           style={chipStyle}
         >
-          <Sparkles className="w-3.5 h-3.5 shrink-0" />
           {q}
         </button>
       ))}
@@ -1015,7 +1070,13 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
               {/* Interactive cards sit outside the prose bubble — nesting a bordered card inside a
                   padded bubble stacks 3 layers of horizontal padding and is unusably tight on phones. */}
               {m.pendingBooking && bookingCard(i, m.pendingBooking)}
-              {m.card && renderCard(i, m.card)}
+              {m.card && (renderCard(i, m.card) ?? (m.text ? null : (
+                // Directive came back but the card has nothing to show (salon data missing, or an
+                // unresolved service) — don't leave the turn as a bare avatar with no content.
+                <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>
+                  Sorry — I couldn't pull that up just now. Please contact us directly and we'll help.
+                </p>
+              )))}
             </div>
           </div>
         )
@@ -1311,7 +1372,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
             {started && (followupsLoading || followupChips) && (
               <div className="mx-auto mb-3 max-w-[760px]">
                 {followupsLoading ? (
-                  <div className="flex items-center justify-center gap-1.5 py-1.5 text-[11px]" style={{ color: msgDim }}>
+                  <div className="flex items-center justify-start gap-1.5 px-1 py-1.5 text-[11px]" style={{ color: msgDim }}>
                     <Loader2 className="w-3 h-3 animate-spin" />
                     <span>Preparing suggestions…</span>
                   </div>

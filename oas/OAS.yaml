@@ -419,8 +419,9 @@ paths:
       description: |
         Returns the visual theme used to render the salon's public-facing website.
         If no theme has been saved yet, sensible defaults are returned without touching the DB:
-        `heroBg="#EEF2F4"`, `heroTextColor="#0F172A"`, `accentColor="#7C3AED"`, `fontFamily="Noto Sans KR"`,
-        `logoBgColor="#7C3AED"`, `headerBg="#E2E8F0"`, `footerBg="#E2E8F0"`, `chatLayout="fullscreen"`, `updatedAt=null`.
+        `heroBg="#EEF2F4"`, `heroTextColor="#0F172A"`, `accentColor="#4B5563"`, `fontFamily="Noto Sans KR"`,
+        `logoBgColor="#DB2777"`, `headerBg="#E2E8F0"`, `footerBg="#E2E8F0"`, `chatBg="#EEF2F4"`,
+        `chatLayout="fullscreen"`, `updatedAt=null`.
         `fontFamily` is either a preset slug or any Google Fonts family name.
       operationId: getTheme
       responses:

@@ -33,7 +33,7 @@ export default function PublicWebsitePage() {
       <div
         className="flex min-h-[100dvh] sm:items-center sm:justify-center sm:p-6"
         style={{
-          background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#1E293B"}`,
+          background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#EEF2F4"}`,
         }}
       >
         <div className="w-full sm:max-w-[700px] lg:max-w-[1080px] h-[100dvh] sm:h-[calc(100dvh-48px)] sm:rounded-2xl sm:overflow-hidden sm:shadow-2xl">

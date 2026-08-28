@@ -63,6 +63,7 @@ spring:
         - classpath:db/V1__schema.sql
         - classpath:db/V2__add_terms_accepted.sql
         - classpath:db/V3__chat_layout_default_fullscreen.sql
+        - classpath:db/V4__theme_palette_defaults.sql
   modulith:
     events:
       jdbc:

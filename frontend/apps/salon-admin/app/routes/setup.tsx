@@ -61,8 +61,9 @@ export default function Setup() {
       key: "website",
       icon: Palette,
       title: "Design your website",
-      description: "Choose how your public page looks — classic layout, AI-generated, or Build based on your Idea.",
-      doneDescription: "We've automatically set up your website design. You can still customise it anytime from the Website tab.",
+      description:
+        "Choose how customers meet your salon online — a classic Static Website (pages for services, team, hours and contact), or a Generative UI that lets them interact with your salon conversationally in a chat. Then customise its look. You can switch modes anytime from the Website tab.",
+      doneDescription: "We've automatically set up your website design. You can still switch between a Static Website and the conversational Generative UI, and customise it, anytime from the Website tab.",
       done: websiteType !== null,
       href: "website",
       cta: "Go to Website",

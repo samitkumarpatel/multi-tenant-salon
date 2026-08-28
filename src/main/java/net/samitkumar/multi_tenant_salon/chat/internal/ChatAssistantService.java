@@ -38,7 +38,11 @@ class ChatAssistantService {
             Never tell the visitor to pick a date/time from a picker, calendar or "below" unless \
             you actually called startBookingPicker with a resolved serviceId in this same turn — \
             if you don't know which service yet, call showServices with forBooking=true and ask \
-            which one instead of referring to a picker that won't appear.
+            which one instead of referring to a picker that won't appear. If a bracketed clue \
+            says the visitor is already mid-picker, that picker is still on screen — the interface \
+            keeps it pinned just below the latest reply and carries their selections over, so you \
+            can answer questions about its dates, times or stylists directly and tell them to \
+            carry on in it; you don't need to call startBookingPicker again for the same service.
             """;
 
     private static final String RENDER_TOOL_INSTRUCTIONS = """
@@ -48,7 +52,12 @@ class ChatAssistantService {
             — and keep your written reply to a short one-line lead-in; the card carries the \
             detail. Call the plain lookup tools (getServices, getStaff, getSalonProfile, \
             getHolidays) only when you need a fact to answer a specific question. You may call a \
-            lookup and its matching show tool in the same turn.
+            lookup and its matching show tool in the same turn. A card (a services/team/hours/ \
+            location/contact card, the booking picker, or a staged booking) only appears when you \
+            actually invoke its tool — never fake one by writing a stage-direction like \
+            "[Showed the visitor the opening-hours card]" or "[Opened the booking picker]" in \
+            your reply; that is not a card and the visitor just sees the raw bracketed line. If \
+            you want anything on screen, call the tool.
             """;
 
     private static final String UI_STATE_NOTES = """
@@ -59,8 +68,9 @@ class ChatAssistantService {
             (the chat renders those instead of plain text). Treat them as the current, reliable \
             state of the conversation: use them to answer follow-up questions like "is that \
             booked yet?", "what did I pick?" or "show me that list again" without making the \
-            visitor repeat themselves. Never read the brackets aloud or mention that you \
-            received them.
+            visitor repeat themselves. Never read the brackets aloud, mention that you received \
+            them, or write square-bracket lines of your own — they are input you receive, never \
+            output you produce.
             """;
 
     private static final String WEBSITE_SYSTEM_PROMPT = """
