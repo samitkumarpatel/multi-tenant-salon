@@ -10,6 +10,7 @@ import {
   type CardTokens, type PendingBookingFields, type PickerProgress,
 } from "./GenerativeUICards";
 import { type ClosureRange, resolveHolidayRanges } from "./bookingDates";
+import { STAFF_ROLE_LABEL } from "./constants";
 import type { Booking, Salon, SalonHoliday, ServiceItem, StaffMember, WebsiteTheme } from "./types";
 
 export interface GenerativeUIWebsiteProps {
@@ -294,7 +295,10 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     if (!last) return;
     if (last.role === "user") { reset(); return; }
     if (!(last.text || last.card || last.pendingBooking)) return; // empty placeholder
-    const key = `${messages.length}:${last.text}:${last.card?.type ?? ""}:${last.pendingBooking?.status ?? ""}`;
+    // Include the picker's current step so the chips refresh as the visitor moves through the
+    // interactive card (stylist → date → time → contact), each step getting its own suggestions.
+    const pickerStep = last.card?.type === "booking-picker" ? (last.picker?.step ?? "open") : "";
+    const key = `${messages.length}:${last.text}:${last.card?.type ?? ""}:${pickerStep}:${last.pendingBooking?.status ?? ""}`;
     if (key === followupKeyRef.current) return;
     followupKeyRef.current = key;
     setFollowups([]);
@@ -342,7 +346,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           : `[Booking confirmed: ${serviceName} on ${when}.]`;
       case "proposed":
       case "confirming":
-        return `[A booking for ${serviceName} on ${when} is staged in the interface, awaiting the visitor's confirm click — not booked yet.]`;
+        return `[A booking for ${serviceName} on ${when} is staged in the interface with a Confirm button, awaiting the visitor's confirm click — not booked yet. Base the follow-ups on this staged booking — confirming it, changing the time or stylist, or what happens after confirming.]`;
       case "dismissed":
         return `[The visitor dismissed the booking proposal for ${serviceName} on ${when}.]`;
       case "error":
@@ -352,7 +356,9 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
 
   // A generative-UI card carries no prose of its own, so a card-only assistant turn never
   // reaches the model through the normal history and it can't answer a later "show me that list
-  // again" / "what did you just show me". These synthetic bracketed lines stand in for it.
+  // again" / "what did you just show me". These synthetic bracketed lines stand in for it — and
+  // each ends with a "Base the follow-ups on ..." steer so the chip generator ties the next
+  // questions to whatever this card put on screen rather than drifting to an unrelated topic.
   function cardHistoryClue(card: MessageCard): string | null {
     switch (card.type) {
       case "services": {
@@ -360,7 +366,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           .filter((s) => s.active && (card.forStaffId == null || !s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
           .map((s) => s.name)
           .join(", ");
-        return `[Showed the visitor an interactive services card${card.forStaffId != null ? " (filtered to one stylist)" : ""}: ${list || "no active services"}. They can tap "Book" on any of them.]`;
+        return `[Showed the visitor an interactive services card${card.forStaffId != null ? " (filtered to one stylist)" : ""}: ${list || "no active services"}. Each row has a "Book" button. Base the follow-ups on these specific services — a price, how long one takes, who performs one, or booking one — not on an unrelated topic.]`;
       }
       case "staff": {
         const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
@@ -368,44 +374,79 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           .filter((m) => m.status === "ACTIVE" && (!svc || !svc.assignedStaffIds?.length || svc.assignedStaffIds.includes(String(m.id))))
           .map((m) => m.name)
           .join(", ");
-        return `[Showed the visitor an interactive team card${svc ? ` (who can do ${svc.name})` : ""}: ${list || "no matching team members"}.]`;
+        return `[Showed the visitor an interactive team card${svc ? ` (who can do ${svc.name})` : ""}: ${list || "no matching team members"}. Each row can start a booking with that person. Base the follow-ups on these specific people — what one specialises in, their experience, or booking with one — not on an unrelated topic.]`;
       }
-      case "hours": return "[Showed the visitor the opening-hours card with this week's hours.]";
-      case "location": return "[Showed the visitor the location card with the salon's address and a map link.]";
-      case "contact": return "[Showed the visitor the contact card with the salon's phone and email.]";
+      case "hours": return "[Showed the visitor the opening-hours card with this week's opening hours. Base the follow-ups on the opening hours — a specific day, whether they're open now or this weekend, or an upcoming holiday/closure.]";
+      case "location": return "[Showed the visitor the location card with the salon's address and a map link. Base the follow-ups on getting there — parking, the nearest transport, or which area it's in.]";
+      case "contact": return "[Showed the visitor the contact card with the salon's phone and email. Base the follow-ups on getting in touch — the best way to reach the salon, or calling to ask something.]";
       case "booking-picker": return null; // covered by the live picker-progress clue instead
     }
   }
 
+  // Active stylists a visitor can pick for a service in the picker — the same ACTIVE +
+  // assigned-staff filter the picker itself applies. Lets the follow-up generator name exactly
+  // who is on the visitor's screen on the stylist step.
+  function eligibleStylists(serviceId: number): StaffMember[] {
+    const svc = services.find((s) => s.id === serviceId);
+    return staff.filter(
+      (m) => m.status === "ACTIVE" && (!svc?.assignedStaffIds?.length || svc.assignedStaffIds.includes(String(m.id))),
+    );
+  }
+
+  function describeStylist(m: StaffMember): string {
+    const role = STAFF_ROLE_LABEL[m.role] ?? m.role;
+    const spec = m.specializations?.length ? `; specialises in ${m.specializations.join(", ")}` : "";
+    return `${m.name} (${role}${spec})`;
+  }
+
   // The interactive booking picker owns its own state; this turns a lifted snapshot of it into a
   // clue so the assistant can answer "is that booked yet?" correctly while the visitor is still
-  // mid-flow (it isn't — and it can say exactly what's left to do).
-  function pickerHistoryClue(serviceId: number, p: PickerProgress): string {
+  // mid-flow (it isn't — and it can say exactly what's left to do). `p` is absent on the very
+  // first render, before the picker has emitted any progress — describe the step it opens on.
+  // The `stepFocus` sentence spells out what is interactive on screen right now so the follow-up
+  // chips speak to the current step (its stylists, its calendar) rather than jumping ahead.
+  function pickerHistoryClue(serviceId: number, p?: PickerProgress, initialStaffId?: number): string {
     const serviceName = services.find((s) => s.id === serviceId)?.name ?? `service #${serviceId}`;
-    const stylist = !p.staffChosen
+    const roster = eligibleStylists(serviceId);
+    const step: PickerProgress["step"] = p?.step ?? (initialStaffId == null && roster.length > 1 ? "staff" : "date");
+    const onStaffStep = step === "staff";
+
+    const stylist = onStaffStep
       ? "not chosen yet"
-      : p.staffId == null
-        ? "any available stylist"
-        : staff.find((s) => s.id === p.staffId)?.name ?? `staff #${p.staffId}`;
-    const dateChosen = p.step === "time" || p.step === "contact";
-    const timeLabel = p.step === "contact" && p.time ? p.time : "not chosen yet";
+      : p
+        ? (p.staffId == null ? "any available stylist" : staff.find((s) => s.id === p.staffId)?.name ?? `staff #${p.staffId}`)
+        : initialStaffId != null
+          ? staff.find((s) => s.id === initialStaffId)?.name ?? `staff #${initialStaffId}`
+          : roster.length === 1 ? roster[0].name : "any available stylist";
+
+    const dateChosen = step === "time" || step === "contact";
+    const timeLabel = step === "contact" && p?.time ? p.time : "not chosen yet";
     const contactBits = [
-      p.name ? `name "${p.name}"` : null,
-      p.email ? `email "${p.email}"` : null,
-      p.phone ? `phone "${p.phone}"` : null,
+      p?.name ? `name "${p.name}"` : null,
+      p?.email ? `email "${p.email}"` : null,
+      p?.phone ? `phone "${p.phone}"` : null,
     ].filter(Boolean);
-    const contactState = p.step === "contact"
+    const contactState = step === "contact"
       ? (contactBits.length ? ` They have entered ${contactBits.join(", ")}.` : " They have not filled in their contact details yet.")
       : "";
-    return `[The visitor is using the interactive booking picker for ${serviceName} — they have NOT confirmed a booking. Selected so far — stylist: ${stylist}; date: ${dateChosen ? p.date : "not chosen yet"}; time: ${timeLabel}. Current step: ${p.step}.${contactState} Nothing is booked and no booking has been staged for confirmation: if they ask whether it's booked, tell them not yet — they still need to finish the picker (pick a time, enter their name and an email or phone) and confirm on the review card.]`;
+
+    const stepFocus = onStaffStep
+      ? ` The stylist step is open on screen now: the visitor is choosing from ${roster.map(describeStylist).join(", ") || "the salon's stylists"}, or "any available stylist" — base the follow-ups on picking between these stylists (who does what, who suits this service), not on dates or times yet.`
+      : step === "date"
+        ? " The date step is open on screen now: the visitor is picking a day from the calendar of real availability — base the follow-ups on which days work."
+        : step === "time"
+          ? ` The time step is open on screen now: the visitor is picking a slot on ${p?.date ?? "the chosen day"} — base the follow-ups on the times that day.`
+          : " The contact step is open on screen now: the visitor is entering their name and an email or phone to finish.";
+
+    return `[The visitor is using the interactive booking picker for ${serviceName} — they have NOT confirmed a booking. Selected so far — stylist: ${stylist}; date: ${dateChosen ? p?.date : "not chosen yet"}; time: ${timeLabel}. Current step: ${step}.${stepFocus}${contactState} Nothing is booked and no booking has been staged for confirmation: if they ask whether it's booked, tell them not yet — they still need to finish the picker (pick a time, enter their name and an email or phone) and confirm on the review card.]`;
   }
 
   // Prior turns, formatted for the chat API — captured before the new user message is appended.
   function assistantHistoryText(m: Extract<Message, { role: "assistant" }>): string | null {
     const parts: string[] = [];
     if (m.text) parts.push(m.text);
-    if (m.card?.type === "booking-picker" && m.picker) {
-      parts.push(pickerHistoryClue(m.card.serviceId, m.picker));
+    if (m.card?.type === "booking-picker") {
+      parts.push(pickerHistoryClue(m.card.serviceId, m.picker, m.card.staffId));
     } else if (m.card) {
       const clue = cardHistoryClue(m.card);
       if (clue) parts.push(clue);

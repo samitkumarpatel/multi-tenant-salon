@@ -33,6 +33,29 @@ class ChatFollowupsService {
             they do or book with them). The earlier turns are context only. Don't repeat a
             question already asked.
 
+            The LATEST MESSAGE is one of two things, and the follow-ups are grounded
+            differently for each:
+
+            1. It contains a bracketed [ ... ] description of an interactive element on the
+               visitor's screen — a services list, a team list, an opening-hours / location /
+               contact card, the booking picker, or a staged booking. Then the follow-ups MUST
+               be about what THAT element is showing or asking RIGHT NOW — the specific people,
+               services, hours or options it lists, or how to act on its current step — and
+               MUST NOT jump to a later step or an unrelated topic. Always obey any "Base the
+               follow-ups on ..." hint written inside the [ ... ] text. Examples:
+                 - services card listing services -> "How much is <a listed service>?",
+                   "How long does <service> take?", "Who does <service>?", "Book <service>"
+                 - team card listing stylists     -> "Tell me about <a listed stylist>",
+                   "What does <stylist> specialise in?", "Book with <stylist>"
+                 - opening-hours card             -> "Are you open <day>?",
+                   "What are <day>'s hours?", "Any closures coming up?"
+                 - booking picker on the stylist step -> "Which stylist suits <service>?",
+                   "What does <stylist> do?"  (NOT dates or times while that step is open)
+
+            2. It is plain assistant prose with no [ ... ] element. Then base the follow-ups on
+               that answer itself — go one step deeper into what it said, or to its natural
+               next step.
+
             Stay strictly within what the assistant can answer: this salon's services and
             pricing, staff, opening hours, location, contact details, and holidays/closures —
             plus making a booking, but ONLY if "BOOKING" is in the salon's features list. Never
