@@ -9,11 +9,11 @@ locals {
   # environment config with the computed bucket origins and function ARNs.
   cf_distributions = {
     for dist_key, dist in var.distributions : dist_key => {
-      aliases            = dist.aliases
-      certificate_arn    = var.certificate_arns[dist.certificate_key]
-      default_origin_key = dist.default_origin_key
-      log_prefix         = dist.log_prefix
-      path_behaviors     = dist.path_behaviors
+      aliases                = dist.aliases
+      certificate_arn        = var.certificate_arns[dist.certificate_key]
+      default_origin_key     = dist.default_origin_key
+      log_prefix             = dist.log_prefix
+      path_behaviors         = dist.path_behaviors
       custom_error_responses = dist.custom_error_responses
 
       origins = {

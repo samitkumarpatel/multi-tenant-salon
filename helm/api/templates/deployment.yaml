@@ -69,15 +69,17 @@ spec:
               value: {{ $val | quote }}
             {{- end }}
             {{- end }}
-            # postgres-secret is created out-of-band by
+            # The datasource password Secret is created out-of-band by
             # helm/pre-req-manifest/create-secrets.sh — this chart only reads
-            # it, it never creates or overrides it. Postgres only exposes
-            # POSTGRES_PASSWORD, so map it onto the key Spring actually reads
-            # (spring.datasource.password).
+            # it, it never creates or overrides it. Both azure-postgres-secret
+            # and postgres-secret expose the password under POSTGRES_PASSWORD, so
+            # map it onto the key Spring actually reads (spring.datasource.password).
+            # database.passwordSecretName selects which one (azure-postgres-secret
+            # post-migration, postgres-secret for the in-cluster DB).
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: {{ .Values.database.passwordSecretName | default "postgres-secret" }}
                   key: POSTGRES_PASSWORD
           livenessProbe:
             httpGet:

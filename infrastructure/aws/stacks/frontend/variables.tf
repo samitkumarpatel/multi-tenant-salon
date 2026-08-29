@@ -47,8 +47,8 @@ variable "buckets" {
 variable "distributions" {
   type = map(object({
     aliases            = list(string)
-    certificate_key    = string  # key in var.certificate_arns
-    default_origin_key = string  # must be a key in var.buckets
+    certificate_key    = string # key in var.certificate_arns
+    default_origin_key = string # must be a key in var.buckets
     log_prefix         = optional(string, "")
 
     # Additional S3 origins beyond the default (must also be keys in var.buckets)

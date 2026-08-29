@@ -27,6 +27,12 @@ variable "secrets" {
   sensitive = true
 }
 
+variable "admin_object_ids" {
+  description = "Extra AAD object IDs granted full secret permissions (Get/List/Set/Delete/Purge/Recover). Empty by default."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

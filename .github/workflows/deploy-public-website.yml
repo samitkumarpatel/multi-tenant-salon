@@ -30,8 +30,8 @@ jobs:
       - name: Build salon-public-website
         working-directory: frontend
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-          VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL_MIX || 'https://api-m.salonsaas.org' }}
+          VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN_MIX || 'salonsaas.org' }}
         run: npm run build:public
 
       - name: Upload build artifact
@@ -41,9 +41,30 @@ jobs:
           path: frontend/apps/salon-public-website/build/client
           retention-days: 7
 
+  # ── Cloudflare Pages (mix) — ACTIVE deploy path ────────────────────────────
+  deploy-cloudflare:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-public-website
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=salonsaas-public --branch=main
+
   deploy:
     runs-on: ubuntu-latest
-    if: false  # disabled: AWS deployment replaced by Azure
+    if: false # disabled: AWS deployment replaced by Cloudflare Pages
     needs: build
     permissions:
       contents: read
@@ -79,6 +100,7 @@ jobs:
 
   deploy-azure:
     runs-on: ubuntu-latest
+    if: false # disabled: Azure Blob Storage + Front Door replaced by Cloudflare Pages
     needs: build
     permissions:
       contents: read

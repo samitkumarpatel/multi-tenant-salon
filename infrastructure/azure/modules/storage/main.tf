@@ -5,12 +5,12 @@
 resource "azurerm_storage_account" "this" {
   for_each = var.accounts
 
-  name                     = each.value.storage_account_name
-  resource_group_name      = var.resource_group_name
-  location                 = var.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  account_kind             = "StorageV2"
+  name                      = each.value.storage_account_name
+  resource_group_name       = var.resource_group_name
+  location                  = var.location
+  account_tier              = "Standard"
+  account_replication_type  = "LRS"
+  account_kind              = "StorageV2"
   shared_access_key_enabled = true
 
   # cors_rule must be nested inside blob_properties, not at the top level

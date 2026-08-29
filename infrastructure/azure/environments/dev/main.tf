@@ -1,8 +1,14 @@
 locals {
-  environment         = "dev"
-  domain              = "salonsaas.org"
-  location            = "westeurope"
-  resource_group_name = "multi-tenant-salon-${local.environment}"
+  environment = "dev"
+  domain      = "salonsaas.org"
+  location    = "westeurope"
+
+  # Shared resource group. This env creates and owns it; the `mix` environment
+  # (infrastructure/mix) looks it up by this exact name and drops its own Azure
+  # resources into it, so nothing has to move when `dev` is retired. Pinned to a
+  # literal (not "multi-tenant-salon-${environment}") so the name stays stable
+  # regardless of `environment` — keep it in sync with mix's `azure_resource_group`.
+  resource_group_name = "multi-tenant-salon-dev"
 
   # Custom hostname for each frontend app
   cdn_custom_hostnames = {
