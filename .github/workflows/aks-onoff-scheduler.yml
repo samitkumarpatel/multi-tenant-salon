@@ -7,9 +7,12 @@ run-name: >-
   }} Scheduler
 
 on:
-  schedule:
-    - cron: '0 22 * * *'   # 00:00 CEST (UTC+2) — shutdown
-    - cron: '0 12 * * *'   # 14:00 CEST (UTC+2) — startup
+  # Disabled: the AKS cluster was retired in the Cloudflare + Container Apps
+  # migration (compute now scales to zero on its own). Kept for reference /
+  # rollback — re-enable the schedule if AKS ever comes back.
+  # schedule:
+  #   - cron: '0 22 * * *'   # 00:00 CEST (UTC+2) — shutdown
+  #   - cron: '0 12 * * *'   # 14:00 CEST (UTC+2) — startup
   workflow_dispatch:
     inputs:
       action:

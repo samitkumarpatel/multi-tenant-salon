@@ -1,166 +1,190 @@
----
-# Namespace "salon" is created by helm/pre-req-manifest/create-secrets.sh —
-# not here, so there is exactly one owner of that resource.
-
-# ConfigMap — non-sensitive Postgres config
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-config
-  namespace: salon
-data:
-  POSTGRES_DB: salon
-  POSTGRES_USER: postgres
-
----
-# PersistentVolume — static binding to the Azure managed disk created by Terraform.
-# Replace dbe2ac78-1258-48ea-9af7-846ae2c78634 with your Azure subscription ID.
-# Disk URI: /subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev/providers/Microsoft.Compute/disks/salon-saas-dev-postgres-data
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: postgres-pv
-spec:
-  capacity:
-    storage: 32Gi
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: managed-premium
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: topology.kubernetes.io/zone
-              operator: In
-              values:
-                - "0"
-  csi:
-    driver: disk.csi.azure.com
-    volumeHandle: /subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev/providers/Microsoft.Compute/disks/salon-saas-dev-postgres-data
-    volumeAttributes:
-      fsType: ext4
-
----
-# PersistentVolumeClaim — binds to the PV above
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-pvc
-  namespace: salon
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: managed-premium
-  resources:
-    requests:
-      storage: 32Gi
-  volumeName: postgres-pv
-
----
-# Deployment — single replica Postgres (stateful, system node pool only)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-  namespace: salon
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: postgres
-  strategy:
-    type: Recreate   # required for ReadWriteOnce disks — no rolling update
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      nodeSelector:
-        workload-type: system   # pin to on-demand system pool, never spot
-      containers:
-        - name: postgres
-          image: postgres:16-alpine
-          ports:
-            - containerPort: 5432
-          envFrom:
-            - configMapRef:
-                name: postgres-config
-          env:
-            # postgres-secret is created out-of-band by
-            # helm/pre-req-manifest/create-secrets.sh — never define it here,
-            # applying a duplicate Secret manifest in this directory would
-            # silently overwrite it with a placeholder password.
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
-            # psql (used by postStart below) reads PGPASSWORD, not POSTGRES_PASSWORD.
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
-          lifecycle:
-            postStart:
-              exec:
-                # Idempotently ensures $POSTGRES_DB exists. POSTGRES_DB only
-                # creates a database on first init of an EMPTY data directory,
-                # which has no effect once a cluster is already initialized
-                # (e.g. this PV is a pre-provisioned Azure disk). Runs on every
-                # container start; safe to re-run — no-ops if already present.
-                command:
-                  - sh
-                  - -c
-                  - |
-                    set -eu
-                    until pg_isready -h localhost -U "$POSTGRES_USER" -q; do
-                      sleep 1
-                    done
-                    exists=$(psql -h localhost -U "$POSTGRES_USER" -d postgres -tAc \
-                      "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'")
-                    if [ "$exists" != "1" ]; then
-                      psql -h localhost -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\""
-                    fi
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          volumeMounts:
-            - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "postgres"]
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            exec:
-              command: ["pg_isready", "-U", "postgres"]
-            initialDelaySeconds: 15
-            periodSeconds: 20
-      volumes:
-        - name: postgres-data
-          persistentVolumeClaim:
-            claimName: postgres-pvc
-
----
-# Service — ClusterIP (internal only, backend connects via postgres.salon.svc.cluster.local:5432)
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-  namespace: salon
-spec:
-  selector:
-    app: postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
-  type: ClusterIP
+# =============================================================================
+# RETAINED FOR ROLLBACK — NOT APPLIED ANY MORE
+# =============================================================================
+# Migration step 1 moved the `salon` database off this in-cluster Postgres and
+# onto the managed Azure Database for PostgreSQL Flexible Server
+# (salon-saas-mix-psql). The api Deployment now points there
+# (helm/api/values.yaml: SPRING_DATASOURCE_URL + database.passwordSecretName).
+#
+# The manifest below is deliberately left in the repo, fully commented out, so
+# the in-cluster DB can be brought back quickly if the managed server has to be
+# rolled back:
+#   1. Uncomment everything below this banner.
+#   2. Restore the postgres-secret block in helm/pre-req-manifest/create-secrets.sh.
+#   3. kubectl apply -f helm/postgres/postgres.yaml
+#   4. Point helm/api/values.yaml back at
+#      jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon and
+#      database.passwordSecretName: postgres-secret, then `helm upgrade api`.
+#
+# NOTE: the live objects (Deployment/postgres, its PVC/PV, postgres-config,
+# postgres-secret) are still running in the cluster untouched — commenting this
+# file out does not delete them. It only stops `kubectl apply` from recreating
+# them on a fresh environment.
+# =============================================================================
+#
+# ---
+# # Namespace "salon" is created by helm/pre-req-manifest/create-secrets.sh —
+# # not here, so there is exactly one owner of that resource.
+#
+# # ConfigMap — non-sensitive Postgres config
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: postgres-config
+#   namespace: salon
+# data:
+#   POSTGRES_DB: salon
+#   POSTGRES_USER: postgres
+#
+# ---
+# # PersistentVolume — static binding to the Azure managed disk created by Terraform.
+# # Replace dbe2ac78-1258-48ea-9af7-846ae2c78634 with your Azure subscription ID.
+# # Disk URI: /subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev/providers/Microsoft.Compute/disks/salon-saas-dev-postgres-data
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: postgres-pv
+# spec:
+#   capacity:
+#     storage: 32Gi
+#   accessModes:
+#     - ReadWriteOnce
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: managed-premium
+#   nodeAffinity:
+#     required:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: topology.kubernetes.io/zone
+#               operator: In
+#               values:
+#                 - "0"
+#   csi:
+#     driver: disk.csi.azure.com
+#     volumeHandle: /subscriptions/dbe2ac78-1258-48ea-9af7-846ae2c78634/resourceGroups/multi-tenant-salon-dev/providers/Microsoft.Compute/disks/salon-saas-dev-postgres-data
+#     volumeAttributes:
+#       fsType: ext4
+#
+# ---
+# # PersistentVolumeClaim — binds to the PV above
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: postgres-pvc
+#   namespace: salon
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   storageClassName: managed-premium
+#   resources:
+#     requests:
+#       storage: 32Gi
+#   volumeName: postgres-pv
+#
+# ---
+# # Deployment — single replica Postgres (stateful, system node pool only)
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: postgres
+#   namespace: salon
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: postgres
+#   strategy:
+#     type: Recreate   # required for ReadWriteOnce disks — no rolling update
+#   template:
+#     metadata:
+#       labels:
+#         app: postgres
+#     spec:
+#       nodeSelector:
+#         workload-type: system   # pin to on-demand system pool, never spot
+#       containers:
+#         - name: postgres
+#           image: postgres:16-alpine
+#           ports:
+#             - containerPort: 5432
+#           envFrom:
+#             - configMapRef:
+#                 name: postgres-config
+#           env:
+#             # postgres-secret is created out-of-band by
+#             # helm/pre-req-manifest/create-secrets.sh — never define it here,
+#             # applying a duplicate Secret manifest in this directory would
+#             # silently overwrite it with a placeholder password.
+#             - name: POSTGRES_PASSWORD
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: postgres-secret
+#                   key: POSTGRES_PASSWORD
+#             - name: PGDATA
+#               value: /var/lib/postgresql/data/pgdata
+#             # psql (used by postStart below) reads PGPASSWORD, not POSTGRES_PASSWORD.
+#             - name: PGPASSWORD
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: postgres-secret
+#                   key: POSTGRES_PASSWORD
+#           lifecycle:
+#             postStart:
+#               exec:
+#                 # Idempotently ensures $POSTGRES_DB exists. POSTGRES_DB only
+#                 # creates a database on first init of an EMPTY data directory,
+#                 # which has no effect once a cluster is already initialized
+#                 # (e.g. this PV is a pre-provisioned Azure disk). Runs on every
+#                 # container start; safe to re-run — no-ops if already present.
+#                 command:
+#                   - sh
+#                   - -c
+#                   - |
+#                     set -eu
+#                     until pg_isready -h localhost -U "$POSTGRES_USER" -q; do
+#                       sleep 1
+#                     done
+#                     exists=$(psql -h localhost -U "$POSTGRES_USER" -d postgres -tAc \
+#                       "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'")
+#                     if [ "$exists" != "1" ]; then
+#                       psql -h localhost -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\""
+#                     fi
+#           resources:
+#             requests:
+#               cpu: 100m
+#               memory: 256Mi
+#             limits:
+#               cpu: 500m
+#               memory: 512Mi
+#           volumeMounts:
+#             - name: postgres-data
+#               mountPath: /var/lib/postgresql/data
+#           readinessProbe:
+#             exec:
+#               command: ["pg_isready", "-U", "postgres"]
+#             initialDelaySeconds: 5
+#             periodSeconds: 5
+#           livenessProbe:
+#             exec:
+#               command: ["pg_isready", "-U", "postgres"]
+#             initialDelaySeconds: 15
+#             periodSeconds: 20
+#       volumes:
+#         - name: postgres-data
+#           persistentVolumeClaim:
+#             claimName: postgres-pvc
+#
+# ---
+# # Service — ClusterIP (internal only, backend connects via postgres.salon.svc.cluster.local:5432)
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: postgres
+#   namespace: salon
+# spec:
+#   selector:
+#     app: postgres
+#   ports:
+#     - port: 5432
+#       targetPort: 5432
+#   type: ClusterIP

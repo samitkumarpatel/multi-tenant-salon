@@ -3,13 +3,18 @@
 # All secrets are created idempotently (safe to re-run).
 #
 # Usage:
-#   export POSTGRES_PASSWORD="<your-password>"
+#   export AZURE_POSTGRES_PASSWORD="<managed-flexible-server-admin-password>"
+#   # export POSTGRES_PASSWORD="<in-cluster-postgres-password>"   # rollback only, see below
 #   export GHCR_USER="<github-username>"
 #   export GHCR_PAT="<github-pat-with-read:packages>"
 #   export MAILJET_API_KEY="<your-mailjet-api-key>"
 #   export MAILJET_API_SECRET="<your-mailjet-api-secret>"
 #   export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
 #   ./helm/prereq-manifest/create-secrets.sh
+#
+# AZURE_POSTGRES_PASSWORD is the admin password of the managed Azure Database for
+# PostgreSQL Flexible Server (salon-saas-mix-psql) the api now points at — get it
+# with: terraform -chdir=infrastructure/mix/environments/mix output -raw database_password
 #
 # GHCR_PAT must be a long-lived Personal Access Token (not GITHUB_TOKEN) with
 # read:packages scope. Create one at: github.com/settings/tokens
@@ -20,7 +25,8 @@ NAMESPACE="salon"
 
 # ── Validate inputs ───────────────────────────────────────────────────────────
 
-: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+: "${AZURE_POSTGRES_PASSWORD:?AZURE_POSTGRES_PASSWORD is required}"
+# : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"   # rollback only (in-cluster postgres)
 : "${GHCR_USER:?GHCR_USER is required}"
 : "${GHCR_PAT:?GHCR_PAT is required}"
 : "${MAILJET_API_KEY:?MAILJET_API_KEY is required}"
@@ -31,17 +37,35 @@ NAMESPACE="salon"
 
 kubectl apply -f "$(dirname "$0")/namespace.yaml"
 
-# ── postgres-secret ───────────────────────────────────────────────────────────
-# Used by the postgres pod (POSTGRES_PASSWORD) and mounted into the api/auth
-# pods via envFrom so they read POSTGRES_PASSWORD at runtime without CI ever
-# touching the value.
+# ── postgres-secret (RETAINED FOR ROLLBACK — NOT CREATED ANY MORE) ────────────
+# Was the password for the in-cluster postgres pod, also injected into api as
+# SPRING_DATASOURCE_PASSWORD. Migration step 1 repointed api at the managed
+# Azure Flexible Server (azure-postgres-secret below). The live secret still
+# exists in the cluster and is untouched. To roll back: re-export
+# POSTGRES_PASSWORD, uncomment the guard above and the block below, uncomment
+# helm/postgres/postgres.yaml, and set helm/api/values.yaml
+# database.passwordSecretName back to postgres-secret.
+#
+# kubectl create secret generic postgres-secret \
+#   --namespace "$NAMESPACE" \
+#   --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+#   --dry-run=client -o yaml | kubectl apply -f -
+#
+# echo "postgres-secret created/updated"
 
-kubectl create secret generic postgres-secret \
+# ── azure-postgres-secret ─────────────────────────────────────────────────────
+# Admin password for the managed Azure Database for PostgreSQL Flexible Server
+# (salon-saas-mix-psql). The api Deployment reads it as SPRING_DATASOURCE_PASSWORD
+# when helm/api/values.yaml sets database.passwordSecretName: azure-postgres-secret
+# (the post-migration default). Same key name (POSTGRES_PASSWORD) as
+# postgres-secret so the chart's secretKeyRef.key stays constant.
+
+kubectl create secret generic azure-postgres-secret \
   --namespace "$NAMESPACE" \
-  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  --from-literal=POSTGRES_PASSWORD="$AZURE_POSTGRES_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-echo "postgres-secret created/updated"
+echo "azure-postgres-secret created/updated"
 
 # ── ghcr-secret ───────────────────────────────────────────────────────────────
 # docker-registry pull secret so pods in the salon namespace can pull images

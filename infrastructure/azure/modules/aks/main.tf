@@ -20,8 +20,8 @@ resource "azurerm_kubernetes_cluster" "this" {
   name                = local.name
   location            = var.location
   resource_group_name = var.resource_group_name
-  dns_prefix         = local.name
-  kubernetes_version = var.kubernetes_version != "" ? var.kubernetes_version : null
+  dns_prefix          = local.name
+  kubernetes_version  = var.kubernetes_version != "" ? var.kubernetes_version : null
 
   # System pool: on-demand nodes — hosts K8s system pods and PostgreSQL.
   # PostgreSQL must NOT run on the spot pool (eviction = unclean shutdown → data risk).

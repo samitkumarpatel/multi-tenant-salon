@@ -22,8 +22,8 @@ module "dns_bootstrapping" {
     }
 
     spf = {
-      type    = "TXT"
-      name    = "@"
+      type = "TXT"
+      name = "@"
       records = [
         "v=spf1 include:spf.mailjet.com include:zohomail.eu ~all",
         "zoho-verification=zb86027192.zmverify.zoho.eu",
@@ -163,13 +163,13 @@ module "frontend" {
   }
 
   dns_records = {
-    apex        = { subdomain = "",            distribution_key = "onboarding"  }
-    www         = { subdomain = "www",         distribution_key = "onboarding"  }
-    admin       = { subdomain = "admin",       distribution_key = "admin"       }
-    wildcard    = { subdomain = "*",           distribution_key = "wildcard"    }
+    apex        = { subdomain = "", distribution_key = "onboarding" }
+    www         = { subdomain = "www", distribution_key = "onboarding" }
+    admin       = { subdomain = "admin", distribution_key = "admin" }
+    wildcard    = { subdomain = "*", distribution_key = "wildcard" }
     super-admin = { subdomain = "super-admin", distribution_key = "super-admin" }
-    booking     = { subdomain = "book",        distribution_key = "booking"     }
-    staff       = { subdomain = "staff",       distribution_key = "staff"       }
+    booking     = { subdomain = "book", distribution_key = "booking" }
+    staff       = { subdomain = "staff", distribution_key = "staff" }
   }
 }
 
@@ -193,12 +193,12 @@ module "backend" {
       cpu               = 512
       memory            = 1024
       env_vars = {
-        "spring.sql.init.mode" = "never"
+        "spring.sql.init.mode"                                      = "never"
         "spring.modulith.events.jdbc.schema-initialization.enabled" = "false"
-        "spring.flyway.enabled" = "true"
-        CORS_ALLOWED_ORIGIN_PATTERNS    = "https://${local.domain},https://www.${local.domain},https://*.${local.domain}"
-        "media.staff-bucket-name"       = module.frontend.s3_buckets["staff-web"]
-        "media.staff-cdn-base-url"      = "https://staff.${local.domain}"
+        "spring.flyway.enabled"                                     = "true"
+        CORS_ALLOWED_ORIGIN_PATTERNS                                = "https://${local.domain},https://www.${local.domain},https://*.${local.domain}"
+        "media.staff-bucket-name"                                   = module.frontend.s3_buckets["staff-web"]
+        "media.staff-cdn-base-url"                                  = "https://staff.${local.domain}"
       }
       s3_bucket_arns = ["arn:aws:s3:::${module.frontend.s3_buckets["staff-web"]}"]
     }

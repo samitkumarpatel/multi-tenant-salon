@@ -14,10 +14,10 @@ terraform {
 
   backend "s3" {
     #Populated at init time via -backend-config or TF_BACKEND_* env vars in .env:
-      bucket         = "tfpocbucket001"
-      key            = "dev/1.0.0/terraform.tfstate"
-      region         = "eu-north-1"
-      encrypt        = true
+    bucket  = "tfpocbucket001"
+    key     = "dev/1.0.0/terraform.tfstate"
+    region  = "eu-north-1"
+    encrypt = true
   }
 }
 

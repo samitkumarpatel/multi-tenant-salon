@@ -288,10 +288,10 @@ resource "aws_lb_listener_rule" "ingress" {
 # ── Per-service ECS services ──────────────────────────────────────────────────
 
 resource "aws_ecs_service" "this" {
-  for_each        = var.services
-  name            = "${var.name}-${each.key}"
-  cluster         = aws_ecs_cluster.this.id
-  task_definition = aws_ecs_task_definition.this[each.key].arn
+  for_each             = var.services
+  name                 = "${var.name}-${each.key}"
+  cluster              = aws_ecs_cluster.this.id
+  task_definition      = aws_ecs_task_definition.this[each.key].arn
   desired_count        = each.value.desired_count
   force_new_deployment = true
 

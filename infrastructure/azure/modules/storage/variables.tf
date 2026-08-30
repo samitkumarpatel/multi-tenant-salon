@@ -14,11 +14,11 @@ variable "accounts" {
     index_document       = optional(string, "index.html")
     error_404_document   = optional(string, "index.html")
     cors_rules = optional(list(object({
-      allowed_headers  = list(string)
-      allowed_methods  = list(string)
-      allowed_origins  = list(string)
-      exposed_headers  = optional(list(string), [])
-      max_age_seconds  = optional(number, 3600)
+      allowed_headers = list(string)
+      allowed_methods = list(string)
+      allowed_origins = list(string)
+      exposed_headers = optional(list(string), [])
+      max_age_seconds = optional(number, 3600)
     })), [])
   }))
 }

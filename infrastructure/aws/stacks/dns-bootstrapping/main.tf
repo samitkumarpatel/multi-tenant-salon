@@ -94,7 +94,7 @@ resource "aws_route53_record" "cert_validation" {
         value  = o.resource_record_value
         type   = o.resource_record_type
       }]
-    ]) : dvo.domain => {
+      ]) : dvo.domain => {
       name   = dvo.name
       record = dvo.value
       type   = dvo.type

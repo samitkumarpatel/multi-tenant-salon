@@ -59,16 +59,27 @@ env:
   MEDIA_STAFF_BUCKET_NAME: ""  # only needed when STORAGE_TYPE=S3
   MEDIA_LOCAL_BASE_URL: "https://api.salonsaas.org"
   MEDIA_LOCAL_STORAGE_PATH: "/tmp/salon-photos"  # ephemeral — mount a PV here when storage is revisited
-  # Postgres runs in the same namespace (salon), so the ClusterIP Service name
-  # resolves directly. Database name and user come from the postgres-config ConfigMap.
-  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.salon.svc.cluster.local:5432/salon"
+  # Migration step 1: compute stays on AKS, data now lives on the managed Azure
+  # Database for PostgreSQL Flexible Server (salon-saas-mix-psql). AKS node/pod
+  # egress reaches it through the server's "AllowAzureServices" firewall rule;
+  # the server enforces TLS, hence ?sslmode=require. The in-cluster `postgres`
+  # Deployment is left running untouched as an instant rollback (flip this URL
+  # back to postgres.salon.svc.cluster.local + passwordSecretName to
+  # postgres-secret).
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://salon-saas-mix-psql.postgres.database.azure.com:5432/salon?sslmode=require"
   SPRING_DATASOURCE_USERNAME: "postgres"
   # SPRING_DATASOURCE_PASSWORD is deliberately absent — templates/deployment.yaml
-  # injects it directly from the postgres-secret Secret (created by
+  # injects it from the Secret named by database.passwordSecretName (created by
   # helm/pre-req-manifest/create-secrets.sh). Setting it here would put the
   # password in plain text in git, and a value in `env` also silently
   # overrides anything supplied via envFrom.
   OAUTH2_ISSUER_URI: "https://auth.salonsaas.org"
+
+# Secret (created out-of-band by helm/pre-req-manifest/create-secrets.sh) holding
+# POSTGRES_PASSWORD for the datasource. azure-postgres-secret → managed Flexible
+# Server; postgres-secret → the in-cluster postgres pod (pre-migration default).
+database:
+  passwordSecretName: azure-postgres-secret
 
 # Sensitive values — override per environment (never commit real values).
 # Rendered into a Kubernetes Secret and injected via envFrom. Empty by default:

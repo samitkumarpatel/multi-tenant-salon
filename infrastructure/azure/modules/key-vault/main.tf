@@ -19,6 +19,20 @@ resource "azurerm_key_vault" "this" {
       "Get", "List", "Set", "Delete", "Purge", "Recover"
     ]
   }
+
+  # Extra humans/identities (by AAD object ID) that get full secret access —
+  # e.g. an operator who needs to read the generated DB password.
+  dynamic "access_policy" {
+    for_each = toset(var.admin_object_ids)
+    content {
+      tenant_id = data.azurerm_client_config.current.tenant_id
+      object_id = access_policy.value
+
+      secret_permissions = [
+        "Get", "List", "Set", "Delete", "Purge", "Recover"
+      ]
+    }
+  }
 }
 
 resource "azurerm_key_vault_secret" "this" {

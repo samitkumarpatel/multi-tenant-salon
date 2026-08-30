@@ -1,3 +1,8 @@
+locals {
+  # ENV_VAR_NAME => container-app secret name (lowercase, alphanumeric + '-').
+  secret_names = { for k, v in var.secret_env : k => replace(lower(k), "_", "-") }
+}
+
 resource "azurerm_container_app" "this" {
   name                         = var.name
   container_app_environment_id = var.container_app_environment_id
@@ -10,6 +15,14 @@ resource "azurerm_container_app" "this" {
     content {
       name  = "registry-password"
       value = var.registry_password
+    }
+  }
+
+  dynamic "secret" {
+    for_each = var.secret_env
+    content {
+      name  = local.secret_names[secret.key]
+      value = secret.value
     }
   }
 
@@ -50,6 +63,14 @@ resource "azurerm_container_app" "this" {
         }
       }
 
+      dynamic "env" {
+        for_each = var.secret_env
+        content {
+          name        = env.key
+          secret_name = local.secret_names[env.key]
+        }
+      }
+
       dynamic "volume_mounts" {
         for_each = var.container.volume
         content {
@@ -71,5 +92,10 @@ resource "azurerm_container_app" "this" {
       latest_revision = true
       percentage      = 100
     }
+
+    # ingress.custom_domain is computed-only in this provider — the az-managed
+    # hostname bindings + managed certs (added out of band because the ACA
+    # managed-cert flow needs the hostname on the app before the cert can issue)
+    # are read but never modified by terraform, so no lifecycle guard is needed.
   }
 }

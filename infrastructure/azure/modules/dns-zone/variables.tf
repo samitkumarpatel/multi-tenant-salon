@@ -8,8 +8,8 @@ variable "resource_group_name" {
 
 variable "records" {
   type = map(object({
-    type   = string          # "A", "CNAME", "TXT", "MX"
-    name   = string          # "@" for apex
+    type   = string # "A", "CNAME", "TXT", "MX"
+    name   = string # "@" for apex
     values = list(string)
     ttl    = optional(number, 300)
   }))
