@@ -11,16 +11,25 @@ locals {
   # Public hostname for each frontend app. onboarding is the apex; every other
   # app is a plain sub-domain. azure/ no longer owns any of these names — the
   # Cloudflare zone created below is authoritative for the whole domain.
+  #
+  # public-web is special: salon-public-website has NO dedicated hostname. It is
+  # only ever reached as a tenant sub-domain (<salon>.salonsaas.org), routed by
+  # module "tenant_wildcard". The value here is a label only — it is not turned
+  # into a Pages custom domain or a DNS record (see module "frontend" and the
+  # dns_records map). It stays in this map so the project (salonsaas-public) and
+  # its *.pages.dev host still get created.
   frontend_hostnames = {
     onboarding-web  = local.domain # salonsaas.org  (apex, CNAME-flattened)
     admin-web       = "admin.${local.domain}"
-    public-web      = "public.${local.domain}"
+    public-web      = "public.${local.domain}" # label only — see note above
     super-admin-web = "super-admin.${local.domain}"
     booking-web     = "book.${local.domain}"
     staff-web       = "staff.${local.domain}"
   }
 
-  # salon-public-website additionally serves every tenant sub-domain.
+  # salon-public-website serves every tenant sub-domain via module
+  # "tenant_wildcard" (Worker + proxied wildcard record; Pages can't own a
+  # wildcard custom domain).
   wildcard_host = "*.${local.domain}"
 
   api_host  = "api.${local.domain}"
@@ -32,9 +41,10 @@ locals {
   # dependency. App name = "${var.name}-${local.environment}-<service key>".
   api_internal_url = "http://salon-saas-mix-api"
 
-  # CORS allow-list for the api: every frontend origin + the tenant wildcard.
+  # CORS allow-list for the api: every real frontend origin + the tenant
+  # wildcard (which also covers what "public." would have been).
   cors_allowed_origins = join(",", concat(
-    [for h in values(local.frontend_hostnames) : "https://${h}"],
+    [for k, h in local.frontend_hostnames : "https://${h}" if k != "public-web"],
     ["https://${local.wildcard_host}"],
   ))
 }
@@ -77,13 +87,40 @@ module "frontend" {
     for k, host in local.frontend_hostnames : k => {
       # e.g. "public-web" -> "salonsaas-public", "super-admin-web" -> "salonsaas-super-admin"
       project = "salonsaas-${trimsuffix(k, "-web")}"
-      # NOTE: Cloudflare Pages custom domains do not accept a literal wildcard
-      # ("*.salonsaas.org" -> 400 "Domain is invalid"). Per-tenant sites on
-      # salon-public-website need Cloudflare for SaaS (custom hostnames) or a
-      # Worker — a follow-up. For now each app gets only its own hostname.
-      custom_domains = [host]
+      # Every app gets its own hostname as a Pages custom domain — EXCEPT
+      # public-web. salon-public-website is only ever reached as a tenant
+      # sub-domain (<salon>.salonsaas.org), and Cloudflare Pages can't own the
+      # "*.salonsaas.org" wildcard. So that project keeps only its *.pages.dev
+      # host and the `tenant_wildcard` module (Worker + proxied wildcard record)
+      # fronts it. See module "tenant_wildcard" below.
+      custom_domains = k == "public-web" ? [] : [host]
     }
   }
+}
+
+# ── 2c. Tenant wildcard — *.salonsaas.org → salon-public-website ─────────────
+# Cloudflare Pages rejects a wildcard custom domain, so this stands in for one:
+# a proxied wildcard A record puts every <salon>.salonsaas.org on the edge, and
+# a Worker on route "*.salonsaas.org/*" reverse-proxies each request onto the
+# salonsaas-public *.pages.dev deployment (Host preserved as X-Forwarded-Host).
+# More-specific no-Worker routes keep the other apps + api/auth off the proxy.
+# Universal SSL covers salonsaas.org + *.salonsaas.org (one label) for free.
+
+module "tenant_wildcard" {
+  source = "../../stacks/tenant-wildcard"
+
+  account_id = var.cloudflare_account_id
+  zone_id    = module.dns.zone_id
+  zone_name  = local.domain
+  pages_host = module.frontend.pages_hostnames["public-web"]
+
+  # Everything that must NOT be swallowed by "*.salonsaas.org/*": the other
+  # five frontend apps (apex excluded — the wildcard route can't match it) and
+  # the two backend hosts.
+  reserved_hosts = concat(
+    [for k, h in local.frontend_hostnames : h if h != local.domain && k != "public-web"],
+    [local.api_host, local.auth_host],
+  )
 }
 
 # ── 2b. Backend — Azure Container Apps (api + auth) + Key Vault ──────────────
@@ -227,11 +264,11 @@ module "dns_record_updatation" {
 
   dns_records = {
     # ── Frontend — Cloudflare Pages (proxied) ──
-    fe_apex   = { type = "CNAME", name = local.domain, content = module.frontend.pages_hostnames["onboarding-web"], proxied = true }
-    fe_admin  = { type = "CNAME", name = local.frontend_hostnames["admin-web"], content = module.frontend.pages_hostnames["admin-web"], proxied = true }
-    fe_public = { type = "CNAME", name = local.frontend_hostnames["public-web"], content = module.frontend.pages_hostnames["public-web"], proxied = true }
-    # fe_wildcard (*.salonsaas.org) omitted — Cloudflare Pages can't take a
-    # wildcard custom domain; add via Cloudflare for SaaS as a follow-up.
+    fe_apex  = { type = "CNAME", name = local.domain, content = module.frontend.pages_hostnames["onboarding-web"], proxied = true }
+    fe_admin = { type = "CNAME", name = local.frontend_hostnames["admin-web"], content = module.frontend.pages_hostnames["admin-web"], proxied = true }
+    # No fe_public record: salon-public-website is reached only as a tenant
+    # sub-domain. "*.salonsaas.org" (proxied A) + the Worker route are created
+    # by module "tenant_wildcard", not here.
     fe_super_admin = { type = "CNAME", name = local.frontend_hostnames["super-admin-web"], content = module.frontend.pages_hostnames["super-admin-web"], proxied = true }
     fe_booking     = { type = "CNAME", name = local.frontend_hostnames["booking-web"], content = module.frontend.pages_hostnames["booking-web"], proxied = true }
     fe_staff       = { type = "CNAME", name = local.frontend_hostnames["staff-web"], content = module.frontend.pages_hostnames["staff-web"], proxied = true }

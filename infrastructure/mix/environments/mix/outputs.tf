@@ -24,8 +24,19 @@ output "pages_hostnames" {
 }
 
 output "frontend_urls" {
-  description = "Map of app key → list of public URLs served by its Pages project."
+  description = "Map of app key → list of public URLs served by its Pages project. public-web is empty — it is served only via the tenant wildcard (see tenant_wildcard output)."
   value       = { for k, hosts in module.frontend.custom_domains : k => [for h in hosts : "https://${h}"] }
+}
+
+output "tenant_wildcard" {
+  description = "*.salonsaas.org tenant routing. A proxied wildcard record + a Worker on this route reverse-proxy every <salon>.salonsaas.org onto the salonsaas-public Pages deployment (Cloudflare Pages can't own a wildcard custom domain). reserved routes are the hosts kept off the proxy."
+  value = {
+    worker         = module.tenant_wildcard.worker_name
+    route          = module.tenant_wildcard.route_pattern
+    record         = module.tenant_wildcard.wildcard_record
+    reserved       = module.tenant_wildcard.reserved_route_patterns
+    example_tenant = "https://demo.${local.domain}"
+  }
 }
 
 output "backend_fqdns" {

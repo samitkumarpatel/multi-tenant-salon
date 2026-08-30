@@ -1,0 +1,129 @@
+name: mix env on/off scheduler
+
+run-name: >-
+  mix env ${{
+    (github.event.schedule == '0 23 * * *' || github.event.inputs.mode == 'sleep')
+    && 'Sleep (night)' || 'Wake (day)'
+  }}
+
+# Day / night cost + latency profile for the mix environment:
+#
+#   WAKE  (weekday mornings) — Postgres started, api + auth pinned to
+#          min 1 / max 2 so there are no cold starts during business hours.
+#   SLEEP (every night)      — api + auth dropped to min 0 / max 1 (Consumption
+#          billing stops with the last replica), then the PostgreSQL Flexible
+#          Server is stopped (compute billing stops; storage still bills).
+#
+# Ordering matters: on wake, Postgres comes up first and we wait for Ready
+# before scaling the apps in; on sleep, the apps go to min 0 first so nothing
+# is holding a DB connection when Postgres stops.
+#
+# NOTE: GitHub cron is UTC with no DST handling. The times below are chosen for
+# CET (UTC+1); in CEST (UTC+2, summer) everything runs one hour later in local
+# time. Adjust the two cron lines (and the matching `if:` on each job) if that
+# drift matters. A stopped Flexible Server is auto-started by Azure after 7
+# days — the nightly sleep re-stops it, so as long as this workflow runs it
+# stays down outside business hours.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'   # 07:00 CET / 08:00 CEST, Mon-Fri  — WAKE
+    - cron: '0 23 * * *'    # 00:00 CET / 01:00 CEST, every day — SLEEP
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'wake = start Postgres + api/auth min 1 / max 2 | sleep = api/auth min 0 / max 1 + stop Postgres'
+        required: true
+        type: choice
+        options: [wake, sleep]
+
+permissions:
+  contents: read
+
+env:
+  RESOURCE_GROUP: multi-tenant-salon-mix
+  PG_SERVER: salon-saas-mix-psql
+  # space-separated — iterated with `for APP in $APPS`
+  APPS: "salon-saas-mix-api salon-saas-mix-auth"
+
+jobs:
+  wake:
+    name: Wake — start Postgres, then scale api/auth to min 1 / max 2
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 6 * * 1-5' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'wake')
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Start PostgreSQL Flexible Server (if stopped)
+        run: |
+          STATE=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$PG_SERVER" --query state -o tsv)
+          echo "Postgres state: $STATE"
+          if [ "$STATE" = "Stopped" ]; then
+            az postgres flexible-server start -g "$RESOURCE_GROUP" -n "$PG_SERVER"
+            echo "start issued"
+          else
+            echo "not Stopped — nothing to do"
+          fi
+
+      - name: Wait for Postgres to be Ready
+        run: |
+          for i in $(seq 1 30); do
+            STATE=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$PG_SERVER" --query state -o tsv)
+            echo "[$i] Postgres state: $STATE"
+            [ "$STATE" = "Ready" ] && exit 0
+            sleep 20
+          done
+          echo "Postgres did not reach Ready within ~10 min" >&2
+          exit 1
+
+      - name: Scale api + auth up (min 1 / max 2)
+        run: |
+          for APP in $APPS; do
+            az containerapp update -g "$RESOURCE_GROUP" -n "$APP" \
+              --min-replicas 1 --max-replicas 2 --output none
+            echo "$APP -> min 1 / max 2"
+          done
+
+      - name: Show state on failure
+        if: failure()
+        run: |
+          az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$PG_SERVER" \
+            --query "{name:name,state:state}" -o table || true
+          for APP in $APPS; do
+            az containerapp show -g "$RESOURCE_GROUP" -n "$APP" \
+              --query "{name:name,minReplicas:properties.template.scale.minReplicas,maxReplicas:properties.template.scale.maxReplicas}" -o table || true
+          done
+
+  sleep:
+    name: Sleep — scale api/auth to min 0 / max 1, then stop Postgres
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 23 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'sleep')
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Scale api + auth down (min 0 / max 1)
+        run: |
+          for APP in $APPS; do
+            az containerapp update -g "$RESOURCE_GROUP" -n "$APP" \
+              --min-replicas 0 --max-replicas 1 --output none
+            echo "$APP -> min 0 / max 1"
+          done
+
+      - name: Stop PostgreSQL Flexible Server (if running)
+        run: |
+          STATE=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$PG_SERVER" --query state -o tsv)
+          echo "Postgres state: $STATE"
+          if [ "$STATE" = "Ready" ]; then
+            az postgres flexible-server stop -g "$RESOURCE_GROUP" -n "$PG_SERVER"
+            echo "stop issued"
+          else
+            echo "not Ready (state: $STATE) — skipping stop"
+          fi

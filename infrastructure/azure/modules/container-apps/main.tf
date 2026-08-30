@@ -98,4 +98,19 @@ resource "azurerm_container_app" "this" {
     # managed-cert flow needs the hostname on the app before the cert can issue)
     # are read but never modified by terraform, so no lifecycle guard is needed.
   }
+
+  lifecycle {
+    # Runtime-owned attributes Terraform sets once (on create) and then leaves
+    # alone, so `terraform apply` doesn't fight the pipelines:
+    #   * container image  — rolled by .github/workflows/deploy-backend.yml
+    #     (`az containerapp update --image <sha>`); var.container.image is just
+    #     the bootstrap value.
+    #   * min/max replicas — owned by .github/workflows/mix-onoff-scheduler.yml
+    #     (min 1 / max 2 during European business hours, min 0 / max 1 overnight).
+    ignore_changes = [
+      template[0].container[0].image,
+      template[0].min_replicas,
+      template[0].max_replicas,
+    ]
+  }
 }

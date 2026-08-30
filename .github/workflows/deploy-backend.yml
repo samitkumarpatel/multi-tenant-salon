@@ -14,7 +14,7 @@ env:
   IMAGE_NAME: samitkumarpatel/multi-tenant-salon
 
 jobs:
-  # ── Stage 1: Build & push image ────────────────────────────────────────────
+  # ── Stage 1: Build & push image ───────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
     permissions:
@@ -56,11 +56,11 @@ jobs:
 
           echo "image=$IMAGE:${{ github.sha }}" >> $GITHUB_OUTPUT
 
-  # ── Stage 2: Azure Container Apps rolling image update ─────────────────────
+  # ── Deploy · Azure Container Apps (ACTIVE) ────────────────────────────────
   # Infra (the salon-saas-mix-api Container App, its env, PostgreSQL and Key
   # Vault) is provisioned by infrastructure/mix. This job only rolls the image.
-  # The `auth` service ships from the multi-tenant-salon-authz repo's own workflow.
-  deploy-container-apps:
+  # The `auth` service ships from the multi-tenant-salon-authz repo's workflow.
+  container-apps-deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
@@ -91,3 +91,124 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --query "[].{name:name, active:properties.active, state:properties.runningState, replicas:properties.replicas}" \
             -o table || true
+
+  # ── Deploy · AWS ECS / Fargate (DISABLED) ────────────────────────────────
+  # The ECS cluster/service were destroyed in the Cloudflare + Container Apps
+  # migration. To re-enable: re-provision infrastructure/aws, set the
+  # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY secrets, then change `if: false`
+  # to `if: true` (or gate it on a repo variable).
+  aws-ecs-deploy:
+    runs-on: ubuntu-latest
+    if: false
+    needs: build
+    permissions:
+      contents: read
+
+    env:
+      AWS_REGION: eu-north-1
+      ECS_SERVICE: salon-saas-dev-api
+      ECS_CLUSTER: salon-saas-dev-cluster
+      ECS_TASK_DEFINITION_FAMILY: salon-saas-dev-api
+      CONTAINER_NAME: api
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_DEFINITION_FAMILY }} \
+            --query 'taskDefinition' \
+            --output json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > task-definition.json
+
+      - name: Update image in task definition
+        run: |
+          jq --arg IMAGE "${{ needs.build.outputs.image }}" \
+             --arg NAME "${{ env.CONTAINER_NAME }}" \
+             '(.containerDefinitions[] | select(.name == $NAME) | .image) = $IMAGE' \
+             task-definition.json > task-definition.new.json
+          mv task-definition.new.json task-definition.json
+
+      - name: Register new task definition
+        id: register
+        run: |
+          REVISION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_def_arn=$REVISION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Record previous task definition (for rollback)
+        id: previous
+        run: |
+          PREV_ARN=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          echo "prev_task_def_arn=$PREV_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Update service to new task definition
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ steps.register.outputs.task_def_arn }} \
+            --force-new-deployment
+
+      - name: Wait for service to stabilize
+        id: wait
+        continue-on-error: true
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
+
+      - name: Roll back on failure
+        if: steps.wait.outcome == 'failure'
+        run: |
+          echo "Deployment failed, rolling back to ${{ steps.previous.outputs.prev_task_def_arn }}"
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ steps.previous.outputs.prev_task_def_arn }} \
+            --force-new-deployment
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
+          exit 1
+
+  # ── Deploy · Azure AKS (DISABLED) ────────────────────────────────────────
+  # The AKS cluster (salon-saas-dev) was retired in the Container Apps
+  # migration. To re-enable: re-provision infrastructure/azure, set the
+  # AZURE_RESOURCE_GROUP repo variable, then change `if: false` to `if: true`.
+  aks-deploy:
+    runs-on: ubuntu-latest
+    if: false
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ vars.AZURE_RESOURCE_GROUP }}
+          cluster-name: salon-saas-dev
+
+      - name: Deploy to AKS
+        run: |
+          kubectl set image deployment/api api=${{ needs.build.outputs.image }} --namespace default
+          kubectl rollout status deployment/api --namespace default --timeout=5m

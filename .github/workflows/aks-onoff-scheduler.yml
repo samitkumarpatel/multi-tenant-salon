@@ -7,9 +7,13 @@ run-name: >-
   }} Scheduler
 
 on:
-  # Disabled: the AKS cluster was retired in the Cloudflare + Container Apps
-  # migration (compute now scales to zero on its own). Kept for reference /
-  # rollback — re-enable the schedule if AKS ever comes back.
+  # DISABLED: the AKS cluster was retired in the Cloudflare + Container Apps
+  # migration (compute now scales to zero on its own). Both jobs are guarded by
+  # `if: false`, and the schedule is commented out, so nothing runs even on a
+  # manual dispatch. Kept for reference / rollback — to bring AKS back:
+  #   1. re-provision infrastructure/azure,
+  #   2. uncomment the schedule below,
+  #   3. restore each job's real `if:` (see the commented condition on each).
   # schedule:
   #   - cron: '0 22 * * *'   # 00:00 CEST (UTC+2) — shutdown
   #   - cron: '0 12 * * *'   # 14:00 CEST (UTC+2) — startup
@@ -25,7 +29,8 @@ jobs:
   shutdown:
     name: Shutdown (stop AKS cluster)
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 22 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'shutdown')
+    if: false  # disabled: AKS retired in the Cloudflare + Container Apps migration
+    # if: github.event.schedule == '0 22 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'shutdown')
 
     steps:
       - name: Login to Azure
@@ -52,7 +57,8 @@ jobs:
   startup:
     name: Startup (start AKS cluster)
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 12 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
+    if: false  # disabled: AKS retired in the Cloudflare + Container Apps migration
+    # if: github.event.schedule == '0 12 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'startup')
 
     steps:
       - name: Login to Azure
