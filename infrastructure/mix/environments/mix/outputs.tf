@@ -1,15 +1,16 @@
 output "azure_resource_group" {
-  description = "The shared Azure resource group mix's resources were created in (owned by azure/environments/dev)."
-  value       = data.azurerm_resource_group.shared.name
+  description = "The Azure resource group mix owns and puts all its backend resources in (Container Apps, PostgreSQL, Key Vault)."
+  value       = azurerm_resource_group.shared.name
 }
 
-output "dns_zone" {
-  description = "The shared salonsaas.org zone mix writes its records into (owned by the azure environment)."
-  value = {
-    name                = module.dns.zone_name
-    resource_group_name = module.dns.resource_group_name
-    name_servers        = module.dns.name_servers
-  }
+output "name_servers" {
+  description = "Switch salonsaas.org's NS records at the domain registrar to these two Cloudflare name servers, then wait for `dns_zone_status` to read \"active\"."
+  value       = module.dns.name_servers
+}
+
+output "dns_zone_status" {
+  description = "\"pending\" until the registrar NS switch propagates; \"active\" once Cloudflare is authoritative."
+  value       = module.dns.status
 }
 
 output "pages_projects" {
@@ -23,7 +24,8 @@ output "pages_hostnames" {
 }
 
 output "frontend_urls" {
-  value = { for k, h in module.frontend.custom_domains : k => "https://${h}" }
+  description = "Map of app key → list of public URLs served by its Pages project."
+  value       = { for k, hosts in module.frontend.custom_domains : k => [for h in hosts : "https://${h}"] }
 }
 
 output "backend_fqdns" {
@@ -33,8 +35,8 @@ output "backend_fqdns" {
 
 output "backend_urls" {
   value = {
-    api  = "https://api-m.salonsaas.org"
-    auth = "https://auth-m.salonsaas.org"
+    api  = "https://api.salonsaas.org"
+    auth = "https://auth.salonsaas.org"
   }
 }
 

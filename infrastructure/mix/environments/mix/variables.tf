@@ -1,12 +1,18 @@
 variable "cloudflare_account_id" {
   type        = string
-  description = "Cloudflare account ID that owns the Pages projects."
+  description = "Cloudflare account ID that owns the salonsaas.org zone and every Pages project."
 }
 
 variable "azure_resource_group" {
   type        = string
-  default     = "multi-tenant-salon-dev"
-  description = "The single Azure resource group shared by azure/environments/dev and mix. azure/dev creates and owns it; mix looks it up and drops its Container Apps env, Key Vault and DNS records into it. Must match azure/environments/dev's resource_group_name."
+  default     = "multi-tenant-salon-mix"
+  description = "Dedicated Azure resource group mix creates and owns. Holds all its backend resources (Container Apps env, Container Apps, PostgreSQL, Key Vault). Separate from the old multi-tenant-salon-dev RG, which is torn down via azure/environments/dev."
+}
+
+variable "azure_location" {
+  type        = string
+  default     = "westeurope"
+  description = "Region for the resource group and every resource in it."
 }
 
 variable "ghcr_token" {
@@ -15,10 +21,28 @@ variable "ghcr_token" {
   description = "GHCR PAT with read:packages — used by every Container App pulling a private ghcr.io image."
 }
 
+variable "mailjet_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Mailjet API key. Injected as a Container App secret into api + auth (replaces the shared mailjet-secret from the Helm setup)."
+}
+
+variable "mailjet_api_secret" {
+  type        = string
+  sensitive   = true
+  description = "Mailjet API secret. Injected as a Container App secret into api + auth."
+}
+
+variable "anthropic_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Anthropic API key for the Gen UI chat assistant. Injected as a Container App secret into api (replaces anthropic-secret from the Helm setup)."
+}
+
 variable "bind_custom_domains" {
   type        = bool
   default     = false
-  description = "Phase toggle. Leave false for the first apply (creates apps + DNS records); set true on a second apply once the asuid/CNAME records have propagated, to bind api-m/auth-m with managed TLS certs."
+  description = "Phase toggle. Leave false for the first apply (creates apps + DNS records); set true on a later apply, once the asuid/CNAME records resolve publicly, to bind api.salonsaas.org / auth.salonsaas.org with Azure-managed TLS certs."
 }
 
 variable "key_vault_admin_object_ids" {
@@ -34,8 +58,8 @@ variable "postgres_client_ips" {
     Extra public IPv4 addresses allowed through the PostgreSQL firewall, as
     name => single IP (e.g. { laptop = "203.0.113.7" }). EMPTY BY DEFAULT — only
     the always-on "Allow Azure services" rule applies, which is what lets the
-    Container Apps and AKS deployments reach the DB (both egress from Azure IP
-    space). Add your workstation ad-hoc without editing files:
+    Container Apps reach the DB (egress from Azure IP space). Add your
+    workstation ad-hoc without editing files:
 
       terraform apply -var 'postgres_client_ips={"laptop":"'"$(curl -s ifconfig.me)"'"}'
 

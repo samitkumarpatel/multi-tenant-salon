@@ -1,17 +1,17 @@
 output "zone_id" {
-  value = data.azurerm_dns_zone.this.id
+  value = cloudflare_zone.this.id
 }
 
 output "zone_name" {
-  value = data.azurerm_dns_zone.this.name
-}
-
-output "resource_group_name" {
-  description = "Resource group of the zone — pass to dns-update so its record resources land in the right RG."
-  value       = var.resource_group_name
+  value = cloudflare_zone.this.name
 }
 
 output "name_servers" {
-  description = "Informational. Delegation is already handled by the environment that owns the zone."
-  value       = data.azurerm_dns_zone.this.name_servers
+  description = "Set these two NS records at the domain registrar to delegate salonsaas.org to Cloudflare."
+  value       = cloudflare_zone.this.name_servers
+}
+
+output "status" {
+  description = "\"pending\" until the registrar NS switch propagates, then \"active\"."
+  value       = cloudflare_zone.this.status
 }

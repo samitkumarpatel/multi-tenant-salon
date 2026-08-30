@@ -18,8 +18,8 @@ variable "production_branch" {
 # by `wrangler pages deploy` in CI, not built by Cloudflare. Leaving both unset
 # is what makes this a direct-upload project.
 
-variable "custom_domain" {
-  type        = string
-  default     = null
-  description = "Optional FQDN to attach to the project (e.g. admin-m.salonsaas.org). The matching CNAME must be created in the DNS zone separately."
+variable "custom_domains" {
+  type        = list(string)
+  default     = []
+  description = "FQDNs to attach to the project — sub-domain, apex, and/or the \"*.salonsaas.org\" wildcard. Matching DNS records are created in the dns-update stack."
 }

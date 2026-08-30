@@ -1,65 +1,18 @@
-# Record-only stack: adds A / CNAME / TXT / MX records to a DNS zone that already
-# exists (created by dns-bootstrapping). Split out from dns-bootstrapping so that
-# records whose values are module outputs — Pages hostnames, Container App FQDNs,
-# asuid tokens — can be applied after those modules without a dependency cycle.
+# Record-only stack: writes every salonsaas.org record into the Cloudflare zone
+# created by the dns-zone stack. Split from dns-zone so records whose values are
+# module outputs (Pages *.pages.dev hosts, Container App FQDNs, the asuid
+# verification token) can be applied after those modules.
 
-resource "azurerm_dns_a_record" "this" {
-  for_each = { for k, v in var.dns_records : k => v if v.type == "A" }
+resource "cloudflare_dns_record" "this" {
+  for_each = var.dns_records
 
-  name                = each.value.name
-  zone_name           = var.zone_name
-  resource_group_name = var.resource_group_name
-  ttl                 = each.value.ttl
-  records             = each.value.values
+  zone_id = var.zone_id
+  name    = each.value.name
+  type    = each.value.type
+  content = each.value.content
+  ttl     = each.value.ttl
 
-  depends_on = [var.dns_zone_id]
-}
-
-resource "azurerm_dns_cname_record" "this" {
-  for_each = { for k, v in var.dns_records : k => v if v.type == "CNAME" }
-
-  name                = each.value.name
-  zone_name           = var.zone_name
-  resource_group_name = var.resource_group_name
-  ttl                 = each.value.ttl
-  record              = each.value.values[0]
-
-  depends_on = [var.dns_zone_id]
-}
-
-resource "azurerm_dns_txt_record" "this" {
-  for_each = { for k, v in var.dns_records : k => v if v.type == "TXT" }
-
-  name                = each.value.name
-  zone_name           = var.zone_name
-  resource_group_name = var.resource_group_name
-  ttl                 = each.value.ttl
-
-  dynamic "record" {
-    for_each = each.value.values
-    content {
-      value = record.value
-    }
-  }
-
-  depends_on = [var.dns_zone_id]
-}
-
-resource "azurerm_dns_mx_record" "this" {
-  for_each = { for k, v in var.dns_records : k => v if v.type == "MX" }
-
-  name                = each.value.name
-  zone_name           = var.zone_name
-  resource_group_name = var.resource_group_name
-  ttl                 = each.value.ttl
-
-  dynamic "record" {
-    for_each = each.value.values
-    content {
-      preference = tonumber(split(" ", record.value)[0])
-      exchange   = split(" ", record.value)[1]
-    }
-  }
-
-  depends_on = [var.dns_zone_id]
+  # proxied is only valid for A/AAAA/CNAME; sending it for TXT/MX is rejected.
+  proxied  = contains(["A", "AAAA", "CNAME"], each.value.type) ? each.value.proxied : null
+  priority = each.value.type == "MX" ? each.value.priority : null
 }

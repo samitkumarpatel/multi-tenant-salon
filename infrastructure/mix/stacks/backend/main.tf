@@ -18,13 +18,19 @@ locals {
   db_service_key = try(var.database.service_key, null)
 
   # Injected into the DB-backed service's container env once the server exists.
+  # URL + username are plain env; the password is a Container App secret (below),
+  # mirroring the chart's secretKeyRef on SPRING_DATASOURCE_PASSWORD.
   db_env = local.db_enabled ? {
     SPRING_DATASOURCE_URL      = module.postgres[0].jdbc_url
     SPRING_DATASOURCE_USERNAME = module.postgres[0].administrator_login
+  } : {}
+
+  db_secret_env = local.db_enabled ? {
     SPRING_DATASOURCE_PASSWORD = random_password.db[0].result
   } : {}
 
-  # var.services with db_env merged into the one service that talks to Postgres.
+  # var.services with db_env / db_secret_env merged into the one service that
+  # talks to Postgres.
   services_resolved = {
     for k, s in var.services : k => merge(s, {
       container = merge(s.container, {
@@ -33,6 +39,10 @@ locals {
           k == local.db_service_key ? local.db_env : {},
         )
       })
+      secret_env = merge(
+        s.secret_env,
+        k == local.db_service_key ? local.db_secret_env : {},
+      )
     })
   }
 
@@ -41,6 +51,16 @@ locals {
     "spring-datasource-username" = module.postgres[0].administrator_login
     "spring-datasource-password" = random_password.db[0].result
   } : {}
+
+  # Durable Key Vault record of every secret injected into a container
+  # (kebab-cased), so a human / migration tooling can retrieve them without
+  # reading Terraform state. Same role the out-of-band kubectl secrets played
+  # in the Helm setup (mailjet-secret, anthropic-secret, azure-postgres-secret).
+  app_secrets = merge([
+    for k, s in local.services_resolved : {
+      for ek, ev in s.secret_env : replace(lower(ek), "_", "-") => ev
+    }
+  ]...)
 }
 
 # ── Database — Azure Database for PostgreSQL, Flexible Server (Burstable) ─────
@@ -106,6 +126,7 @@ module "services" {
   container_app_environment_id = module.environment.id
   registry_password            = var.registry_password
   container                    = each.value.container
+  secret_env                   = each.value.secret_env
   ingress                      = each.value.ingress
   replicas                     = each.value.replicas
   tags                         = local.common_tags
@@ -125,9 +146,10 @@ module "key_vault" {
 
   admin_object_ids = var.key_vault_admin_object_ids
 
-  # Durable record of the generated DB credentials (the app reads them from its
-  # container env, not from here — this is for humans / migration tooling).
-  secrets = local.db_secrets
+  # Durable record of the generated DB credentials + every container secret (the
+  # apps read these from their own container env, not from here — this is for
+  # humans / migration tooling).
+  secrets = merge(local.db_secrets, local.app_secrets)
 
   tags = local.common_tags
 }

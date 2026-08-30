@@ -108,6 +108,10 @@ variable "services" {
       env    = optional(map(string), {})
       volume = optional(map(string), {})
     })
+    # Env vars sourced from Container App secrets (ENV_VAR_NAME => value). Passed
+    # straight to the container-apps module's secret_env. For the DB-backed
+    # service, SPRING_DATASOURCE_PASSWORD is merged in automatically.
+    secret_env = optional(map(string), {})
     ingress = object({
       allow_insecure_connections = optional(bool, false)
       external_enabled           = bool

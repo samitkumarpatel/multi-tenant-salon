@@ -1,90 +1,97 @@
 # `mix` environment
 
-A cross-provider environment that **runs alongside the live `azure` environment**
-without disturbing it:
+The **primary** environment: Cloudflare for the edge, Azure for compute + data.
+It replaces the retired `azure/` frontend (Front Door + Storage) and `azure/`
+backend (AKS + RDS).
 
 | Layer | Provider | What |
 |---|---|---|
-| Frontend | **Cloudflare Pages** | one direct-upload project per SPA in `frontend/apps/*` |
+| DNS | **Cloudflare** | `salonsaas.org` zone — authoritative once the registrar NS records point at Cloudflare. Free plan. |
+| Frontend | **Cloudflare Pages** | one direct-upload project per SPA in `frontend/apps/*`. Free plan. |
 | Backend | **Azure Container Apps** | `api` (`src/`) + `auth`, Consumption plan, scale-to-zero |
-| Database | **Azure Database for PostgreSQL – Flexible Server** | Burstable `B1ms`, 32 GiB — the cheap dev/test tier (Azure has no true serverless PG) |
-| DNS | **Azure DNS** | the *existing* `salonsaas.org` zone, mix adds only its own `*-m` records |
+| Database | **Azure Database for PostgreSQL – Flexible Server** | Burstable `B1ms`, 32 GiB — the cheap dev/test tier |
+| Secrets | **Azure Key Vault** + Container App secrets | Mailjet / Anthropic / DB password |
 
 ```
 mix/
 ├── modules/
-│   └── cloudflare-pages/     # cloudflare_pages_project (direct upload) + cloudflare_pages_domain
+│   ├── cloudflare-pages/     # cloudflare_pages_project (direct upload) + cloudflare_pages_domain (one per custom domain)
+│   └── postgres-flexible/    # azurerm_postgresql_flexible_server + database + firewall
 ├── stacks/
-│   ├── dns-zone/             # data-source lookup of the shared salonsaas.org zone (read-only)
-│   ├── dns-update/           # record-only: CNAME/TXT that depend on module outputs
+│   ├── dns-zone/             # cloudflare_zone (type "full") — outputs zone_id + name_servers
+│   ├── dns-update/           # cloudflare_dns_record for_each — CNAME/TXT/MX, depends on module outputs
 │   ├── frontend/             # for_each app -> modules/cloudflare-pages
-│   └── backend/              # azure/modules/{container-apps-env,container-apps,key-vault} + managed-cert custom domains
+│   └── backend/              # azure/modules/{container-apps-env,container-apps,key-vault} + postgres-flexible + managed-cert custom domains
 └── environments/
     └── mix/                  # single Terraform root — wires the four stacks together
 ```
 
 The Azure modules (`container-apps-env`, `container-apps`, `key-vault`) are reused
-from `../azure/modules/` unchanged. `mix` creates no `resource-group` or
-`dns-zone` module — it looks both up.
+from `../azure/modules/` unchanged.
 
-## Coexistence with `azure/` — one shared RG, one shared zone
+## Relationship to `azure/`
 
-`mix` and `azure/environments/dev` put **all** their Azure resources in the
-**same resource group** (`multi-tenant-salon-dev`) and the **same DNS zone**
-(`salonsaas.org`, in that RG). `azure/dev` creates and owns both; `mix` reads
-them with data sources and only adds new, non-overlapping resources. So when
-`azure/dev` is retired after the migration, nothing has to move — mix's
-resources are already in the right RG.
+`mix` **creates and owns** its own resource group,
+**`multi-tenant-salon-mix`** (`azurerm_resource_group.shared`), and puts every
+Azure resource in it — the Container Apps environment, the api + auth Container
+Apps, the PostgreSQL Flexible Server, and Key Vault. All in the one RG.
 
-| Thing | Owner | `mix` does | Collision? |
+`azure/environments/dev` is retired: `main.tf` / `outputs.tf` are reduced to a
+retirement note; the `stacks/` + `modules/` code stays for reference / rollback.
+Its state still holds the old `multi-tenant-salon-dev` RG, Front Door, storage
+accounts, AKS cluster, managed disks and Azure DNS zone until you `terraform
+destroy` it (**Cut-over runbook** below). Because `mix` uses a different RG, that
+destroy touches nothing of mix's.
+
+## Sub-domain map (all in the Cloudflare `salonsaas.org` zone)
+
+| App / service | Hostname | Proxied? | Target |
 |---|---|---|---|
-| Resource group `multi-tenant-salon-dev` | `azure/dev` | `data "azurerm_resource_group"` | no — read only |
-| DNS zone `salonsaas.org` | `azure/dev` | `data "azurerm_dns_zone"` + adds `*-m` records | no — record names disjoint |
-| Terraform state | — | `multitenantsaloon-mix.terraform.tfstate` (same storage account, distinct key) | no |
-| Key Vault | — | `salon-saas-mix-kv` (vs `salon-saas-dev-kv`) | no |
-| Container Apps env | — | `salon-saas-mix` (`azure/dev` uses AKS) | no |
-| Cloudflare | — | all new | no |
+| salon-onboarding | `salonsaas.org` (apex) | yes | `<project>.pages.dev` (CNAME-flattened) |
+| salon-admin | `admin.salonsaas.org` | yes | `<project>.pages.dev` |
+| salon-public-website | `public.salonsaas.org` | yes | `<project>.pages.dev` |
+| salon-public-website | `*.salonsaas.org` (tenants) | yes | `<project>.pages.dev` |
+| salon-super-admin | `super-admin.salonsaas.org` | yes | `<project>.pages.dev` |
+| salon-booking | `book.salonsaas.org` | yes | `<project>.pages.dev` |
+| salon-staff | `staff.salonsaas.org` | yes | `<project>.pages.dev` |
+| backend `api` | `api.salonsaas.org` | **no** | Container App FQDN (+ `asuid.api` TXT) |
+| backend `auth` | `auth.salonsaas.org` | **no** | Container App FQDN (+ `asuid.auth` TXT) |
 
-mix's record resources live in **mix's** state, keyed by name (`admin-m`,
-`api-m`, `asuid.api-m`, `onboarding`, …); `azure/dev`'s `terraform plan` never
-sees them and shows no drift. MX / SPF / DKIM / apex / wildcard stay entirely
-under `azure/dev`. The RG name is pinned in both roots — `local.resource_group_name`
-in `azure/environments/dev/main.tf` and `var.azure_resource_group` in
-`mix/environments/mix` (both `multi-tenant-salon-dev`); keep them in sync.
+Frontend records are orange-cloud (Cloudflare terminates TLS, Universal SSL
+covers the apex and `*.salonsaas.org`). Backend records are grey-cloud / DNS-only
+so Azure Container Apps can bind and serve its own managed TLS certificate,
+validated via the `asuid.<sub>` TXT record.
 
-When `azure/dev` is retired, `terraform state rm` its RG + zone resources (or
-`terraform import` them into mix) — the RG and zone themselves stay put.
+MX (Zoho), SPF, and the Zoho / Mailjet DKIM records are carried over verbatim in
+`dns-update` so mail keeps working across the NS switch.
 
-## Sub-domain map (all under the shared `salonsaas.org` zone)
+## Secrets
 
-| App / service | Sub-domain | Target |
-|---|---|---|
-| salon-onboarding | `onboarding` | `<project>.pages.dev` |
-| salon-admin | `admin-m` | `<project>.pages.dev` |
-| salon-public-website | `public-m` | `<project>.pages.dev` |
-| salon-super-admin | `super-admin-m` | `<project>.pages.dev` |
-| salon-booking | `book-m` | `<project>.pages.dev` |
-| salon-staff | `staff-m` | `<project>.pages.dev` |
-| backend `api` | `api-m` | Container App FQDN (+ `asuid.api-m` TXT) |
-| backend `auth` | `auth-m` | Container App FQDN (+ `asuid.auth-m` TXT) |
+The Container Apps get their secrets from Terraform variables, rendered as
+Container App **secrets** (not inline env) by `azure/modules/container-apps`
+(`secret_env`), and also written to Key Vault (`salon-saas-mix-kv`) as a durable
+record:
 
-An explicit CNAME wins over `azure/dev`'s `*.salonsaas.org` wildcard, so these
-names resolve to mix even though the wildcard exists.
+| Secret env var | api | auth | TF var |
+|---|---|---|---|
+| `MAILJET_API_KEY` / `MAILJET_API_SECRET` | ✅ | ✅ | `mailjet_api_key` / `mailjet_api_secret` |
+| `ANTHROPIC_API_KEY` | ✅ | — | `anthropic_api_key` |
+| `SPRING_DATASOURCE_PASSWORD` | ✅ | — | generated by the backend stack |
+
+`auth` is a stateless OAuth2 server — no datasource.
 
 ## Database
 
-`mix` provisions its own **Azure Database for PostgreSQL – Flexible Server**
-(`salon-saas-mix-psql`, Burstable `B_Standard_B1ms` = 1 vCore / 2 GiB, 32 GiB
-storage, 7‑day backups, single zone, no HA) in the shared RG. Azure has no true
-scale-to-zero PostgreSQL; to stop paying for compute while idle,
-`az postgres flexible-server stop -g multi-tenant-salon-dev -n salon-saas-mix-psql`
+`salon-saas-mix-psql` — Burstable `B_Standard_B1ms` (1 vCore / 2 GiB), 32 GiB
+storage, 7-day backups, single zone, no HA, in `multi-tenant-salon-mix`. Azure
+has no scale-to-zero PostgreSQL; to stop paying for compute while idle:
+`az postgres flexible-server stop -g multi-tenant-salon-mix -n salon-saas-mix-psql`
 (auto-restarts after 7 days; storage is still billed).
 
 The stack generates the admin password (`random_password`), stores it in Key
-Vault (`spring-datasource-url` / `-username` / `-password`), and merges
-`SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` into the `api` container's
-env. The app runs Flyway (`SPRING_FLYWAY_ENABLED=true`) against the fresh DB on
-first boot, so `V1..Vn` create the schema — no manual bootstrap.
+Vault (`spring-datasource-*`) and injects `SPRING_DATASOURCE_URL` / `_USERNAME`
+(env) + `SPRING_DATASOURCE_PASSWORD` (secret) into `api`. The app runs Flyway
+(`SPRING_FLYWAY_ENABLED=true`) on first boot, so `V1..Vn` create the schema.
 
 ```bash
 terraform output database                       # server / db / jdbc_url / username
@@ -93,42 +100,43 @@ terraform output -raw database_password         # generated admin password
 
 ### Network access
 
-The server has `public_network_access_enabled = true` but **no client is allowed
-by default** — only the always-on `AllowAzureServices` (0.0.0.0) rule, which is
-what lets the **Container Apps** *and* **AKS** deployments connect (both egress
-from Azure-owned IP space). Nothing on the open internet can reach it until you
-add an IP.
-
-Open it to your laptop / any public place, on demand, without editing files:
+`public_network_access_enabled = true` but only the always-on `AllowAzureServices`
+rule (0.0.0.0) applies by default — enough for the Container Apps to connect.
+Open it to a public IP on demand:
 
 ```bash
 terraform apply -var 'postgres_client_ips={"laptop":"'"$(curl -s ifconfig.me)"'"}'
-# multiple: -var 'postgres_client_ips={"laptop":"203.0.113.7","office":"198.51.100.9"}'
 ```
 
-Re-apply with `postgres_client_ips={}` (the default) to close it again. Then:
+Re-apply with `postgres_client_ips={}` to close it. Then:
 
 ```bash
 PGPASSWORD=$(terraform output -raw database_password) \
   psql "host=salon-saas-mix-psql.postgres.database.azure.com user=postgres dbname=salon sslmode=require"
 ```
 
-**Data migration** from the AKS in-cluster Postgres (`helm/postgres`) is a
-follow-up: `pg_dump` from the AKS pod → `psql`/`pg_restore` into this server.
-
 ## Deploy
 
 ```bash
 cd infrastructure/mix/environments/mix
 cp .env.example .env && $EDITOR .env && set -a && . ./.env && set +a
-
 terraform init
 ```
 
-The deploying identity needs **Contributor** on `multi-tenant-salon-dev` (to
-create the Container Apps env + Key Vault in the shared RG) and **DNS Zone
-Contributor** on the `salonsaas.org` zone. `azure/environments/dev` must have
-been applied first so the RG and zone exist.
+**`.env` needs** (beyond the Azure `ARM_*` vars):
+
+```
+CLOUDFLARE_API_TOKEN         # Account » Cloudflare Pages: Edit  +  Zone: Edit  +  DNS: Edit
+                             # + permission to create zones on the account
+TF_VAR_cloudflare_account_id
+TF_VAR_ghcr_token
+TF_VAR_mailjet_api_key
+TF_VAR_mailjet_api_secret
+TF_VAR_anthropic_api_key
+```
+
+The deploying identity needs **Contributor** on the subscription (RG-create
+rights included).
 
 ### Apply #1 — infra + DNS records (`bind_custom_domains = false`)
 
@@ -136,74 +144,174 @@ been applied first so the RG and zone exist.
 terraform apply -var bind_custom_domains=false
 ```
 
-Creates (all inside the existing `multi-tenant-salon-dev` RG): 6 Cloudflare Pages
-projects (+ their `cloudflare_pages_domain` registrations), the Container Apps
-environment, `api` + `auth` apps, the PostgreSQL Flexible Server + `salon`
-database, Key Vault (with the `spring-datasource-*` secrets), and every `*-m`
-CNAME / `asuid` TXT record in the shared zone. No RG and no name-server
-delegation step — both already exist.
+Creates: the `multi-tenant-salon-mix` resource group, the Cloudflare zone
+(status `pending`), 6 Pages projects + their custom domains, every
+`salonsaas.org` record (frontend CNAMEs, backend CNAMEs + `asuid` TXT,
+MX/SPF/DKIM), the Container Apps environment, `api` + `auth`, the PostgreSQL
+Flexible Server + `salon` database, and Key Vault.
 
-### Wait for DNS
+### Switch the name servers
 
 ```bash
-dig +short asuid.api-m.salonsaas.org  TXT
-dig +short admin-m.salonsaas.org      CNAME
+terraform output name_servers        # two <name>.ns.cloudflare.com values
 ```
 
-### Apply #2 — bind custom domains + managed TLS certs
+Set those as the NS records for `salonsaas.org` at the domain registrar. Wait for
+the zone to go active:
+
+```bash
+terraform output dns_zone_status     # "active" when Cloudflare is authoritative
+dig +short admin.salonsaas.org
+dig +short asuid.api.salonsaas.org TXT
+```
+
+### Apply #2 — bind backend custom domains + managed TLS certs
 
 ```bash
 terraform apply -var bind_custom_domains=true
 ```
 
-Adds an Azure-managed certificate per backend sub-domain and binds `api-m` /
-`auth-m` to their Container Apps. The `azapi` managed-certificate resource blocks
-until issuance succeeds; if it errors because DNS had not fully propagated, just
-re-run this apply. Cloudflare Pages custom domains validate asynchronously once
-their CNAME resolves — no second step needed there.
+Adds an Azure-managed certificate per backend sub-domain and binds `api` / `auth`
+to their Container Apps. The `azapi` managed-certificate resource blocks until
+issuance succeeds; if DNS had not fully propagated, just re-run this apply.
+Cloudflare Pages custom domains (including the apex and `*.salonsaas.org`)
+validate asynchronously once their records resolve — no extra step there.
+
+## Cut-over runbook (retiring `azure/` — clean-slate `terraform destroy`)
+
+The new `mix` uses a fresh RG (`multi-tenant-salon-mix`) and a **fresh**
+PostgreSQL server, so the current database is dumped and restored. Order matters:
+the **old Azure DNS zone stays authoritative until the NS switch** (step 6), so
+mail keeps flowing — `azure/environments/dev` is only destroyed at the end.
+
+### 1. Back up the current database
+
+The old `salon-saas-mix-psql` lives in `multi-tenant-salon-dev`. Open its
+firewall to your IP and dump everything (schema + data + `flyway_schema_history`):
+
+```bash
+cd infrastructure/mix/environments/mix
+git stash                                   # set aside the new mix/ + azure/ changes
+terraform apply -var 'postgres_client_ips={"laptop":"'"$(curl -s ifconfig.me)"'"}'
+PGPASSWORD=$(terraform output -raw database_password) pg_dump \
+  -h salon-saas-mix-psql.postgres.database.azure.com -U postgres -d salon \
+  --format=custom --no-owner --no-privileges -f salon-$(date +%Y%m%d).dump
+```
+
+(If the live DB is the in-cluster AKS Postgres, `kubectl exec` into the
+`postgres` pod and dump from there instead.)
+
+### 2. Destroy the current `mix` resources
+
+Still on the **old** code (git stash from step 1), so `terraform destroy` matches
+the existing state:
+
+```bash
+terraform destroy      # old Container Apps, salon-saas-mix-psql, KV, Cloudflare Pages, old Azure DNS records
+git stash pop          # bring back the new code
+```
+
+The old `azure/environments/dev` site (Front Door + AKS) is **left running** — it
+still serves salonsaas.org until step 6.
+
+### 3. Bring up the new `mix`
+
+```bash
+terraform init
+terraform apply -var bind_custom_domains=false
+```
+
+Creates `multi-tenant-salon-mix`, the Cloudflare zone (status `pending`), Pages
+projects, new Container Apps, the new PostgreSQL server, Key Vault, and every
+Cloudflare DNS record.
+
+### 4. Restore the database
+
+`replicas.min = 0` on api, so nothing connects until the first request — restore
+now:
+
+```bash
+terraform apply -var 'postgres_client_ips={"laptop":"'"$(curl -s ifconfig.me)"'"}'
+PGPASSWORD=$(terraform output -raw database_password) pg_restore \
+  -h salon-saas-mix-psql.postgres.database.azure.com -U postgres -d salon \
+  --no-owner --no-privileges --clean --if-exists salon-YYYYMMDD.dump
+terraform apply -var 'postgres_client_ips={}'      # close the firewall again
+```
+
+`SPRING_FLYWAY_ENABLED=true` + `SPRING_SQL_INIT_MODE=never`: on first boot Flyway
+finds `flyway_schema_history` fully applied and does nothing.
+
+### 5. Deploy content + smoke-test on the raw hosts
+
+Deploy each SPA (`wrangler pages deploy`, see below) and confirm:
+
+```bash
+curl -I https://<project>.pages.dev                         # 200
+curl https://salon-saas-mix-api.<region>.azurecontainerapps.io/actuator/health   # {"status":"UP"}
+```
+
+### 6. Switch name servers
+
+```bash
+terraform output name_servers        # two <name>.ns.cloudflare.com values
+```
+
+Set them at the domain registrar. Wait for:
+
+```bash
+terraform output dns_zone_status     # "active"
+dig +short admin.salonsaas.org ; dig +short asuid.api.salonsaas.org TXT
+```
+
+Live traffic now moves to Cloudflare + mix.
+
+### 7. Apply #2 — bind backend custom domains
+
+```bash
+terraform apply -var bind_custom_domains=true
+```
+
+Then verify every hostname in the sub-domain map over HTTPS, and send a test
+email through the app.
+
+### 8. Destroy the old Azure environment
+
+```bash
+cd ../../../azure/environments/dev
+terraform init
+terraform destroy      # multi-tenant-salon-dev RG, Front Door, storage, AKS, disks, old Azure DNS zone
+```
+
+### 9. Follow-ups
+
+Update the frontend `.github/workflows/deploy-<app>.yml` `VITE_*` build args to
+the non-`-m` hostnames (and `-g multi-tenant-salon-mix` in any `az containerapp`
+commands) and re-deploy each SPA.
 
 ## Push application content
 
-Frontend — the per-app `.github/workflows/deploy-<app>.yml` workflows: the
-`build` job now builds with the `-m` `VITE_*` values and the `deploy-cloudflare`
-job runs `wrangler pages deploy` to `salonsaas-<app>`. The old `deploy` (AWS) and
-`deploy-azure` (Blob + Front Door) jobs are kept but `if: false`. Locally:
+Frontend — per-app `wrangler pages deploy`:
 
 ```bash
 npm --prefix frontend ci
-VITE_API_BASE_URL=https://api-m.salonsaas.org \
+VITE_API_BASE_URL=https://api.salonsaas.org \
 VITE_SALON_DOMAIN=salonsaas.org \
-VITE_BOOKING_BASE_URL=https://book-m.salonsaas.org \
+VITE_BOOKING_BASE_URL=https://book.salonsaas.org \
   npm --prefix frontend run build:admin
 npx wrangler pages deploy frontend/apps/salon-admin/build/client \
   --project-name=salonsaas-admin --branch=main
 ```
 
-Backend — the `deploy-container-apps` job in `.github/workflows/deploy-backend.yml`
-(the `deploy-azure` AKS/Helm job is now `if: false`), or:
+Backend:
 
 ```bash
-az containerapp update -n salon-saas-mix-api  -g multi-tenant-salon-dev \
+az containerapp update -n salon-saas-mix-api  -g multi-tenant-salon-mix \
   --image ghcr.io/samitkumarpatel/multi-tenant-salon:<sha>
-az containerapp update -n salon-saas-mix-auth -g multi-tenant-salon-dev \
+az containerapp update -n salon-saas-mix-auth -g multi-tenant-salon-mix \
   --image ghcr.io/samitkumarpatel/multi-tenant-salon-authz:<sha>
 ```
 
-## Verify
-
-```bash
-curl -I https://admin-m.salonsaas.org                 # 200, server: cloudflare
-curl    https://api-m.salonsaas.org/actuator/health   # {"status":"UP"}
-terraform plan                                        # clean, no drift
-# and confirm azure/dev is unaffected:
-terraform -chdir=../../../azure/environments/dev plan # no changes
-```
-
-The PostgreSQL firewall allows Azure services (Container Apps + AKS egress) only.
-For direct `psql` from elsewhere, pass `-var postgres_client_ips=...` (see
-**Network access** above).
-
 ## CI secrets / variables
 
-Secrets: `AZURE_CREDENTIALS`, `CLOUDFLARE_API_TOKEN` (Pages: Edit),
-`CLOUDFLARE_ACCOUNT_ID`. No GitHub OIDC is used anywhere in this environment.
+Secrets: `AZURE_CREDENTIALS`, `CLOUDFLARE_API_TOKEN` (Pages: Edit + Zone: Edit +
+DNS: Edit), `CLOUDFLARE_ACCOUNT_ID`. No GitHub OIDC is used in this environment.

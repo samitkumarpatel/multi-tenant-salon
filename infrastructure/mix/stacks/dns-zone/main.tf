@@ -1,11 +1,15 @@
-# The `salonsaas.org` zone is owned by the live `azure` environment's Terraform
-# state (azure/environments/dev). `mix` does NOT create a second zone — that
-# would produce a dark, non-delegated duplicate. It reads the existing zone and
-# the dns-update stack adds only mix's own `*-m` sub-domain records into it.
-# Record resources are tracked in mix's own state, keyed by name, so the two
-# environments never fight over the same record.
+# salonsaas.org is now hosted on Cloudflare. This creates the zone (type
+# "full" = Cloudflare is authoritative once the registrar's NS records are
+# switched to the name servers in the `name_servers` output). Records are added
+# by the dns-update stack, which depends on the frontend / backend module
+# outputs.
+#
+# Migration note: the old Azure DNS zone (azure/stacks/dns-bootstrapping) is
+# retired. Apply this stack, recreate every record (dns-update), switch the NS
+# records at the registrar, verify, and only then destroy the Azure zone.
 
-data "azurerm_dns_zone" "this" {
-  name                = var.zone_name
-  resource_group_name = var.resource_group_name
+resource "cloudflare_zone" "this" {
+  account = { id = var.account_id }
+  name    = var.zone_name
+  type    = "full"
 }

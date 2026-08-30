@@ -1,8 +1,8 @@
-output "cname_fqdns" {
-  description = "Map of record key → fully-qualified record name for the CNAMEs created."
-  value       = { for k, r in azurerm_dns_cname_record.this : k => r.fqdn }
+output "record_ids" {
+  description = "Map of record key → Cloudflare record ID."
+  value       = { for k, r in cloudflare_dns_record.this : k => r.id }
 }
 
-output "txt_fqdns" {
-  value = { for k, r in azurerm_dns_txt_record.this : k => r.fqdn }
+output "record_names" {
+  value = { for k, r in cloudflare_dns_record.this : k => r.name }
 }

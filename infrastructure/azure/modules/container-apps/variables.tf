@@ -39,6 +39,19 @@ variable "container" {
   })
 }
 
+variable "secret_env" {
+  description = <<-EOT
+    Environment variables whose values are stored as Container App secrets rather
+    than inline. Map of ENV_VAR_NAME => value. Each entry renders both a
+    `secret` block (name = the env var lowercased with `_`→`-`) and an `env`
+    block that references it via `secret_name`. Mirrors a Kubernetes
+    `envFrom.secretRef` where every secret key maps 1:1 to an env var.
+  EOT
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+}
+
 variable "ingress" {
   type = object({
     allow_insecure_connections = optional(bool, false)

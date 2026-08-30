@@ -17,12 +17,13 @@ variable "production_branch" {
   default = "main"
 }
 
-# One entry per frontend SPA. Key is the logical app name (matches the dev env's
-# storage_accounts keys); `project` is the globally-unique Pages project name;
-# `custom_domain` is the FQDN to attach (its CNAME is created by dns-update).
+# One entry per frontend SPA. Key is the logical app name; `project` is the
+# globally-unique Pages project name; `custom_domains` is the list of FQDNs to
+# attach (sub-domain, apex and/or "*.salonsaas.org"). The DNS records for them
+# are created by the dns-update stack.
 variable "apps" {
   type = map(object({
-    project       = string
-    custom_domain = optional(string)
+    project        = string
+    custom_domains = optional(list(string), [])
   }))
 }

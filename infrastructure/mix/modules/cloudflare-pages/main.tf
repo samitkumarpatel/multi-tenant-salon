@@ -8,14 +8,15 @@ resource "cloudflare_pages_project" "this" {
   production_branch = var.production_branch
 }
 
-# Registers the custom domain on the project. Cloudflare validates it once the
-# CNAME (<custom_domain> -> <project>.pages.dev) resolves and then issues the
-# edge certificate. The DNS record itself lives in the Azure DNS zone and is
-# created by the dns-update stack, not here.
+# Registers each custom domain on the project (apex, sub-domain and/or the
+# "*.salonsaas.org" wildcard). Cloudflare validates a domain once its DNS record
+# resolves to <project>.pages.dev and then issues the edge certificate — for the
+# wildcard, coverage comes from the zone's free Universal SSL cert. The DNS
+# records themselves live in the dns-update stack, not here.
 resource "cloudflare_pages_domain" "this" {
-  count = var.custom_domain == null ? 0 : 1
+  for_each = toset(var.custom_domains)
 
   account_id   = var.account_id
   project_name = cloudflare_pages_project.this.name
-  name         = var.custom_domain
+  name         = each.value
 }

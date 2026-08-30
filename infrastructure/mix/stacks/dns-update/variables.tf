@@ -1,28 +1,28 @@
-variable "zone_name" {
+variable "zone_id" {
   type        = string
-  description = "Name of the existing Azure DNS zone (e.g. salonsaas.org) to add records to."
+  description = "Cloudflare zone ID (from the dns-zone stack)."
 }
 
-variable "resource_group_name" {
-  type        = string
-  description = "Resource group that holds the DNS zone."
-}
-
-variable "dns_zone_id" {
-  type        = string
-  default     = null
-  description = "DNS zone resource ID. Used only via depends_on to order these records after the zone exists — record resources address the zone by name, which carries no dependency of its own."
-}
-
-# Records whose values come from other stack outputs (Pages *.pages.dev hosts,
-# Container App FQDNs, asuid verification tokens). Same shape as the dns-zone
-# module's `records` input.
+# One entry per record. Unlike the old Azure module, Cloudflare stores one value
+# per record resource, so multi-value sets (e.g. several apex TXT strings) are
+# expressed as several map entries.
+#
+#   type     : A | AAAA | CNAME | TXT | MX
+#   name     : FQDN (e.g. "admin.salonsaas.org") or the zone apex name
+#   content  : the record value (target host / IP / text / MX exchange)
+#   ttl      : 1 = automatic (required for proxied records); default 1
+#   proxied  : orange-cloud. Only honoured for A/AAAA/CNAME; ignored otherwise.
+#              Pages hostnames -> true. Azure Container Apps hostnames -> false
+#              (Azure serves their TLS and validates the CNAME directly).
+#   priority : MX only.
 variable "dns_records" {
   type = map(object({
-    type   = string # "A" | "CNAME" | "TXT" | "MX"
-    name   = string # "@" for apex
-    values = list(string)
-    ttl    = optional(number, 300)
+    type     = string
+    name     = string
+    content  = string
+    ttl      = optional(number, 1)
+    proxied  = optional(bool, false)
+    priority = optional(number)
   }))
   default = {}
 }
