@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MapPin, Phone, Mail, Globe, Clock, Timer,
-  ChevronRight, CalendarCheck, ArrowUp,
+  ChevronRight, ChevronLeft, CalendarCheck, ArrowUp,
+  Play, Film, Images, Quote, Sparkles, X,
 } from "lucide-react";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
@@ -125,6 +127,272 @@ function CountUp({ target, duration = 900, style }: { target: number; duration?:
     return () => cancelAnimationFrame(raf);
   }, [visible, target, duration]);
   return <p ref={ref} className="text-xl font-black tabular-nums" style={style}>{n}</p>;
+}
+
+// ── Team: portfolio helpers ───────────────────────────────────────────────────
+
+function mediaCounts(urls: string[] = []) {
+  let photos = 0, videos = 0;
+  for (const u of urls) (isVideoUrl(u) ? videos++ : photos++);
+  return { photos, videos };
+}
+
+/** Human "6 photos · 1 video" / "Read bio" hint for a staff member's row. */
+function portfolioHint(m: StaffMember): string | null {
+  const { photos, videos } = mediaCounts(m.photoUrls);
+  const bits: string[] = [];
+  if (photos) bits.push(`${photos} photo${photos === 1 ? "" : "s"}`);
+  if (videos) bits.push(`${videos} video${videos === 1 ? "" : "s"}`);
+  if (bits.length) return bits.join(" · ");
+  if (m.bio) return "Read bio";
+  return null;
+}
+
+function staffHasDetails(m: StaffMember): boolean {
+  return (m.photoUrls?.length ?? 0) > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
+}
+
+/** A single work-sample tile — image, or video with a play affordance. Opens the lightbox on click. */
+function MediaThumb({ url, onClick, className = "" }: { url: string; onClick: () => void; className?: string }) {
+  const video = isVideoUrl(url);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group/thumb relative block overflow-hidden bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 ${className}`}
+    >
+      {video ? (
+        <>
+          <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="w-9 h-9 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center transition-transform group-hover/thumb:scale-110">
+              <Play className="w-4 h-4 text-white translate-x-[1px]" fill="currentColor" />
+            </span>
+          </span>
+          <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[9px] font-bold uppercase tracking-wide">
+            <Film className="w-2.5 h-2.5" /> Video
+          </span>
+        </>
+      ) : (
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+      )}
+    </button>
+  );
+}
+
+/** Overlapping thumbnail peek used as a "there's a portfolio here" hint on a staff row. */
+function ThumbStack({ urls, accent }: { urls: string[]; accent: string }) {
+  if (!urls.length) return null;
+  const shown = urls.slice(0, 3);
+  const extra = urls.length - shown.length;
+  return (
+    <div className="hidden md:flex items-center -space-x-2 shrink-0">
+      {shown.map((u, i) => (
+        <span
+          key={u}
+          className="relative w-9 h-9 rounded-lg overflow-hidden ring-2 ring-white bg-slate-100 shadow-sm"
+          style={{ zIndex: shown.length - i }}
+        >
+          {isVideoUrl(u) ? (
+            <>
+              <video src={u} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+                <Play className="w-3 h-3 text-white" fill="currentColor" />
+              </span>
+            </>
+          ) : (
+            <img src={u} alt="" loading="lazy" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          )}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span
+          className="relative w-9 h-9 rounded-lg ring-2 ring-white shadow-sm flex items-center justify-center text-[10px] font-bold text-white"
+          style={{ backgroundColor: accent, zIndex: 0 }}
+        >
+          +{extra}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Full-screen photo / video viewer. Purely presentational — the parent owns index + keys. */
+function Lightbox({ items, index, title, onClose, onPrev, onNext }: {
+  items: string[]; index: number; title: string;
+  onClose: () => void; onPrev: () => void; onNext: () => void;
+}) {
+  const url = items[index];
+  return createPortal(
+    <div className="fixed inset-0 z-[130] flex flex-col bg-black/92 backdrop-blur-sm" style={{ animation: "sw-fade .15s ease" }} onClick={onClose}>
+      <div className="flex items-center justify-between h-14 px-4 text-white/75 text-xs font-medium">
+        <span className="tabular-nums">{title} · {index + 1} / {items.length}</span>
+        <button type="button" onClick={onClose} aria-label="Close" className="p-2 -m-2 hover:text-white transition-colors cursor-pointer">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 flex items-center justify-center px-4 pb-6 sm:px-16" onClick={(e) => e.stopPropagation()}>
+        {isVideoUrl(url) ? (
+          <video key={url} src={url} controls autoPlay playsInline className="max-h-full max-w-full rounded-lg bg-black" />
+        ) : (
+          <img key={url} src={url} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
+        )}
+      </div>
+      {items.length > 1 && (
+        <>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onPrev(); }} aria-label="Previous"
+            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onNext(); }} aria-label="Next"
+            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer">
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
+/** Focused "meet this stylist" panel: about + work grid + book CTA.
+ *  Bottom-sheet on mobile, centred card on larger screens. */
+function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, onClose }: {
+  member: StaffMember; theme: WebsiteTheme; accentText: string;
+  hasBooking?: boolean; onBook: (m: StaffMember) => void; onClose: () => void;
+}) {
+  const media = member.photoUrls ?? [];
+  const avatar = staffAvatar(member);
+  const firstName = member.name.split(" ")[0];
+  const [lb, setLb] = useState<number | null>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { lb !== null ? setLb(null) : onClose(); return; }
+      if (lb === null || media.length < 2) return;
+      if (e.key === "ArrowRight") setLb((i) => ((i ?? 0) + 1) % media.length);
+      if (e.key === "ArrowLeft") setLb((i) => ((i ?? 0) - 1 + media.length) % media.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lb, media.length, onClose]);
+
+  return createPortal(
+    <>
+      <div
+        className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm sm:items-center sm:p-6"
+        style={{ animation: "sw-fade .18s ease" }}
+        onClick={onClose}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${member.name} — profile`}
+          className="flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
+          style={{ maxHeight: "90vh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-start gap-3.5 border-b border-slate-100 px-5 pb-3.5 pt-5">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: cardColor(member.name) }}>
+              {avatar ? (
+                <img src={avatar} alt={member.name} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+              ) : (
+                <span className="text-base font-black text-white">{initials(member.name)}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-bold leading-tight text-slate-900">{member.name}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+              {member.specializations && member.specializations.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {member.specializations.map((s) => (
+                    <span key={s} className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                      {CATEGORY_LABEL[s] ?? s}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button type="button" onClick={onClose} aria-label="Close" className="-m-1 shrink-0 p-1 text-slate-400 transition-colors hover:text-slate-700 cursor-pointer">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+            {member.bio && (
+              <div className="relative pl-4">
+                <span className="absolute bottom-0 left-0 top-1 w-1 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
+                  <Quote className="h-3 w-3" /> About {firstName}
+                </p>
+                <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{member.bio}</p>
+              </div>
+            )}
+
+            {media.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Images className="h-3.5 w-3.5 text-slate-400" />
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{firstName}&rsquo;s work</p>
+                  <span className="text-[11px] text-slate-400">{media.length}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {media.map((url, i) => (
+                    <MediaThumb key={url} url={url} className="aspect-square rounded-lg" onClick={() => setLb(i)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!member.bio && media.length === 0 && (
+              <p className="py-4 text-center text-sm text-slate-400">
+                {firstName} hasn&rsquo;t added a portfolio yet.
+              </p>
+            )}
+          </div>
+
+          {/* Footer CTA */}
+          {hasBooking && (
+            <div className="border-t border-slate-100 px-5 py-3.5">
+              <button
+                type="button"
+                onClick={() => onBook(member)}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 cursor-pointer"
+                style={{ backgroundColor: theme.accentColor, color: accentText }}
+              >
+                <CalendarCheck className="h-4 w-4" /> Book with {firstName}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {lb !== null && media[lb] && (
+        <Lightbox
+          items={media}
+          index={lb}
+          title={member.name}
+          onClose={() => setLb(null)}
+          onPrev={() => setLb((i) => ((i ?? 0) - 1 + media.length) % media.length)}
+          onNext={() => setLb((i) => ((i ?? 0) + 1) % media.length)}
+        />
+      )}
+    </>,
+    document.body,
+  );
 }
 
 function RotatingWord({ words, color }: { words: string[]; color: string }) {
@@ -258,7 +526,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
   const [selectedCat, setSelectedCat]     = useState<string | null>(null);
   const [showAllServices, setShowAllServices] = useState(false);
-  const [expandedStaff, setExpandedStaff] = useState<Set<number>>(new Set());
+  const [spotlightStaffId, setSpotlightStaffId] = useState<number | null>(null);
   const [hoursExpanded, setHoursExpanded] = useState(false);
   const [heroVisible, setHeroVisible]     = useState(true);
   const [bookServiceId, setBookServiceId] = useState<number | null>(null);
@@ -367,12 +635,16 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
     divider: heroLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
   };
 
-  function toggleStaff(id: number) {
-    setExpandedStaff((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
+  const spotlightStaff = activeStaff.find((m) => m.id === spotlightStaffId) ?? null;
+
+  function openStaff(m: StaffMember) {
+    setSpotlightStaffId(m.id!);
+  }
+
+  function bookWithStaff(m: StaffMember) {
+    setSpotlightStaffId(null);
+    setBookStaffId(m.id!);
+    onNavigate?.("book");
   }
 
   if (currentPage === "book" && hasBooking) {
@@ -681,59 +953,86 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
             )}
 
             {activeStaff.length > 0 && (
+              <>
               <aside id="team" className="md:sticky md:top-20 scroll-mt-16">
+                <style>{`
+                  @keyframes sw-fade { from { opacity: 0 } to { opacity: 1 } }
+                  @keyframes sw-sheet { from { opacity: 0; transform: translateY(28px) } to { opacity: 1; transform: translateY(0) } }
+                `}</style>
                 <FadeIn delay={100}>
                   <div className="mb-4">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
                     <h2 className="text-2xl font-bold text-slate-900">Meet our team</h2>
+                    {activeStaff.some(staffHasDetails) && (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
+                        Tap a stylist to see their story &amp; recent work
+                      </p>
+                    )}
                   </div>
+
+                  {/* Mobile — swipeable cards; tap to open the stylist spotlight */}
                   <div className="sm:hidden -mx-4 px-4">
                     <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
                       {activeStaff.map((m) => {
                         const avatar = staffAvatar(m);
+                        const { photos, videos } = mediaCounts(m.photoUrls);
+                        const detail = staffHasDetails(m);
                         return (
-                          <div key={m.id} className="snap-start shrink-0 w-32 rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col items-center text-center gap-1.5">
-                            <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
+                          <div key={m.id} role="button" tabIndex={0}
+                            onClick={() => openStaff(m)}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openStaff(m); } }}
+                            className="snap-start shrink-0 w-36 rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col items-center text-center gap-1.5 transition-transform active:scale-[0.97] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset">
+                            <div className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
                               {avatar ? (
                                 <img src={avatar} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                               ) : (
-                                <span className="text-sm font-black text-white">{initials(m.name)}</span>
+                                <span className="text-base font-black text-white">{initials(m.name)}</span>
                               )}
                             </div>
                             <p className="text-xs font-bold text-slate-900 leading-tight truncate w-full">{m.name}</p>
                             <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+                            {photos + videos > 0 ? (
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                                {photos > 0 && <span className="inline-flex items-center gap-0.5"><Images className="w-2.5 h-2.5" />{photos}</span>}
+                                {videos > 0 && <span className="inline-flex items-center gap-0.5"><Film className="w-2.5 h-2.5" />{videos}</span>}
+                              </span>
+                            ) : detail ? (
+                              <span className="text-[10px] font-medium" style={{ color: theme.accentColor }}>View profile</span>
+                            ) : null}
                             {hasBooking && (
-                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookStaffId(m.id!); onNavigate?.("book"); }}
-                                className="mt-1 w-full inline-flex items-center justify-center text-[11px] font-semibold py-1.5 rounded-lg no-underline"
+                              <button type="button" onClick={(e) => { e.stopPropagation(); bookWithStaff(m); }}
+                                className="mt-1 w-full inline-flex items-center justify-center text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer"
                                 style={{ backgroundColor: theme.accentColor, color: accentText }}>
                                 Book
-                              </a>
+                              </button>
                             )}
                           </div>
                         );
                       })}
                     </div>
                   </div>
+
+                  {/* Desktop / tablet — rows with a portfolio peek; click opens the spotlight */}
                   <div className="hidden sm:block">
                   <div className={manyStaff
                     ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
                     : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
                     {activeStaff.map((m) => {
-                      const isExpanded = expandedStaff.has(m.id!);
                       const avatar = staffAvatar(m);
                       const workMedia = m.photoUrls ?? [];
-                      const hasDetails = workMedia.length > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
+                      const hint = portfolioHint(m);
+                      const interactive = staffHasDetails(m) || hasBooking;
                       return (
                         <div key={m.id} role="button" tabIndex={0}
-                          onClick={() => toggleStaff(m.id!)}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStaff(m.id!); } }}
+                          onClick={() => openStaff(m)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openStaff(m); } }}
                           className={manyStaff
                             ? "group/staff w-full text-left p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                            : "group/staff w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"}
-                          aria-expanded={isExpanded}>
-                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5">
+                            : "group/staff w-full text-left p-3.5 hover:bg-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"}>
+                          <div className="flex items-center flex-wrap gap-x-3 gap-y-2">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
+                              <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
                                 {avatar ? (
                                   <img src={avatar} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                                 ) : (
@@ -741,53 +1040,30 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[160px] sm:max-w-[220px]">{m.name}</p>
+                                <p className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[150px] sm:max-w-[190px]">{m.name}</p>
                                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+                                {hint && (
+                                  <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                                    {workMedia.length > 0
+                                      ? <Images className="w-3 h-3 shrink-0" style={{ color: theme.accentColor }} />
+                                      : <Quote className="w-3 h-3 shrink-0" style={{ color: theme.accentColor }} />}
+                                    {hint}
+                                  </span>
+                                )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 ml-auto shrink-0">
+                            <div className="flex items-center gap-2.5 ml-auto shrink-0">
+                              <ThumbStack urls={workMedia} accent={theme.accentColor} />
                               {hasBooking && (
-                                <a href={bookUrl} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBookStaffId(m.id!); onNavigate?.("book"); }}
-                                  className="shrink-0 inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-100 sm:opacity-0 sm:group-hover/staff:opacity-100 sm:group-focus-within/staff:opacity-100 transition-opacity whitespace-nowrap"
+                                <button type="button" onClick={(e) => { e.stopPropagation(); bookWithStaff(m); }}
+                                  className="shrink-0 inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer opacity-100 sm:opacity-0 sm:group-hover/staff:opacity-100 sm:group-focus-within/staff:opacity-100 transition-opacity"
                                   style={{ backgroundColor: theme.accentColor, color: accentText }}>
                                   Book
-                                </a>
+                                </button>
                               )}
-                              <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${hasDetails ? "text-slate-300" : "invisible"}`} />
+                              <ChevronRight className={`w-4 h-4 shrink-0 text-slate-300 transition-transform group-hover/staff:translate-x-0.5 ${interactive ? "" : "invisible"}`} />
                             </div>
                           </div>
-                          {isExpanded && hasDetails && (
-                            <div className="mt-2.5 pl-[52px]">
-                              {workMedia.length === 1 && (
-                                isVideoUrl(workMedia[0]) ? (
-                                  <video src={workMedia[0]} controls preload="metadata" className="w-full h-36 object-cover rounded-xl mb-2.5 bg-black" />
-                                ) : (
-                                  <img src={workMedia[0]} alt={m.name} className="w-full h-36 object-cover rounded-xl mb-2.5" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                                )
-                              )}
-                              {workMedia.length > 1 && (
-                                <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory mb-2.5 pb-1 -mr-3.5 pr-3.5">
-                                  {workMedia.map((url, pi) => (
-                                    isVideoUrl(url) ? (
-                                      <video key={url} src={url} controls preload="metadata" className="h-32 w-40 shrink-0 object-cover rounded-xl snap-start bg-black" />
-                                    ) : (
-                                      <img key={url} src={url} alt={`${m.name} — photo ${pi + 1}`} className="h-32 w-40 shrink-0 object-cover rounded-xl snap-start" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                                    )
-                                  ))}
-                                </div>
-                              )}
-                              {m.bio && <p className="text-xs text-slate-500 leading-relaxed mb-2">{m.bio}</p>}
-                              {m.specializations && m.specializations.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {m.specializations.map((s) => (
-                                    <span key={s} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                                      {CATEGORY_LABEL[s] ?? s}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -795,6 +1071,18 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   </div>
                 </FadeIn>
               </aside>
+
+              {spotlightStaff && (
+                <StaffSpotlight
+                  member={spotlightStaff}
+                  theme={theme}
+                  accentText={accentText}
+                  hasBooking={hasBooking}
+                  onBook={bookWithStaff}
+                  onClose={() => setSpotlightStaffId(null)}
+                />
+              )}
+              </>
             )}
           </div>
         </section>
