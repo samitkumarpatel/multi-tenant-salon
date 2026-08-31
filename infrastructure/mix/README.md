@@ -28,9 +28,9 @@ mix/
 ```
 
 The Azure modules (`container-apps-env`, `container-apps`, `key-vault`,
-`blob-media`) are reused from `../azure/modules/`. `container-apps` gained an
-optional `identity_type` (default `"None"`) so the backend stack can attach a
-system-assigned managed identity to `api` for the Blob Storage access below.
+`blob-media`) are reused from `../azure/modules/`. `container-apps` also carries
+an optional `identity_type` (default `"None"`) for attaching a managed identity,
+though the media storage below authenticates with an account key, not identity.
 
 ## Relationship to `azure/`
 
@@ -125,18 +125,17 @@ PGPASSWORD=$(terraform output -raw database_password) \
 work-gallery images/video, and also backs the analytics activity-events queue
 (the app creates that queue at runtime).
 
-- **No account key.** `shared_access_key_enabled = false`. The `api` Container
-  App authenticates with a **system-assigned managed identity** (added by
-  `container-apps`'s new `identity_type = "SystemAssigned"`), and hands the
-  browser a short-lived **user-delegation SAS** to `PUT` each blob directly.
-- **RBAC** (`azure/modules/blob-media`, scoped to the account, granted to the
-  `api` identity): `Storage Blob Data Contributor` (read/write blobs),
-  `Storage Blob Delegator` (mint the delegation key the SAS is signed with),
-  `Storage Queue Data Contributor` (analytics queue).
+- **Account key.** `shared_access_key_enabled = true`. The `api` Container App
+  authenticates with the account key and hands the browser a short-lived
+  **shared-key SAS** (`blobClient.generateSas(...)`) to `PUT` each blob directly.
+  No managed identity / role assignments — so the apply only needs `Contributor`.
 - **App env** injected into `api` by the backend stack: `STORAGE_TYPE=AZURE`,
   `AZURE_STORAGE_ACCOUNT_NAME=salonsaasmixmedia`,
   `MEDIA_STAFF_CONTAINER_NAME=staff-media`,
-  `MEDIA_STAFF_CDN_BASE_URL=https://salonsaasmixmedia.blob.core.windows.net/staff-media`.
+  `MEDIA_STAFF_CDN_BASE_URL=https://salonsaasmixmedia.blob.core.windows.net/staff-media`,
+  plus `AZURE_STORAGE_ACCOUNT_KEY` as a Container App **secret** (also stored in
+  Key Vault as `azure-storage-account-key`). The same key backs the analytics
+  activity-events queue.
 - **Public reads.** The container is created with anonymous *blob* access
   (`container_access_type = "blob"`), so the `publicUrl` the API returns
   (`<MEDIA_STAFF_CDN_BASE_URL>/<key>`) is directly fetchable. To front it with
@@ -172,10 +171,8 @@ TF_VAR_anthropic_api_key
 ```
 
 The deploying identity needs **Contributor** on the subscription (RG-create
-rights included), **plus** `Role Based Access Control Administrator` (or
-`User Access Administrator` / `Owner`) — the `blob-media` module creates
-`azurerm_role_assignment` resources for the `api` managed identity, which
-Contributor alone cannot do.
+rights included). No role-assignment / Owner rights are required — the media
+storage uses an account key, not RBAC.
 
 ### Apply #1 — infra + DNS records (`bind_custom_domains = false`)
 

@@ -35,28 +35,9 @@ variable "anonymous_blob_read" {
 }
 
 variable "cors_allowed_origins" {
-  description = "Browser origins allowed to PUT directly to the blob endpoint via the user-delegation SAS (the salon-admin and salon-staff SPAs). Empty disables the CORS rule."
+  description = "Browser origins allowed to PUT directly to the blob endpoint via the shared-key SAS (the salon-admin and salon-staff SPAs). Empty disables the CORS rule."
   type        = list(string)
   default     = []
-}
-
-variable "application_principal_ids" {
-  description = <<-EOT
-    AAD principal (object) IDs of the workload identities that need data-plane
-    access — typically the api Container App's system-assigned managed identity.
-    Each is granted "Storage Blob Data Contributor" (read/write blobs) and
-    "Storage Blob Delegator" (mint the user-delegation key the app signs upload
-    SAS tokens with). When grant_queue_access is true they also get "Storage
-    Queue Data Contributor" for the analytics activity-events queue.
-  EOT
-  type        = list(string)
-  default     = []
-}
-
-variable "grant_queue_access" {
-  description = "Also grant application_principal_ids \"Storage Queue Data Contributor\" on this account (the analytics module's activity-events queue lives here; the app creates the queue itself at runtime)."
-  type        = bool
-  default     = true
 }
 
 variable "tags" {

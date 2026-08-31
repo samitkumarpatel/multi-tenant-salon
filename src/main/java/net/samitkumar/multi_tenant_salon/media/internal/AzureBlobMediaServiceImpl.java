@@ -2,7 +2,6 @@ package net.samitkumar.multi_tenant_salon.media.internal;
 
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.models.UserDelegationKey;
 import com.azure.storage.blob.sas.BlobSasPermission;
 import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import net.samitkumar.multi_tenant_salon.media.MediaService;
@@ -44,20 +43,16 @@ class AzureBlobMediaServiceImpl implements MediaService {
         String key = "uploads/profile/" + staffId + "/" + UUID.randomUUID() + ext;
         BlobClient blobClient = blobServiceClient.getBlobContainerClient(containerName).getBlobClient(key);
 
-        // Account keys/connection strings are avoided by design (DefaultAzureCredential /
-        // managed identity only), so a SAS must be minted via a short-lived user delegation
-        // key rather than blobClient.generateSas(...), which requires a shared key credential.
-        OffsetDateTime start = OffsetDateTime.now().minusMinutes(5);
+        // Shared-key SAS: the BlobServiceClient is configured with the account key
+        // (spring.cloud.azure.storage.blob.account-key), so blobClient.generateSas(...)
+        // signs directly with it — no user-delegation key / managed-identity RBAC.
         OffsetDateTime expiry = OffsetDateTime.now().plus(Duration.ofMinutes(15));
-        UserDelegationKey delegationKey = blobServiceClient.getUserDelegationKey(start, expiry);
-
         BlobSasPermission permission = new BlobSasPermission()
                 .setWritePermission(true)
                 .setCreatePermission(true);
-        BlobServiceSasSignatureValues sasValues = new BlobServiceSasSignatureValues(expiry, permission)
-                .setStartTime(start);
+        BlobServiceSasSignatureValues sasValues = new BlobServiceSasSignatureValues(expiry, permission);
 
-        String sas = blobClient.generateUserDelegationSas(sasValues, delegationKey);
+        String sas = blobClient.generateSas(sasValues);
         String presignedUrl = blobClient.getBlobUrl() + "?" + sas;
         return new PresignedUpload(presignedUrl, cdnBaseUrl + "/" + key);
     }

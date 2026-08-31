@@ -13,5 +13,7 @@ output "egress_ip" {
 
 output "principal_id" {
   description = "System-assigned managed identity principal (object) ID. null when identity_type is \"None\" or \"UserAssigned\" only."
-  value       = try(azurerm_container_app.this.identity[0].principal_id, null)
+  # Splat (not identity[0]) so a not-yet-created identity resolves to a plan-time
+  # unknown rather than null — a null here would break a downstream for_each/count.
+  value = one(azurerm_container_app.this.identity[*].principal_id)
 }

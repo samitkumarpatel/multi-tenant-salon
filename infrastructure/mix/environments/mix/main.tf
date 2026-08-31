@@ -146,13 +146,11 @@ module "backend" {
   bind_custom_domains = var.bind_custom_domains
 
   # Staff media (profile photos + work-gallery images/video) → Azure Blob.
-  # Creates the `salonsaasmixmedia` Storage account + `staff-media` container,
-  # gives the `api` Container App a system-assigned identity with the Blob
-  # Data Contributor + Blob Delegator roles (user-delegation SAS uploads, no
-  # account key), and injects STORAGE_TYPE=AZURE / AZURE_STORAGE_ACCOUNT_NAME /
-  # MEDIA_STAFF_CONTAINER_NAME / MEDIA_STAFF_CDN_BASE_URL into `api`. The same
-  # account also backs the analytics activity-events queue (Queue Data
-  # Contributor granted here; the app creates the queue at runtime).
+  # Creates the `salonsaasmixmedia` Storage account + `staff-media` container and
+  # injects STORAGE_TYPE=AZURE / AZURE_STORAGE_ACCOUNT_NAME / MEDIA_STAFF_*
+  # (env) + AZURE_STORAGE_ACCOUNT_KEY (Container App secret + Key Vault) into
+  # `api`. The app signs shared-key upload SAS tokens with that key. The same
+  # account also backs the analytics activity-events queue.
   media_storage = {
     storage_account_name = "salonsaasmixmedia"
     container_name       = "staff-media"

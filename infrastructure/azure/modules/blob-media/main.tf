@@ -1,15 +1,13 @@
 # Storage account for staff media (profile photos + work-gallery images/video).
 #
 # The app (net.samitkumar...media.internal.AzureBlobMediaServiceImpl) authenticates
-# with its managed identity only — no account key, no connection string — and
-# hands the browser a short-lived *user-delegation* SAS to PUT each blob. So:
-#   * shared_access_key_enabled = false            → keys can't be used at all
-#   * the identity gets "Storage Blob Delegator"   → can mint the delegation key
-#   * the identity gets "Storage Blob Data Contributor" → the SAS it signs can write
+# with the account key and hands the browser a short-lived shared-key SAS to PUT
+# each blob. The analytics module's activity-events queue lives on the same
+# account and also uses the key. The key is exported (sensitive) for the caller
+# to inject as AZURE_STORAGE_ACCOUNT_KEY.
 #
-# Container/queue creation below goes through the resource-manager plane
-# (storage_account_id, not *_name), so it works with the deployer's Contributor
-# role even though data-plane keys are disabled.
+# Everything here is management-plane, so it works with the deployer's
+# Contributor role (no role-assignment / Owner rights needed).
 
 resource "azurerm_storage_account" "this" {
   name                     = var.storage_account_name
@@ -21,7 +19,7 @@ resource "azurerm_storage_account" "this" {
   access_tier              = "Hot"
 
   min_tls_version                 = "TLS1_2"
-  shared_access_key_enabled       = false
+  shared_access_key_enabled       = true
   allow_nested_items_to_be_public = var.anonymous_blob_read
   public_network_access_enabled   = true
 
@@ -45,30 +43,4 @@ resource "azurerm_storage_container" "staff_media" {
   name                  = var.container_name
   storage_account_id    = azurerm_storage_account.this.id
   container_access_type = var.anonymous_blob_read ? "blob" : "private"
-}
-
-# ── Data-plane RBAC for the workload identities ──────────────────────────────
-
-resource "azurerm_role_assignment" "blob_data_contributor" {
-  for_each = toset(var.application_principal_ids)
-
-  scope                = azurerm_storage_account.this.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = each.value
-}
-
-resource "azurerm_role_assignment" "blob_delegator" {
-  for_each = toset(var.application_principal_ids)
-
-  scope                = azurerm_storage_account.this.id
-  role_definition_name = "Storage Blob Delegator"
-  principal_id         = each.value
-}
-
-resource "azurerm_role_assignment" "queue_data_contributor" {
-  for_each = var.grant_queue_access ? toset(var.application_principal_ids) : toset([])
-
-  scope                = azurerm_storage_account.this.id
-  role_definition_name = "Storage Queue Data Contributor"
-  principal_id         = each.value
 }
