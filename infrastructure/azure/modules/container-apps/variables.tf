@@ -10,6 +10,23 @@ variable "container_app_environment_id" {
   type = string
 }
 
+variable "identity_type" {
+  description = "Managed identity for the Container App: \"None\" (default), \"SystemAssigned\", \"UserAssigned\", or \"SystemAssigned, UserAssigned\"."
+  type        = string
+  default     = "None"
+
+  validation {
+    condition     = contains(["None", "SystemAssigned", "UserAssigned", "SystemAssigned, UserAssigned"], var.identity_type)
+    error_message = "identity_type must be one of: None, SystemAssigned, UserAssigned, \"SystemAssigned, UserAssigned\"."
+  }
+}
+
+variable "identity_ids" {
+  description = "User-assigned identity resource IDs. Required when identity_type includes \"UserAssigned\", otherwise leave null."
+  type        = list(string)
+  default     = null
+}
+
 variable "registry_server" {
   type    = string
   default = "ghcr.io"

@@ -29,14 +29,31 @@ locals {
     SPRING_DATASOURCE_PASSWORD = random_password.db[0].result
   } : {}
 
+  # ── Media storage wiring ──────────────────────────────────────────────────
+  media_enabled      = var.media_storage != null
+  media_service_keys = local.media_enabled ? var.media_storage.service_keys : []
+
+  # Deterministic (no dependency on the module output) so it can feed the
+  # services' env without a services <-> media_storage cycle — media_storage
+  # only ever reads the services' principal_ids back.
+  media_base_url = local.media_enabled ? "https://${var.media_storage.storage_account_name}.blob.core.windows.net/${var.media_storage.container_name}" : null
+
+  media_env = local.media_enabled ? {
+    STORAGE_TYPE               = "AZURE"
+    AZURE_STORAGE_ACCOUNT_NAME = var.media_storage.storage_account_name
+    MEDIA_STAFF_CONTAINER_NAME = var.media_storage.container_name
+    MEDIA_STAFF_CDN_BASE_URL   = local.media_base_url
+  } : {}
+
   # var.services with db_env / db_secret_env merged into the one service that
-  # talks to Postgres.
+  # talks to Postgres, and media_env merged into every media_service_keys entry.
   services_resolved = {
     for k, s in var.services : k => merge(s, {
       container = merge(s.container, {
         env = merge(
           try(s.container.env, {}),
           k == local.db_service_key ? local.db_env : {},
+          contains(local.media_service_keys, k) ? local.media_env : {},
         )
       })
       secret_env = merge(
@@ -129,7 +146,32 @@ module "services" {
   secret_env                   = each.value.secret_env
   ingress                      = each.value.ingress
   replicas                     = each.value.replicas
-  tags                         = local.common_tags
+
+  # Services that talk to the media Storage account need a managed identity to
+  # authenticate with (they never see an account key).
+  identity_type = contains(local.media_service_keys, each.key) ? "SystemAssigned" : "None"
+
+  tags = local.common_tags
+}
+
+# ── Media storage — Azure Blob (staff photos + work-gallery media) ──────────
+
+module "media_storage" {
+  source = "../../../azure/modules/blob-media"
+  count  = local.media_enabled ? 1 : 0
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  storage_account_name = var.media_storage.storage_account_name
+  container_name       = var.media_storage.container_name
+  anonymous_blob_read  = var.media_storage.anonymous_blob_read
+  cors_allowed_origins = var.media_storage.cors_allowed_origins
+  grant_queue_access   = var.media_storage.grant_queue_access
+
+  application_principal_ids = [for k in local.media_service_keys : module.services[k].principal_id]
+
+  tags = local.common_tags
 }
 
 # ── Key Vault ───────────────────────────────────────────────────────────────

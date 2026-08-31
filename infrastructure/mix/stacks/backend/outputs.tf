@@ -26,6 +26,16 @@ output "key_vault_uri" {
   value = module.key_vault.vault_uri
 }
 
+output "media_storage" {
+  description = "Azure Blob storage for staff media (null when var.media_storage is unset). media_base_url is the app's MEDIA_STAFF_CDN_BASE_URL."
+  value = local.media_enabled ? {
+    account_name   = module.media_storage[0].storage_account_name
+    blob_endpoint  = module.media_storage[0].primary_blob_endpoint
+    container_name = module.media_storage[0].container_name
+    media_base_url = module.media_storage[0].media_base_url
+  } : null
+}
+
 output "database" {
   description = "Managed PostgreSQL connection info (null when var.database is unset). Password is in Key Vault / the database_password output, not here."
   value = local.db_enabled ? {

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, UserCircle, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle, Plus, ChevronDown } from "lucide-react";
-import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSalonUUID } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
@@ -441,7 +441,7 @@ async function uploadWorkFile(apiBase: string, sid: string | number, staffId: nu
     method: "POST",
     body: JSON.stringify({ contentType: file.type }),
   });
-  await fetch(upload.presignedUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+  await uploadToPresignedUrl(upload.presignedUrl, file);
   return upload.publicUrl;
 }
 
@@ -802,11 +802,7 @@ export default function Staff() {
             method: "POST",
             body: JSON.stringify({ contentType: fields.photoFile.type }),
           });
-          await fetch(upload.presignedUrl, {
-            method: "PUT",
-            body: fields.photoFile,
-            headers: { "Content-Type": fields.photoFile.type },
-          });
+          await uploadToPresignedUrl(upload.presignedUrl, fields.photoFile);
           photoUrl = upload.publicUrl;
         }
         const uploadedWork: string[] = [];
@@ -835,11 +831,7 @@ export default function Staff() {
           method: "POST",
           body: JSON.stringify({ contentType: ef.photoFile.type }),
         });
-        await fetch(upload.presignedUrl, {
-          method: "PUT",
-          body: ef.photoFile,
-          headers: { "Content-Type": ef.photoFile.type },
-        });
+        await uploadToPresignedUrl(upload.presignedUrl, ef.photoFile);
         photoUrl = upload.publicUrl;
       }
       const uploadedWork: string[] = [];

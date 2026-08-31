@@ -1986,7 +1986,7 @@ Self-service update of the caller's own record. Any omitted field is left unchan
 
 `POST /api/salon-staff/{staffId}/photo-upload-url`
 
-Returns a pre-signed PUT URL the browser uses to upload a file directly to S3 (or to the backend in local dev when S3 is not configured). The client PUTs the file to `presignedUrl` with the matching `Content-Type` header, then saves `publicUrl` on the staff profile via `PATCH /profile` — as `photoUrl` (avatar) or appended to `photoUrls` (work gallery). `contentType` accepts `image/*` and `video/*` (`video/mp4`, `video/webm`, `video/quicktime`). The same endpoint exists under `/api/salon-admin/{salonId}/staff/{staffId}/photo-upload-url` for admins.
+Returns a pre-signed PUT URL the browser uses to upload a file directly to object storage — S3, Azure Blob Storage, or the backend itself in local dev — depending on `STORAGE_TYPE`. The client PUTs the file to `presignedUrl` with the matching `Content-Type` header (**and `x-ms-blob-type: BlockBlob` when the URL is an Azure Blob endpoint**), then saves `publicUrl` on the staff profile via `PATCH /profile` — as `photoUrl` (avatar) or appended to `photoUrls` (work gallery). `contentType` accepts `image/*` and `video/*` (`video/mp4`, `video/webm`, `video/quicktime`). The same endpoint exists under `/api/salon-admin/{salonId}/staff/{staffId}/photo-upload-url` for admins.
 
 **Request**
 

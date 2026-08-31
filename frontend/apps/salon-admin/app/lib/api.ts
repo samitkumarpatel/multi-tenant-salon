@@ -36,6 +36,23 @@ export async function resolveSalonUUID(rawId: string): Promise<string> {
   return uuid;
 }
 
+/**
+ * Uploads a file to a pre-signed PUT URL from `.../photo-upload-url` — S3, Azure
+ * Blob, or the local media endpoint all use the same contract here. Azure Blob
+ * is the exception that needs a hint: a block-blob PUT MUST carry
+ * `x-ms-blob-type: BlockBlob` or it 400s, so that header is added whenever the
+ * target is a Blob Storage endpoint. Throws on a non-2xx response (a plain
+ * `fetch` would resolve and leave a dead publicUrl behind).
+ */
+export async function uploadToPresignedUrl(presignedUrl: string, file: File): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": file.type };
+  if (/\.blob\.core\.windows\.net\//.test(presignedUrl)) {
+    headers["x-ms-blob-type"] = "BlockBlob";
+  }
+  const res = await fetch(presignedUrl, { method: "PUT", body: file, headers });
+  if (!res.ok) throw new Error(`Upload failed (HTTP ${res.status})`);
+}
+
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {
   const method = opts.method;
   let lastError: Error = new Error("Request failed");

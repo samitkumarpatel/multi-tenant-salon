@@ -93,6 +93,27 @@ variable "database" {
   default = null
 }
 
+# ── Media storage (Azure Blob) ─────────────────────────────────────────────
+# When set, a Storage account + blob container are created for staff profile
+# photos / work-gallery media, and every service in `service_keys` gets a
+# system-assigned managed identity with "Storage Blob Data Contributor" +
+# "Storage Blob Delegator" (and "Storage Queue Data Contributor" for the
+# analytics queue) on it. The app's media env vars — STORAGE_TYPE=AZURE,
+# AZURE_STORAGE_ACCOUNT_NAME, MEDIA_STAFF_CONTAINER_NAME, MEDIA_STAFF_CDN_BASE_URL
+# — are merged into those services' containers. Leave null to keep STORAGE_TYPE
+# as whatever the services map sets (LOCAL by default).
+variable "media_storage" {
+  type = object({
+    storage_account_name = string
+    container_name       = optional(string, "staff-media")
+    service_keys         = optional(list(string), ["api"])
+    cors_allowed_origins = optional(list(string), [])
+    anonymous_blob_read  = optional(bool, true)
+    grant_queue_access   = optional(bool, true)
+  })
+  default = null
+}
+
 # ── Services ─────────────────────────────────────────────────────────────────
 # One Azure Container App per entry; key becomes the app-name suffix
 # ("<name>-<environment>-<key>"). Same shape as azure/stacks/container-apps'

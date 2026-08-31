@@ -8,5 +8,6 @@ export default [
     route("appointments", "routes/appointments.tsx"),
     route("holidays", "routes/holidays.tsx"),
     route("profile", "routes/profile.tsx"),
+    route("media", "routes/media.tsx"),
   ]),
 ] satisfies RouteConfig;
