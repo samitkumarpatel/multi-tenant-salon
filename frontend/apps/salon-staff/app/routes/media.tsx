@@ -86,7 +86,7 @@ export default function Media() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">My Media</h1>
+        <h1 className="text-xl font-bold text-slate-900">My Work Media (photo or video)</h1>
         <InfoBar>
           Photos and short videos of your work. These appear on your salon&rsquo;s public website and
           booking page. Changes are saved automatically.

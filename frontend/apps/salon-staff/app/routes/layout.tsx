@@ -343,7 +343,7 @@ export default function Layout() {
             </NavLink>
 
             <NavLink to="/portal/media" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <Images className="w-4 h-4 shrink-0" /> My Media
+              <Images className="w-4 h-4 shrink-0" /> My Work Media
             </NavLink>
 
             <NavLink to="/portal/appointments" className={sideNavClass} onClick={() => setSidebarOpen(false)}>

@@ -47,10 +47,11 @@ function initials(name: string) {
   return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
-/** First image (not video) from a staff member's work gallery, falling back to the avatar. */
+/** The staff member's profile avatar, falling back to the first image (not video)
+ *  from their work gallery when no dedicated avatar is set. */
 function staffAvatar(m: { photoUrls?: string[]; photoUrl?: string }) {
-  return (m.photoUrls ?? []).find((u) => !isVideoUrl(u))
-    ?? (m.photoUrl && !isVideoUrl(m.photoUrl) ? m.photoUrl : undefined);
+  return (m.photoUrl && !isVideoUrl(m.photoUrl) ? m.photoUrl : undefined)
+    ?? (m.photoUrls ?? []).find((u) => !isVideoUrl(u));
 }
 
 const inputCls =

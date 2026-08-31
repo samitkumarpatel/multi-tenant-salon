@@ -17,6 +17,13 @@ const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** The staff member's profile avatar, falling back to the first non-video item
+ *  of their work gallery when no dedicated avatar is set. */
+function staffAvatar(m: StaffMember): string | undefined {
+  if (m.photoUrl && !isVideoUrl(m.photoUrl)) return m.photoUrl;
+  return (m.photoUrls ?? []).find((u) => !isVideoUrl(u));
+}
+
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
 function isOpenNow(hours?: OperatingHours[]): boolean {
@@ -683,8 +690,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   <div className="sm:hidden -mx-4 px-4">
                     <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
                       {activeStaff.map((m) => {
-                        const photos = m.photoUrls?.length ? m.photoUrls : m.photoUrl ? [m.photoUrl] : [];
-                        const avatar = photos.find((p) => !isVideoUrl(p));
+                        const avatar = staffAvatar(m);
                         return (
                           <div key={m.id} className="snap-start shrink-0 w-32 rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col items-center text-center gap-1.5">
                             <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: cardColor(m.name) }}>
@@ -714,9 +720,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
                     {activeStaff.map((m) => {
                       const isExpanded = expandedStaff.has(m.id!);
-                      const photos = m.photoUrls?.length ? m.photoUrls : m.photoUrl ? [m.photoUrl] : [];
-                      const avatar = photos.find((p) => !isVideoUrl(p));
-                      const hasDetails = photos.length > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
+                      const avatar = staffAvatar(m);
+                      const workMedia = m.photoUrls ?? [];
+                      const hasDetails = workMedia.length > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
                       return (
                         <div key={m.id} role="button" tabIndex={0}
                           onClick={() => toggleStaff(m.id!)}
@@ -752,16 +758,16 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                           </div>
                           {isExpanded && hasDetails && (
                             <div className="mt-2.5 pl-[52px]">
-                              {photos.length === 1 && (
-                                isVideoUrl(photos[0]) ? (
-                                  <video src={photos[0]} controls preload="metadata" className="w-full h-36 object-cover rounded-xl mb-2.5 bg-black" />
+                              {workMedia.length === 1 && (
+                                isVideoUrl(workMedia[0]) ? (
+                                  <video src={workMedia[0]} controls preload="metadata" className="w-full h-36 object-cover rounded-xl mb-2.5 bg-black" />
                                 ) : (
-                                  <img src={photos[0]} alt={m.name} className="w-full h-36 object-cover rounded-xl mb-2.5" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                  <img src={workMedia[0]} alt={m.name} className="w-full h-36 object-cover rounded-xl mb-2.5" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                                 )
                               )}
-                              {photos.length > 1 && (
+                              {workMedia.length > 1 && (
                                 <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory mb-2.5 pb-1 -mr-3.5 pr-3.5">
-                                  {photos.map((url, pi) => (
+                                  {workMedia.map((url, pi) => (
                                     isVideoUrl(url) ? (
                                       <video key={url} src={url} controls preload="metadata" className="h-32 w-40 shrink-0 object-cover rounded-xl snap-start bg-black" />
                                     ) : (

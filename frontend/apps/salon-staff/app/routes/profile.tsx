@@ -533,7 +533,7 @@ export default function Profile() {
               <p className="text-xs text-slate-400 mt-1.5">
                 Manage your work photos &amp; videos on the{" "}
                 <Link to="/portal/media" className="text-matcha-600 font-medium hover:underline">
-                  My Media
+                  My Work Media
                 </Link>{" "}
                 page.
               </p>
