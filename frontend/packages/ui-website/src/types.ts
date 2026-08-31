@@ -73,8 +73,8 @@ export interface StaffMember {
   isOwner?: boolean;
   availableForBooking?: boolean;
   specializations?: string[];
-  photoUrl?: string;
-  photoUrls?: string[];
+  avatarUrl?: string;
+  workMedia?: string[];
   bio?: string;
   createdAt?: string;
 }

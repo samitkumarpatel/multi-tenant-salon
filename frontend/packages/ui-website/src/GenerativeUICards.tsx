@@ -19,7 +19,7 @@ export interface CardTokens {
 
 type IconType = React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
 
-function CardShell({ title, icon: Icon, tokens, children }: { title: string; icon: IconType; tokens: CardTokens; children: React.ReactNode }) {
+export function CardShell({ title, icon: Icon, tokens, children }: { title: string; icon: IconType; tokens: CardTokens; children: React.ReactNode }) {
   const { theme, bubbleBorder, bubbleShadow, asBubbleBg } = tokens;
   return (
     <div
@@ -118,8 +118,8 @@ export function StaffCard({ staff, tokens, showBookPill, onBook }: {
         {active.map((m) => (
           <div key={m.id} className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: avatarColor(m.name) }}>
-              {m.photoUrl ? (
-                <img src={m.photoUrl} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+              {m.avatarUrl ? (
+                <img src={m.avatarUrl} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
               ) : (
                 <span className="text-xs font-black text-white">{initials(m.name)}</span>
               )}
@@ -276,18 +276,18 @@ function toIso(d: Date) {
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[+\d][\d\s().-]{6,}$/;
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const PHONE_PATTERN = /^[+\d][\d\s().-]{6,}$/;
 const NAME_MIN_LEN = 2;
 
-function fmt12(t: string) {
+export function fmt12(t: string) {
   const [h, m] = t.split(":").map(Number);
   const period = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, closedDateRanges, tokens }: {
+export function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, closedDateRanges, tokens }: {
   value: string;
   onChange: (iso: string) => void;
   minDate: Date;

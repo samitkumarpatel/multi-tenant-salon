@@ -25,14 +25,14 @@ export default function Media() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast, notify } = useToast();
 
-  const media = member.photoUrls ?? [];
+  const media = member.workMedia ?? [];
   const slotsLeft = MAX_ITEMS - media.length;
 
-  /** Persists a new photoUrls list and syncs local state. */
+  /** Persists a new workMedia list and syncs local state. */
   async function persist(nextUrls: string[]) {
     const updated = await apiFetch<StaffMember>(`${STAFF_PORTAL_API}/${member.id}/profile`, {
       method: "PATCH",
-      body: JSON.stringify({ photoUrls: nextUrls }),
+      body: JSON.stringify({ workMedia: nextUrls }),
     });
     setMember(updated);
     return updated;

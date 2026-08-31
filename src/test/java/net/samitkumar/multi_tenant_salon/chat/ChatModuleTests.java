@@ -30,33 +30,79 @@ class ChatModuleTests {
     @Autowired
     WebApplicationContext context;
 
+    private RestTestClient client() {
+        return RestTestClient.bindToApplicationContext(context).build();
+    }
+
     @Test
-    void chatEndpointReturnsAssistantReplyWithoutCallingRealAnthropicApi() {
-        var client = RestTestClient.bindToApplicationContext(context).build();
+    void chatEndpointReturnsAssistantReplyAndInlineSuggestedQuestionsWithoutCallingRealAnthropicApi() {
         var salonId = UUID.randomUUID().toString();
 
-        client.post()
+        client().post()
                 .uri("/api/salon/{salonId}/chat", salonId)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .body("""
-                        { "context": "website", "message": "What are your opening hours?", "history": [] }
+                        { "sessionId": "s-1", "context": "website", "message": "What are your opening hours?" }
                         """)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.reply").isEqualTo("This is a fixed test reply.");
+                .jsonPath("$.message").isEqualTo("This is a fixed test reply.")
+                .jsonPath("$.sessionId").isEqualTo("s-1")
+                .jsonPath("$.suggestedQuestions.length()").isEqualTo(3)
+                .jsonPath("$.suggestedQuestions[0]").isEqualTo("How much is a haircut?");
+    }
+
+    @Test
+    void chatEndpointMintsASessionIdWhenNoneIsSupplied() {
+        var salonId = UUID.randomUUID().toString();
+
+        client().post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "context": "website", "message": "hi" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.sessionId").isNotEmpty();
+    }
+
+    @Test
+    void chatEndpointRemembersEarlierTurnsForTheSameSession() {
+        var salonId = UUID.randomUUID().toString();
+
+        client().post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "sessionId": "mem-1", "context": "website", "message": "MEMORY_PROBE_ALPHA is my code" }
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+
+        client().post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "sessionId": "mem-1", "context": "website", "message": "what did I say before?" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("I recall MEMORY_PROBE_ALPHA");
     }
 
     @Test
     void chatEndpointReturnsStagedPendingBookingWhenModelCallsProposeBookingTool() {
-        var client = RestTestClient.bindToApplicationContext(context).build();
         var salonId = UUID.randomUUID().toString();
 
-        client.post()
+        client().post()
                 .uri("/api/salon/{salonId}/chat", salonId)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .body("""
-                        { "context": "booking", "message": "TRIGGER_BOOKING_PROPOSAL please book it", "history": [] }
+                        { "sessionId": "b-1", "context": "booking", "message": "TRIGGER_BOOKING_PROPOSAL please book it" }
                         """)
                 .exchange()
                 .expectStatus().isOk()
@@ -71,35 +117,67 @@ class ChatModuleTests {
     }
 
     @Test
-    void chatEndpointReturnsUiDirectiveWhenModelCallsAShowTool() {
-        var client = RestTestClient.bindToApplicationContext(context).build();
+    void chatEndpointReturnsUiComponentWhenModelCallsAShowTool() {
         var salonId = UUID.randomUUID().toString();
 
-        client.post()
+        client().post()
                 .uri("/api/salon/{salonId}/chat", salonId)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .body("""
-                        { "context": "website", "message": "TRIGGER_SHOW_SERVICES what do you offer?", "history": [] }
+                        { "sessionId": "u-1", "context": "website", "message": "TRIGGER_SHOW_SERVICES what do you offer?" }
                         """)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.ui.component").isEqualTo("services");
+                .jsonPath("$.components.length()").isEqualTo(1)
+                .jsonPath("$.components[0].type").isEqualTo("services");
     }
 
     @Test
-    void chatFollowupsEndpointReturnsRelatedQuestionsForTheConversation() {
-        var client = RestTestClient.bindToApplicationContext(context).build();
+    void chatEndpointReturnsSeveralComponentsWhenModelCallsSeveralRenderTools() {
         var salonId = UUID.randomUUID().toString();
 
-        client.post()
+        client().post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "sessionId": "m-1", "context": "website", "message": "TRIGGER_MULTI show me and ask" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.components.length()").isEqualTo(2)
+                .jsonPath("$.components[0].type").isEqualTo("services")
+                .jsonPath("$.components[1].type").isEqualTo("button-group");
+    }
+
+    @Test
+    void chatEndpointRendersAFormWhenModelCallsShowForm() {
+        var salonId = UUID.randomUUID().toString();
+
+        client().post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "sessionId": "f-1", "context": "website", "message": "TRIGGER_SHOW_FORM take my details" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.components[0].type").isEqualTo("form")
+                .jsonPath("$.components[0].props.title").isEqualTo("Your details");
+    }
+
+    @Test
+    void chatFollowupsEndpointReturnsRelatedQuestionsFromTheUiStateOverride() {
+        var salonId = UUID.randomUUID().toString();
+
+        client().post()
                 .uri("/api/salon/{salonId}/chat/followups", salonId)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .body("""
-                        { "context": "website", "history": [
-                          { "role": "user", "text": "What services do you offer?" },
-                          { "role": "assistant", "text": "[Showed the visitor an interactive services card: Haircut, Colour]" }
-                        ] }
+                        { "sessionId": "fu-1", "context": "website",
+                          "uiState": "[Showed the visitor an interactive services card: Haircut, Colour]" }
                         """)
                 .exchange()
                 .expectStatus().isOk()
@@ -115,6 +193,13 @@ class ChatModuleTests {
                 {"serviceId":1,"staffId":2,"appointmentDate":"2026-09-01","startTime":"10:00",\
                 "customerName":"Jane Doe","customerEmail":"jane@example.com","customerPhone":null,"notes":null}""";
 
+        private static final String SHOW_FORM_ARGUMENTS = """
+                {"title":"Your details","fields":[{"name":"nm","label":"Name","type":"text","required":true,"pattern":null}],\
+                "submitLabel":"Send"}""";
+
+        private static final String BUTTON_GROUP_ARGUMENTS = """
+                {"prompt":"Book now?","choices":[{"label":"Yes please","value":"yes please"}]}""";
+
         @Bean
         @Primary
         ChatModel fakeChatModel() {
@@ -129,37 +214,38 @@ class ChatModuleTests {
 
                 @Override
                 public ChatResponse call(Prompt prompt) {
+                    // The follow-up generator is the only caller whose system prompt says "ask
+                    // NEXT" — check it first so a transcript that also contains a TRIGGER_* word
+                    // doesn't route the tool-less follow-up call down a tool branch.
+                    if (instructionsContain(prompt, "ask NEXT")) {
+                        return text("[\"How much is a haircut?\", \"Who does colour?\", \"Can I book one?\"]");
+                    }
+
                     boolean toolResultPresent = prompt.getInstructions().stream()
                             .anyMatch(m -> m instanceof ToolResponseMessage);
                     if (toolResultPresent) {
-                        return new ChatResponse(List.of(new Generation(
-                                new AssistantMessage("Great — I've staged your booking for you to confirm below."))));
+                        return text("Done — anything else I can help with?");
                     }
 
-                    boolean wantsBookingProposal = prompt.getInstructions().stream()
-                            .anyMatch(m -> m.getText() != null && m.getText().contains("TRIGGER_BOOKING_PROPOSAL"));
-                    if (wantsBookingProposal) {
-                        var toolCall = new AssistantMessage.ToolCall("call-1", "function", "proposeBooking", PROPOSE_BOOKING_ARGUMENTS);
-                        var assistantMessage = AssistantMessage.builder().content("").toolCalls(List.of(toolCall)).build();
-                        return new ChatResponse(List.of(new Generation(assistantMessage)));
+                    if (instructionsContain(prompt, "what did I say before?")
+                            && instructionsContain(prompt, "MEMORY_PROBE_ALPHA")) {
+                        return text("I recall MEMORY_PROBE_ALPHA");
                     }
-
-                    boolean wantsShowServices = prompt.getInstructions().stream()
-                            .anyMatch(m -> m.getText() != null && m.getText().contains("TRIGGER_SHOW_SERVICES"));
-                    if (wantsShowServices) {
-                        var toolCall = new AssistantMessage.ToolCall("call-2", "function", "showServices", "{}");
-                        var assistantMessage = AssistantMessage.builder().content("").toolCalls(List.of(toolCall)).build();
-                        return new ChatResponse(List.of(new Generation(assistantMessage)));
+                    if (instructionsContain(prompt, "TRIGGER_BOOKING_PROPOSAL")) {
+                        return toolCalls(new AssistantMessage.ToolCall("call-1", "function", "proposeBooking", PROPOSE_BOOKING_ARGUMENTS));
                     }
-
-                    boolean wantsFollowups = prompt.getInstructions().stream()
-                            .anyMatch(m -> m.getText() != null && m.getText().contains("ask NEXT"));
-                    if (wantsFollowups) {
-                        return new ChatResponse(List.of(new Generation(new AssistantMessage(
-                                "[\"How much is a haircut?\", \"Who does colour?\", \"Can I book one?\"]"))));
+                    if (instructionsContain(prompt, "TRIGGER_MULTI")) {
+                        return toolCalls(
+                                new AssistantMessage.ToolCall("call-2", "function", "showServices", "{}"),
+                                new AssistantMessage.ToolCall("call-3", "function", "showButtonGroup", BUTTON_GROUP_ARGUMENTS));
                     }
-
-                    return new ChatResponse(List.of(new Generation(new AssistantMessage("This is a fixed test reply."))));
+                    if (instructionsContain(prompt, "TRIGGER_SHOW_SERVICES")) {
+                        return toolCalls(new AssistantMessage.ToolCall("call-4", "function", "showServices", "{}"));
+                    }
+                    if (instructionsContain(prompt, "TRIGGER_SHOW_FORM")) {
+                        return toolCalls(new AssistantMessage.ToolCall("call-5", "function", "showForm", SHOW_FORM_ARGUMENTS));
+                    }
+                    return text("This is a fixed test reply.");
                 }
 
                 @Override
@@ -167,6 +253,20 @@ class ChatModuleTests {
                     return Flux.just(call(prompt));
                 }
             };
+        }
+
+        private static boolean instructionsContain(Prompt prompt, String needle) {
+            return prompt.getInstructions().stream()
+                    .anyMatch(m -> m.getText() != null && m.getText().contains(needle));
+        }
+
+        private static ChatResponse text(String content) {
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(content))));
+        }
+
+        private static ChatResponse toolCalls(AssistantMessage.ToolCall... calls) {
+            var assistantMessage = AssistantMessage.builder().content("").toolCalls(List.of(calls)).build();
+            return new ChatResponse(List.of(new Generation(assistantMessage)));
         }
     }
 }

@@ -4,7 +4,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
@@ -20,7 +21,10 @@ class AnalyticsSummaryService {
     }
 
     AnalyticsSummary summarize(UUID salonId, int days) {
-        Instant since = Instant.now().minus(days, ChronoUnit.DAYS);
+        // Bind as OffsetDateTime, not Instant: the PostgreSQL JDBC driver can't infer a SQL type
+        // for java.time.Instant on a plain JdbcClient (Spring Data JDBC's own converters don't
+        // apply here), and OffsetDateTime maps straight onto the timestamptz column.
+        OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC).minus(days, ChronoUnit.DAYS);
 
         long totalViews = countByType(salonId, AnalyticsEventType.PAGE_VIEW, since);
         long totalClicks = countByType(salonId, AnalyticsEventType.CLICK, since);
@@ -63,7 +67,7 @@ class AnalyticsSummaryService {
         return new AnalyticsSummary(totalViews, totalClicks, viewsByDay, topPages, topClicks);
     }
 
-    private long countByType(UUID salonId, AnalyticsEventType type, Instant since) {
+    private long countByType(UUID salonId, AnalyticsEventType type, OffsetDateTime since) {
         return jdbcClient.sql("""
                         SELECT COUNT(*) FROM analytics_event
                         WHERE salon_id = :salonId AND event_type = :eventType AND occurred_at >= :since

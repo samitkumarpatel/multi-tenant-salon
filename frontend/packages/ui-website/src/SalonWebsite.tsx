@@ -22,8 +22,8 @@ const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 /** The staff member's profile avatar, falling back to the first non-video item
  *  of their work gallery when no dedicated avatar is set. */
 function staffAvatar(m: StaffMember): string | undefined {
-  if (m.photoUrl && !isVideoUrl(m.photoUrl)) return m.photoUrl;
-  return (m.photoUrls ?? []).find((u) => !isVideoUrl(u));
+  if (m.avatarUrl && !isVideoUrl(m.avatarUrl)) return m.avatarUrl;
+  return (m.workMedia ?? []).find((u) => !isVideoUrl(u));
 }
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -139,7 +139,7 @@ function mediaCounts(urls: string[] = []) {
 
 /** Human "6 photos · 1 video" / "Read bio" hint for a staff member's row. */
 function portfolioHint(m: StaffMember): string | null {
-  const { photos, videos } = mediaCounts(m.photoUrls);
+  const { photos, videos } = mediaCounts(m.workMedia);
   const bits: string[] = [];
   if (photos) bits.push(`${photos} photo${photos === 1 ? "" : "s"}`);
   if (videos) bits.push(`${videos} video${videos === 1 ? "" : "s"}`);
@@ -149,7 +149,7 @@ function portfolioHint(m: StaffMember): string | null {
 }
 
 function staffHasDetails(m: StaffMember): boolean {
-  return (m.photoUrls?.length ?? 0) > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
+  return (m.workMedia?.length ?? 0) > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
 }
 
 /** A single work-sample tile — image, or video with a play affordance. Opens the lightbox on click. */
@@ -267,7 +267,7 @@ function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, onClose
   member: StaffMember; theme: WebsiteTheme; accentText: string;
   hasBooking?: boolean; onBook: (m: StaffMember) => void; onClose: () => void;
 }) {
-  const media = member.photoUrls ?? [];
+  const media = member.workMedia ?? [];
   const avatar = staffAvatar(member);
   const firstName = member.name.split(" ")[0];
   const [lb, setLb] = useState<number | null>(null);
@@ -976,7 +976,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
                       {activeStaff.map((m) => {
                         const avatar = staffAvatar(m);
-                        const { photos, videos } = mediaCounts(m.photoUrls);
+                        const { photos, videos } = mediaCounts(m.workMedia);
                         const detail = staffHasDetails(m);
                         return (
                           <div key={m.id} role="button" tabIndex={0}
@@ -1020,7 +1020,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
                     {activeStaff.map((m) => {
                       const avatar = staffAvatar(m);
-                      const workMedia = m.photoUrls ?? [];
+                      const workMedia = m.workMedia ?? [];
                       const hint = portfolioHint(m);
                       const interactive = staffHasDetails(m) || hasBooking;
                       return (

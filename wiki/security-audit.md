@@ -184,8 +184,9 @@ if the network boundary fails — the same idea already applied to every other t
 
 ### 5. Profile photo URL accepted without validation — Medium
 
-Both the staff-portal and admin profile-update endpoints accept an arbitrary `photoUrl` string and store it
-verbatim — there's no check that it points at the app's own media service or CDN.
+Both the staff-portal and admin profile-update endpoints accept an arbitrary `avatarUrl` string (and
+`workMedia` URLs) and store them verbatim — there's no check that they point at the app's own media
+service or CDN.
 
 **Impact:** low direct impact today, but it's an open field for tracking pixels or off-platform content if any
 client ever renders it outside a strict `<img>` context, and it undermines the intent of routing photo storage

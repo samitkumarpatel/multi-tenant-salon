@@ -189,8 +189,8 @@ function MockLogin() {
                     onClick={() => { setSelected(m); setStep("otp"); setTimeout(() => otpRefs.current[0]?.focus(), 60); }}
                     className="w-full flex items-center gap-3 px-6 py-3.5 text-left hover:bg-slate-50 transition-colors cursor-pointer"
                   >
-                    {m.photoUrl ? (
-                      <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+                    {m.avatarUrl ? (
+                      <img src={m.avatarUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                         <span className="text-xs font-bold text-matcha-700">
@@ -405,8 +405,8 @@ function OAuth2Login() {
                     onClick={() => handlePick(m)}
                     className="w-full flex items-center gap-3 px-6 py-3.5 text-left hover:bg-slate-50 transition-colors cursor-pointer"
                   >
-                    {m.photoUrl ? (
-                      <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+                    {m.avatarUrl ? (
+                      <img src={m.avatarUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                         <span className="text-xs font-bold text-matcha-700">

@@ -20,11 +20,11 @@ export interface StaffMember {
   isOwner?: boolean;
   availableForBooking?: boolean;
   specializations?: string[];
-  photoUrl?: string;
+  avatarUrl?: string;
   /** Free-text "About me" blurb shown on the public website. */
   bio?: string;
   /** Image and video URLs of the staff member's work, shown on the public website. */
-  photoUrls?: string[];
+  workMedia?: string[];
   createdAt?: string;
 }
 

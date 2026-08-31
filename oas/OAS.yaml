@@ -1750,14 +1750,14 @@ paths:
                     type: string
                 availableForBooking:
                   type: boolean
-                photoUrl:
+                avatarUrl:
                   type: string
                   format: uri
                   description: Profile photo (avatar) URL.
                 bio:
                   type: string
                   description: Free-text "About me" blurb shown on the public website.
-                photoUrls:
+                workMedia:
                   type: array
                   items:
                     type: string
@@ -1850,7 +1850,7 @@ paths:
         server's `STORAGE_TYPE`. PUT the file with the matching `Content-Type` header,
         plus `x-ms-blob-type: BlockBlob` when the URL is an Azure Blob endpoint. The
         `publicUrl` is the CDN URL to save on the staff profile after the upload
-        completes — as `photoUrl` (avatar) or appended to `photoUrls` (work gallery),
+        completes — as `avatarUrl` (profile photo) or appended to `workMedia` (work gallery),
         at the caller's choice. `contentType` accepts `image/*` and `video/*` (mp4,
         webm, quicktime). Returns `503` when media storage is not configured.
       tags: [StaffPortal]
@@ -2548,7 +2548,12 @@ components:
           items:
             type: string
           description: Serialized as a flat array of specialization strings
-        photoUrls:
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Profile photo URL. (DB column profile_photo_url.)
+        workMedia:
           type: array
           items:
             type: string
@@ -2603,7 +2608,7 @@ components:
         availableForBooking:
           type: boolean
           default: true
-        photoUrl:
+        avatarUrl:
           type: string
           format: uri
           nullable: true
@@ -2616,7 +2621,7 @@ components:
           type: array
           items:
             type: string
-        photoUrls:
+        workMedia:
           type: array
           items:
             type: string
@@ -2661,7 +2666,7 @@ components:
           type: array
           items:
             type: string
-        photoUrls:
+        workMedia:
           type: array
           items:
             type: string
@@ -2693,7 +2698,11 @@ components:
           type: array
           items:
             type: string
-        photoUrls:
+        avatarUrl:
+          type: string
+          format: uri
+          description: Profile photo URL. Omit to leave the current one untouched.
+        workMedia:
           type: array
           items:
             type: string
@@ -2966,49 +2975,67 @@ components:
 
     # ── Chat ───────────────────────────────────────────────────────────────────
 
-    ChatTurn:
-      type: object
-      required: [role, text]
-      properties:
-        role:
-          type: string
-          enum: [user, assistant]
-        text:
-          type: string
-          description: |
-            The turn's text. An `assistant` turn may also be a synthetic UI-state note authored
-            by the frontend and wrapped in square brackets — e.g.
-            `[Showed the visitor an interactive services card: Haircut, Colour]` or
-            `[The visitor is using the interactive booking picker for Haircut — stylist: any;
-            date: 2026-09-01; time: not chosen yet; ...]`. These stand in for generative-UI
-            cards the visitor saw or is interacting with (which the chat renders instead of
-            prose), so the assistant can answer follow-ups about them. The system prompt tells
-            the model to treat them as current state and never echo the brackets.
-
     ChatRequest:
       type: object
       required: [message]
       properties:
+        sessionId:
+          type: string
+          nullable: true
+          description: |
+            Opaque per-visitor conversation key the frontend mints once and reuses for the life
+            of the chat (persisted in `sessionStorage`). The server keeps the transcript under it
+            in TTL memory (`spring.application.chat.memory.ttl`, default 30 min idle) — the
+            client no longer re-sends the history. When blank/omitted the server mints one and
+            returns it in `ChatResponse.sessionId`.
         context:
           type: string
           enum: [website, booking]
           description: Which surface the chat is embedded in; shapes the assistant's persona/tone.
         message:
           type: string
-        history:
-          type: array
+        uiState:
+          type: string
+          nullable: true
           description: |
-            Prior turns of the conversation, oldest first. The frontend is the source of truth
-            for conversation state (nothing is persisted server-side) and injects bracketed
-            UI-state notes as `assistant` turns for interactive cards — see `ChatTurn.text`.
-          items:
-            $ref: "#/components/schemas/ChatTurn"
+            Optional single bracketed note describing what the visitor currently sees / is
+            part-way through on the page — the on-screen interactive component(s) and any staged
+            booking — e.g. `[Showed the visitor an interactive services card: Haircut, Colour]`
+            or `[The visitor is using the interactive booking picker for Haircut — stylist: any;
+            date: 2026-09-01; time: not chosen yet; ...]`. The model never sees the live widgets,
+            so the server records this as a synthetic prior assistant turn before the message.
+            The system prompt tells the model to treat bracketed notes as current state and
+            never echo them.
 
     ChatResponse:
       type: object
       properties:
-        reply:
+        sessionId:
           type: string
+          description: The conversation key for this turn — echoes `ChatRequest.sessionId`, or a
+            freshly minted one when the request omitted it. Reuse it on the next turn.
+        message:
+          type: string
+        components:
+          type: array
+          description: |
+            The interactive generative-UI components the assistant chose to render this turn, in
+            order, by calling its `show*` / `start*` tools. A turn may carry several (e.g. a
+            services card plus a button group). Empty for a plain-text turn. The client maps each
+            `type` to a component and silently ignores any it doesn't recognise, so an
+            unknown/renamed component degrades to text rather than breaking the turn.
+          items:
+            $ref: "#/components/schemas/UiComponent"
+        suggestedQuestions:
+          type: array
+          description: |
+            2-4 short first-person questions the visitor is likely to want to ask next, generated
+            inline with the reply (same content as `POST .../chat/followups`). Empty when the
+            assistant is unconfigured/unavailable. The client shows them as chips above the
+            composer; each is sent to `POST .../chat` verbatim when tapped.
+          items:
+            type: string
+          example: ["How much is a haircut?", "Who does colour?", "Can I book one?"]
         toolsUsed:
           type: array
           description: |
@@ -3028,30 +3055,26 @@ components:
           allOf:
             - $ref: "#/components/schemas/CreateBookingRequest"
           nullable: true
-        ui:
-          description: |
-            Which interactive generative-UI card the assistant chose to render for this turn, by
-            calling one of its `show*` / `startBookingPicker` tools (the model decides — the
-            client no longer guesses from the reply text). `null` when the turn is plain text.
-            The client maps `component` to a card and ignores any value it doesn't recognise, so
-            an unknown/renamed component degrades to text rather than breaking the turn.
-          allOf:
-            - $ref: "#/components/schemas/UiDirective"
-          nullable: true
 
     ChatFollowupsRequest:
       type: object
-      required: [history]
       properties:
+        sessionId:
+          type: string
+          nullable: true
+          description: Conversation key — same meaning as `ChatRequest.sessionId`. The service
+            reads the transcript from memory under it.
         context:
           type: string
           enum: [website, booking]
           description: Which surface the chat is on; same meaning as `ChatRequest.context`.
-        history:
-          type: array
-          description: The conversation so far, oldest first — same shape as `ChatRequest.history`.
-          items:
-            $ref: "#/components/schemas/ChatTurn"
+        uiState:
+          type: string
+          nullable: true
+          description: |
+            Optional bracketed UI-state note — same format as `ChatRequest.uiState`. Used as the
+            LATEST message the follow-ups are based on (e.g. after an instant sidebar card or a
+            booking-picker step change that never hit `POST .../chat`).
 
     ChatFollowupsResponse:
       type: object
@@ -3066,38 +3089,44 @@ components:
             type: string
           example: ["How much is a haircut?", "Who does colour?", "Can I book one?"]
 
-    UiDirective:
+    UiComponent:
       type: object
-      required: [component]
+      required: [type, props]
+      description: |
+        One interactive element to render for this turn. `props` is model-authored UI scaffolding
+        only — ids, flags, labels, field/choice specs — never salon data (prices, availability):
+        data-bearing components (`services`, `time-slot-picker`, …) hydrate themselves from the
+        live public API.
       properties:
-        component:
+        type:
           type: string
-          enum: [services, staff, hours, location, contact, booking-picker]
-          description: The card to render.
-        serviceId:
-          type: integer
-          format: int64
-          nullable: true
-          description: "`booking-picker`: the service to book."
-        staffId:
-          type: integer
-          format: int64
-          nullable: true
-          description: "`booking-picker`: preferred staff member, if the visitor named one."
-        forStaffId:
-          type: integer
-          format: int64
-          nullable: true
-          description: "`services`: restrict the card to what this staff member offers."
-        forServiceId:
-          type: integer
-          format: int64
-          nullable: true
-          description: "`staff`: restrict the card to who can perform this service."
-        forBooking:
-          type: boolean
-          nullable: true
-          description: "`services`: true frames the card as \"pick one to book\" rather than browsing."
+          enum:
+            - services
+            - staff
+            - hours
+            - location
+            - contact
+            - booking-picker
+            - date-picker
+            - time-slot-picker
+            - form
+            - button-group
+            - radio-group
+            - checkbox-group
+            - option-list
+          description: Which component to render.
+        props:
+          type: object
+          additionalProperties: true
+          description: |
+            Component-specific scaffolding. Common keys by type:
+            `services` → `forStaffId`, `forBooking`; `staff` → `forServiceId`;
+            `booking-picker` / `date-picker` → `serviceId`, `staffId`;
+            `time-slot-picker` → `serviceId`, `date`, `staffId`;
+            `form` → `title`, `submitLabel`, `fields[] {name,label,type,required,pattern}`;
+            `button-group` / `radio-group` / `checkbox-group` / `option-list` →
+            `prompt`, `choices[] {label,value}` (the tapped `value` is sent back as the
+            visitor's next message).
 
     SaveThemeRequest:
       type: object

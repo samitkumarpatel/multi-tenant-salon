@@ -44,6 +44,13 @@ spring:
     chat:
       # Base URL the AI assistant's tools use to call this app's own public /api/salon/** API.
       internal-api-base-url: ${INTERNAL_API_BASE_URL:http://localhost:8080}
+      memory:
+        # How long an idle chat conversation is kept before it's forgotten (ISO-8601 duration).
+        ttl: ${CHAT_MEMORY_TTL:PT30M}
+        # Max turns kept per conversation (older ones are trimmed, oldest full turn first).
+        max-messages: ${CHAT_MEMORY_MAX_MESSAGES:20}
+        # Hard cap on live conversations held in memory; least-recently-used evicted when full.
+        max-conversations: ${CHAT_MEMORY_MAX_CONVERSATIONS:5000}
   ai:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:3weew334}
