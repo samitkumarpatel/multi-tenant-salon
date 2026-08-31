@@ -10,6 +10,19 @@ resource "azurerm_container_app" "this" {
   revision_mode                = "Single"
   tags                         = var.tags
 
+  # Managed identity for outbound Azure calls (e.g. the api app minting a
+  # user-delegation SAS against the media Storage account, or reading the
+  # analytics Storage Queue). "None" (default) attaches nothing. When
+  # "SystemAssigned", the identity's principal_id is exposed as an output so the
+  # caller can grant it data-plane RBAC roles.
+  dynamic "identity" {
+    for_each = var.identity_type == "None" ? [] : [1]
+    content {
+      type         = var.identity_type
+      identity_ids = var.identity_ids
+    }
+  }
+
   dynamic "secret" {
     for_each = var.registry_password != null ? [1] : []
     content {

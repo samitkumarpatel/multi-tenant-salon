@@ -29,19 +29,38 @@ locals {
     SPRING_DATASOURCE_PASSWORD = random_password.db[0].result
   } : {}
 
+  # ── Media storage wiring ──────────────────────────────────────────────────
+  media_enabled      = var.media_storage != null
+  media_service_keys = local.media_enabled ? var.media_storage.service_keys : []
+
+  media_env = local.media_enabled ? {
+    STORAGE_TYPE               = "AZURE"
+    AZURE_STORAGE_ACCOUNT_NAME = var.media_storage.storage_account_name
+    MEDIA_STAFF_CONTAINER_NAME = var.media_storage.container_name
+    MEDIA_STAFF_CDN_BASE_URL   = "https://${var.media_storage.storage_account_name}.blob.core.windows.net/${var.media_storage.container_name}"
+  } : {}
+
+  # Account key → Container App secret (also lands in Key Vault via app_secrets).
+  media_secret_env = local.media_enabled ? {
+    AZURE_STORAGE_ACCOUNT_KEY = module.media_storage[0].primary_access_key
+  } : {}
+
   # var.services with db_env / db_secret_env merged into the one service that
-  # talks to Postgres.
+  # talks to Postgres, and media_env / media_secret_env merged into every
+  # media_service_keys entry.
   services_resolved = {
     for k, s in var.services : k => merge(s, {
       container = merge(s.container, {
         env = merge(
           try(s.container.env, {}),
           k == local.db_service_key ? local.db_env : {},
+          contains(local.media_service_keys, k) ? local.media_env : {},
         )
       })
       secret_env = merge(
         s.secret_env,
         k == local.db_service_key ? local.db_secret_env : {},
+        contains(local.media_service_keys, k) ? local.media_secret_env : {},
       )
     })
   }
@@ -129,7 +148,27 @@ module "services" {
   secret_env                   = each.value.secret_env
   ingress                      = each.value.ingress
   replicas                     = each.value.replicas
-  tags                         = local.common_tags
+
+  tags = local.common_tags
+}
+
+# ── Media storage — Azure Blob (staff photos + work-gallery media) ──────────
+# The app authenticates with the account key (media_secret_env above), so no
+# managed identity / role assignments here.
+
+module "media_storage" {
+  source = "../../../azure/modules/blob-media"
+  count  = local.media_enabled ? 1 : 0
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  storage_account_name = var.media_storage.storage_account_name
+  container_name       = var.media_storage.container_name
+  anonymous_blob_read  = var.media_storage.anonymous_blob_read
+  cors_allowed_origins = var.media_storage.cors_allowed_origins
+
+  tags = local.common_tags
 }
 
 # ── Key Vault ───────────────────────────────────────────────────────────────

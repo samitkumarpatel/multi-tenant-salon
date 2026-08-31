@@ -16,6 +16,7 @@ info:
     | **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
     | **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
     | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
+    | **Analytics Ingestion** | `/api/analytics/events` | Public, anonymous — client-side JS on the salon's public website reporting page views/clicks |
 
     ### Customer sub-paths
     - `/api/salon/{salonId}/services/...` — browse the service catalog
@@ -30,6 +31,7 @@ info:
     - `/api/salon-admin/{salonId}/booking/...` — view, reschedule, and change booking status
     - `/api/salon-admin/{salonId}/website` — website theme management
     - `/api/salon-admin/{salonId}/website-type` — get or update the active website presentation type
+    - `/api/salon-admin/{salonId}/analytics/summary` — website analytics rollup (requires the `ANALYTICS` feature)
 
     ## Notification Events
     Domain events are emitted via Spring Modulith and handled by the `notification` module,
@@ -75,6 +77,12 @@ tags:
       Customer-facing AI assistant for the Generative UI website mode. Backed by an Anthropic
       model with tool-calling access to the salon's own public profile/staff/services/holidays
       endpoints — answers are grounded in live data, never invented.
+  - name: Analytics
+    description: |
+      Public, anonymous ingestion of website activity events from the salon's public-website
+      client-side JS. No authentication — `permitAll` in the security config. The batch is
+      capped at 200 events; events for a salon that doesn't exist or hasn't enabled the
+      `ANALYTICS` feature are silently dropped rather than rejected.
   - name: SalonAdmin
     description: |
       Admin operations on the salon aggregate — update details, manage features, delete.
@@ -103,6 +111,12 @@ tags:
       Admin recurring/one-off holiday management. Adding a holiday automatically generates
       salon-closure rows for the current year and up to 4 years ahead so the booking engine
       blocks those dates without manual closure entry each year.
+  - name: AdminAnalytics
+    description: |
+      Admin website-analytics summary — owner-facing rollup of the events ingested via the
+      public Analytics endpoint. Mounted under the same {salonId}-templated admin prefix, so
+      it inherits the ownership check from the global security config. Returns 403 if the
+      salon hasn't enabled the `ANALYTICS` feature.
   - name: StaffPortal
     description: |
       Staff self-service portal endpoints. A staff member authenticates via OAuth2 (or,
@@ -496,6 +510,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChatFollowupsResponse"
 
+  # ─── Analytics — Public Ingestion ───────────────────────────────────────────
+
+  /api/analytics/events:
+    post:
+      tags: [Analytics]
+      summary: Ingest a batch of website activity events (public, anonymous)
+      description: |
+        Called anonymously from the public salon website's client-side JS — no authentication
+        required; `/api/analytics/**` is in the security config's `permitAll` matchers.
+
+        Accepts a batch of up to 200 events per request; a larger batch returns `400`.
+        Each event is looked up by `salonId` and silently dropped (not an error) if the salon
+        doesn't exist, or exists but hasn't enabled the `ANALYTICS` feature flag — this check
+        is the only real access control on this endpoint, and it's deliberate, not a bug. A
+        `202` response therefore does not guarantee any individual event was stored: accepted
+        events are pushed to an Azure Storage Queue and persisted asynchronously, with no
+        synchronous confirmation.
+      operationId: ingestAnalyticsEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 200
+              items:
+                $ref: "#/components/schemas/ActivityEvent"
+            example:
+              - salonId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                sessionId: "a1b2c3"
+                eventType: "PAGE_VIEW"
+                path: "/"
+                occurredAt: "2026-08-31T10:15:30Z"
+              - salonId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                sessionId: "a1b2c3"
+                eventType: "CLICK"
+                path: "/"
+                label: "hero-book-appointment"
+                occurredAt: "2026-08-31T10:15:42Z"
+      responses:
+        "202":
+          description: |
+            Batch accepted for processing. This holds even if some or all events in the batch
+            were silently dropped (unknown salon, or ANALYTICS not enabled) — no per-event
+            status is returned.
+        "400":
+          description: Batch contains more than 200 events
+
   # ─── Admin — Login / Session ─────────────────────────────────────────────────
 
   /api/salon-admin/my-salons:
@@ -656,6 +718,45 @@ paths:
                 $ref: "#/components/schemas/Salon"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  # ─── Admin — Analytics ────────────────────────────────────────────────────────
+
+  /api/salon-admin/{salonId}/analytics/summary:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+
+    get:
+      tags: [AdminAnalytics]
+      summary: Get website analytics summary (admin)
+      description: |
+        Admin-only — same ownership rule as every other `/api/salon-admin/{salonId}/**`
+        endpoint: the caller must be the salon's owner per the `salons` claim in their JWT,
+        or hold `ROLE_SUPER_ADMIN`. Enforced by the global security config, not this endpoint.
+
+        Also returns `403` if the salon has not enabled the `ANALYTICS` feature flag, on top
+        of the normal 403 a non-owning caller gets from the security config.
+
+        `totalViews`/`totalClicks` are totals across the full requested window; `topPages`
+        and `topClicks` are each capped at the top 10 entries by count, descending.
+      operationId: getAnalyticsSummary
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 7
+          example: 7
+          description: Look-back window in days. Clamped server-side to the range 1–90.
+      responses:
+        "200":
+          description: Analytics summary for the requested window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+        "403":
+          description: The `ANALYTICS` feature is not enabled for this salon, or the caller does not own the salon
 
   # ─── Admin — Holidays ────────────────────────────────────────────────────────
 
@@ -1745,11 +1846,13 @@ paths:
       summary: Get a pre-signed URL to upload a photo or video
       description: |
         Returns a pre-signed PUT URL the browser can use to upload a file directly to
-        S3 (or to the local dev endpoint when S3 is not configured). The `publicUrl`
-        is the CDN URL to save on the staff profile after the upload completes — as
-        `photoUrl` (avatar) or appended to `photoUrls` (work gallery), at the caller's
-        choice. `contentType` accepts `image/*` and `video/*` (mp4, webm, quicktime).
-        Returns `503` when media storage is not configured.
+        object storage — S3, Azure Blob Storage, or the local dev endpoint — per the
+        server's `STORAGE_TYPE`. PUT the file with the matching `Content-Type` header,
+        plus `x-ms-blob-type: BlockBlob` when the URL is an Azure Blob endpoint. The
+        `publicUrl` is the CDN URL to save on the staff profile after the upload
+        completes — as `photoUrl` (avatar) or appended to `photoUrls` (work gallery),
+        at the caller's choice. `contentType` accepts `image/*` and `video/*` (mp4,
+        webm, quicktime). Returns `503` when media storage is not configured.
       tags: [StaffPortal]
       parameters:
         - $ref: "#/components/parameters/StaffId"
@@ -2206,6 +2309,105 @@ components:
         - WEBSHOP
         - ANALYTICS
         - LOYALTY_PROGRAM
+      description: |
+        `ANALYTICS` is activated by `POST /api/analytics/events` (ingestion) and
+        `GET /api/salon-admin/{salonId}/analytics/summary` (the owner-facing rollup) — no
+        schema/enum change was needed for the flag itself, it pre-dates those endpoints.
+
+    # ── Analytics ────────────────────────────────────────────────────────────
+
+    AnalyticsEventType:
+      type: string
+      enum:
+        - PAGE_VIEW
+        - CLICK
+
+    ActivityEvent:
+      type: object
+      required: [salonId, eventType, path]
+      properties:
+        salonId:
+          type: string
+          format: uuid
+          description: |
+            Salon the event belongs to. Events for a salon that doesn't exist, or hasn't
+            enabled the `ANALYTICS` feature, are accepted but silently dropped.
+        sessionId:
+          type: string
+          nullable: true
+          description: Client-generated session identifier.
+          example: "a1b2c3"
+        eventType:
+          $ref: "#/components/schemas/AnalyticsEventType"
+        path:
+          type: string
+          description: The page path the event occurred on.
+          example: "/"
+        label:
+          type: string
+          nullable: true
+          description: |
+            A `data-track` attribute value identifying what was clicked. Typically present
+            for CLICK events, absent for PAGE_VIEW.
+          example: "hero-book-appointment"
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Client-reported event time. The server uses the current server time if omitted.
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        totalViews:
+          type: integer
+          format: int64
+          description: Total PAGE_VIEW events across the full requested window (not just topPages).
+          example: 128
+        totalClicks:
+          type: integer
+          format: int64
+          description: Total CLICK events across the full requested window (not just topClicks).
+          example: 34
+        viewsByDay:
+          type: array
+          items:
+            type: object
+            properties:
+              day:
+                type: string
+                format: date
+                example: "2026-08-25"
+              count:
+                type: integer
+                format: int64
+                example: 12
+        topPages:
+          type: array
+          description: Top 10 paths by view count, descending.
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+                example: "/"
+              count:
+                type: integer
+                format: int64
+                example: 80
+        topClicks:
+          type: array
+          description: Top 10 click labels by count, descending.
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+                example: "hero-book-appointment"
+              count:
+                type: integer
+                format: int64
+                example: 20
 
     # ── Service ───────────────────────────────────────────────────────────────
 

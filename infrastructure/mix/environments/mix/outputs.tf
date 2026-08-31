@@ -65,6 +65,11 @@ output "key_vault_uri" {
   value = module.backend.key_vault_uri
 }
 
+output "media_storage" {
+  description = "Azure Blob storage for staff media. `media_base_url` is what the api serves as each photo's public URL; `account_name` is AZURE_STORAGE_ACCOUNT_NAME (also backs the analytics queue)."
+  value       = module.backend.media_storage
+}
+
 output "database" {
   description = "mix managed PostgreSQL (Flexible Server, Burstable B1ms). Admin password: `terraform output -raw database_password` or Key Vault secret spring-datasource-password."
   value       = module.backend.database

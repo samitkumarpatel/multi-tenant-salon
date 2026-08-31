@@ -145,6 +145,22 @@ module "backend" {
 
   bind_custom_domains = var.bind_custom_domains
 
+  # Staff media (profile photos + work-gallery images/video) → Azure Blob.
+  # Creates the `salonsaasmixmedia` Storage account + `staff-media` container and
+  # injects STORAGE_TYPE=AZURE / AZURE_STORAGE_ACCOUNT_NAME / MEDIA_STAFF_*
+  # (env) + AZURE_STORAGE_ACCOUNT_KEY (Container App secret + Key Vault) into
+  # `api`. The app signs shared-key upload SAS tokens with that key. The same
+  # account also backs the analytics activity-events queue.
+  media_storage = {
+    storage_account_name = "salonsaasmixmedia"
+    container_name       = "staff-media"
+    service_keys         = ["api"]
+    cors_allowed_origins = [
+      "https://${local.frontend_hostnames["admin-web"]}",
+      "https://${local.frontend_hostnames["staff-web"]}",
+    ]
+  }
+
   # Cheap dev/test PostgreSQL — Flexible Server, Burstable B1ms (1 vCore / 2 GiB),
   # 32 GiB storage. Its SPRING_DATASOURCE_* vars are merged into the `api`
   # container; the generated password lands in Key Vault as spring-datasource-*.
@@ -178,15 +194,17 @@ module "backend" {
           SPRING_SQL_INIT_MODE                                      = "never"
           SPRING_MODULITH_EVENTS_JDBC_SCHEMA_INITIALIZATION_ENABLED = "false"
           SPRING_FLYWAY_ENABLED                                     = "true"
-          STORAGE_TYPE                                              = "LOCAL"
-          BPL_JVM_THREAD_COUNT                                      = "100"
-          SPRING_CLOUD_AWS_S3_ENABLED                               = "false"
-          AWS_DEFAULT_REGION                                        = "eu-north-1"
-          MEDIA_STAFF_BUCKET_NAME                                   = "" # only needed when STORAGE_TYPE=S3
-          MEDIA_STAFF_CDN_BASE_URL                                  = "https://${local.frontend_hostnames["staff-web"]}"
-          MEDIA_LOCAL_BASE_URL                                      = "https://${local.api_host}"
-          MEDIA_LOCAL_STORAGE_PATH                                  = "/tmp/salon-photos" # ephemeral — lost on new revision / scale-to-zero
-          CORS_ALLOWED_ORIGIN_PATTERNS                              = local.cors_allowed_origins
+          # STORAGE_TYPE / AZURE_STORAGE_ACCOUNT_NAME / MEDIA_STAFF_CONTAINER_NAME /
+          # MEDIA_STAFF_CDN_BASE_URL are injected by the backend stack from the
+          # `media_storage` block above (STORAGE_TYPE=AZURE). The LOCAL/S3 vars
+          # below are the inert fallbacks for those modes.
+          BPL_JVM_THREAD_COUNT         = "100"
+          SPRING_CLOUD_AWS_S3_ENABLED  = "false"
+          AWS_DEFAULT_REGION           = "eu-north-1"
+          MEDIA_STAFF_BUCKET_NAME      = "" # only needed when STORAGE_TYPE=S3
+          MEDIA_LOCAL_BASE_URL         = "https://${local.api_host}"
+          MEDIA_LOCAL_STORAGE_PATH     = "/tmp/salon-photos" # ephemeral — lost on new revision / scale-to-zero
+          CORS_ALLOWED_ORIGIN_PATTERNS = local.cors_allowed_origins
 
           # OIDC: issuer stays the PUBLIC url — it's the value the JWT `iss` claim
           # is validated against, and auth stamps that (see auth's

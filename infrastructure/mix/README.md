@@ -10,6 +10,7 @@ backend (AKS + RDS).
 | Frontend | **Cloudflare Pages** | one direct-upload project per SPA in `frontend/apps/*`. Free plan. |
 | Backend | **Azure Container Apps** | `api` (`src/`) + `auth`, Consumption plan, scale-to-zero |
 | Database | **Azure Database for PostgreSQL – Flexible Server** | Burstable `B1ms`, 32 GiB — the cheap dev/test tier |
+| Media | **Azure Blob Storage** | `salonsaasmixmedia` account + `staff-media` container — staff profile photos + work-gallery media; also backs the analytics activity-events queue |
 | Secrets | **Azure Key Vault** + Container App secrets | Mailjet / Anthropic / DB password |
 
 ```
@@ -21,13 +22,15 @@ mix/
 │   ├── dns-zone/             # cloudflare_zone (type "full") — outputs zone_id + name_servers
 │   ├── dns-update/           # cloudflare_dns_record for_each — CNAME/TXT/MX, depends on module outputs
 │   ├── frontend/             # for_each app -> modules/cloudflare-pages
-│   └── backend/              # azure/modules/{container-apps-env,container-apps,key-vault} + postgres-flexible + managed-cert custom domains
+│   └── backend/              # azure/modules/{container-apps-env,container-apps,key-vault,blob-media} + postgres-flexible + managed-cert custom domains
 └── environments/
     └── mix/                  # single Terraform root — wires the four stacks together
 ```
 
-The Azure modules (`container-apps-env`, `container-apps`, `key-vault`) are reused
-from `../azure/modules/` unchanged.
+The Azure modules (`container-apps-env`, `container-apps`, `key-vault`,
+`blob-media`) are reused from `../azure/modules/`. `container-apps` also carries
+an optional `identity_type` (default `"None"`) for attaching a managed identity,
+though the media storage below authenticates with an account key, not identity.
 
 ## Relationship to `azure/`
 
@@ -115,6 +118,38 @@ PGPASSWORD=$(terraform output -raw database_password) \
   psql "host=salon-saas-mix-psql.postgres.database.azure.com user=postgres dbname=salon sslmode=require"
 ```
 
+## Media storage
+
+`salonsaasmixmedia` — a `StorageV2` / Standard LRS account with one container,
+`staff-media`, in `multi-tenant-salon-mix`. It holds staff profile photos and
+work-gallery images/video, and also backs the analytics activity-events queue
+(the app creates that queue at runtime).
+
+- **Account key.** `shared_access_key_enabled = true`. The `api` Container App
+  authenticates with the account key and hands the browser a short-lived
+  **shared-key SAS** (`blobClient.generateSas(...)`) to `PUT` each blob directly.
+  No managed identity / role assignments — so the apply only needs `Contributor`.
+- **App env** injected into `api` by the backend stack: `STORAGE_TYPE=AZURE`,
+  `AZURE_STORAGE_ACCOUNT_NAME=salonsaasmixmedia`,
+  `MEDIA_STAFF_CONTAINER_NAME=staff-media`,
+  `MEDIA_STAFF_CDN_BASE_URL=https://salonsaasmixmedia.blob.core.windows.net/staff-media`,
+  plus `AZURE_STORAGE_ACCOUNT_KEY` as a Container App **secret** (also stored in
+  Key Vault as `azure-storage-account-key`). The same key backs the analytics
+  activity-events queue.
+- **Public reads.** The container is created with anonymous *blob* access
+  (`container_access_type = "blob"`), so the `publicUrl` the API returns
+  (`<MEDIA_STAFF_CDN_BASE_URL>/<key>`) is directly fetchable. To front it with
+  Cloudflare later, add a proxied CNAME (e.g. `media.salonsaas.org` →
+  `salonsaasmixmedia.blob.core.windows.net`) and set `MEDIA_STAFF_CDN_BASE_URL`
+  to that host; flip `anonymous_blob_read = false` in the `media_storage` block
+  once the CDN does signed reads.
+- **CORS.** The account allows `GET/HEAD/PUT/OPTIONS` from the salon-admin and
+  salon-staff SPA origins (browsers upload straight to the blob endpoint).
+
+```bash
+terraform output media_storage      # account_name / blob_endpoint / container_name / media_base_url
+```
+
 ## Deploy
 
 ```bash
@@ -136,7 +171,8 @@ TF_VAR_anthropic_api_key
 ```
 
 The deploying identity needs **Contributor** on the subscription (RG-create
-rights included).
+rights included). No role-assignment / Owner rights are required — the media
+storage uses an account key, not RBAC.
 
 ### Apply #1 — infra + DNS records (`bind_custom_domains = false`)
 
