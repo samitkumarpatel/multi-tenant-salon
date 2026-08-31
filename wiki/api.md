@@ -26,10 +26,11 @@ used in the request.
 | **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
 | **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
 | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
+| **Analytics Ingestion** | `/api/analytics/events` | Public, anonymous — client-side JS on the salon's public website reporting page views/clicks |
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/website`, `/website-type`, `/features`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/website`, `/website-type`, `/features`, `/analytics/summary`
 
 ---
 
@@ -617,6 +618,63 @@ chips instead. Each string is sent to `POST .../chat` verbatim when tapped.
 
 ---
 
+## Analytics — Public Ingestion
+
+### Ingest a batch of website activity events
+
+`POST /api/analytics/events`
+
+Called anonymously from the public salon website's client-side JS — **no authentication
+required**; `/api/analytics/**` is in the security config's `permitAll` matchers. This is the
+only endpoint in the API meant to be called without any credential at all.
+
+**Request** — a JSON array (batch) of activity events, max **200 per request**:
+
+```json
+[
+  { "salonId": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "sessionId": "a1b2c3", "eventType": "PAGE_VIEW", "path": "/", "occurredAt": "2026-08-31T10:15:30Z" },
+  { "salonId": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "sessionId": "a1b2c3", "eventType": "CLICK", "path": "/", "label": "hero-book-appointment", "occurredAt": "2026-08-31T10:15:42Z" }
+]
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `salonId` | string (UUID) | yes | Salon the event belongs to |
+| `sessionId` | string | no | Client-generated session identifier |
+| `eventType` | string enum | yes | `PAGE_VIEW` or `CLICK` |
+| `path` | string | yes | The page path the event occurred on |
+| `label` | string | no | A `data-track` attribute value identifying what was clicked. Typically present for CLICK events, absent for PAGE_VIEW |
+| `occurredAt` | string (ISO-8601 instant) | no | Client-reported event time; server uses the current server time if omitted |
+
+**Response** `202 Accepted` — no body.
+
+This holds even if some or all events in the batch are silently dropped. There is no per-event
+status in the response.
+
+**Response** `400 Bad Request` — batch has more than 200 events.
+
+**Dropped, not rejected:** an event is silently dropped (not an error, no indication in the
+response) if the salon does not exist, **or** the salon exists but has not enabled the
+`ANALYTICS` feature flag. This is the only real access control on this anonymous endpoint, and
+it's deliberate — document it as expected behavior, not a bug, when auditing dropped events.
+
+**Flow**
+
+1. `AnalyticsIngestController.receive(List<ActivityEventRequest>)` — rejects (`400`) if the
+   batch exceeds `MAX_BATCH_SIZE` (200); an empty/null batch is accepted as a no-op.
+2. For each event: `SalonApi.findById(salonId)` then a check that the salon's `features` list
+   contains `ANALYTICS`. Either miss → the event is dropped (logged at `debug`, nothing thrown).
+3. Otherwise `AnalyticsQueueGateway.send(...)` Base64-encodes the event as JSON and pushes it to
+   an Azure Storage Queue message. If the queue client isn't configured, the event is logged
+   instead of enqueued (dev/local default) — same "sends are logged instead" pattern the
+   `notification` module uses for Mailjet.
+4. A separate queue consumer (`AnalyticsQueueConsumer`) asynchronously persists queued events to
+   the `analytics_event` table. There is no synchronous confirmation from this endpoint that any
+   given event was actually stored.
+5. Returns `202 Accepted` regardless of how many events (if any) made it past step 2.
+
+---
+
 ## Admin — Login / Session
 
 ### Look up the caller's own salons
@@ -802,6 +860,69 @@ Replaces the full feature list for a salon.
 1. `SalonController.delete(UUID)` → `SalonService.delete(UUID)` → `SalonRepository.deleteById(UUID)`
 2. **DB**: `DELETE FROM salon WHERE id = ?` — `ON DELETE CASCADE` removes rows in `salon_operating_hours`, `salon_feature`, `service_item`, and `staff_member` automatically.
 3. Always returns `204` — no-op if the UUID does not exist.
+
+---
+
+## Admin — Analytics
+
+### Get website analytics summary
+
+`GET /api/salon-admin/{salonId}/analytics/summary?days={days}`
+
+Owner-facing rollup of the events ingested via [`POST /api/analytics/events`](#ingest-a-batch-of-website-activity-events).
+
+Requires the same Bearer JWT auth as every other `/api/salon-admin/{salonId}/**` endpoint: the
+caller must be the salon's owner (per the `salons` claim in their JWT) or hold
+`ROLE_SUPER_ADMIN`. This is enforced by the app's global security config (`MultiTenantSalonApplication`),
+not by the controller itself.
+
+| Parameter | In | Required | Notes |
+|---|---|---|---|
+| `salonId` | path | yes | Salon UUID or handler slug — same resolution rule as every other `{salonId}` path segment (see top of this document) |
+| `days` | query | no | Look-back window in days. Default `7`. Clamped server-side to the range 1–90 |
+
+**Response** `200 OK`
+
+```json
+{
+  "totalViews": 128,
+  "totalClicks": 34,
+  "viewsByDay": [
+    { "day": "2026-08-25", "count": 12 },
+    { "day": "2026-08-26", "count": 18 }
+  ],
+  "topPages": [
+    { "path": "/", "count": 80 },
+    { "path": "/book", "count": 40 }
+  ],
+  "topClicks": [
+    { "label": "hero-book-appointment", "count": 20 },
+    { "label": "nav-book-now", "count": 14 }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `totalViews` / `totalClicks` | Totals across the **full requested window**, not just the top-10 lists below |
+| `viewsByDay[].day` | ISO-8601 date (`yyyy-MM-dd`) |
+| `topPages` | Top 10 paths by view count, descending |
+| `topClicks` | Top 10 click labels by count, descending |
+
+**Response** `403 Forbidden` — the target salon has not enabled the `ANALYTICS` feature flag, in
+addition to the normal `403` a caller gets from the global security config for not owning the
+salon.
+
+**Flow**
+
+1. `AnalyticsAdminController.summary(String salonId, int days)` → `SalonApi.resolveId(salonId)`
+   (UUID first, falls back to handler slug).
+2. Looks up the salon and checks its `features` list contains `ANALYTICS`; if not, returns `403`
+   before querying any event data.
+3. Clamps `days` to `[1, 90]`, then `AnalyticsSummaryService.summarize(salonId, days)` runs four
+   aggregate queries against the `analytics_event` table (total views, total clicks, daily view
+   counts, top-10 pages, top-10 click labels) scoped to `occurred_at >= now - days`.
+4. Returns `200 OK` with the assembled `AnalyticsSummary`.
 
 ---
 
@@ -1679,6 +1800,11 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 | `WEBSHOP` | Online product shop |
 | `ANALYTICS` | Business analytics dashboard |
 | `LOYALTY_PROGRAM` | Customer loyalty and rewards |
+
+`ANALYTICS` pre-dates the endpoints that use it — the flag was already part of this enum. What's
+new is the pair of endpoints that actually activate it: [`POST /api/analytics/events`](#ingest-a-batch-of-website-activity-events)
+(ingestion) and [`GET /api/salon-admin/{salonId}/analytics/summary`](#get-website-analytics-summary)
+(the owner-facing rollup). No enum/schema change was needed for the flag itself.
 
 ### ServiceCategory
 

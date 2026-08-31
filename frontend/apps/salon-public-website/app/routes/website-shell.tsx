@@ -3,6 +3,7 @@ import { Outlet, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE } from "@salon/ui-website";
 import type { Salon, StaffMember, ServiceItem, WebsiteTheme } from "@salon/ui-website";
+import { AnalyticsTracker } from "../components/AnalyticsTracker";
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
@@ -123,5 +124,10 @@ export default function WebsiteShell() {
   if (data.status === "error") return <SalonErrorPage is404={false} />;
 
   const { salon, staff, services, theme } = data;
-  return <Outlet context={{ salon, staff, services, theme } satisfies TenantData} />;
+  return (
+    <>
+      <AnalyticsTracker salonId={String(salon.id)} enabled={salon.features?.includes("ANALYTICS") ?? false} />
+      <Outlet context={{ salon, staff, services, theme } satisfies TenantData} />
+    </>
+  );
 }

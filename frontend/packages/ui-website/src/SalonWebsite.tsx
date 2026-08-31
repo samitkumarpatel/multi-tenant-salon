@@ -419,7 +419,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
               {open ? "Open now" : "Closed"}
             </span>
             {hasBooking && (
-              <a href={bookUrl} className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
+              <a href={bookUrl} data-track="nav-book-now" className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
                 style={{ backgroundColor: theme.accentColor, color: accentText }}>
                 Book now
               </a>
@@ -474,13 +474,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
               <div className="flex flex-wrap gap-3 mt-6">
                 {hasBooking && (
-                  <a href={bookUrl} className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline transition-all hover:opacity-90 hover:scale-[1.03]"
+                  <a href={bookUrl} data-track="hero-book-appointment" className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline transition-all hover:opacity-90 hover:scale-[1.03]"
                     style={{ backgroundColor: theme.accentColor, color: accentText }}>
                     <CalendarCheck className="w-4 h-4" /> Book an appointment <ChevronRight className="w-4 h-4" />
                   </a>
                 )}
                 {salon.contact?.phone && (
-                  <a href={`tel:${salon.contact.phone}`} className="inline-flex items-center gap-2 border text-sm font-medium px-6 py-3 rounded-xl no-underline transition-all hover:opacity-75"
+                  <a href={`tel:${salon.contact.phone}`} data-track="hero-call" className="inline-flex items-center gap-2 border text-sm font-medium px-6 py-3 rounded-xl no-underline transition-all hover:opacity-75"
                     style={{ color: hero.sub, borderColor: hero.chipBorder }}>
                     <Phone className="w-4 h-4" /> {salon.contact.phone}
                   </a>

@@ -7,8 +7,10 @@ spring:
     media:
       # STORAGE_TYPE=LOCAL (default) — photos stored locally and served by the backend
       # STORAGE_TYPE=S3              — photos stored in S3; also set SPRING_CLOUD_AWS_S3_ENABLED=true
+      # STORAGE_TYPE=AZURE           — photos stored in Azure Blob Storage; also set AZURE_STORAGE_ACCOUNT_NAME
       storage-type: ${STORAGE_TYPE:LOCAL}
       staff-bucket-name: ${MEDIA_STAFF_BUCKET_NAME:}
+      staff-container-name: ${MEDIA_STAFF_CONTAINER_NAME:staff-media}
       staff-cdn-base-url: ${MEDIA_STAFF_CDN_BASE_URL:https://staff.salonsaas.org}
       local-base-url: ${MEDIA_LOCAL_BASE_URL:http://localhost:8080}
       local-storage-path: ${MEDIA_LOCAL_STORAGE_PATH:/tmp/salon-photos}
@@ -16,6 +18,13 @@ spring:
       # actually issued, the way S3 verifies a pre-signed URL's signature. Set this explicitly
       # for any multi-instance deployment — unset, each instance generates its own random secret.
       upload-signing-secret: ${MEDIA_UPLOAD_SIGNING_SECRET:}
+    analytics:
+      # Azure Storage Queue that buffers SPA click/view events between the public ingestion
+      # endpoint and the DB-writing consumer. Leave AZURE_STORAGE_ACCOUNT_NAME unset to log
+      # events instead of enqueuing them — the default for dev/test (same idea as the Mailjet
+      # api-key fallback below).
+      queue-name: ${ANALYTICS_QUEUE_NAME:salon-activity-events}
+      poll-interval-ms: ${ANALYTICS_POLL_INTERVAL_MS:5000}
     cors:
       # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
       # e.g. https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org
@@ -52,6 +61,14 @@ spring:
         enabled: ${SPRING_CLOUD_AWS_S3_ENABLED:false}  # set true when STORAGE_TYPE=S3
       region:
         static: ${AWS_DEFAULT_REGION:${AWS_REGION:eu-north-1}}
+    azure:
+      credential:
+        managed-identity-enabled: ${AZURE_MANAGED_IDENTITY_ENABLED:true}
+      storage:
+        blob:
+          account-name: ${AZURE_STORAGE_ACCOUNT_NAME:}
+        queue:
+          account-name: ${AZURE_STORAGE_ACCOUNT_NAME:}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/salon}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -65,6 +82,7 @@ spring:
         - classpath:db/V3__chat_layout_default_fullscreen.sql
         - classpath:db/V4__theme_palette_defaults.sql
         - classpath:db/V5__staff_bio_and_photos.sql
+        - classpath:db/V6__analytics_events.sql
   modulith:
     events:
       jdbc:

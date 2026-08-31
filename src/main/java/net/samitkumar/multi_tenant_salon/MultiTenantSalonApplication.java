@@ -7,6 +7,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.modulith.Modulithic;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.ThrowingCustomizer;
@@ -28,6 +29,7 @@ import java.util.Map;
 
 @SpringBootApplication
 @Modulithic(systemName = "MultiTenantSalon")
+@EnableScheduling
 @Slf4j
 public class MultiTenantSalonApplication {
 
@@ -93,6 +95,10 @@ public class MultiTenantSalonApplication {
 										"/api/salon-onboarding", "/api/salon-onboarding/**",
 										"/api/salon-utility/**",
 										"/api/media/photos/**",
+										// Anonymous ingestion from the public salon website — the controller itself
+										// checks the target salon has opted into the ANALYTICS feature before
+										// enqueuing anything.
+										"/api/analytics/**",
 										"/internal/user-identity").permitAll()
 								.requestMatchers("/api/salon-super-admin/**").hasRole("SUPER_ADMIN")
 								// A salon owner is also auto-enrolled as a staff_member row (role=MANAGER,
