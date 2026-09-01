@@ -118,6 +118,19 @@ class SalonDataTools {
         return "Team card shown to the visitor.";
     }
 
+    @Tool(description = """
+            Show the visitor a single staff member's profile card: their bio/about-me text and \
+            their work portfolio of photos and videos, which the visitor can tap to view \
+            full-screen, plus a Book button. Prefer this over showStaff (the whole-team list) and \
+            over describing them in prose whenever the visitor asks about one specific staff \
+            member - their background, "about", or examples of their work. Resolve the staffId \
+            via getStaff first.""")
+    String showStaffProfile(
+            @ToolParam(description = "The staff member's id, from getStaff") Long staffId) {
+        components.add(new UiComponent("staff-profile", props("staffId", staffId)));
+        return "Staff profile card shown to the visitor.";
+    }
+
     @Tool(description = "Show the visitor the opening-hours card for the week. Prefer this over typing the hours out when they ask when the salon is open.")
     String showOpeningHours() {
         components.add(UiComponent.of("hours"));
@@ -134,6 +147,17 @@ class SalonDataTools {
     String showContact() {
         components.add(UiComponent.of("contact"));
         return "Contact card shown to the visitor.";
+    }
+
+    @Tool(description = """
+            Show the visitor a menu of tappable quick-question options (book, services, staff, \
+            hours, location, contact - whichever this salon actually has). Call this after \
+            declining an off-topic message when nothing else is already in progress, so the \
+            visitor has an easy way back in instead of a dead end. Don't call this if a \
+            bracketed clue shows a booking or card already in progress - reference that instead.""")
+    String showQuickActions() {
+        components.add(UiComponent.of("quick-actions"));
+        return "Quick-questions menu shown to the visitor.";
     }
 
     @Tool(description = """

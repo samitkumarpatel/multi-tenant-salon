@@ -1,11 +1,15 @@
 package net.samitkumar.multi_tenant_salon.chat.internal;
 
+import net.samitkumar.multi_tenant_salon.chat.GenUiEventType;
+import net.samitkumar.multi_tenant_salon.chat.GenUiInteractionEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,10 +18,13 @@ class ChatController {
 
     private final ChatAssistantService chatAssistantService;
     private final ChatFollowupsService chatFollowupsService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    ChatController(ChatAssistantService chatAssistantService, ChatFollowupsService chatFollowupsService) {
+    ChatController(ChatAssistantService chatAssistantService, ChatFollowupsService chatFollowupsService,
+                   ApplicationEventPublisher eventPublisher) {
         this.chatAssistantService = chatAssistantService;
         this.chatFollowupsService = chatFollowupsService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -42,8 +49,29 @@ class ChatController {
         var sessionId = sessionId(request.sessionId());
         var reply = chatAssistantService.reply(
                 salonId, conversationId(salonId, sessionId), request.context(), request.message(), request.uiState());
+        publishUsageEvents(salonId, sessionId, reply);
         return new ChatResponseBody(sessionId, reply.message(), reply.components(), reply.suggestedQuestions(),
                 reply.toolsUsed(), reply.pendingBooking());
+    }
+
+    /**
+     * Fires one {@link GenUiInteractionEvent} per notable happening in this turn - the
+     * {@code analytics} module listens and (only for salons with ANALYTICS enabled) records usage
+     * the salon owner can see. Best-effort: this module never depends on whether anyone is
+     * listening, so a listener failure can't affect the reply already returned to the visitor.
+     */
+    private void publishUsageEvents(String salonId, String sessionId, ChatReply reply) {
+        var now = Instant.now();
+        eventPublisher.publishEvent(new GenUiInteractionEvent(salonId, sessionId, GenUiEventType.MESSAGE_SENT, null, now));
+        for (var component : reply.components()) {
+            eventPublisher.publishEvent(new GenUiInteractionEvent(salonId, sessionId, GenUiEventType.COMPONENT_SHOWN, component.type(), now));
+        }
+        for (var tool : reply.toolsUsed()) {
+            eventPublisher.publishEvent(new GenUiInteractionEvent(salonId, sessionId, GenUiEventType.TOOL_INVOKED, tool, now));
+        }
+        if (reply.pendingBooking() != null) {
+            eventPublisher.publishEvent(new GenUiInteractionEvent(salonId, sessionId, GenUiEventType.BOOKING_PROPOSED, null, now));
+        }
     }
 
     @PostMapping("/api/salon/{salonId}/chat/followups")

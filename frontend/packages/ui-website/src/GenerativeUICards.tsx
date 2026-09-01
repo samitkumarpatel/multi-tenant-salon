@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Sparkles, Users, Clock, MapPin, Phone, Mail, Globe, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
+import { Sparkles, Users, User, Clock, MapPin, Phone, Mail, Globe, ChevronRight, ChevronLeft, Loader2, Images, Quote } from "lucide-react";
 import { formatPrice, CATEGORY_LABEL, STAFF_ROLE_LABEL, DAY_SHORT } from "./constants";
 import { apiFetch, API_BASE } from "./api";
+import { staffAvatar, MediaThumb, Lightbox } from "./StaffMedia";
 import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays } from "./bookingDates";
-import type { Salon, ServiceItem, StaffMember, WebsiteTheme, OperatingHours, AvailableSlot } from "./types";
+import type { Salon, ServiceItem, StaffMember, WebsiteTheme, OperatingHours, AvailableSlot, StaffSchedule } from "./types";
 
 // ── Shared tokens & shell ────────────────────────────────────────────────────
 
@@ -132,6 +133,95 @@ export function StaffCard({ staff, tokens, showBookPill, onBook }: {
           </div>
         ))}
       </div>
+    </CardShell>
+  );
+}
+
+// ── Single staff profile (bio + interactive work gallery) ───────────────────
+
+export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
+  member: StaffMember; tokens: CardTokens; showBookPill: boolean; onBook: (member: StaffMember) => void;
+}) {
+  const { theme, msgText, msgDim, accentText } = tokens;
+  const media = member.workMedia ?? [];
+  const avatar = staffAvatar(member);
+  const firstName = member.name.split(/\s+/)[0];
+  const [lb, setLb] = useState<number | null>(null);
+
+  return (
+    <CardShell title={`Meet ${firstName}`} icon={User} tokens={tokens}>
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: avatarColor(member.name) }}>
+          {avatar ? (
+            <img src={avatar} alt={member.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          ) : (
+            <span className="text-sm font-black text-white">{initials(member.name)}</span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold truncate" style={{ color: msgText }}>{member.name}</p>
+          <p className="text-[11px]" style={{ color: msgDim }}>{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+          {member.specializations && member.specializations.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {member.specializations.map((s) => (
+                <span key={s} className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                  {CATEGORY_LABEL[s] ?? s}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {member.bio && (
+        <div className="relative pl-3 mb-3.5">
+          <span className="absolute bottom-0 left-0 top-0.5 w-0.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+          <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
+            <Quote className="w-3 h-3" /> About {firstName}
+          </p>
+          <p className="whitespace-pre-line text-xs leading-relaxed" style={{ color: msgDim }}>{member.bio}</p>
+        </div>
+      )}
+
+      {media.length > 0 && (
+        <div className="mb-3.5">
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <Images className="w-3 h-3" style={{ color: msgDim }} />
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: msgDim }}>{firstName}&rsquo;s work</p>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {media.map((url, i) => (
+              <MediaThumb key={url} url={url} className="aspect-square rounded-lg" onClick={() => setLb(i)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!member.bio && media.length === 0 && (
+        <p className="text-xs py-2 mb-1" style={{ color: msgDim }}>{firstName} hasn&rsquo;t added a portfolio yet.</p>
+      )}
+
+      {showBookPill && (
+        <button
+          type="button"
+          onClick={() => onBook(member)}
+          className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-transform active:scale-[0.98]"
+          style={{ backgroundColor: theme.accentColor, color: accentText }}
+        >
+          Book with {firstName}
+        </button>
+      )}
+
+      {lb !== null && media[lb] && (
+        <Lightbox
+          items={media}
+          index={lb}
+          title={member.name}
+          onClose={() => setLb(null)}
+          onPrev={() => setLb((i) => ((i ?? 0) - 1 + media.length) % media.length)}
+          onNext={() => setLb((i) => ((i ?? 0) + 1) % media.length)}
+        />
+      )}
     </CardShell>
   );
 }
@@ -357,7 +447,7 @@ export function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, cl
   );
 }
 
-export type PickerStep = "staff" | "date" | "time" | "contact";
+export type PickerStep = "date" | "staff" | "time" | "contact";
 
 /**
  * Snapshot of where the visitor is in the interactive booking picker. The picker owns all this
@@ -379,7 +469,7 @@ export type PickerProgress = {
   phone: string;
 };
 
-export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, resume, closedDateRanges = [], onComplete, onCancel, onProgress }: {
+export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, resume, closedDateRanges: salonClosedDateRanges = [], onComplete, onCancel, onProgress }: {
   salon: Salon;
   service: ServiceItem;
   staff: StaffMember[];
@@ -406,8 +496,10 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     : staff.filter((m) => m.status === "ACTIVE");
   const needsStaffStep = initialStaffId == null && eligibleStaff.length > 1;
 
+  // Date comes first so "book with any or a specific stylist" can be framed as "who's actually
+  // free that day" instead of an abstract staff list before a date is even picked.
   const [step, setStep] = useState<PickerStep>(
-    resume ? (resume.step === "contact" ? "time" : resume.step) : needsStaffStep ? "staff" : "date",
+    resume ? (resume.step === "contact" ? "time" : resume.step) : "date",
   );
   const [staffId, setStaffId] = useState<number | null>(
     resume?.staffChosen ? resume.staffId : initialStaffId ?? (needsStaffStep ? null : (eligibleStaff[0]?.id ?? null)),
@@ -415,7 +507,26 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
 
   const today = startOfDay(new Date());
   const maxDate = new Date(today.getTime() + (salon.bookingAdvanceDays ?? 60) * 86400000);
-  const closedDays = closedWeekdays(salon.operatingHours);
+  const salonClosedDays = closedWeekdays(salon.operatingHours);
+
+  // Once a specific stylist is known — pre-picked via "Book with {name}", or the only one who
+  // can do this service — fetch their personal days off / one-off closures too, so the calendar
+  // reflects who the visitor is actually booking with instead of only salon-wide hours (a Monday
+  // still shows bookable even though this stylist never works Mondays otherwise).
+  const [staffSchedule, setStaffSchedule] = useState<StaffSchedule | null>(null);
+  useEffect(() => {
+    if (staffId == null) { setStaffSchedule(null); return; }
+    apiFetch<StaffSchedule>(`${API_BASE}/api/salon/${salon.id}/staff/${staffId}/schedule`)
+      .then(setStaffSchedule)
+      .catch(() => setStaffSchedule(null));
+  }, [staffId, salon.id]);
+
+  const closedDays = staffSchedule
+    ? new Set([...salonClosedDays, ...staffSchedule.closedWeekdays])
+    : salonClosedDays;
+  const closedDateRanges: ClosureRange[] = staffSchedule?.closedDates.length
+    ? [...salonClosedDateRanges, ...staffSchedule.closedDates.map((d) => ({ startDate: d, endDate: d }))]
+    : salonClosedDateRanges;
 
   // Start on the first date the salon is actually open — not a closed weekday, holiday or closure.
   const [date, setDate] = useState(() => resume?.date || firstBookableDate(today, maxDate, closedDays, closedDateRanges));
@@ -428,6 +539,26 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
   const [name, setName] = useState(resume?.name ?? "");
   const [email, setEmail] = useState(resume?.email ?? "");
   const [phone, setPhone] = useState(resume?.phone ?? "");
+
+  // Who actually has an open slot on the chosen date — fetched fresh each time the staff step is
+  // reached (i.e. every time the visitor picks a new date) so "available stylists" is real, not a
+  // static roster that includes people who are fully booked that day.
+  const [dateSlots, setDateSlots] = useState<AvailableSlot[]>([]);
+  const [loadingDateSlots, setLoadingDateSlots] = useState(false);
+
+  useEffect(() => {
+    if (step !== "staff") return;
+    if (isDateClosed(date, closedDays, closedDateRanges)) { setDateSlots([]); return; }
+    setLoadingDateSlots(true);
+    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/slots?${new URLSearchParams({ serviceId: String(service.id), date })}`)
+      .then((res) => setDateSlots(res.filter((s) => !s.booked)))
+      .catch(() => setDateSlots([]))
+      .finally(() => setLoadingDateSlots(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, date]);
+
+  const availableStaffIds = new Set(dateSlots.map((s) => s.staffId).filter((id): id is number => id != null));
+  const staffAvailableToday = eligibleStaff.filter((m) => availableStaffIds.has(m.id));
 
   useEffect(() => {
     if (step !== "time") return;
@@ -443,15 +574,16 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, date, staffId]);
 
-  // Closures/holidays load a beat after mount; if the date we defaulted to turns out closed,
-  // nudge it forward to the next open day (only while still choosing a date).
+  // Closures/holidays (and, once a stylist is known, their personal schedule) load a beat after
+  // mount; if the date we defaulted to turns out closed, nudge it forward to the next open day
+  // (only while still choosing a date).
   useEffect(() => {
-    if (step === "time" || step === "contact") return;
+    if (step !== "date") return;
     if (!isDateClosed(date, closedDays, closedDateRanges)) return;
     const next = firstBookableDate(today, maxDate, closedDays, closedDateRanges);
     if (next !== date) setDate(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [closedDateRanges]);
+  }, [salonClosedDateRanges, staffSchedule]);
 
   // Lift a summary of the in-progress selections up to the parent (kept in a ref so a new
   // callback identity each render doesn't retrigger the effect).
@@ -461,7 +593,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     onProgressRef.current?.({
       step,
       staffId,
-      staffChosen: step !== "staff",
+      staffChosen: !needsStaffStep || step === "time" || step === "contact",
       date,
       time: slot ? slot.startTime.slice(0, 5) : null,
       name: name.trim(),
@@ -504,9 +636,9 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
   }
 
   const backTarget: Record<PickerStep, PickerStep | null> = {
-    staff: null,
-    date: needsStaffStep ? "staff" : null,
-    time: "date",
+    date: null,
+    staff: "date",
+    time: needsStaffStep ? "staff" : "date",
     contact: "time",
   };
 
@@ -525,43 +657,57 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
         </button>
       )}
 
-      {step === "staff" && (
-        <div className="space-y-1.5">
-          <p className="text-xs mb-1" style={{ color: msgDim }}>Who would you like to book with?</p>
-          <button
-            type="button"
-            onClick={() => { setStaffId(null); setStep("date"); }}
-            className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-            style={{ backgroundColor: `${theme.accentColor}10`, color: theme.accentColor, border: `1px solid ${theme.accentColor}30` }}
-          >
-            Any available stylist
-          </button>
-          {eligibleStaff.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => { setStaffId(m.id); setStep("date"); }}
-              className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium cursor-pointer"
-              style={{ color: msgText, border: `1px solid ${bubbleBorder}` }}
-            >
-              {m.name} <span style={{ color: msgDim }}>· {STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
       {step === "date" && (
         <div className="space-y-3">
           <MiniCalendar value={date} onChange={setDate} minDate={today} maxDate={maxDate} closedDays={closedDays} closedDateRanges={closedDateRanges} tokens={tokens} />
           <button
             type="button"
             disabled={dateIsClosed}
-            onClick={() => setStep("time")}
+            onClick={() => setStep(needsStaffStep ? "staff" : "time")}
             className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: theme.accentColor, color: accentText }}
           >
-            {dateIsClosed ? "Salon closed — pick another date" : "See available times"}
+            {dateIsClosed ? "Salon closed — pick another date" : needsStaffStep ? "Choose your stylist" : "See available times"}
           </button>
+        </div>
+      )}
+
+      {step === "staff" && (
+        <div className="space-y-1.5">
+          <p className="text-xs mb-1" style={{ color: msgDim }}>
+            {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} — who would you like to book with?
+          </p>
+          {loadingDateSlots ? (
+            <div className="flex items-center gap-2 text-xs py-2" style={{ color: msgDim }}>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking who's free…
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => { setStaffId(null); setStep("time"); }}
+                className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                style={{ backgroundColor: `${theme.accentColor}10`, color: theme.accentColor, border: `1px solid ${theme.accentColor}30` }}
+              >
+                Any available stylist
+              </button>
+              {staffAvailableToday.length > 0 ? (
+                staffAvailableToday.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setStaffId(m.id); setStep("time"); }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium cursor-pointer"
+                    style={{ color: msgText, border: `1px solid ${bubbleBorder}` }}
+                  >
+                    {m.name} <span style={{ color: msgDim }}>· {STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                  </button>
+                ))
+              ) : (
+                <p className="text-xs py-1" style={{ color: msgDim }}>No one has open slots this day — try another date.</p>
+              )}
+            </>
+          )}
         </div>
       )}
 

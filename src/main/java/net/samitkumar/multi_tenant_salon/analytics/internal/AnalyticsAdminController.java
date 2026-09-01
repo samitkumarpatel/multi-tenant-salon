@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 // Mounted under the {salonId}-templated /api/salon-admin/** prefix, so the ownership check in
 // MultiTenantSalonApplication's security config already scopes every call to the caller's own
 // salon (or a super-admin) before a request ever reaches here.
@@ -30,14 +32,30 @@ class AnalyticsAdminController {
     ResponseEntity<AnalyticsSummary> summary(@PathVariable String salonId,
                                              @RequestParam(defaultValue = "7") int days) {
         var resolvedSalonId = salonApi.resolveId(salonId);
-        boolean analyticsEnabled = salonApi.findById(resolvedSalonId)
-                .map(AnalyticsAdminController::hasAnalyticsEnabled)
-                .orElse(false);
-        if (!analyticsEnabled) {
+        if (!analyticsEnabled(resolvedSalonId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        int clampedDays = Math.min(Math.max(days, 1), 90);
-        return ResponseEntity.ok(summaryService.summarize(resolvedSalonId, clampedDays));
+        return ResponseEntity.ok(summaryService.summarize(resolvedSalonId, clampDays(days)));
+    }
+
+    @GetMapping("/genui-summary")
+    ResponseEntity<GenUiSummary> genUiSummary(@PathVariable String salonId,
+                                              @RequestParam(defaultValue = "7") int days) {
+        var resolvedSalonId = salonApi.resolveId(salonId);
+        if (!analyticsEnabled(resolvedSalonId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(summaryService.summarizeGenUi(resolvedSalonId, clampDays(days)));
+    }
+
+    private boolean analyticsEnabled(UUID salonId) {
+        return salonApi.findById(salonId)
+                .map(AnalyticsAdminController::hasAnalyticsEnabled)
+                .orElse(false);
+    }
+
+    private static int clampDays(int days) {
+        return Math.min(Math.max(days, 1), 90);
     }
 
     private static boolean hasAnalyticsEnabled(Salon salon) {

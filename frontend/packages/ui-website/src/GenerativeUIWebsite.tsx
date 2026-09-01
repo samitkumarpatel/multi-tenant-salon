@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Calendar, CalendarCheck, CheckCircle2, Clock, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
 import { fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
 import {
-  BookingPickerCard,
+  BookingPickerCard, CardShell,
   type CardTokens, type PendingBookingFields, type PickerProgress,
 } from "./GenerativeUICards";
 import { GenUIComponent, type UIComponent, type GenUICtx } from "./GenerativeUIRegistry";
@@ -123,7 +123,7 @@ type PendingBookingResponse = {
 // server-side; the backend forwards the list here as { type, props }. Unknown types are ignored.
 type ChatApiResponse = {
   sessionId: string;
-  message: string;
+  message: string | null;
   components?: UIComponent[] | null;
   suggestedQuestions?: string[] | null;
   toolsUsed?: string[];
@@ -181,8 +181,8 @@ function normalizeComponents(raw: UIComponent[] | null | undefined, services: Se
 // The model is shown bracketed UI-state notes in the history ("[Showed the visitor …]") and
 // occasionally parrots one back as its own reply instead of calling the matching show* tool.
 // Drop any line that is wholly such a stage-direction so the raw bracket never reaches the visitor.
-function stripStageDirections(text: string): string {
-  return text
+function stripStageDirections(text: string | null | undefined): string {
+  return (text ?? "")
     .split("\n")
     .filter((line) => !/^\s*\[[^\]]*\]\s*$/.test(line))
     .join("\n")
@@ -240,7 +240,7 @@ async function requestChatReply(
       body: JSON.stringify({ sessionId, context, message, uiState }),
     });
     return {
-      text: res.message,
+      text: res.message ?? "",
       toolsUsed: res.toolsUsed ?? [],
       pendingBooking: res.pendingBooking ?? null,
       components: res.components ?? null,
@@ -467,6 +467,11 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           : "";
         return `[Showed the visitor a set of choices${p.prompt ? ` (${p.prompt})` : ""}: ${labels || "some options"}. Base the follow-ups on picking between them.]`;
       }
+      case "staff-profile": {
+        const m = staff.find((s) => s.id === num(p.staffId));
+        return `[Showed the visitor ${m ? `${m.name}'s` : "a"} profile card: bio and a tappable gallery of their work photos/videos, plus a "Book" button. Base the follow-ups on their background, specialties, or booking with them.]`;
+      }
+      case "quick-actions": return "[Showed the visitor a menu of tappable quick-question options (book, services, staff, hours, location, contact). Base the follow-ups on picking one of those.]";
       case "booking-picker": return null; // covered by the live picker-progress clue instead
       default: return null;
     }
@@ -497,7 +502,9 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   function pickerHistoryClue(serviceId: number, p?: PickerProgress, initialStaffId?: number): string {
     const serviceName = services.find((s) => s.id === serviceId)?.name ?? `service #${serviceId}`;
     const roster = eligibleStylists(serviceId);
-    const step: PickerProgress["step"] = p?.step ?? (initialStaffId == null && roster.length > 1 ? "staff" : "date");
+    // The picker always opens on the date step first (see BookingPickerCard) - the stylist step,
+    // when there is one, comes right after a date is chosen.
+    const step: PickerProgress["step"] = p?.step ?? "date";
     const onStaffStep = step === "staff";
 
     const stylist = onStaffStep
@@ -508,7 +515,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           ? staff.find((s) => s.id === initialStaffId)?.name ?? `staff #${initialStaffId}`
           : roster.length === 1 ? roster[0].name : "any available stylist";
 
-    const dateChosen = step === "time" || step === "contact";
+    // Date is picked before the stylist step is ever reached, so it's already chosen by then too.
+    const dateChosen = step === "staff" || step === "time" || step === "contact";
     const timeLabel = step === "contact" && p?.time ? p.time : "not chosen yet";
     const contactBits = [
       p?.name ? `name "${p.name}"` : null,
@@ -845,10 +853,35 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const cardTokens: CardTokens = { theme, msgText, msgDim, bubbleBorder, bubbleShadow, asBubbleBg, accentText };
   const genCtx: GenUICtx = { salon, staff, services, closedDateRanges, canBook };
 
-  // Renders one component from an assistant turn. `booking-picker` is wired here (its callbacks
-  // are coupled to the thread); everything else goes through the shared registry. Returns `null`
-  // when there's nothing to show, so the caller can fall back gracefully.
+  // Renders one component from an assistant turn. `booking-picker` and `quick-actions` are wired
+  // here (they need page-local handlers/data beyond what the shared registry's ctx exposes);
+  // everything else goes through the shared registry. Returns `null` when there's nothing to
+  // show, so the caller can fall back gracefully.
   function renderComponent(messageIndex: number, component: UIComponent) {
+    if (component.type === "quick-actions") {
+      if (actionButtons.length === 0) return null;
+      return (
+        <CardShell title="Quick questions" icon={LayoutGrid} tokens={cardTokens}>
+          <div className="space-y-1.5">
+            {actionButtons.map((btn) => (
+              <button
+                key={btn.label}
+                onClick={() => askQuestion(btn)}
+                disabled={thinking}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all duration-150 hover:shadow-sm active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={btn.directAction ? { backgroundColor: theme.accentColor, color: accentText } : chipStyle}
+              >
+                <btn.icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold leading-tight">{btn.label}</span>
+                  {btn.hint && <span className="block text-[10px] opacity-70 leading-snug truncate">{btn.hint}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        </CardShell>
+      );
+    }
     if (component.type === "booking-picker") {
       const serviceId = typeof component.props.serviceId === "number" ? component.props.serviceId : undefined;
       const service = serviceId != null ? services.find((s) => s.id === serviceId) : undefined;

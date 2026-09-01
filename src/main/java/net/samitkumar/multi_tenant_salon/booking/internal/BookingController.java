@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.booking.internal;
 import net.samitkumar.multi_tenant_salon.booking.AvailableSlot;
 import net.samitkumar.multi_tenant_salon.booking.Booking;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
+import net.samitkumar.multi_tenant_salon.booking.StaffSchedule;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,14 @@ class BookingController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long staffId) {
         return service.findAvailableSlots(salonApi.resolveId(salonId), serviceId, date, staffId);
+    }
+
+    // Lets a booking UI grey out a calendar for a specific staff member (their days off, their
+    // one-off unavailable dates) up front, instead of only discovering it's empty after the
+    // visitor picks a date and calls getAvailableSlots.
+    @GetMapping({"/api/salon/{salonId}/staff/{staffId}/schedule", "/api/salon-admin/{salonId}/staff/{staffId}/schedule"})
+    StaffSchedule getStaffSchedule(@PathVariable String salonId, @PathVariable Long staffId) {
+        return service.findStaffSchedule(salonApi.resolveId(salonId), staffId);
     }
 
     @GetMapping("/api/salon-admin/{salonId}/booking")

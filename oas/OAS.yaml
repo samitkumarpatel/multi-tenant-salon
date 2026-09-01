@@ -32,6 +32,7 @@ info:
     - `/api/salon-admin/{salonId}/website` — website theme management
     - `/api/salon-admin/{salonId}/website-type` — get or update the active website presentation type
     - `/api/salon-admin/{salonId}/analytics/summary` — website analytics rollup (requires the `ANALYTICS` feature)
+    - `/api/salon-admin/{salonId}/analytics/genui-summary` — Generative-UI chat usage rollup (requires the `ANALYTICS` feature)
 
     ## Notification Events
     Domain events are emitted via Spring Modulith and handled by the `notification` module,
@@ -362,6 +363,30 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AvailableSlot"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon/{salonId}/staff/{staffId}/schedule:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/StaffId"
+    get:
+      tags: [Booking]
+      summary: Get a staff member's schedule gaps
+      description: |
+        Customer-facing. Rolls up the days this staff member is never bookable — recurring
+        weekly days off plus one-off unavailable dates — from the same data
+        `getAvailableSlots` already checks per date. Lets a booking calendar grey out days
+        for a specific staff member up front instead of only discovering a day is empty
+        after the visitor picks it.
+      operationId: getStaffSchedule
+      responses:
+        "200":
+          description: This staff member's non-working weekdays and one-off closed dates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffSchedule"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -755,6 +780,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AnalyticsSummary"
+        "403":
+          description: The `ANALYTICS` feature is not enabled for this salon, or the caller does not own the salon
+
+  /api/salon-admin/{salonId}/analytics/genui-summary:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+
+    get:
+      tags: [AdminAnalytics]
+      summary: Get Generative-UI chat usage summary (admin)
+      description: |
+        Admin-only — same ownership rule and `ANALYTICS` feature-flag gate as
+        `GET /api/salon-admin/{salonId}/analytics/summary`. Rolls up usage of the Generative-UI
+        chat widget on the public website/booking page: messages sent, interactive components
+        shown, data-lookup tools invoked, and bookings proposed through chat. Recorded
+        server-side whenever `POST /api/salon/{salonId}/chat` runs — see `chatWithAssistant`.
+
+        `topComponents` and `topTools` are each capped at the top 10 entries by count,
+        descending. `quick-actions` in `topComponents` is a useful proxy for how often
+        visitors asked something off-topic with nothing else already in progress.
+      operationId: getGenUiSummary
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 7
+          example: 7
+          description: Look-back window in days. Clamped server-side to the range 1–90.
+      responses:
+        "200":
+          description: Generative-UI chat usage summary for the requested window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenUiSummary"
         "403":
           description: The `ANALYTICS` feature is not enabled for this salon, or the caller does not own the salon
 
@@ -2409,6 +2471,51 @@ components:
                 format: int64
                 example: 20
 
+    GenUiSummary:
+      type: object
+      properties:
+        totalSessions:
+          type: integer
+          format: int64
+          description: Distinct chat sessionIds seen across the full requested window.
+          example: 42
+        totalMessages:
+          type: integer
+          format: int64
+          description: Total visitor messages sent to the assistant across the full requested window.
+          example: 210
+        totalBookingsProposed:
+          type: integer
+          format: int64
+          description: Turns where the assistant staged a booking proposal (proposeBooking).
+          example: 15
+        topComponents:
+          type: array
+          description: Top 10 interactive component types rendered, descending by count.
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                example: "services"
+              count:
+                type: integer
+                format: int64
+                example: 60
+        topTools:
+          type: array
+          description: Top 10 data-lookup tool names invoked, descending by count.
+          items:
+            type: object
+            properties:
+              tool:
+                type: string
+                example: "services"
+              count:
+                type: integer
+                format: int64
+                example: 80
+
     # ── Service ───────────────────────────────────────────────────────────────
 
     ServiceItem:
@@ -2845,6 +2952,27 @@ components:
             The slot is still returned so the UI can display it as grayed-out / non-selectable.
             false when the slot is open and can be booked.
           example: false
+
+    StaffSchedule:
+      type: object
+      properties:
+        closedWeekdays:
+          type: array
+          description: Day-of-week names with no available weekly-schedule row for this staff member.
+          items:
+            type: string
+            enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+          example: ["MONDAY", "SATURDAY"]
+        closedDates:
+          type: array
+          description: >
+            One-off dates with an unavailable StaffAvailabilityOverride. Dates where this staff
+            member is exceptionally *available* (an override with available: true) are not
+            included here.
+          items:
+            type: string
+            format: date
+          example: ["2026-09-14"]
 
     Booking:
       type: object

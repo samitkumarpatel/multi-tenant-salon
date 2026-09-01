@@ -1,6 +1,6 @@
 import { useEffect, useState, type ElementType } from "react";
 import { useOutletContext } from "react-router";
-import { BarChart2, Eye, MousePointerClick, TrendingUp } from "lucide-react";
+import { BarChart2, CalendarCheck, Eye, MessageCircle, MessageSquare, MousePointerClick, TrendingUp } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { InfoBar } from "@salon/ui-shared";
 import type { LayoutContext } from "~/lib/types";
@@ -13,6 +13,41 @@ interface AnalyticsSummary {
   topPages: { path: string; count: number }[];
   topClicks: { label: string; count: number }[];
 }
+
+interface GenUiSummary {
+  totalSessions: number;
+  totalMessages: number;
+  totalBookingsProposed: number;
+  topComponents: { type: string; count: number }[];
+  topTools: { tool: string; count: number }[];
+}
+
+const GENUI_COMPONENT_LABEL: Record<string, string> = {
+  services: "Services card",
+  staff: "Team card",
+  "staff-profile": "Staff profile card",
+  hours: "Opening hours card",
+  location: "Location card",
+  contact: "Contact card",
+  "quick-actions": "Off-topic redirect (quick actions)",
+  "booking-picker": "Booking picker",
+  "date-picker": "Date picker",
+  "time-slot-picker": "Time-slot picker",
+  form: "Form",
+  "button-group": "Button choices",
+  "radio-group": "Radio choices",
+  "checkbox-group": "Checkbox choices",
+  "option-list": "Option list",
+};
+
+const GENUI_TOOL_LABEL: Record<string, string> = {
+  salon: "Salon profile lookup",
+  staff: "Staff lookup",
+  services: "Services lookup",
+  holidays: "Holidays lookup",
+  slots: "Availability check",
+  "booking-proposal": "Booking proposal",
+};
 
 const RANGE_OPTIONS = [
   { label: "7 days", days: 7 },
@@ -27,6 +62,10 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [genUi, setGenUi] = useState<GenUiSummary | null>(null);
+  const [genUiLoading, setGenUiLoading] = useState(true);
+  const [genUiError, setGenUiError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -35,6 +74,17 @@ export default function Analytics() {
       .then((data) => { if (!cancelled) setSummary(data); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load analytics"); })
       .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [salon.id, days]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setGenUiLoading(true);
+    setGenUiError(null);
+    apiFetch<GenUiSummary>(`${ADMIN_API}/${salon.id}/analytics/genui-summary?days=${days}`)
+      .then((data) => { if (!cancelled) setGenUi(data); })
+      .catch((e) => { if (!cancelled) setGenUiError(e instanceof Error ? e.message : "Failed to load chat usage"); })
+      .finally(() => { if (!cancelled) setGenUiLoading(false); });
     return () => { cancelled = true; };
   }, [salon.id, days]);
 
@@ -118,6 +168,46 @@ export default function Analytics() {
               title="Top clicks"
               emptyLabel="No clicks tracked yet"
               items={summary.topClicks.map((c) => ({ key: c.label, label: c.label, count: c.count }))}
+            />
+          </div>
+        </>
+      ) : null}
+
+      <div className="space-y-4 pt-2">
+        <h2 className="text-lg font-bold text-slate-900">Generative UI chat</h2>
+        <InfoBar id="analytics-genui">
+          How visitors are using the AI chat assistant on your website and booking page.
+        </InfoBar>
+      </div>
+
+      {genUiError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{genUiError}</div>
+      )}
+
+      {genUiLoading ? (
+        <div className="py-16 text-center text-sm text-slate-400">Loading chat usage…</div>
+      ) : genUi ? (
+        <>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+            <StatTile icon={MessageCircle} label="Chat sessions" value={genUi.totalSessions} />
+            <StatTile icon={MessageSquare} label="Messages sent" value={genUi.totalMessages} />
+            <StatTile icon={CalendarCheck} label="Bookings proposed via chat" value={genUi.totalBookingsProposed} />
+          </div>
+
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+            <TopList
+              title="Top components shown"
+              emptyLabel="No chat activity yet"
+              items={genUi.topComponents.map((c) => ({
+                key: c.type, label: GENUI_COMPONENT_LABEL[c.type] ?? c.type, count: c.count,
+              }))}
+            />
+            <TopList
+              title="Top tools invoked"
+              emptyLabel="No chat activity yet"
+              items={genUi.topTools.map((t) => ({
+                key: t.tool, label: GENUI_TOOL_LABEL[t.tool] ?? t.tool, count: t.count,
+              }))}
             />
           </div>
         </>

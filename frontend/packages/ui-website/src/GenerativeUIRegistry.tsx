@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  ServicesCard, StaffCard, HoursCard, LocationCard, ContactCard, type CardTokens,
+  ServicesCard, StaffCard, StaffProfileCard, HoursCard, LocationCard, ContactCard, type CardTokens,
 } from "./GenerativeUICards";
 import { DatePickerCard, TimeSlotPickerCard, FormCard, ChoiceCard } from "./GenerativeUIInteractive";
 import type { ClosureRange } from "./bookingDates";
@@ -62,6 +62,12 @@ export function GenUIComponent({
         : staff;
       if (!filtered.some((m) => m.status === "ACTIVE")) return null;
       return <StaffCard staff={filtered} tokens={tokens} showBookPill={canBook} onBook={onBookStaff} />;
+    }
+    case "staff-profile": {
+      const staffId = num(props.staffId);
+      const member = staff.find((m) => m.id === staffId && m.status === "ACTIVE");
+      if (!member) return null;
+      return <StaffProfileCard member={member} tokens={tokens} showBookPill={canBook} onBook={onBookStaff} />;
     }
     case "hours":
       return salon.operatingHours?.length ? <HoursCard salon={salon} tokens={tokens} /> : null;

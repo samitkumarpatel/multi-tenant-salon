@@ -353,6 +353,39 @@ Returns **all** slots within each eligible staff member's working window — bot
 
 ---
 
+### Get a staff member's schedule gaps
+
+`GET /api/salon/{salonId}/staff/{staffId}/schedule`
+
+Rolls up the days this staff member is **never** bookable — their recurring weekly days off, plus
+one-off unavailable dates — from the exact same data [Get booking slots](#get-booking-slots)
+already checks per date. Lets a booking calendar grey out days for a specific staff member up
+front (e.g. once pre-picked via "Book with {name}", or when they're the only one who can perform
+the service) instead of only discovering a day is empty after the visitor picks it and calls
+`/slots`.
+
+**Response** `200 OK`
+
+```json
+{
+  "closedWeekdays": ["MONDAY", "SATURDAY"],
+  "closedDates": ["2026-09-14"]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `closedWeekdays` | Day-of-week names (`MONDAY`–`SUNDAY`) with no `available` weekly-schedule row for this staff member |
+| `closedDates` | One-off dates (`yyyy-MM-dd`) with an unavailable `StaffAvailabilityOverride` — dates where they're exceptionally *available* (an override with `available: true`, e.g. covering an extra day) are **not** included |
+
+**Flow**
+
+1. `BookingController.getStaffSchedule(String salonId, Long staffId)` → `SalonApi.resolveId(salonId)` → `BookingService.findStaffSchedule(salonId, staffId)`.
+2. Computes `closedWeekdays` as all seven days minus those with an `available = true` row in `staff_availability`.
+3. Computes `closedDates` as every `staff_availability_override` row for this staff member with `available = false`.
+
+---
+
 ### Create a booking
 
 `POST /api/salon/{salonId}/booking`
@@ -946,6 +979,68 @@ salon.
    aggregate queries against the `analytics_event` table (total views, total clicks, daily view
    counts, top-10 pages, top-10 click labels) scoped to `occurred_at >= now - days`.
 4. Returns `200 OK` with the assembled `AnalyticsSummary`.
+
+---
+
+### Get Generative-UI chat usage summary
+
+`GET /api/salon-admin/{salonId}/analytics/genui-summary?days={days}`
+
+Owner-facing rollup of how visitors are using the Generative-UI chat widget on the public
+website/booking page — messages sent, interactive components shown, data-lookup tools invoked,
+and bookings proposed through chat. Recorded server-side whenever `POST /api/salon/{salonId}/chat`
+runs (see [Chat with the AI assistant](#chat-with-the-ai-assistant)); requires the same `ANALYTICS` feature flag
+as the website summary above — nothing is recorded, let alone returned, for a salon that hasn't
+opted in.
+
+Requires the same Bearer JWT auth as every other `/api/salon-admin/{salonId}/**` endpoint.
+
+| Parameter | In | Required | Notes |
+|---|---|---|---|
+| `salonId` | path | yes | Salon UUID or handler slug |
+| `days` | query | no | Look-back window in days. Default `7`. Clamped server-side to the range 1–90 |
+
+**Response** `200 OK`
+
+```json
+{
+  "totalSessions": 42,
+  "totalMessages": 210,
+  "totalBookingsProposed": 15,
+  "topComponents": [
+    { "type": "services", "count": 60 },
+    { "type": "staff", "count": 25 },
+    { "type": "quick-actions", "count": 12 }
+  ],
+  "topTools": [
+    { "tool": "services", "count": 80 },
+    { "tool": "staff", "count": 34 }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `totalSessions` | Distinct chat `sessionId`s seen in the window |
+| `totalMessages` | Total visitor messages sent to the assistant |
+| `totalBookingsProposed` | Turns where the assistant staged a booking proposal (`proposeBooking`) |
+| `topComponents` | Top 10 interactive component types rendered (`services`, `staff`, `staff-profile`, `quick-actions`, `booking-picker`, ...), descending by count. `quick-actions` is a useful proxy for how often visitors asked something off-topic with nothing else in progress |
+| `topTools` | Top 10 data-lookup tool names the assistant invoked (`salon`, `staff`, `services`, `holidays`, `slots`), descending by count |
+
+**Response** `403 Forbidden` — the target salon has not enabled the `ANALYTICS` feature flag.
+
+**Flow**
+
+1. `ChatController.chat(...)` publishes one `GenUiInteractionEvent` per notable happening in the
+   turn (message sent, each component shown, each tool invoked, a booking proposal) via
+   `ApplicationEventPublisher` — a plain in-process Spring application event, not the Azure queue
+   the public page-view/click beacon uses, since chat already runs trusted and server-side.
+2. `analytics.internal.GenUiAnalyticsListener` (`@ApplicationModuleListener`) resolves the salon id
+   and, only if `ANALYTICS` is enabled, persists a row per event into `genui_event`.
+3. `AnalyticsAdminController.genUiSummary(String salonId, int days)` resolves the salon id, checks
+   `ANALYTICS` is enabled (`403` otherwise), clamps `days` to `[1, 90]`, then
+   `AnalyticsSummaryService.summarizeGenUi(salonId, days)` aggregates `genui_event` and returns the
+   assembled `GenUiSummary`.
 
 ---
 

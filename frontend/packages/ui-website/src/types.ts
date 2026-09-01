@@ -136,6 +136,12 @@ export interface AvailableSlot {
   booked?: boolean;
 }
 
+/** A staff member's non-working days: recurring weekdays off, plus one-off unavailable dates. */
+export interface StaffSchedule {
+  closedWeekdays: string[];
+  closedDates: string[];
+}
+
 export interface StaffAvailability {
   id: number;
   salonId: string;
