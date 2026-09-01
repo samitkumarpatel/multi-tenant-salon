@@ -1,10 +1,40 @@
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
+import type { MetaFunction } from "react-router";
 import { NavProgress } from "@salon/ui-shared";
+import { SALON_DOMAIN } from "~/lib/config";
 import "./app.css";
+
+const SITE_URL = `https://${SALON_DOMAIN}`;
+const OG_IMAGE = `${SITE_URL}/og.jpg`;
+const SITE_TITLE = "SalonSaaS — Bookings, staff & a website for your salon";
+const SITE_DESCRIPTION =
+  "SalonSaaS gives your salon online bookings, staff management, and a polished website — all in one place. Set up in minutes.";
+
+// Root-level defaults; individual routes may override via their own `meta` export.
+// These render into the pre-rendered HTML so link-preview crawlers see them.
+export const meta: MetaFunction = () => [
+  { title: SITE_TITLE },
+  { name: "description", content: SITE_DESCRIPTION },
+  { property: "og:type", content: "website" },
+  { property: "og:site_name", content: "SalonSaaS" },
+  { property: "og:title", content: SITE_TITLE },
+  { property: "og:description", content: SITE_DESCRIPTION },
+  { property: "og:url", content: SITE_URL },
+  { property: "og:image", content: OG_IMAGE },
+  { property: "og:image:type", content: "image/jpeg" },
+  { property: "og:image:width", content: "1200" },
+  { property: "og:image:height", content: "630" },
+  { property: "og:image:alt", content: "SalonSaaS" },
+  { name: "twitter:card", content: "summary_large_image" },
+  { name: "twitter:title", content: SITE_TITLE },
+  { name: "twitter:description", content: SITE_DESCRIPTION },
+  { name: "twitter:image", content: OG_IMAGE },
+];
 
 export function links() {
   return [
+    { rel: "canonical", href: SITE_URL },
     { rel: "preconnect", href: "https://fonts.googleapis.com" },
     {
       rel: "stylesheet",
@@ -26,6 +56,7 @@ export function HydrateFallback() {
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <Meta />
         <Links />
       </head>
       <body>
