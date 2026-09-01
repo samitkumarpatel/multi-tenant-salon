@@ -2,7 +2,7 @@ name: mix env on/off scheduler
 
 run-name: >-
   mix env ${{
-    (github.event.schedule == '0 23 * * *' || github.event.inputs.mode == 'sleep')
+    (github.event.schedule == '30 23 * * *' || github.event.inputs.mode == 'sleep')
     && 'Sleep (night)' || 'Wake (day)'
   }}
 
@@ -24,11 +24,15 @@ run-name: >-
 # drift matters. A stopped Flexible Server is auto-started by Azure after 7
 # days — the nightly sleep re-stops it, so as long as this workflow runs it
 # stays down outside business hours.
+#
+# NOTE: Cron times are offset from the top of the hour (:30) to avoid GitHub
+# Actions peak load queueing at :00, which causes delays of hours rather than
+# minutes. See https://docs.github.com/en/actions/reference/events-that-trigger-workflows#schedule
 
 on:
   schedule:
-    - cron: '0 6 * * 1-5'   # 07:00 CET / 08:00 CEST, Mon-Fri  — WAKE
-    - cron: '0 23 * * *'    # 00:00 CET / 01:00 CEST, every day — SLEEP
+    - cron: '30 6 * * 1-5'   # 06:30 UTC (07:30 CET / 08:30 CEST), Mon-Fri  — WAKE
+    - cron: '30 23 * * *'    # 23:30 UTC (00:30 CET / 01:30 CEST), every day — SLEEP
   workflow_dispatch:
     inputs:
       mode:
@@ -50,7 +54,7 @@ jobs:
   wake:
     name: Wake — start Postgres, then scale api/auth to min 1 / max 2
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 6 * * 1-5' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'wake')
+    if: github.event.schedule == '30 6 * * 1-5' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'wake')
 
     steps:
       - name: Login to Azure
@@ -101,7 +105,7 @@ jobs:
   sleep:
     name: Sleep — scale api/auth to min 0 / max 1, then stop Postgres
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 23 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'sleep')
+    if: github.event.schedule == '30 23 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'sleep')
 
     steps:
       - name: Login to Azure
