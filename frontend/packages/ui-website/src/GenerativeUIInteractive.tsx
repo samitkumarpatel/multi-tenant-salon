@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { CalendarDays, Clock, ListChecks, Loader2, MousePointerClick } from "lucide-react";
 import { CardShell, MiniCalendar, fmt12, EMAIL_PATTERN, PHONE_PATTERN, type CardTokens } from "./GenerativeUICards";
 import { apiFetch, API_BASE } from "./api";
-import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays } from "./bookingDates";
-import type { AvailableSlot, Salon } from "./types";
+import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays, isPastSlot } from "./bookingDates";
+import type { AvailableSlot, Salon, StaffSchedule } from "./types";
 
 // The interactive Gen-UI components the assistant can drop into a turn beyond the six data
 // cards + booking picker. Each takes the model-authored `props` (UI scaffolding only — labels,
@@ -36,23 +36,54 @@ function asNum(v: unknown): number | undefined {
 }
 
 // ── date-picker ─────────────────────────────────────────────────────────────
-// Lightweight "which day works" calendar — no service/staff commitment. Picking a day sends a
-// natural follow-up so the assistant can respond (usually by calling showTimeSlots).
+// Lightweight "which day works" calendar — no time/contact commitment. Picking a day sends a
+// natural follow-up so the assistant can respond (usually by calling showTimeSlots). The greyed
+// days come from the salon's real data: closed weekdays from operating hours, one-off closures
+// and resolved holidays from `closedDateRanges`, and — when the assistant opened this for a
+// specific stylist — that stylist's own days off / unavailable dates (same `/staff/{id}/schedule`
+// source the full booking picker uses), so "what days is Nat free?" never offers a day Nat
+// doesn't work.
 
 export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswer }: GenUIInteractiveProps) {
   const { theme, accentText, msgDim } = tokens;
+  const staffId = asNum(props.staffId);
   const today = startOfDay(new Date());
   const maxDate = new Date(today.getTime() + (salon.bookingAdvanceDays ?? 60) * 86400000);
-  const closedDays = closedWeekdays(salon.operatingHours);
-  const [date, setDate] = useState(() => firstBookableDate(today, maxDate, closedDays, closedDateRanges));
-  const dateClosed = isDateClosed(date, closedDays, closedDateRanges);
+  const salonClosedDays = closedWeekdays(salon.operatingHours);
+
+  const [staffSchedule, setStaffSchedule] = useState<StaffSchedule | null>(null);
+  useEffect(() => {
+    if (staffId == null) { setStaffSchedule(null); return; }
+    apiFetch<StaffSchedule>(`${API_BASE}/api/salon/${salon.id}/staff/${staffId}/schedule`)
+      .then(setStaffSchedule)
+      .catch(() => setStaffSchedule(null));
+  }, [salon.id, staffId]);
+
+  const closedDays = staffSchedule
+    ? new Set([...salonClosedDays, ...staffSchedule.closedWeekdays])
+    : salonClosedDays;
+  const closedRanges: ClosureRange[] = staffSchedule?.closedDates.length
+    ? [...closedDateRanges, ...staffSchedule.closedDates.map((d) => ({ startDate: d, endDate: d }))]
+    : closedDateRanges;
+
+  const [date, setDate] = useState(() => firstBookableDate(today, maxDate, closedDays, closedRanges));
+  const dateClosed = isDateClosed(date, closedDays, closedRanges);
+
+  // Closures/holidays and the stylist's schedule land a beat after mount; if the day we defaulted
+  // to turns out closed, nudge it forward to the next open one.
+  useEffect(() => {
+    if (!isDateClosed(date, closedDays, closedRanges)) return;
+    const next = firstBookableDate(today, maxDate, closedDays, closedRanges);
+    if (next !== date) setDate(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffSchedule, closedDateRanges]);
 
   return (
     <CardShell title="Pick a day" icon={CalendarDays} tokens={tokens}>
       <div className="space-y-3">
         <MiniCalendar
           value={date} onChange={setDate} minDate={today} maxDate={maxDate}
-          closedDays={closedDays} closedDateRanges={closedDateRanges} tokens={tokens}
+          closedDays={closedDays} closedDateRanges={closedRanges} tokens={tokens}
         />
         <button
           type="button"
@@ -61,9 +92,13 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
           className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: theme.accentColor, color: accentText }}
         >
-          {dateClosed ? "Salon closed — pick another day" : "Check this day"}
+          {dateClosed ? "Closed that day — pick another" : "Check this day"}
         </button>
-        <p className="text-[10px] text-center" style={{ color: msgDim }}>Days the salon is closed are greyed out.</p>
+        <p className="text-[10px] text-center" style={{ color: msgDim }}>
+          {staffId != null
+            ? "Days the salon or this stylist is closed are greyed out."
+            : "Days the salon is closed are greyed out."}
+        </p>
       </div>
     </CardShell>
   );
@@ -73,11 +108,13 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
 // Real bookable slots for a service on a date (same /slots endpoint the wizard uses). Tapping a
 // time sends it back as the visitor's message so the assistant can start/continue a booking.
 
-export function TimeSlotPickerCard({ props, tokens, salon, onAnswer }: GenUIInteractiveProps) {
+export function TimeSlotPickerCard({ props, tokens, salon, closedDateRanges, onAnswer }: GenUIInteractiveProps) {
   const { theme, msgText, msgDim } = tokens;
   const serviceId = asNum(props.serviceId);
   const staffId = asNum(props.staffId);
   const date = typeof props.date === "string" ? props.date : undefined;
+  const closedDays = closedWeekdays(salon.operatingHours);
+  const dateClosed = date ? isDateClosed(date, closedDays, closedDateRanges) : false;
 
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +126,11 @@ export function TimeSlotPickerCard({ props, tokens, salon, onAnswer }: GenUIInte
       setLoading(false);
       return;
     }
+    if (dateClosed) {
+      setSlots([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
@@ -97,11 +139,16 @@ export function TimeSlotPickerCard({ props, tokens, salon, onAnswer }: GenUIInte
       .then((res) => setSlots(res.filter((s) => !s.booked)))
       .catch(() => setError("Couldn't load availability for this date — try another one."))
       .finally(() => setLoading(false));
-  }, [salon.id, serviceId, staffId, date]);
+  }, [salon.id, serviceId, staffId, date, dateClosed]);
 
+  // Dedupe several staff sharing a start time down to one button, and drop any slot that has
+  // already passed today — `/slots` returns booked=false for those but they can't be taken.
   const times = (() => {
     const map = new Map<string, AvailableSlot>();
-    for (const s of slots) if (!map.has(s.startTime)) map.set(s.startTime, s);
+    for (const s of slots) {
+      if (date && isPastSlot(date, s.startTime)) continue;
+      if (!map.has(s.startTime)) map.set(s.startTime, s);
+    }
     return [...map.values()].sort((a, b) => a.startTime.localeCompare(b.startTime));
   })();
 
@@ -114,10 +161,13 @@ export function TimeSlotPickerCard({ props, tokens, salon, onAnswer }: GenUIInte
         </div>
       )}
       {!loading && error && <p className="text-xs" style={{ color: "#EF4444" }}>{error}</p>}
-      {!loading && !error && times.length === 0 && (
+      {!loading && !error && dateClosed && (
+        <p className="text-xs" style={{ color: msgDim }}>The salon is closed on this day — try another date.</p>
+      )}
+      {!loading && !error && !dateClosed && times.length === 0 && (
         <p className="text-xs" style={{ color: msgDim }}>No open times that day — try another date.</p>
       )}
-      {!loading && !error && times.length > 0 && (
+      {!loading && !error && !dateClosed && times.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5">
           {times.map((s) => (
             <button

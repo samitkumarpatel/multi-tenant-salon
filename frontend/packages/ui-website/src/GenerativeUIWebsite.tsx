@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
@@ -296,10 +296,23 @@ function AnimatedSalonName({ text, color }: { text: string; color: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function GenerativeUIWebsite({ salon, staff, services, theme, context = "website", onSwitchToWizard }: GenerativeUIWebsiteProps) {
+export function GenerativeUIWebsite({
+  salon: salonProp, staff: staffProp, services: servicesProp, theme, context = "website", onSwitchToWizard,
+}: GenerativeUIWebsiteProps) {
   const isBooking = context === "booking";
   const font = { stack: fontStack(theme.fontFamily) };
   loadGoogleFont(theme.fontFamily);
+
+  // `salonProp`/`staffProp`/`servicesProp` are a page-load snapshot from the route loader. The
+  // assistant's own tool calls (getServices/getStaff/getSalonProfile/getHolidays) hit the API
+  // live, so a card rendered from the snapshot can disagree with the reply next to it — a price
+  // edited since load, a stylist added or deactivated, changed opening hours, a new holiday.
+  // Keep the three lists in state, seeded from the props, and re-pull them on mount and after any
+  // turn that used a data tool so every card (and the sidebar/header) shows what the salon
+  // returns right now. `theme` stays a snapshot — it isn't salon data and rarely changes mid-visit.
+  const [salon, setSalon] = useState(salonProp);
+  const [staff, setStaff] = useState(staffProp);
+  const [services, setServices] = useState(servicesProp);
 
   const accentText = contrastText(theme.accentColor);
   const avatarBg   = theme.logoBgColor;
@@ -377,20 +390,37 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, thinking]);
 
+  // Re-pull the salon profile + staff + services lists so every data card matches what the
+  // assistant's own live tool calls see.
+  const salonId = salonProp.id;
+  const refreshSalonData = useCallback(() => {
+    apiFetch<Salon>(`${API_BASE}/api/salon/${salonId}`).then(setSalon).catch(() => {});
+    apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salonId}/staff`).then(setStaff).catch(() => {});
+    apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salonId}/services`).then(setServices).catch(() => {});
+  }, [salonId]);
+
+  // Only once the visitor actually engages — no need to double-fetch for a page view that never
+  // opens the chat.
+  useEffect(() => { if (started) refreshSalonData(); }, [started, refreshSalonData]);
+
   // One-off closures + resolved holiday dates the booking picker's calendar must block. The
   // server rejects these too (`/slots` returns nothing, `POST /booking` 400s) — this just keeps
   // the calendar from offering them.
-  useEffect(() => {
-    if (!salon.features?.includes("BOOKING")) return;
+  const bookingEnabled = salon.features?.includes("BOOKING") ?? false;
+  const advanceDays = salon.bookingAdvanceDays ?? 60;
+  const refreshClosedDates = useCallback(() => {
+    if (!bookingEnabled) { setClosedDateRanges([]); return; }
     const maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + (salon.bookingAdvanceDays ?? 60));
+    maxDate.setDate(maxDate.getDate() + advanceDays);
     Promise.all([
-      apiFetch<ClosureRange[]>(`${API_BASE}/api/salon/${salon.id}/closures`).catch((): ClosureRange[] => []),
-      apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salon.id}/holidays`).catch((): SalonHoliday[] => []),
+      apiFetch<ClosureRange[]>(`${API_BASE}/api/salon/${salonId}/closures`).catch((): ClosureRange[] => []),
+      apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salonId}/holidays`).catch((): SalonHoliday[] => []),
     ]).then(([closures, holidays]) => {
       setClosedDateRanges([...closures, ...resolveHolidayRanges(holidays, maxDate)]);
     });
-  }, [salon.id, salon.bookingAdvanceDays, salon.features]);
+  }, [salonId, bookingEnabled, advanceDays]);
+
+  useEffect(() => { if (started) refreshClosedDates(); }, [started, refreshClosedDates]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -623,6 +653,11 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           return next;
         });
         setThinking(false);
+
+        // The turn that just rendered a data card pulled its facts live via a tool; refresh the
+        // page-level snapshot so the card beside this reply shows the same numbers, not stale ones.
+        if (toolsUsed.some((t) => t === "salon" || t === "staff" || t === "services")) refreshSalonData();
+        if (toolsUsed.some((t) => t === "salon" || t === "holidays")) refreshClosedDates();
       },
     );
   }
@@ -640,9 +675,11 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
 
   // A card-tagged quick-action renders instantly from data already on the page — no LLM call,
   // no latency, no risk of the model getting a fact wrong. A short "thinking" beat keeps the feel
-  // consistent with the rest of the chat.
+  // consistent with the rest of the chat. Kick a refresh first so the instant card can't show a
+  // stale price/roster if the tab has been open a while.
   function showCard(cardType: CardType, question: string, intro?: string) {
     setStarted(true);
+    refreshSalonData();
     setMessages((prev) => [...prev, { role: "user", text: question, time: nowTime() }]);
     setThinking(true);
     setTimeout(() => {

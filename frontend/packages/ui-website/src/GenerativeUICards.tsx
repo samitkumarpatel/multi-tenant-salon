@@ -3,7 +3,7 @@ import { Sparkles, Users, User, Clock, MapPin, Phone, Mail, Globe, ChevronRight,
 import { formatPrice, CATEGORY_LABEL, STAFF_ROLE_LABEL, DAY_SHORT } from "./constants";
 import { apiFetch, API_BASE } from "./api";
 import { staffAvatar, MediaThumb, Lightbox } from "./StaffMedia";
-import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays } from "./bookingDates";
+import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays, isPastSlot } from "./bookingDates";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, OperatingHours, AvailableSlot, StaffSchedule } from "./types";
 
 // ── Shared tokens & shell ────────────────────────────────────────────────────
@@ -551,7 +551,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     if (isDateClosed(date, closedDays, closedDateRanges)) { setDateSlots([]); return; }
     setLoadingDateSlots(true);
     apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/slots?${new URLSearchParams({ serviceId: String(service.id), date })}`)
-      .then((res) => setDateSlots(res.filter((s) => !s.booked)))
+      .then((res) => setDateSlots(res.filter((s) => !s.booked && !isPastSlot(date, s.startTime))))
       .catch(() => setDateSlots([]))
       .finally(() => setLoadingDateSlots(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -603,10 +603,14 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
   }, [step, staffId, date, slot, name, email, phone]);
 
   // Several staff can share a start time — dedupe to one option per time when no specific
-  // stylist was chosen; the actual staffId still comes from the picked slot.
+  // stylist was chosen; the actual staffId still comes from the picked slot. Drop slots that
+  // have already passed today (booked=false from /slots, but not actually bookable).
   const timeOptions = (() => {
     const map = new Map<string, AvailableSlot>();
-    for (const s of slots) if (!map.has(s.startTime)) map.set(s.startTime, s);
+    for (const s of slots) {
+      if (isPastSlot(date, s.startTime)) continue;
+      if (!map.has(s.startTime)) map.set(s.startTime, s);
+    }
     return [...map.values()].sort((a, b) => a.startTime.localeCompare(b.startTime));
   })();
 

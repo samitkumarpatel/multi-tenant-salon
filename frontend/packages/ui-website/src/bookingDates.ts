@@ -16,6 +16,16 @@ export function isClosedByRange(isoDate: string, ranges: ClosureRange[]): boolea
   return ranges.some((r) => isoDate >= r.startDate && isoDate <= r.endDate);
 }
 
+/**
+ * A slot on `isoDate` starting at `startTime` (`HH:mm` or `HH:mm:ss`) has already passed. Only
+ * ever true when `isoDate` is today — a time earlier today can't be booked, so the pickers must
+ * not offer it even though `/slots` (which doesn't know the wall clock) still returns it.
+ */
+export function isPastSlot(isoDate: string, startTime: string, now: Date = new Date()): boolean {
+  if (isoDate !== iso(now)) return false;
+  return startTime.slice(0, 5) <= `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+}
+
 /** Weekday names (e.g. "MONDAY") the salon marks `closed` in its operating hours. */
 export function closedWeekdays(hours?: OperatingHours[]): Set<string> {
   return new Set((hours ?? []).filter((h) => h.closed).map((h) => h.day));
