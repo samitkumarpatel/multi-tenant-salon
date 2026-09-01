@@ -1,8 +1,11 @@
 package net.samitkumar.multi_tenant_salon.chat.internal;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +17,8 @@ import java.util.Map;
  * another tenant's data.
  */
 class SalonDataTools {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final SalonApiClient client;
     private final String salonId;
@@ -60,13 +65,86 @@ class SalonDataTools {
         return client.getHolidays(salonId);
     }
 
-    @Tool(description = "Check real available appointment slots for a service on a given date, optionally for one staff member. Always call this before proposing a booking — never guess a time. Date format: yyyy-MM-dd.")
+    @Tool(description = """
+            Check real availability for a service on ONE date (optionally one staff member). Call \
+            this before proposing a booking and for any "is the salon open / what times are free \
+            on <date>" question. Never guess a time or a weekday. Returns JSON: `date`, `weekday` \
+            (the real weekday — use it verbatim, don't recompute), `status` \
+            (OPEN / SALON_CLOSED / STAFF_OFF / FULLY_BOOKED), `available`, `reason` (present \
+            unless OPEN — names the holiday/closure or explains the block), `slots` (each with \
+            `booked`), and `nextAvailable` (the soonest open slot within two weeks, or null). \
+            Date format: yyyy-MM-dd.""")
     String checkAvailability(
             @ToolParam(description = "The service's id, from getServices") Long serviceId,
             @ToolParam(description = "Date to check, format yyyy-MM-dd") String date,
             @ToolParam(required = false, description = "Restrict to one staff member's id; omit to check all staff") Long staffId) {
         invoked.add("slots");
-        return client.getSlots(salonId, serviceId, date, staffId);
+
+        final LocalDate day;
+        try {
+            day = LocalDate.parse(date);
+        } catch (RuntimeException e) {
+            return "{\"error\":\"'" + date + "' is not a valid yyyy-MM-dd date.\"}";
+        }
+
+        String raw = client.getAvailability(salonId, serviceId, staffId,
+                date, day.plusDays(14).toString(), "SLOT", null);
+        Map<String, Object> availability;
+        try {
+            availability = MAPPER.readValue(raw, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return raw; // hand the model whatever the endpoint said
+        }
+
+        Map<String, Object> asked = null;
+        Object daysObj = availability.get("days");
+        if (daysObj instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> m && date.equals(String.valueOf(m.get("date")))) {
+                    //noinspection unchecked
+                    asked = (Map<String, Object>) m;
+                    break;
+                }
+            }
+        }
+        if (asked == null) {
+            return raw;
+        }
+
+        var out = new LinkedHashMap<String, Object>();
+        out.put("date", asked.get("date"));
+        out.put("weekday", asked.get("weekday"));
+        out.put("status", asked.get("status"));
+        out.put("available", "OPEN".equals(asked.get("status")));
+        if (asked.get("reason") != null) {
+            out.put("reason", asked.get("reason"));
+        }
+        out.put("openSlotCount", asked.getOrDefault("openSlotCount", 0));
+        if (asked.get("slots") != null) {
+            out.put("slots", asked.get("slots"));
+        }
+        out.put("nextAvailable", availability.get("firstAvailable"));
+        try {
+            return MAPPER.writeValueAsString(out);
+        } catch (Exception e) {
+            return raw;
+        }
+    }
+
+    @Tool(description = """
+            Find which DAYS have availability across a date range — use for "what days can I come \
+            in", "when is <stylist> next free", "any openings next week", or before showing a \
+            date picker. Returns JSON `days` (each: `date`, `weekday`, `status`, `reason`, \
+            `openSlotCount`, `availableStaffIds`) and `firstAvailable`. With `limit` set, `days` \
+            lists only that many OPEN days. Use `weekday`/`reason` from the result verbatim.""")
+    String findAvailableDates(
+            @ToolParam(required = false, description = "Service id, from getServices — sizes the slots") Long serviceId,
+            @ToolParam(required = false, description = "Restrict to one staff member's id") Long staffId,
+            @ToolParam(required = false, description = "Range start, yyyy-MM-dd; omit for today") String from,
+            @ToolParam(required = false, description = "Range end, yyyy-MM-dd; omit for the salon's booking window") String to,
+            @ToolParam(required = false, description = "Return only the first N OPEN days") Integer limit) {
+        invoked.add("slots");
+        return client.getAvailability(salonId, serviceId, staffId, from, to, "DAY", limit);
     }
 
     @Tool(description = """

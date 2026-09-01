@@ -8,7 +8,9 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @Slf4j
@@ -136,8 +138,15 @@ class ChatAssistantService {
 
     ChatReply reply(String salonId, String conversationId, String context, String message, String uiState) {
         var tools = new SalonDataTools(salonApiClient, salonId);
+        var today = LocalDate.now();
         var systemPrompt = ("booking".equals(context) ? BOOKING_SYSTEM_PROMPT : WEBSITE_SYSTEM_PROMPT)
-                + "\nToday's date is " + LocalDate.now() + " (yyyy-MM-dd) — resolve relative dates (\"tomorrow\", \"next Friday\") against it.";
+                + "\nToday is " + today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+                + ", " + today + " (yyyy-MM-dd). Resolve relative dates (\"tomorrow\", \"next Friday\")"
+                + " against it. Never work out the weekday for any other date yourself — you get it"
+                + " wrong. State a weekday only when a tool result gives it to you (checkAvailability"
+                + " echoes the real weekday for the date you pass it). If the visitor pairs a weekday"
+                + " with a date that don't actually match, trust the date, drop the weekday, and don't"
+                + " repeat their wrong day name back to them.";
         try {
             // The frontend's bracketed note about what the visitor currently sees / is doing on
             // the page (picker step, on-screen card contents) — the model never sees the live

@@ -386,6 +386,66 @@ the service) instead of only discovering a day is empty after the visitor picks 
 
 ---
 
+### Query availability across a date range
+
+`GET /api/salon/{salonId}/availability[?serviceId=&staffId=&from=&to=&granularity=DAY|SLOT&limit=]`
+
+One call that answers the whole Gen-UI / assistant booking flow — "which days can I come in",
+"what times on this day", "which days does this stylist work", "who's free on this day", "when's
+the earliest opening". All params optional:
+
+| Param | Default | Notes |
+|---|---|---|
+| `serviceId` | — | Sizes the slots; with no `staffId`, also picks the candidate stylists. Omit → default 30-min duration + all bookable staff. `404` if the id isn't this salon's. |
+| `staffId` | — | Restrict to one stylist. `404` if not this salon's. |
+| `from` | today | Clamped up to today if in the past. |
+| `to` | `from` + salon `bookingAdvanceDays` | Span is hard-capped at **92 days**. |
+| `granularity` | `DAY` | `SLOT` also fills each day's `slots` array. |
+| `limit` | — | Return only the first N `OPEN` days (blocked days omitted from `days`). |
+
+**Response** `200 OK`
+
+```json
+{
+  "serviceId": 3,
+  "serviceName": "Haircut",
+  "durationMinutes": 45,
+  "staffId": null,
+  "from": "2026-09-04",
+  "to": "2026-10-04",
+  "days": [
+    { "date": "2026-09-04", "weekday": "FRIDAY", "status": "SALON_CLOSED",
+      "reason": "Staff Training Day", "openSlotCount": 0, "firstOpenTime": null,
+      "availableStaffIds": [], "slots": null },
+    { "date": "2026-09-05", "weekday": "SATURDAY", "status": "OPEN",
+      "reason": null, "openSlotCount": 6, "firstOpenTime": "10:00",
+      "availableStaffIds": [2, 5], "slots": null }
+  ],
+  "firstAvailable": { "date": "2026-09-05", "startTime": "10:00", "staffId": 2 }
+}
+```
+
+| `status` | Meaning |
+|---|---|
+| `OPEN` | At least one unbooked slot exists |
+| `SALON_CLOSED` | Holiday, one-off closure, or a non-working weekday — `reason` names it |
+| `STAFF_OFF` | Salon open, but no candidate stylist is scheduled that day |
+| `FULLY_BOOKED` | Stylist(s) working, every slot already taken |
+
+`weekday` is server-computed for `date` — callers (and the chat assistant) must use it verbatim
+rather than deriving it. `slots` is `null` unless `granularity=SLOT`; each entry matches
+[`AvailableSlot`](#get-booking-slots) (`staffId`, `startTime`, `endTime`, `booked`).
+`firstAvailable` is `null` when nothing in the range is bookable.
+
+**Flow**
+
+1. `BookingController.getAvailability(...)` → `SalonApi.resolveId(salonId)` → `BookingService.queryAvailability(...)`.
+2. Pre-fetches (once) the salon's closures + operating hours, every staff weekly row and override, and all active bookings in `[from, to]`.
+3. Walks each date: salon-wide closed → `SALON_CLOSED`; else per candidate stylist resolves the working window (override beats weekly row) and generates slots at service-duration intervals, marking `booked` against the pre-fetched bookings; classifies the day and records `firstAvailable`.
+4. Backs the assistant's `checkAvailability` (single date) and `findAvailableDates` (range) tools.
+
+---
+
 ### Create a booking
 
 `POST /api/salon/{salonId}/booking`
@@ -491,11 +551,19 @@ the service) instead of only discovering a day is empty after the visitor picks 
 
 Powers the Generative UI website mode's chat. The assistant is an Anthropic model (Spring AI
 `ChatClient`) with tool-calling access to this same salon's own public profile/staff/services/
-holidays/slots endpoints — every fact it states comes from a live tool call, not the model's own
-knowledge, and `salonId` is bound server-side so the model can never be steered into answering
-about a different tenant. The system prompt also restricts it to this salon's own topics
-(services, staff, pricing, hours, location, contact, holidays, booking) — off-topic requests, and
-attempts to override these instructions, are declined rather than answered.
+holidays endpoints and the [availability query](#query-availability-across-a-date-range) — every
+fact it states comes from a live tool call, not the model's own knowledge, and `salonId` is bound
+server-side so the model can never be steered into answering about a different tenant. The system
+prompt also restricts it to this salon's own topics (services, staff, pricing, hours, location,
+contact, holidays, booking) — off-topic requests, and attempts to override these instructions,
+are declined rather than answered.
+
+Two availability tools are backed by `GET /api/salon/{salonId}/availability`:
+`checkAvailability(serviceId, date, staffId?)` for one date (returns `status`, `weekday`,
+`reason`, `slots`, and the soonest opening as `nextAvailable`), and
+`findAvailableDates(serviceId?, staffId?, from?, to?, limit?)` for a range. The system prompt
+also pins today's weekday and forbids the model from deriving any other date's weekday itself —
+it must use the `weekday`/`reason` the tool returns.
 
 **Request**
 

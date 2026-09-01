@@ -12,5 +12,7 @@ interface StaffAvailabilityOverrideRepository extends ListCrudRepository<StaffAv
 
     List<StaffAvailabilityOverride> findBySalonIdAndStaffId(UUID salonId, Long staffId);
 
+    List<StaffAvailabilityOverride> findBySalonId(UUID salonId);
+
     Optional<StaffAvailabilityOverride> findBySalonIdAndStaffIdAndOverrideDate(UUID salonId, Long staffId, LocalDate overrideDate);
 }

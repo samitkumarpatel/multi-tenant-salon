@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.booking.internal;
 import net.samitkumar.multi_tenant_salon.booking.AvailableSlot;
 import net.samitkumar.multi_tenant_salon.booking.Booking;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
+import net.samitkumar.multi_tenant_salon.booking.SalonAvailability;
 import net.samitkumar.multi_tenant_salon.booking.StaffSchedule;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -40,6 +41,21 @@ class BookingController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long staffId) {
         return service.findAvailableSlots(salonApi.resolveId(salonId), serviceId, date, staffId);
+    }
+
+    // Flexible range query behind the Gen-UI booking flow and the chat assistant's
+    // findAvailableDates / checkAvailability tools — day statuses (OPEN / SALON_CLOSED /
+    // STAFF_OFF / FULLY_BOOKED with a reason), optionally per stylist, optionally with slots.
+    @GetMapping({"/api/salon/{salonId}/availability", "/api/salon-admin/{salonId}/availability"})
+    SalonAvailability getAvailability(
+            @PathVariable String salonId,
+            @RequestParam(required = false) Long serviceId,
+            @RequestParam(required = false) Long staffId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "DAY") SalonAvailability.Granularity granularity,
+            @RequestParam(required = false) Integer limit) {
+        return service.queryAvailability(salonApi.resolveId(salonId), serviceId, staffId, from, to, granularity, limit);
     }
 
     // Lets a booking UI grey out a calendar for a specific staff member (their days off, their

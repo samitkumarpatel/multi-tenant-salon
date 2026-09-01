@@ -12,10 +12,12 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverride;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
+import net.samitkumar.multi_tenant_salon.booking.SalonAvailability;
 import net.samitkumar.multi_tenant_salon.booking.StaffSchedule;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
+import net.samitkumar.multi_tenant_salon.salon.SalonClosure;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffMember;
@@ -36,10 +38,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -286,6 +291,216 @@ class BookingService implements BookingApi {
         return result.stream()
                 .sorted(Comparator.comparing(AvailableSlot::startTime).thenComparing(AvailableSlot::staffId))
                 .toList();
+    }
+
+    // ── Flexible availability query ───────────────────────────────────────────
+
+    /** Hard ceiling on the scanned span, whatever {@code from}/{@code to}/advance-days say. */
+    private static final int MAX_RANGE_DAYS = 92;
+
+    /**
+     * One query that answers day-level and slot-level availability across a date range, optionally
+     * scoped to a service and/or a stylist. See {@link SalonAvailability}.
+     *
+     * @param serviceId   service to size slots by and (with no {@code staffId}) to pick candidate
+     *                     stylists from; {@code null} falls back to the default duration + all
+     *                     bookable staff
+     * @param staffId     restrict to this stylist; {@code null} considers every candidate
+     * @param from        first date to scan; {@code null} or past → today
+     * @param to          last date to scan; {@code null} → {@code from} + the salon's booking
+     *                     advance window; the span is capped at {@value #MAX_RANGE_DAYS} days
+     * @param granularity {@code SLOT} also fills {@link SalonAvailability.DayAvailability#slots()}
+     * @param limit       when set, {@code days} holds only the first {@code limit} OPEN days
+     */
+    SalonAvailability queryAvailability(UUID salonId, Long serviceId, Long staffId,
+                                       LocalDate from, LocalDate to,
+                                       SalonAvailability.Granularity granularity, Integer limit) {
+        var today = LocalDate.now();
+        LocalDate start = (from == null || from.isBefore(today)) ? today : from;
+
+        var salon = salonApi.findById(salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Salon not found"));
+        int advanceDays = salon.bookingAdvanceDays() != null ? salon.bookingAdvanceDays() : 60;
+        LocalDate end = (to == null) ? start.plusDays(advanceDays) : to;
+        if (end.isBefore(start)) {
+            end = start;
+        }
+        if (java.time.temporal.ChronoUnit.DAYS.between(start, end) > MAX_RANGE_DAYS) {
+            end = start.plusDays(MAX_RANGE_DAYS);
+        }
+
+        String serviceName = null;
+        int duration = DEFAULT_DURATION_MINUTES;
+        List<Long> candidates;
+        if (serviceId != null) {
+            var service = salonServiceApi.findByIdAndSalonId(serviceId, salonId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
+            serviceName = service.name();
+            if (service.durationMinutes() != null) {
+                duration = service.durationMinutes();
+            }
+            candidates = service.assignedStaffIds().stream()
+                    .map(s -> s.staffId())
+                    .filter(id -> id != null && id.matches("\\d+"))
+                    .map(Long::parseLong)
+                    .collect(Collectors.toList());
+        } else {
+            candidates = new ArrayList<>();
+        }
+        if (staffId != null) {
+            staffApi.findByIdAndSalonId(staffId, salonId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Staff member not found"));
+            candidates = List.of(staffId);
+        } else if (candidates.isEmpty()) {
+            candidates = staffApi.findAvailableForBookingBySalonId(salonId).stream().map(m -> m.id()).toList();
+        }
+
+        // ── Pre-fetch everything the per-day loop needs, once ──
+        var closures = salonApi.findClosures(salonId);
+        var operatingHours = salonApi.findOperatingHours(salonId);
+        Set<DayOfWeek> salonClosedWeekdays = operatingHours.isEmpty()
+                ? EnumSet.noneOf(DayOfWeek.class)
+                : operatingHours.stream().filter(Salon.OperatingHours::closed)
+                    .map(Salon.OperatingHours::day).collect(Collectors.toCollection(() -> EnumSet.noneOf(DayOfWeek.class)));
+        boolean hoursConfigured = !operatingHours.isEmpty();
+        Set<DayOfWeek> weekdaysWithHours = operatingHours.stream()
+                .map(Salon.OperatingHours::day).collect(Collectors.toCollection(() -> EnumSet.noneOf(DayOfWeek.class)));
+
+        // recurring weekly windows: staffId -> weekday -> [start, end]  (only `available` rows)
+        Map<Long, Map<DayOfWeek, LocalTime[]>> weekly = new HashMap<>();
+        for (StaffAvailability a : availabilityRepo.findBySalonId(salonId)) {
+            if (a.available() && candidates.contains(a.staffId())) {
+                weekly.computeIfAbsent(a.staffId(), k -> new HashMap<>())
+                        .put(a.dayOfWeek(), new LocalTime[]{a.startTime(), a.endTime()});
+            }
+        }
+        // one-off overrides: staffId -> date -> override
+        Map<Long, Map<LocalDate, StaffAvailabilityOverride>> overrides = new HashMap<>();
+        for (StaffAvailabilityOverride o : overrideRepo.findBySalonId(salonId)) {
+            if (candidates.contains(o.staffId())) {
+                overrides.computeIfAbsent(o.staffId(), k -> new HashMap<>()).put(o.overrideDate(), o);
+            }
+        }
+        // active bookings in range: staffId -> date -> bookings
+        Map<Long, Map<LocalDate, List<Booking>>> booked = new HashMap<>();
+        for (Booking b : bookingRepo.findActiveBySalonBetween(salonId, start, end)) {
+            booked.computeIfAbsent(b.staffId(), k -> new HashMap<>())
+                    .computeIfAbsent(b.appointmentDate(), k -> new ArrayList<>()).add(b);
+        }
+
+        var days = new ArrayList<SalonAvailability.DayAvailability>();
+        SalonAvailability.FirstAvailable firstAvailable = null;
+        int openDaysAdded = 0;
+        final int step = duration;
+
+        for (LocalDate day : start.datesUntil(end.plusDays(1)).toList()) {
+            if (limit != null && openDaysAdded >= limit) {
+                break;
+            }
+            DayOfWeek dow = day.getDayOfWeek();
+
+            // 1. Salon-wide closed — holiday / one-off closure (named), or a non-working weekday.
+            var closure = closures.stream()
+                    .filter(c -> !day.isBefore(c.startDate()) && !day.isAfter(c.endDate()))
+                    .map(SalonClosure::reason).filter(r -> r != null && !r.isBlank())
+                    .findFirst();
+            String closedReason = null;
+            if (closure.isPresent()) {
+                closedReason = closure.get();
+            } else if (hoursConfigured && (salonClosedWeekdays.contains(dow) || !weekdaysWithHours.contains(dow))) {
+                closedReason = "The salon is closed on " + prettyPlural(dow) + ".";
+            } else if (salonApi.isClosedOn(salonId, day)) {
+                closedReason = "The salon is closed that day.";
+            }
+            if (closedReason != null) {
+                days.add(new SalonAvailability.DayAvailability(
+                        day, dow, SalonAvailability.DayStatus.SALON_CLOSED, closedReason,
+                        0, null, List.of(), granularity == SalonAvailability.Granularity.SLOT ? List.of() : null));
+                continue;
+            }
+
+            // 2. Per-stylist working windows + slot generation.
+            var daySlots = new ArrayList<AvailableSlot>();
+            boolean anyStylistWorking = false;
+            for (Long sid : candidates) {
+                LocalTime[] window = windowFor(sid, day, dow, weekly, overrides);
+                if (window == null) {
+                    continue;
+                }
+                anyStylistWorking = true;
+                var existing = booked.getOrDefault(sid, Map.of()).getOrDefault(day, List.of());
+                LocalTime cur = window[0];
+                while (!cur.plusMinutes(step).isAfter(window[1])) {
+                    LocalTime slotEnd = cur.plusMinutes(step);
+                    final LocalTime slotStart = cur;
+                    boolean taken = existing.stream().anyMatch(b ->
+                            slotStart.isBefore(b.endTime()) && slotEnd.isAfter(b.startTime()));
+                    daySlots.add(new AvailableSlot(sid, slotStart, slotEnd, taken));
+                    cur = cur.plusMinutes(step);
+                }
+            }
+
+            var free = daySlots.stream().filter(s -> !s.booked())
+                    .sorted(Comparator.comparing(AvailableSlot::startTime).thenComparing(AvailableSlot::staffId))
+                    .toList();
+
+            SalonAvailability.DayStatus status;
+            String reason = null;
+            if (!anyStylistWorking) {
+                status = SalonAvailability.DayStatus.STAFF_OFF;
+                reason = staffId != null
+                        ? "That stylist isn't working on " + prettyPlural(dow) + "."
+                        : "No stylist is scheduled to work on " + prettyPlural(dow) + ".";
+            } else if (free.isEmpty()) {
+                status = SalonAvailability.DayStatus.FULLY_BOOKED;
+                reason = "Every slot that day is already booked.";
+            } else {
+                status = SalonAvailability.DayStatus.OPEN;
+            }
+
+            List<Long> openStaff = free.stream().map(AvailableSlot::staffId).distinct().toList();
+            List<AvailableSlot> slotView = null;
+            if (granularity == SalonAvailability.Granularity.SLOT) {
+                slotView = daySlots.stream()
+                        .sorted(Comparator.comparing(AvailableSlot::startTime).thenComparing(AvailableSlot::staffId))
+                        .toList();
+            }
+
+            if (status == SalonAvailability.DayStatus.OPEN) {
+                openDaysAdded++;
+                if (firstAvailable == null) {
+                    var f = free.get(0);
+                    firstAvailable = new SalonAvailability.FirstAvailable(day, f.startTime(), f.staffId());
+                }
+            } else if (limit != null) {
+                // limit counts OPEN days only — don't emit the blocked ones in a limited view.
+                continue;
+            }
+
+            days.add(new SalonAvailability.DayAvailability(
+                    day, dow, status, reason,
+                    free.size(), free.isEmpty() ? null : free.get(0).startTime(),
+                    openStaff, slotView));
+        }
+
+        return new SalonAvailability(serviceId, serviceName, duration, staffId, start, end, days, firstAvailable);
+    }
+
+    /** The stylist's bookable window for a date: a one-off override wins over the weekly row; {@code null} = not working. */
+    private static LocalTime[] windowFor(Long staffId, LocalDate date, DayOfWeek dow,
+                                         Map<Long, Map<DayOfWeek, LocalTime[]>> weekly,
+                                         Map<Long, Map<LocalDate, StaffAvailabilityOverride>> overrides) {
+        var override = overrides.getOrDefault(staffId, Map.of()).get(date);
+        if (override != null) {
+            return (override.available() && override.startTime() != null && override.endTime() != null)
+                    ? new LocalTime[]{override.startTime(), override.endTime()}
+                    : null;
+        }
+        return weekly.getOrDefault(staffId, Map.of()).get(dow);
+    }
+
+    private static String prettyPlural(DayOfWeek dow) {
+        return dow.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) + "s";
     }
 
     // ── Bookings ──────────────────────────────────────────────────────────────

@@ -390,6 +390,65 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/salon/{salonId}/availability:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Booking]
+      summary: Flexible availability query across a date range
+      description: |
+        Customer-facing. One call that answers the whole Gen-UI / assistant booking flow:
+        which days can I come in, what times on a given day, which days does a stylist work,
+        and who is free on a day. Scans `[from, to]` (defaults: today → the salon's
+        `bookingAdvanceDays`; the span is capped at 92 days) and returns one
+        `DayAvailability` per date with a `status`:
+        `OPEN` (≥1 unbooked slot), `SALON_CLOSED` (holiday, one-off closure, or a
+        non-working weekday — `reason` names it), `STAFF_OFF` (open but no candidate
+        stylist scheduled), or `FULLY_BOOKED`. `granularity=SLOT` also fills each day's
+        `slots`. `limit` returns only the first N `OPEN` days (blocked days omitted).
+        `firstAvailable` is the soonest bookable slot in the range, or null.
+      operationId: getAvailability
+      parameters:
+        - name: serviceId
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+          description: Sizes the slots and (with no staffId) picks candidate stylists; omit for the default duration + all bookable staff
+        - name: staffId
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+          description: Restrict the query to one stylist
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: First date to scan; omitted or in the past → today
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Last date to scan; omit for today + bookingAdvanceDays (span capped at 92 days)
+        - name: granularity
+          in: query
+          required: false
+          schema: { type: string, enum: [DAY, SLOT], default: DAY }
+          description: SLOT also populates each day's `slots` array
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int32 }
+          description: Return only the first N OPEN days
+      responses:
+        "200":
+          description: Day-by-day availability for the range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalonAvailability"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/salon/{salonId}/booking:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -2973,6 +3032,81 @@ components:
             type: string
             format: date
           example: ["2026-09-14"]
+
+    SalonAvailability:
+      type: object
+      description: Result of GET /api/salon/{salonId}/availability.
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+          nullable: true
+        serviceName:
+          type: string
+          nullable: true
+        durationMinutes:
+          type: integer
+          description: Slot length used — the service's duration, or the default when no serviceId was given.
+        staffId:
+          type: integer
+          format: int64
+          nullable: true
+          description: The stylist the query was scoped to, or null for "any stylist".
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayAvailability"
+        firstAvailable:
+          nullable: true
+          type: object
+          description: The soonest bookable slot in the range, or null if none.
+          properties:
+            date: { type: string, format: date }
+            startTime: { type: string, format: time, example: "09:00" }
+            staffId: { type: integer, format: int64 }
+
+    DayAvailability:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        weekday:
+          type: string
+          enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+          description: The real weekday for `date` (server-computed).
+        status:
+          type: string
+          enum: [OPEN, SALON_CLOSED, STAFF_OFF, FULLY_BOOKED]
+        reason:
+          type: string
+          nullable: true
+          description: Present unless status is OPEN — names the holiday/closure or explains the block.
+        openSlotCount:
+          type: integer
+        firstOpenTime:
+          type: string
+          format: time
+          nullable: true
+          example: "09:00"
+        availableStaffIds:
+          type: array
+          description: Stylists with at least one free slot that day.
+          items:
+            type: integer
+            format: int64
+        slots:
+          type: array
+          nullable: true
+          description: Only populated when granularity=SLOT.
+          items:
+            $ref: "#/components/schemas/AvailableSlot"
 
     Booking:
       type: object

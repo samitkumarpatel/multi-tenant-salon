@@ -27,4 +27,13 @@ interface SalonApiClient {
     @GetExchange("/{salonId}/slots")
     String getSlots(@PathVariable String salonId, @RequestParam Long serviceId,
                      @RequestParam String date, @RequestParam(required = false) Long staffId);
+
+    @GetExchange("/{salonId}/availability")
+    String getAvailability(@PathVariable String salonId,
+                           @RequestParam(required = false) Long serviceId,
+                           @RequestParam(required = false) Long staffId,
+                           @RequestParam(required = false) String from,
+                           @RequestParam(required = false) String to,
+                           @RequestParam(required = false) String granularity,
+                           @RequestParam(required = false) Integer limit);
 }

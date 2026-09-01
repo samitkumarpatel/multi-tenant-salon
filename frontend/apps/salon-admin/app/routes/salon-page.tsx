@@ -478,7 +478,13 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
         )}
 
         <button
-          onClick={() => onChange(DEFAULT_THEME)}
+          onClick={() => onChange({
+            ...DEFAULT_THEME,
+            // Reset the visual settings only — keep the salon's identity and which
+            // website experience it uses, or a Gen-UI salon would flip to STATIC_WEBSITE.
+            salonId: theme.salonId,
+            websiteType: theme.websiteType,
+          })}
           className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer hover:underline"
         >
           Reset to defaults

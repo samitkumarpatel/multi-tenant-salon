@@ -343,6 +343,14 @@ export function GenerativeUIWebsite({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
+  // Follow the saved layout preference when it changes. At runtime `theme.chatLayout` is
+  // constant so this only matches the initial state; in the salon-admin design panel the
+  // admin flips it live and the preview must snap to the new choice (the runtime header
+  // toggle still overrides it freely afterwards — that never changes `theme.chatLayout`).
+  useEffect(() => {
+    setIsFullscreen(!isBooking && theme.chatLayout !== "windowed");
+  }, [isBooking, theme.chatLayout]);
+
   // Fullscreen (website context only): lock body scroll and let Esc collapse it.
   useEffect(() => {
     if (!isFullscreen || typeof document === "undefined") return;

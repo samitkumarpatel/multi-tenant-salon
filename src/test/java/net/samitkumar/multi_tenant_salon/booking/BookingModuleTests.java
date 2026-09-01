@@ -293,6 +293,117 @@ class BookingModuleTests {
                 .expectStatus().isNotFound();
     }
 
+    // ── Flexible availability query ───────────────────────────────────────────
+
+    private void setMondayTuesdayAvailability() {
+        client.put()
+                .uri("/api/salon-admin/{salonId}/staff/{staffId}/availability", salonId, staffId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        [{"dayOfWeek": "MONDAY",  "startTime": "09:00", "endTime": "17:00", "available": true},
+                         {"dayOfWeek": "TUESDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+    }
+
+    @Test
+    void availabilityDayView_marksOpenWorkingDaysAndStaffOffDays() {
+        setMondayTuesdayAvailability();
+
+        client.get()
+                .uri(u -> u.path("/api/salon/{salonId}/availability")
+                        .queryParam("serviceId", serviceId)
+                        .queryParam("from", TEST_DATE)          // 2027-01-04, a Monday
+                        .queryParam("to", "2027-01-07")          // Thursday
+                        .build(salonId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.durationMinutes").isEqualTo(60)
+                .jsonPath("$.days.length()").isEqualTo(4)
+                .jsonPath("$.days[0].date").isEqualTo("2027-01-04")
+                .jsonPath("$.days[0].weekday").isEqualTo("MONDAY")
+                .jsonPath("$.days[0].status").isEqualTo("OPEN")
+                .jsonPath("$.days[0].openSlotCount").isEqualTo(8)
+                .jsonPath("$.days[0].firstOpenTime").isEqualTo("09:00:00")
+                .jsonPath("$.days[1].status").isEqualTo("OPEN")            // Tuesday
+                .jsonPath("$.days[2].status").isEqualTo("STAFF_OFF")       // Wednesday
+                .jsonPath("$.days[2].reason").value(String.class, r -> org.assertj.core.api.Assertions.assertThat(r).contains("Wednesday"))
+                .jsonPath("$.firstAvailable.date").isEqualTo("2027-01-04")
+                .jsonPath("$.firstAvailable.startTime").isEqualTo("09:00:00");
+    }
+
+    @Test
+    void availabilitySlotView_withLimit_returnsOnlyOpenDaysWithSlots() {
+        setMondayTuesdayAvailability();
+
+        client.get()
+                .uri(u -> u.path("/api/salon/{salonId}/availability")
+                        .queryParam("serviceId", serviceId)
+                        .queryParam("from", TEST_DATE)
+                        .queryParam("granularity", "SLOT")
+                        .queryParam("limit", "1")
+                        .build(salonId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.days.length()").isEqualTo(1)
+                .jsonPath("$.days[0].date").isEqualTo("2027-01-04")
+                .jsonPath("$.days[0].status").isEqualTo("OPEN")
+                .jsonPath("$.days[0].slots.length()").isEqualTo(8)
+                .jsonPath("$.days[0].slots[0].startTime").isEqualTo("09:00:00")
+                .jsonPath("$.days[0].slots[0].booked").isEqualTo(false);
+    }
+
+    @Test
+    void availabilityDayView_scopedToStaffId_isStaffOffWhenThatStylistDoesNotWork() {
+        setMondayTuesdayAvailability();
+
+        client.get()
+                .uri(u -> u.path("/api/salon/{salonId}/availability")
+                        .queryParam("serviceId", serviceId)
+                        .queryParam("staffId", staffId)
+                        .queryParam("from", "2027-01-06")   // Wednesday — no availability row
+                        .queryParam("to", "2027-01-06")
+                        .build(salonId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.staffId").isEqualTo(Integer.parseInt(staffId))
+                .jsonPath("$.days[0].status").isEqualTo("STAFF_OFF")
+                .jsonPath("$.days[0].reason").value(String.class, r -> org.assertj.core.api.Assertions.assertThat(r).contains("stylist"));
+    }
+
+    @Test
+    void availabilityDayView_marksASalonHolidayClosedWithItsName() {
+        setMondayTuesdayAvailability();
+
+        client.post()
+                .uri("/api/salon-admin/{salonId}/holidays", salonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {"name": "Founders Day", "month": 1, "day": 5, "endMonth": null, "endDay": null, "year": 2027}
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+
+        client.get()
+                .uri(u -> u.path("/api/salon/{salonId}/availability")
+                        .queryParam("serviceId", serviceId)
+                        .queryParam("from", TEST_DATE)       // Mon 2027-01-04
+                        .queryParam("to", "2027-01-05")       // Tue 2027-01-05 — the holiday
+                        .build(salonId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.days[0].status").isEqualTo("OPEN")
+                .jsonPath("$.days[1].date").isEqualTo("2027-01-05")
+                .jsonPath("$.days[1].status").isEqualTo("SALON_CLOSED")
+                .jsonPath("$.days[1].reason").value(String.class, r -> org.assertj.core.api.Assertions.assertThat(r).contains("Founders Day"))
+                .jsonPath("$.firstAvailable.date").isEqualTo("2027-01-04");
+    }
+
     // ── Bookings ──────────────────────────────────────────────────────────────
 
     @Test
