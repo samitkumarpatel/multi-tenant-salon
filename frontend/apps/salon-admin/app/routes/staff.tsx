@@ -773,10 +773,10 @@ export default function Staff() {
       role: m.role, status: m.status,
       availableForBooking: m.availableForBooking ?? true,
       specializations: [...(m.specializations ?? [])],
-      photo: m.photoUrl ?? null,
+      photo: m.avatarUrl ?? null,
       photoFile: null,
       bio: m.bio ?? "",
-      workUrls: [...(m.photoUrls ?? [])],
+      workUrls: [...(m.workMedia ?? [])],
       workFiles: [],
     });
     setModal((p) => ({ ...p, edit: true }));
@@ -796,14 +796,14 @@ export default function Staff() {
         body: JSON.stringify({ name: fields.name, email: fields.email, phone: fields.phone, role: fields.role, specializations: fields.specializations, bio: fields.bio.trim() || null, schedule: sched }),
       });
       if (fields.photoFile || fields.workFiles.length) {
-        let photoUrl: string | undefined;
+        let avatarUrl: string | undefined;
         if (fields.photoFile) {
           const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/staff/${member.id}/photo-upload-url`, {
             method: "POST",
             body: JSON.stringify({ contentType: fields.photoFile.type }),
           });
           await uploadToPresignedUrl(upload.presignedUrl, fields.photoFile);
-          photoUrl = upload.publicUrl;
+          avatarUrl = upload.publicUrl;
         }
         const uploadedWork: string[] = [];
         for (const file of fields.workFiles) {
@@ -811,7 +811,7 @@ export default function Staff() {
         }
         member = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${member.id}`, {
           method: "PUT",
-          body: JSON.stringify({ name: member.name, email: member.email, phone: member.phone, role: member.role, status: member.status, availableForBooking: member.availableForBooking, specializations: member.specializations, bio: fields.bio.trim() || null, photoUrl, photoUrls: [...fields.workUrls, ...uploadedWork] }),
+          body: JSON.stringify({ name: member.name, email: member.email, phone: member.phone, role: member.role, status: member.status, availableForBooking: member.availableForBooking, specializations: member.specializations, bio: fields.bio.trim() || null, avatarUrl, workMedia: [...fields.workUrls, ...uploadedWork] }),
         });
       }
       setStaff((p) => [member, ...p]);
@@ -825,14 +825,14 @@ export default function Staff() {
     if (!target) return;
     setBusy(true);
     try {
-      let photoUrl: string | null = ef.photo?.startsWith("data:") ? null : (ef.photo ?? null);
+      let avatarUrl: string | null = ef.photo?.startsWith("data:") ? null : (ef.photo ?? null);
       if (ef.photoFile) {
         const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/staff/${target.id}/photo-upload-url`, {
           method: "POST",
           body: JSON.stringify({ contentType: ef.photoFile.type }),
         });
         await uploadToPresignedUrl(upload.presignedUrl, ef.photoFile);
-        photoUrl = upload.publicUrl;
+        avatarUrl = upload.publicUrl;
       }
       const uploadedWork: string[] = [];
       for (const file of ef.workFiles) {
@@ -840,7 +840,7 @@ export default function Staff() {
       }
       const updated = await apiFetch<StaffMember>(`${ADMIN_API}/${sid}/staff/${target.id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, photoUrl, bio: ef.bio.trim() || null, photoUrls: [...ef.workUrls, ...uploadedWork] }),
+        body: JSON.stringify({ name: ef.name, email: ef.email, phone: ef.phone, role: ef.role, status: ef.status, availableForBooking: ef.availableForBooking, specializations: ef.specializations, avatarUrl, bio: ef.bio.trim() || null, workMedia: [...ef.workUrls, ...uploadedWork] }),
       });
       setStaff((p) => p.map((m) => m.id === updated.id ? updated : m));
       closeModal("edit");
@@ -932,8 +932,8 @@ export default function Staff() {
             {staff.map((m) => (
               <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
 
-                {m.photoUrl ? (
-                  <img src={m.photoUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+                {m.avatarUrl ? (
+                  <img src={m.avatarUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
                     <span className="text-xs font-bold text-slate-500">
@@ -974,11 +974,11 @@ export default function Staff() {
                       ))}
                     </div>
                   ) : null}
-                  {(m.bio || (m.photoUrls?.length ?? 0) > 0) && (
+                  {(m.bio || (m.workMedia?.length ?? 0) > 0) && (
                     <div className="text-[0.62rem] text-slate-400 mt-1 truncate">
                       {m.bio ? m.bio : null}
-                      {m.bio && (m.photoUrls?.length ?? 0) > 0 ? " · " : null}
-                      {(m.photoUrls?.length ?? 0) > 0 ? `${m.photoUrls!.length} work item${m.photoUrls!.length !== 1 ? "s" : ""}` : null}
+                      {m.bio && (m.workMedia?.length ?? 0) > 0 ? " · " : null}
+                      {(m.workMedia?.length ?? 0) > 0 ? `${m.workMedia!.length} work item${m.workMedia!.length !== 1 ? "s" : ""}` : null}
                     </div>
                   )}
                 </div>

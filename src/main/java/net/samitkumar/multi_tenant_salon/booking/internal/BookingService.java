@@ -12,6 +12,7 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverride;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
+import net.samitkumar.multi_tenant_salon.booking.StaffSchedule;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
@@ -32,8 +33,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -106,6 +109,27 @@ class BookingService implements BookingApi {
 
     List<StaffAvailability> getAvailability(UUID salonId, Long staffId) {
         return availabilityRepo.findBySalonIdAndStaffId(salonId, staffId);
+    }
+
+    /**
+     * The days this staff member is never bookable — same source of truth
+     * {@link #findAvailableSlots} already checks per date, rolled up so a booking UI's calendar
+     * can grey them out for this staff member up front instead of only after picking a date.
+     */
+    StaffSchedule findStaffSchedule(UUID salonId, Long staffId) {
+        var openWeekdays = availabilityRepo.findBySalonIdAndStaffId(salonId, staffId).stream()
+                .filter(StaffAvailability::available)
+                .map(StaffAvailability::dayOfWeek)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<DayOfWeek> closedWeekdays = EnumSet.allOf(DayOfWeek.class);
+        closedWeekdays.removeAll(openWeekdays);
+
+        var closedDates = overrideRepo.findBySalonIdAndStaffId(salonId, staffId).stream()
+                .filter(o -> !o.available())
+                .map(StaffAvailabilityOverride::overrideDate)
+                .toList();
+
+        return new StaffSchedule(closedWeekdays, closedDates);
     }
 
     @Transactional

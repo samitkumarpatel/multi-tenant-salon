@@ -302,8 +302,8 @@ export default function Layout() {
 
           <div className="px-4 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
-              {staff.photoUrl ? (
-                <img src={staff.photoUrl} alt={session.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+              {staff.avatarUrl ? (
+                <img src={staff.avatarUrl} alt={session.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-matcha-700">

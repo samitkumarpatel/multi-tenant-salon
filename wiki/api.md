@@ -271,8 +271,8 @@ document.
     "isOwner": false,
     "availableForBooking": true,
     "specializations": ["coloring", "balayage"],
-    "photoUrl": "https://cdn.example.com/staff/alice-avatar.jpg",
-    "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-reel.mp4"],
+    "avatarUrl": "https://cdn.example.com/staff/alice-avatar.jpg",
+    "workMedia": ["https://cdn.example.com/staff/alice-1.jpg", "https://cdn.example.com/staff/alice-reel.mp4"],
     "bio": "Alice has 10 years of experience in color and balayage.",
     "createdAt": "2026-07-08T10:00:00Z"
   }
@@ -283,9 +283,9 @@ document.
 
 | Field | Type | Notes |
 |---|---|---|
-| `photoUrl` | string | Profile photo (avatar). |
+| `avatarUrl` | string | Profile photo. Persisted in the `staff_member.profile_photo_url` column (mapped via `@Column`). |
 | `bio` | string | Free-text "About me" blurb shown on the public website. |
-| `photoUrls` | array | Image **or video** URLs of the staff member's work (`.mp4` / `.webm` / `.mov` render as video on the site). |
+| `workMedia` | array | Image **or video** URLs of the staff member's work (`.mp4` / `.webm` / `.mov` render as video on the site). Child rows in `staff_member_photo` (table name unchanged). |
 
 **Flow**
 
@@ -350,6 +350,39 @@ Returns **all** slots within each eligible staff member's working window — bot
 2. Fetches the service for duration, then for each eligible (active + `availableForBooking`) staff member resolves the effective schedule for the date (override takes precedence over weekly schedule).
 3. Generates candidate slots at service-duration intervals. Each slot is checked against existing non-cancelled bookings: conflicting slots are included with `booked = true`; open slots carry `booked = false`.
 4. Returns `List<AvailableSlot>` sorted by `startTime` then `staffId` — empty if the staff member has no schedule on that date.
+
+---
+
+### Get a staff member's schedule gaps
+
+`GET /api/salon/{salonId}/staff/{staffId}/schedule`
+
+Rolls up the days this staff member is **never** bookable — their recurring weekly days off, plus
+one-off unavailable dates — from the exact same data [Get booking slots](#get-booking-slots)
+already checks per date. Lets a booking calendar grey out days for a specific staff member up
+front (e.g. once pre-picked via "Book with {name}", or when they're the only one who can perform
+the service) instead of only discovering a day is empty after the visitor picks it and calls
+`/slots`.
+
+**Response** `200 OK`
+
+```json
+{
+  "closedWeekdays": ["MONDAY", "SATURDAY"],
+  "closedDates": ["2026-09-14"]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `closedWeekdays` | Day-of-week names (`MONDAY`–`SUNDAY`) with no `available` weekly-schedule row for this staff member |
+| `closedDates` | One-off dates (`yyyy-MM-dd`) with an unavailable `StaffAvailabilityOverride` — dates where they're exceptionally *available* (an override with `available: true`, e.g. covering an extra day) are **not** included |
+
+**Flow**
+
+1. `BookingController.getStaffSchedule(String salonId, Long staffId)` → `SalonApi.resolveId(salonId)` → `BookingService.findStaffSchedule(salonId, staffId)`.
+2. Computes `closedWeekdays` as all seven days minus those with an `available = true` row in `staff_availability`.
+3. Computes `closedDates` as every `staff_availability_override` row for this staff member with `available = false`.
 
 ---
 
@@ -468,79 +501,101 @@ attempts to override these instructions, are declined rather than answered.
 
 ```json
 {
+  "sessionId": "5f2b…",
   "context": "website",
   "message": "What are your opening hours?",
-  "history": [
-    { "role": "user", "text": "Hi!" },
-    { "role": "assistant", "text": "Hi! How can I help?" }
-  ]
+  "uiState": "[Showed the visitor an interactive services card: Haircut, Colour]"
 }
 ```
 
 `context` is `"website"` or `"booking"` and shapes the assistant's persona/tone (matches the two
-places `GenerativeUIWebsite` is embedded). `history` is the prior turns of the conversation,
-oldest first — the caller (frontend) is the source of truth for conversation state; nothing is
-persisted server-side.
+places `GenerativeUIWebsite` is embedded). `sessionId` is an opaque key the frontend mints once
+(`crypto.randomUUID()`, persisted in `sessionStorage`) and reuses for the life of the chat — the
+**server keeps the transcript** under `{salonId}:{sessionId}` in a TTL memory
+(`spring.application.chat.memory.ttl`, default 30 min idle; trimmed to
+`…memory.max-messages`, default 20). The client no longer sends `history`. When `sessionId` is
+blank/omitted the server mints one and returns it in `sessionId`; "Clear chat" mints a fresh one
+and the old transcript is left to expire.
 
-The chat renders **generative-UI cards** (services/staff/hours/location/contact lists, and the
-interactive booking picker) in place of plain assistant text, and those interactions never pass
-through this endpoint. So the frontend injects **bracketed UI-state clues** as `assistant` turns
-in `history`, e.g.:
+The chat renders **generative-UI components** (services/staff/hours/location/contact cards, the
+interactive booking picker, and the standalone date/time pickers, forms and choice lists) in
+place of plain assistant text, and those interactions never pass through this endpoint. So the
+frontend sends **one `uiState` note** describing what the visitor currently sees / is part-way
+through, e.g.:
 
-```json
-{ "role": "assistant", "text": "[Showed the visitor an interactive services card: Haircut, Colour, Beard trim. They can tap \"Book\" on any of them.]" },
-{ "role": "assistant", "text": "[The visitor is using the interactive booking picker for Haircut — they have NOT confirmed a booking. Selected so far — stylist: any available stylist; date: 2026-09-01; time: not chosen yet. Current step: time. ...]" }
+```
+[Showed the visitor an interactive services card: Haircut, Colour, Beard trim. They can tap "Book" on any of them.]
+[The visitor is using the interactive booking picker for Haircut — they have NOT confirmed a booking. Selected so far — stylist: any available stylist; date: 2026-09-01; time: not chosen yet. Current step: time. ...]
 ```
 
-This is what lets the assistant answer a later free-text follow-up ("is that booked yet?", "what
+The server records `uiState` as a synthetic prior assistant turn in memory before the message —
+this is what lets the assistant answer a later free-text follow-up ("is that booked yet?", "what
 did I pick?", "show me that list again") with context instead of a blank. The system prompt
-(`UI_STATE_NOTES` in `ChatAssistantService`) instructs the model to treat these as current state
-and never echo the brackets. Booking state specifically: an in-progress picker → "not booked
-yet"; a staged proposal → "awaiting your confirm click"; a confirmed booking → the booking id.
+(`UI_STATE_NOTES` in `ChatAssistantService`) instructs the model to treat bracketed notes as
+current state and never echo them. Booking state specifically: an in-progress picker → "not
+booked yet"; a staged proposal → "awaiting your confirm click"; a confirmed booking → the
+booking id.
 
 **Response** `200 OK`
 
 ```json
 {
-  "reply": "Here's what we offer:",
+  "sessionId": "5f2b…",
+  "message": "Here's what we offer:",
+  "components": [{ "type": "services", "props": { "forBooking": false } }],
+  "suggestedQuestions": ["How much is a haircut?", "Who does colour?", "Can I book one?"],
   "toolsUsed": ["services"],
-  "pendingBooking": null,
-  "ui": { "component": "services", "forBooking": false }
+  "pendingBooking": null
 }
 ```
+
+`sessionId` echoes the request's, or is the freshly minted one — reuse it next turn.
 
 `toolsUsed` lists which data-lookup tools the model called to answer (`salon`, `staff`,
 `services`, `holidays`, `slots`, `booking-proposal`) — empty when no lookup was needed, or when the
 assistant is unconfigured/unavailable and a fallback reply was returned instead. The `show*` /
-`startBookingPicker` render tools are **not** listed here — they're not data lookups; the `ui`
-field is their output.
+`start*` render tools are **not** listed here — they're not data lookups; the `components`
+array is their output.
 
-`ui` is the **generative-UI render directive**: the model decides which interactive card to show
-by calling a render tool (`showServices`, `showStaff`, `showOpeningHours`, `showLocation`,
-`showContact`, `startBookingPicker`), and its choice is forwarded here — the frontend no longer
-guesses the card from the reply text. `null` for a plain-text turn. Shape:
+`components` is the **generative-UI render list**: the model decides what to show by calling
+render tools (`showServices`, `showStaff`, `showOpeningHours`, `showLocation`, `showContact`,
+`startBookingPicker`, `showDatePicker`, `showTimeSlots`, `showForm`, `showButtonGroup`,
+`showRadioGroup`, `showCheckboxGroup`, `showOptionList`), and a turn can carry **several**
+(e.g. a services card *plus* a button group), rendered in order under the reply. `[]` for a
+plain-text turn. Each entry is `{ "type": …, "props": {…} }`:
 
-| field | for | meaning |
+| `type` | `props` | meaning |
 |---|---|---|
-| `component` | — | `services` \| `staff` \| `hours` \| `location` \| `contact` \| `booking-picker` |
-| `serviceId` | `booking-picker` | service to book |
-| `staffId` | `booking-picker` | preferred staff member, if the visitor named one |
-| `forStaffId` | `services` | restrict card to what this staff member offers |
-| `forServiceId` | `staff` | restrict card to who can perform this service |
-| `forBooking` | `services` | `true` frames the card as "pick one to book" |
+| `services` | `forStaffId?`, `forBooking?` | services card, optionally filtered / framed as "pick one to book" |
+| `staff` | `forServiceId?` | team card, optionally filtered to who can do a service |
+| `hours` / `location` / `contact` | — | the matching data card |
+| `booking-picker` | `serviceId`, `staffId?` | full guided staff→date→time→contact→confirm picker |
+| `date-picker` | `serviceId?`, `staffId?` | lightweight "which day works" calendar |
+| `time-slot-picker` | `serviceId`, `date`, `staffId?` | real bookable slots for a day (fetches `/slots` itself) |
+| `form` | `title`, `submitLabel?`, `fields[] {name,label,type,required,pattern}` | short field collector |
+| `button-group` / `radio-group` / `checkbox-group` / `option-list` | `prompt`, `choices[] {label,value}` | a choice to tap; the `value` is sent to `POST .../chat` as the visitor's next message |
 
-The frontend maps `component` against a fixed registry and **ignores anything it doesn't
-recognise** (the reply text still renders), so a stray or renamed component can't break a turn.
-Quick-action chips ("Our Services", "Find Us", …) still render their card client-side with no
-model call — `ui` only drives free-text turns.
+`props` is **UI scaffolding only** — ids, flags, labels, field/choice specs — never salon data:
+data-bearing components hydrate from the live public API on the frontend, so the model can't bake
+a stale price or a made-up slot into the page. The frontend maps each `type` against its registry
+and **ignores anything it doesn't recognise** (the reply text still renders), so a stray or
+renamed component can't break a turn. Quick-action chips ("Our Services", "Find Us", …) still
+render their card client-side with no model call.
+
+`suggestedQuestions` are the 2-4 chips shown **above the composer** — generated inline with the
+reply (same content as `POST .../chat/followups`), scoped to what the assistant can answer, `[]`
+when the model is unconfigured/unavailable. Each is sent to `POST .../chat` verbatim when tapped.
 
 `pendingBooking` is present only when the assistant staged a booking this turn (the direct-detail
-path — the picker path returns `ui.component: "booking-picker"` instead and the visitor completes
-it client-side):
+path — the picker path returns a `booking-picker` component instead and the visitor completes it
+client-side):
 
 ```json
 {
-  "reply": "Here's your booking — please review and confirm below.",
+  "sessionId": "5f2b…",
+  "message": "Here's your booking — please review and confirm below.",
+  "components": [],
+  "suggestedQuestions": [],
   "toolsUsed": ["services", "slots", "booking-proposal"],
   "pendingBooking": {
     "serviceId": 12,
@@ -563,19 +618,24 @@ and fires the same booking-confirmation email as the step-by-step wizard.
 
 **Flow**
 
-1. `ChatController.chat(...)` → `ChatAssistantService.reply(salonId, context, message, history)`
-2. Builds a system prompt for the given `context`, replays `history` as `UserMessage`/
-   `AssistantMessage`, and hands the model a per-request `SalonDataTools` instance bound to
-   `salonId`. The model can call:
+1. `ChatController.chat(...)` → `ChatAssistantService.reply(salonId, conversationId, context, message, uiState)`
+   (`conversationId` = `{salonId}:{sessionId}`).
+2. Records `uiState` (if any) into `ChatMemory` as a synthetic assistant turn, then calls the
+   model with a system prompt for the given `context`, a `MessageChatMemoryAdvisor` that replays
+   the stored transcript, and a per-request `SalonDataTools` instance bound to `salonId`. The
+   model can call:
    - **lookup tools** — `getSalonProfile`/`getStaff`/`getServices`/`getHolidays` (plain HTTP
      calls to this app's own `/api/salon/{salonId}/...` endpoints above) and `checkAvailability`
      (calls `/api/salon/{salonId}/slots`, so it can't invent an open time);
    - **render tools** — `showServices`/`showStaff`/`showOpeningHours`/`showLocation`/
-     `showContact`/`startBookingPicker`, which hit nothing and only record a `UiDirective` onto
-     the response as `ui` (which interactive card the frontend should render);
+     `showContact`/`startBookingPicker`/`showDatePicker`/`showTimeSlots`/`showForm`/
+     `showButtonGroup`/`showRadioGroup`/`showCheckboxGroup`/`showOptionList`, which hit nothing
+     and only append a `UiComponent` to the response `components` list;
    - `proposeBooking`, which does **not** call any mutating endpoint — it only records the
      proposed details onto the response as `pendingBooking`.
-3. If the model call fails (no/invalid API key, rate limit, network error), the error is logged
+3. After the reply, `ChatFollowupsService` runs over the updated memory to fill
+   `suggestedQuestions`.
+4. If the model call fails (no/invalid API key, rate limit, network error), the error is logged
    and a fixed fallback message is returned — the endpoint never returns 5xx for this reason.
 
 ### Suggested follow-up questions
@@ -583,27 +643,23 @@ and fires the same booking-confirmation email as the step-by-step wizard.
 `POST /api/salon/{salonId}/chat/followups`
 
 Powers the chips **above the composer** — which are *only* these dynamic suggestions, never the
-fixed category options. The Generative UI chat calls this after every assistant turn — and after
-an instant card rendered from a fixed sidebar option — passing the conversation. `ChatFollowupsService`
-generates 2-4 short next questions **from the latest message** (the assistant's most recent reply
-or the card it just showed); the earlier turns are sent as context only. Not cached. The chat's
-**sidebar and empty-state** cards remain the fixed category options (Our Services / Our Staff /
-Opening Hours / Find Us / Contact Us / Book).
+fixed category options. `POST .../chat` already returns `suggestedQuestions` inline, so the
+frontend only calls this endpoint separately when something rendered **without** a `/chat`
+round-trip — an instant card from a fixed sidebar option, or a booking-picker step change.
+`ChatFollowupsService` reads the transcript from memory (by `sessionId`) and generates 2-4 short
+next questions **from the latest message** — the `uiState` override when given, otherwise the last
+stored turn. Not cached. The chat's **sidebar and empty-state** cards remain the fixed category
+options (Our Services / Our Staff / Opening Hours / Find Us / Contact Us / Book).
 
 **Request**
 
 ```json
 {
+  "sessionId": "5f2b…",
   "context": "website",
-  "history": [
-    { "role": "user", "text": "What services do you offer?" },
-    { "role": "assistant", "text": "[Showed the visitor an interactive services card: Haircut, Colour]" }
-  ]
+  "uiState": "[Showed the visitor an interactive services card: Haircut, Colour]"
 }
 ```
-
-`history` is the same shape as [`POST .../chat`](#chat-with-the-ai-assistant) — including the
-bracketed UI-state clue lines.
 
 **Response** `200 OK`
 
@@ -926,6 +982,68 @@ salon.
 
 ---
 
+### Get Generative-UI chat usage summary
+
+`GET /api/salon-admin/{salonId}/analytics/genui-summary?days={days}`
+
+Owner-facing rollup of how visitors are using the Generative-UI chat widget on the public
+website/booking page — messages sent, interactive components shown, data-lookup tools invoked,
+and bookings proposed through chat. Recorded server-side whenever `POST /api/salon/{salonId}/chat`
+runs (see [Chat with the AI assistant](#chat-with-the-ai-assistant)); requires the same `ANALYTICS` feature flag
+as the website summary above — nothing is recorded, let alone returned, for a salon that hasn't
+opted in.
+
+Requires the same Bearer JWT auth as every other `/api/salon-admin/{salonId}/**` endpoint.
+
+| Parameter | In | Required | Notes |
+|---|---|---|---|
+| `salonId` | path | yes | Salon UUID or handler slug |
+| `days` | query | no | Look-back window in days. Default `7`. Clamped server-side to the range 1–90 |
+
+**Response** `200 OK`
+
+```json
+{
+  "totalSessions": 42,
+  "totalMessages": 210,
+  "totalBookingsProposed": 15,
+  "topComponents": [
+    { "type": "services", "count": 60 },
+    { "type": "staff", "count": 25 },
+    { "type": "quick-actions", "count": 12 }
+  ],
+  "topTools": [
+    { "tool": "services", "count": 80 },
+    { "tool": "staff", "count": 34 }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `totalSessions` | Distinct chat `sessionId`s seen in the window |
+| `totalMessages` | Total visitor messages sent to the assistant |
+| `totalBookingsProposed` | Turns where the assistant staged a booking proposal (`proposeBooking`) |
+| `topComponents` | Top 10 interactive component types rendered (`services`, `staff`, `staff-profile`, `quick-actions`, `booking-picker`, ...), descending by count. `quick-actions` is a useful proxy for how often visitors asked something off-topic with nothing else in progress |
+| `topTools` | Top 10 data-lookup tool names the assistant invoked (`salon`, `staff`, `services`, `holidays`, `slots`), descending by count |
+
+**Response** `403 Forbidden` — the target salon has not enabled the `ANALYTICS` feature flag.
+
+**Flow**
+
+1. `ChatController.chat(...)` publishes one `GenUiInteractionEvent` per notable happening in the
+   turn (message sent, each component shown, each tool invoked, a booking proposal) via
+   `ApplicationEventPublisher` — a plain in-process Spring application event, not the Azure queue
+   the public page-view/click beacon uses, since chat already runs trusted and server-side.
+2. `analytics.internal.GenUiAnalyticsListener` (`@ApplicationModuleListener`) resolves the salon id
+   and, only if `ANALYTICS` is enabled, persists a row per event into `genui_event`.
+3. `AnalyticsAdminController.genUiSummary(String salonId, int days)` resolves the salon id, checks
+   `ANALYTICS` is enabled (`403` otherwise), clamps `days` to `[1, 90]`, then
+   `AnalyticsSummaryService.summarizeGenUi(salonId, days)` aggregates `genui_event` and returns the
+   assembled `GenUiSummary`.
+
+---
+
 ## Admin — Website
 
 ### Get website theme (admin)
@@ -1177,7 +1295,7 @@ Same response as the public endpoint. See [List staff](#list-staff).
   "phone": "+1234567890",
   "role": "STYLIST",
   "specializations": ["coloring", "balayage"],
-  "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg"],
+  "workMedia": ["https://cdn.example.com/staff/alice-1.jpg"],
   "bio": "Alice has 10 years of experience in color and balayage."
 }
 ```
@@ -1189,7 +1307,7 @@ Same response as the public endpoint. See [List staff](#list-staff).
 | `phone` | string | no | |
 | `role` | string | yes | See [StaffRole](#staffrole) values |
 | `specializations` | array | no | Free-text strings |
-| `photoUrls` | array | no | Image or video URLs of the staff member's work, shown on the public website |
+| `workMedia` | array | no | Image or video URLs of the staff member's work, shown on the public website |
 | `bio` | string | no | Free-text "About me" blurb shown on the public website |
 
 New staff members are set to `status = ACTIVE` automatically.
@@ -1232,7 +1350,7 @@ New staff members are set to `status = ACTIVE` automatically.
   "status": "ON_LEAVE",
   "availableForBooking": false,
   "specializations": ["coloring", "balayage", "highlights"],
-  "photoUrls": ["https://cdn.example.com/staff/alice-1.jpg"],
+  "workMedia": ["https://cdn.example.com/staff/alice-1.jpg"],
   "bio": "Alice has 10 years of experience in color and balayage."
 }
 ```
@@ -1922,7 +2040,7 @@ Returns all staff records for the authenticated caller. Identity comes from the 
     "status": "ACTIVE",
     "isOwner": false,
     "availableForBooking": true,
-    "photoUrl": null,
+    "avatarUrl": null,
     "specializations": ["HAIR_COLOR", "HIGHLIGHTS"],
     "createdAt": "2026-01-15T10:30:00Z"
   }
@@ -1963,9 +2081,9 @@ Self-service update of the caller's own record. Any omitted field is left unchan
   "phone": "+1 555 0123",
   "specializations": ["HAIR", "MAKEUP"],
   "availableForBooking": true,
-  "photoUrl": "https://cdn.example.com/staff/42/avatar.jpg",
+  "avatarUrl": "https://cdn.example.com/staff/42/avatar.jpg",
   "bio": "Bridal and editorial specialist.",
-  "photoUrls": [
+  "workMedia": [
     "https://cdn.example.com/staff/42/work-1.jpg",
     "https://cdn.example.com/staff/42/reel.mp4"
   ]
@@ -1974,9 +2092,9 @@ Self-service update of the caller's own record. Any omitted field is left unchan
 
 | Field | Type | Notes |
 |---|---|---|
-| `photoUrl` | string | Profile photo (avatar). |
+| `avatarUrl` | string | Profile photo (avatar). |
 | `bio` | string | Free-text "About me" blurb shown on the public website. |
-| `photoUrls` | array | Image or video URLs of the staff member's work, shown on the public website. |
+| `workMedia` | array | Image or video URLs of the staff member's work, shown on the public website. |
 
 **Response** `200 OK` — `StaffMember`
 
@@ -1986,7 +2104,7 @@ Self-service update of the caller's own record. Any omitted field is left unchan
 
 `POST /api/salon-staff/{staffId}/photo-upload-url`
 
-Returns a pre-signed PUT URL the browser uses to upload a file directly to object storage — S3, Azure Blob Storage, or the backend itself in local dev — depending on `STORAGE_TYPE`. The client PUTs the file to `presignedUrl` with the matching `Content-Type` header (**and `x-ms-blob-type: BlockBlob` when the URL is an Azure Blob endpoint**), then saves `publicUrl` on the staff profile via `PATCH /profile` — as `photoUrl` (avatar) or appended to `photoUrls` (work gallery). `contentType` accepts `image/*` and `video/*` (`video/mp4`, `video/webm`, `video/quicktime`). The same endpoint exists under `/api/salon-admin/{salonId}/staff/{staffId}/photo-upload-url` for admins.
+Returns a pre-signed PUT URL the browser uses to upload a file directly to object storage — S3, Azure Blob Storage, or the backend itself in local dev — depending on `STORAGE_TYPE`. The client PUTs the file to `presignedUrl` with the matching `Content-Type` header (**and `x-ms-blob-type: BlockBlob` when the URL is an Azure Blob endpoint**), then saves `publicUrl` on the staff profile via `PATCH /profile` — as `avatarUrl` (profile photo) or appended to `workMedia` (work gallery). `contentType` accepts `image/*` and `video/*` (`video/mp4`, `video/webm`, `video/quicktime`). The same endpoint exists under `/api/salon-admin/{salonId}/staff/{staffId}/photo-upload-url` for admins.
 
 **Request**
 

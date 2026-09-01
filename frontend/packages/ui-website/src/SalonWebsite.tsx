@@ -11,6 +11,7 @@ import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
 import { FEATURE_NAV } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
+import { staffAvatar, MediaThumb, Lightbox } from "./StaffMedia";
 import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, SalonHoliday } from "./types";
 
 export type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme };
@@ -18,13 +19,6 @@ export type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme };
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** The staff member's profile avatar, falling back to the first non-video item
- *  of their work gallery when no dedicated avatar is set. */
-function staffAvatar(m: StaffMember): string | undefined {
-  if (m.photoUrl && !isVideoUrl(m.photoUrl)) return m.photoUrl;
-  return (m.photoUrls ?? []).find((u) => !isVideoUrl(u));
-}
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
@@ -139,7 +133,7 @@ function mediaCounts(urls: string[] = []) {
 
 /** Human "6 photos · 1 video" / "Read bio" hint for a staff member's row. */
 function portfolioHint(m: StaffMember): string | null {
-  const { photos, videos } = mediaCounts(m.photoUrls);
+  const { photos, videos } = mediaCounts(m.workMedia);
   const bits: string[] = [];
   if (photos) bits.push(`${photos} photo${photos === 1 ? "" : "s"}`);
   if (videos) bits.push(`${videos} video${videos === 1 ? "" : "s"}`);
@@ -149,41 +143,7 @@ function portfolioHint(m: StaffMember): string | null {
 }
 
 function staffHasDetails(m: StaffMember): boolean {
-  return (m.photoUrls?.length ?? 0) > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
-}
-
-/** A single work-sample tile — image, or video with a play affordance. Opens the lightbox on click. */
-function MediaThumb({ url, onClick, className = "" }: { url: string; onClick: () => void; className?: string }) {
-  const video = isVideoUrl(url);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group/thumb relative block overflow-hidden bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 ${className}`}
-    >
-      {video ? (
-        <>
-          <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-          <span className="absolute inset-0 flex items-center justify-center">
-            <span className="w-9 h-9 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center transition-transform group-hover/thumb:scale-110">
-              <Play className="w-4 h-4 text-white translate-x-[1px]" fill="currentColor" />
-            </span>
-          </span>
-          <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[9px] font-bold uppercase tracking-wide">
-            <Film className="w-2.5 h-2.5" /> Video
-          </span>
-        </>
-      ) : (
-        <img
-          src={url}
-          alt=""
-          loading="lazy"
-          className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
-          onError={(e) => { e.currentTarget.style.display = "none"; }}
-        />
-      )}
-    </button>
-  );
+  return (m.workMedia?.length ?? 0) > 0 || !!m.bio || (m.specializations?.length ?? 0) > 0;
 }
 
 /** Overlapping thumbnail peek used as a "there's a portfolio here" hint on a staff row. */
@@ -223,51 +183,13 @@ function ThumbStack({ urls, accent }: { urls: string[]; accent: string }) {
   );
 }
 
-/** Full-screen photo / video viewer. Purely presentational — the parent owns index + keys. */
-function Lightbox({ items, index, title, onClose, onPrev, onNext }: {
-  items: string[]; index: number; title: string;
-  onClose: () => void; onPrev: () => void; onNext: () => void;
-}) {
-  const url = items[index];
-  return createPortal(
-    <div className="fixed inset-0 z-[130] flex flex-col bg-black/92 backdrop-blur-sm" style={{ animation: "sw-fade .15s ease" }} onClick={onClose}>
-      <div className="flex items-center justify-between h-14 px-4 text-white/75 text-xs font-medium">
-        <span className="tabular-nums">{title} · {index + 1} / {items.length}</span>
-        <button type="button" onClick={onClose} aria-label="Close" className="p-2 -m-2 hover:text-white transition-colors cursor-pointer">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="flex-1 min-h-0 flex items-center justify-center px-4 pb-6 sm:px-16" onClick={(e) => e.stopPropagation()}>
-        {isVideoUrl(url) ? (
-          <video key={url} src={url} controls autoPlay playsInline className="max-h-full max-w-full rounded-lg bg-black" />
-        ) : (
-          <img key={url} src={url} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
-        )}
-      </div>
-      {items.length > 1 && (
-        <>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onPrev(); }} aria-label="Previous"
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onNext(); }} aria-label="Next"
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer">
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </>
-      )}
-    </div>,
-    document.body,
-  );
-}
-
 /** Focused "meet this stylist" panel: about + work grid + book CTA.
  *  Bottom-sheet on mobile, centred card on larger screens. */
 function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, onClose }: {
   member: StaffMember; theme: WebsiteTheme; accentText: string;
   hasBooking?: boolean; onBook: (m: StaffMember) => void; onClose: () => void;
 }) {
-  const media = member.photoUrls ?? [];
+  const media = member.workMedia ?? [];
   const avatar = staffAvatar(member);
   const firstName = member.name.split(" ")[0];
   const [lb, setLb] = useState<number | null>(null);
@@ -976,7 +898,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
                       {activeStaff.map((m) => {
                         const avatar = staffAvatar(m);
-                        const { photos, videos } = mediaCounts(m.photoUrls);
+                        const { photos, videos } = mediaCounts(m.workMedia);
                         const detail = staffHasDetails(m);
                         return (
                           <div key={m.id} role="button" tabIndex={0}
@@ -1020,7 +942,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
                     {activeStaff.map((m) => {
                       const avatar = staffAvatar(m);
-                      const workMedia = m.photoUrls ?? [];
+                      const workMedia = m.workMedia ?? [];
                       const hint = portfolioHint(m);
                       const interactive = staffHasDetails(m) || hasBooking;
                       return (

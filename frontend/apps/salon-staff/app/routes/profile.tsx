@@ -273,7 +273,7 @@ export default function Profile() {
     setForm({
       name: member.name,
       phone: member.phone ?? "",
-      photo: member.photoUrl ?? null,
+      photo: member.avatarUrl ?? null,
       photoFile: null,
       specializations: [...(member.specializations ?? [])],
       availableForBooking: member.availableForBooking ?? true,
@@ -286,7 +286,7 @@ export default function Profile() {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      let photoUrl: string | undefined;
+      let avatarUrl: string | undefined;
 
       if (form.photoFile) {
         const upload = await apiFetch<PresignedUpload>(`${STAFF_PORTAL_API}/${member.id}/photo-upload-url`, {
@@ -294,11 +294,11 @@ export default function Profile() {
           body: JSON.stringify({ contentType: form.photoFile.type }),
         });
         await uploadToPresignedUrl(upload.presignedUrl, form.photoFile);
-        photoUrl = upload.publicUrl;
+        avatarUrl = upload.publicUrl;
       }
 
       // Work-gallery media is managed on its own page (/portal/media) — leaving
-      // photoUrls out of this PATCH keeps it untouched server-side.
+      // workMedia out of this PATCH keeps it untouched server-side.
       const body: Record<string, unknown> = {
         name: form.name.trim(),
         phone: form.phone.trim() || null,
@@ -306,7 +306,7 @@ export default function Profile() {
         availableForBooking: form.availableForBooking,
         bio: form.bio.trim() || null,
       };
-      if (photoUrl !== undefined) body.photoUrl = photoUrl;
+      if (avatarUrl !== undefined) body.avatarUrl = avatarUrl;
 
       const updated = await apiFetch<StaffMember>(`${STAFF_PORTAL_API}/${member.id}/profile`, {
         method: "PATCH",
@@ -333,8 +333,8 @@ export default function Profile() {
         {/* ── Staff card ── */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <div className="flex items-center gap-4 px-4 py-4 border-b border-slate-100">
-            {member.photoUrl ? (
-              <img src={member.photoUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-slate-200" />
+            {member.avatarUrl ? (
+              <img src={member.avatarUrl} alt={member.name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-slate-200" />
             ) : (
               <UserCircle className="w-10 h-10 text-slate-300 shrink-0" />
             )}
@@ -406,7 +406,7 @@ export default function Profile() {
             )}
           </div>
 
-          {(member.bio || (member.photoUrls?.length ?? 0) > 0) && (
+          {(member.bio || (member.workMedia?.length ?? 0) > 0) && (
             <div className="px-5 pb-4 pt-1 border-t border-slate-100 space-y-3">
               {member.bio && (
                 <div>
@@ -414,7 +414,7 @@ export default function Profile() {
                   <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{member.bio}</p>
                 </div>
               )}
-              {(member.photoUrls?.length ?? 0) > 0 && (
+              {(member.workMedia?.length ?? 0) > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">My work</p>
@@ -426,7 +426,7 @@ export default function Profile() {
                     </Link>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {member.photoUrls!.map((url) => (
+                    {member.workMedia!.map((url) => (
                       <WorkMedia key={url} url={url} className="h-24 w-32 shrink-0 object-cover rounded-lg border border-slate-200" />
                     ))}
                   </div>

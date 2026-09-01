@@ -61,40 +61,40 @@ public class StaffService implements StaffApi {
     @Override
     public Optional<StaffMember> updateProfile(Long staffId, String name, String phone,
                                                List<String> specializations, Boolean availableForBooking,
-                                               String photoUrl, String bio, List<String> photoUrls) {
+                                               String avatarUrl, String bio, List<String> workMedia) {
         return repository.findById(staffId).map(existing -> {
             var specs = (specializations != null)
                     ? specializations.stream().map(StaffMember.Specialization::new).toList()
                     : existing.specializations();
             boolean bookable = (availableForBooking != null) ? availableForBooking : existing.availableForBooking();
-            String photo = photoUrl != null ? photoUrl : existing.photoUrl();
+            String avatar = avatarUrl != null ? avatarUrl : existing.avatarUrl();
             String about = bio != null ? bio : existing.bio();
-            var work = photoUrls != null ? toPhotoUrls(photoUrls) : existing.photoUrls();
+            var media = workMedia != null ? toWorkMedia(workMedia) : existing.workMedia();
             var updated = new StaffMember(
                     existing.id(), existing.salonId(), name, existing.email(), phone,
                     existing.role(), existing.status(), existing.isOwner(),
-                    bookable, photo, about, specs, work, existing.createdAt());
+                    bookable, avatar, about, specs, media, existing.createdAt());
             return repository.save(updated);
         });
     }
 
-    private static List<StaffMember.PhotoUrl> toPhotoUrls(List<String> urls) {
+    private static List<StaffMember.WorkMedia> toWorkMedia(List<String> urls) {
         return urls != null
-                ? urls.stream().map(StaffMember.PhotoUrl::new).toList()
+                ? urls.stream().map(StaffMember.WorkMedia::new).toList()
                 : List.of();
     }
 
     @Transactional
     StaffMember onboard(UUID salonId, String name, String email, String phone, StaffRole role,
                         boolean isOwner, List<String> specializations,
-                        String bio, List<String> photoUrls,
+                        String bio, List<String> workMedia,
                         List<StaffOnboardedEvent.DaySchedule> schedule) {
         log.info("[StaffService] Onboarding staff '{}' ({}) role={} salon={}", name, email, role, salonId);
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
                 : List.<StaffMember.Specialization>of();
         var member = new StaffMember(null, salonId, name, email, phone, role, StaffStatus.ACTIVE,
-                isOwner, true, null, bio, specs, toPhotoUrls(photoUrls), Instant.now());
+                isOwner, true, null, bio, specs, toWorkMedia(workMedia), Instant.now());
         var saved = repository.save(member);
         log.info("[StaffService] Staff onboarded id={} salon={}", saved.id(), salonId);
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
@@ -124,8 +124,8 @@ public class StaffService implements StaffApi {
 
     Optional<StaffMember> update(UUID salonId, Long staffId, String name, String email, String phone,
                                  StaffRole role, StaffStatus status, boolean availableForBooking,
-                                 List<String> specializations, String photoUrl,
-                                 String bio, List<String> photoUrls) {
+                                 List<String> specializations, String avatarUrl,
+                                 String bio, List<String> workMedia) {
         log.info("[StaffService] Updating staff id={} salon={} role={} status={}", staffId, salonId, role, status);
         var specs = specializations != null
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
@@ -133,10 +133,10 @@ public class StaffService implements StaffApi {
         return repository.findById(staffId)
                 .filter(m -> m.salonId().equals(salonId))
                 .map(existing -> {
-                    String photo = photoUrl != null ? photoUrl : existing.photoUrl();
-                    var work = photoUrls != null ? toPhotoUrls(photoUrls) : existing.photoUrls();
+                    String avatar = avatarUrl != null ? avatarUrl : existing.avatarUrl();
+                    var media = workMedia != null ? toWorkMedia(workMedia) : existing.workMedia();
                     var updated = new StaffMember(existing.id(), existing.salonId(), name, email, phone,
-                            role, status, existing.isOwner(), availableForBooking, photo, bio, specs, work,
+                            role, status, existing.isOwner(), availableForBooking, avatar, bio, specs, media,
                             existing.createdAt());
                     return repository.save(updated);
                 });

@@ -49,9 +49,9 @@ function initials(name: string) {
 
 /** The staff member's profile avatar, falling back to the first image (not video)
  *  from their work gallery when no dedicated avatar is set. */
-function staffAvatar(m: { photoUrls?: string[]; photoUrl?: string }) {
-  return (m.photoUrl && !isVideoUrl(m.photoUrl) ? m.photoUrl : undefined)
-    ?? (m.photoUrls ?? []).find((u) => !isVideoUrl(u));
+function staffAvatar(m: { workMedia?: string[]; avatarUrl?: string }) {
+  return (m.avatarUrl && !isVideoUrl(m.avatarUrl) ? m.avatarUrl : undefined)
+    ?? (m.workMedia ?? []).find((u) => !isVideoUrl(u));
 }
 
 const inputCls =

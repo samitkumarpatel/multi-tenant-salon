@@ -4,17 +4,22 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Suggests the questions a visitor is likely to want to ask <em>next</em>, given the salon's
- * data and the conversation so far. The frontend shows these as chips above the composer and
- * refreshes them after every assistant turn (and after an instant card render from a sidebar
- * option). Scoped to what the chat assistant can actually answer; returns an empty list on any
- * failure so the frontend can fall back to its static suggestion chips.
+ * data and the conversation so far. Reads the conversation from the shared {@link ChatMemory}
+ * (keyed by {@code salonId:sessionId}) rather than a client-sent history array. Called both
+ * inline by {@link ChatAssistantService} after each reply and directly via
+ * {@code POST /chat/followups} when the frontend renders something without a round-trip (an
+ * instant sidebar card, or a booking-picker step change). Returns an empty list on any failure
+ * so the frontend can fall back to its static suggestion chips.
  */
 @Service
 @Slf4j
@@ -38,11 +43,12 @@ class ChatFollowupsService {
 
             1. It contains a bracketed [ ... ] description of an interactive element on the
                visitor's screen — a services list, a team list, an opening-hours / location /
-               contact card, the booking picker, or a staged booking. Then the follow-ups MUST
-               be about what THAT element is showing or asking RIGHT NOW — the specific people,
-               services, hours or options it lists, or how to act on its current step — and
-               MUST NOT jump to a later step or an unrelated topic. Always obey any "Base the
-               follow-ups on ..." hint written inside the [ ... ] text. Examples:
+               contact card, a date or time picker, the booking picker, a form, or a set of
+               choices. Then the follow-ups MUST be about what THAT element is showing or asking
+               RIGHT NOW — the specific people, services, hours or options it lists, or how to
+               act on its current step — and MUST NOT jump to a later step or an unrelated
+               topic. Always obey any "Base the follow-ups on ..." hint written inside the
+               [ ... ] text. Examples:
                  - services card listing services -> "How much is <a listed service>?",
                    "How long does <service> take?", "Who does <service>?", "Book <service>"
                  - team card listing stylists     -> "Tell me about <a listed stylist>",
@@ -70,28 +76,43 @@ class ChatFollowupsService {
 
     private final ChatClient chatClient;
     private final SalonApiClient salonApiClient;
+    private final ChatMemory chatMemory;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    ChatFollowupsService(ChatClient.Builder chatClientBuilder, SalonApiClient salonApiClient) {
+    ChatFollowupsService(ChatClient.Builder chatClientBuilder, SalonApiClient salonApiClient, ChatMemory chatMemory) {
         this.chatClient = chatClientBuilder.build();
         this.salonApiClient = salonApiClient;
+        this.chatMemory = chatMemory;
     }
 
-    List<String> followups(String salonId, List<ChatTurn> history) {
+    /**
+     * @param latestOverride when non-blank, treated as the LATEST MESSAGE (a bracketed UI-state
+     *                       clue the frontend built, or the reply-plus-component description from
+     *                       {@link ChatAssistantService}); otherwise the last turn in memory is
+     *                       used.
+     */
+    List<String> followups(String salonId, String conversationId, String latestOverride) {
         try {
-            var turns = history.stream()
-                    .filter(t -> t.text() != null && !t.text().isBlank())
-                    .toList();
-            if (turns.isEmpty()) return List.of();
+            var turns = new ArrayList<String>();
+            for (Message m : chatMemory.get(conversationId)) {
+                var rendered = render(m);
+                if (rendered != null) {
+                    turns.add(rendered);
+                }
+            }
+            if (latestOverride != null && !latestOverride.isBlank()) {
+                turns.add("Assistant: " + latestOverride.strip());
+            }
+            if (turns.isEmpty()) {
+                return List.of();
+            }
 
             var latest = turns.get(turns.size() - 1);
-            var earlier = turns.subList(0, turns.size() - 1).stream()
-                    .map(ChatFollowupsService::render)
-                    .collect(Collectors.joining("\n"));
+            var earlier = String.join("\n", turns.subList(0, turns.size() - 1));
 
             var user = salonData(salonId)
                     + "\n\nEARLIER TURNS (context only):\n" + (earlier.isBlank() ? "(none)" : earlier)
-                    + "\n\nLATEST MESSAGE (base the follow-ups on THIS):\n" + render(latest);
+                    + "\n\nLATEST MESSAGE (base the follow-ups on THIS):\n" + latest;
 
             String content = chatClient.prompt()
                     .system(SYSTEM_PROMPT)
@@ -106,8 +127,18 @@ class ChatFollowupsService {
         }
     }
 
-    private static String render(ChatTurn t) {
-        return ("user".equals(t.role()) ? "Visitor: " : "Assistant: ") + t.text();
+    /** Renders one memory message as a transcript line; {@code null} for system / tool turns. */
+    private static String render(Message m) {
+        if (m.getText() == null || m.getText().isBlank()) {
+            return null;
+        }
+        if (m.getMessageType() == MessageType.USER) {
+            return "Visitor: " + m.getText();
+        }
+        if (m.getMessageType() == MessageType.ASSISTANT) {
+            return "Assistant: " + m.getText();
+        }
+        return null;
     }
 
     private String salonData(String salonId) {

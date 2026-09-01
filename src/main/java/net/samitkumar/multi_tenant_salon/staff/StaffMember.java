@@ -21,15 +21,18 @@ public record StaffMember(
         StaffStatus status,
         @Column("is_owner") boolean isOwner,
         @Column("available_for_booking") boolean availableForBooking,
-        @Column("profile_photo_url") String photoUrl,
+        // JSON: "avatarUrl". DB column keeps its original name, mapped here.
+        @Column("profile_photo_url") String avatarUrl,
         String bio,
         @MappedCollection(idColumn = "staff_member_id") List<Specialization> specializations,
-        @MappedCollection(idColumn = "staff_member_id") List<PhotoUrl> photoUrls,
+        // JSON: "workMedia" — the staff member's portfolio images/videos. DB table keeps its
+        // original name (staff_member_photo), mapped on WorkMedia below.
+        @MappedCollection(idColumn = "staff_member_id") List<WorkMedia> workMedia,
         Instant createdAt
 ) {
     public StaffMember {
         specializations = specializations != null ? List.copyOf(specializations) : List.of();
-        photoUrls = photoUrls != null ? List.copyOf(photoUrls) : List.of();
+        workMedia = workMedia != null ? List.copyOf(workMedia) : List.of();
     }
 
     @Table("staff_member_specialization")
@@ -37,5 +40,5 @@ public record StaffMember(
 
     /** A single image or video URL of the staff member's work. Serializes as a plain string. */
     @Table("staff_member_photo")
-    public record PhotoUrl(@JsonValue String value) {}
+    public record WorkMedia(@JsonValue String value) {}
 }

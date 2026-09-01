@@ -73,8 +73,8 @@ export interface StaffMember {
   isOwner?: boolean;
   availableForBooking?: boolean;
   specializations?: string[];
-  photoUrl?: string;
-  photoUrls?: string[];
+  avatarUrl?: string;
+  workMedia?: string[];
   bio?: string;
   createdAt?: string;
 }
@@ -134,6 +134,12 @@ export interface AvailableSlot {
   startTime: string;
   endTime: string;
   booked?: boolean;
+}
+
+/** A staff member's non-working days: recurring weekdays off, plus one-off unavailable dates. */
+export interface StaffSchedule {
+  closedWeekdays: string[];
+  closedDates: string[];
 }
 
 export interface StaffAvailability {

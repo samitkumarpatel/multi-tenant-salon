@@ -27,12 +27,12 @@ class StaffController {
     }
 
     record OnboardRequest(String name, String email, String phone, StaffRole role,
-                          List<String> specializations, String bio, List<String> photoUrls,
+                          List<String> specializations, String bio, List<String> workMedia,
                           List<StaffOnboardedEvent.DaySchedule> schedule) {}
 
     record UpdateRequest(String name, String email, String phone, StaffRole role, StaffStatus status,
-                         Boolean availableForBooking, List<String> specializations, String photoUrl,
-                         String bio, List<String> photoUrls) {}
+                         Boolean availableForBooking, List<String> specializations, String avatarUrl,
+                         String bio, List<String> workMedia) {}
 
     record PhotoUploadRequest(String contentType) {}
 
@@ -44,7 +44,7 @@ class StaffController {
     @PostMapping("/api/salon-admin/{salonId}/staff")
     ResponseEntity<StaffMember> onboard(@PathVariable String salonId, @RequestBody OnboardRequest request) {
         var member = service.onboard(salonApi.resolveId(salonId), request.name(), request.email(), request.phone(),
-                request.role(), false, request.specializations(), request.bio(), request.photoUrls(),
+                request.role(), false, request.specializations(), request.bio(), request.workMedia(),
                 request.schedule());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
@@ -66,7 +66,7 @@ class StaffController {
         return service.update(salonApi.resolveId(salonId), staffId, request.name(), request.email(), request.phone(),
                         request.role(), request.status(),
                         request.availableForBooking() == null || request.availableForBooking(),
-                        request.specializations(), request.photoUrl(), request.bio(), request.photoUrls())
+                        request.specializations(), request.avatarUrl(), request.bio(), request.workMedia())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

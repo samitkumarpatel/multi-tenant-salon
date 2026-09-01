@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Calendar, CalendarCheck, CheckCircle2, Clock, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
 import { fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
 import {
-  ServicesCard, StaffCard, HoursCard, LocationCard, ContactCard, BookingPickerCard,
+  BookingPickerCard, CardShell,
   type CardTokens, type PendingBookingFields, type PickerProgress,
 } from "./GenerativeUICards";
+import { GenUIComponent, type UIComponent, type GenUICtx } from "./GenerativeUIRegistry";
 import { type ClosureRange, resolveHolidayRanges } from "./bookingDates";
 import { STAFF_ROLE_LABEL } from "./constants";
 import type { Booking, Salon, SalonHoliday, ServiceItem, StaffMember, WebsiteTheme } from "./types";
@@ -49,22 +50,22 @@ type PendingBookingUI = {
 
 type CardType = "services" | "staff" | "hours" | "location" | "contact";
 
-type MessageCard =
-  | { type: "hours" | "location" | "contact" }
-  | { type: "staff"; forServiceId?: number }
-  | { type: "services"; forStaffId?: number }
-  | {
-      type: "booking-picker";
-      serviceId: number;
-      staffId?: number;
-      /** Selections lifted from the picker's previous position — seeds it so the visitor doesn't
-       *  restart from scratch when it's moved down next to a later message. */
-      resume?: PickerProgress;
-    };
-
+// The assistant can now attach several interactive components to one turn (a services card AND
+// a button group, say). Each is a { type, props } directive straight from the backend — see
+// GenerativeUIRegistry. `booking-picker` is the one type the parent renders itself (its
+// callbacks are coupled to the thread); its props carry `serviceId`, optional `staffId`, and an
+// optional `resume` snapshot lifted from an earlier picker it replaces.
 type Message =
   | { role: "user"; text: string; time: string }
-  | { role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book"; pendingBooking?: PendingBookingUI; card?: MessageCard; picker?: PickerProgress };
+  | {
+      role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book";
+      pendingBooking?: PendingBookingUI;
+      components?: UIComponent[];
+      /** Live selections inside this turn's booking-picker, lifted up for the uiState clue. */
+      picker?: PickerProgress;
+      /** Follow-up chips the backend returned with this reply (skips a /followups round-trip). */
+      suggested?: string[];
+    };
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -118,21 +119,15 @@ type PendingBookingResponse = {
   customerPhone: string | null;
   notes: string | null;
 };
-// The assistant picks which interactive card to render by calling a show* / startBookingPicker
-// tool server-side; the backend forwards its choice here. Unknown components are ignored.
-type UiDirectiveResponse = {
-  component: string;
-  serviceId?: number | null;
-  staffId?: number | null;
-  forStaffId?: number | null;
-  forServiceId?: number | null;
-  forBooking?: boolean | null;
-};
+// The assistant picks which interactive component(s) to render by calling show* / start* tools
+// server-side; the backend forwards the list here as { type, props }. Unknown types are ignored.
 type ChatApiResponse = {
-  reply: string;
+  sessionId: string;
+  message: string | null;
+  components?: UIComponent[] | null;
+  suggestedQuestions?: string[] | null;
   toolsUsed?: string[];
   pendingBooking?: PendingBookingResponse | null;
-  ui?: UiDirectiveResponse | null;
 };
 
 const TOOL_LABELS: Record<string, string> = {
@@ -162,63 +157,102 @@ const CARD_INTRO: Record<CardType, string> = {
   contact: "Here's how to reach us:",
 };
 
-// Maps the assistant's render directive onto a message card. Any component the assistant names
-// that isn't in this switch is ignored — the reply text still shows — so a stray/renamed
-// component can never break a turn.
-function directiveToCard(ui: UiDirectiveResponse | null, services: ServiceItem[]): MessageCard | undefined {
-  switch (ui?.component) {
-    case "services": return { type: "services", forStaffId: ui.forStaffId ?? undefined };
-    case "staff": return { type: "staff", forServiceId: ui.forServiceId ?? undefined };
-    case "hours": return { type: "hours" };
-    case "location": return { type: "location" };
-    case "contact": return { type: "contact" };
-    case "booking-picker": {
-      // The id must match a real service — the model can pass one that never resolved (null) or
-      // one it hallucinated. Either way the picker can't render, so don't leave its "pick a date
-      // below" reply pointing at nothing: one active service → open it directly; otherwise show
-      // the services card so the visitor taps one to start.
-      const wanted = ui.serviceId != null ? services.find((s) => s.id === ui.serviceId) : undefined;
-      if (wanted) {
-        return { type: "booking-picker", serviceId: wanted.id, staffId: ui.staffId ?? undefined };
-      }
-      const active = services.filter((s) => s.active);
-      return active.length === 1
-        ? { type: "booking-picker", serviceId: active[0].id, staffId: ui.staffId ?? undefined }
-        : { type: "services" };
-    }
-    default: return undefined;
-  }
+// Normalises the raw component list from the backend: passes every directive through untouched
+// except booking-picker, whose serviceId must resolve to a real service — the model can pass one
+// that never resolved (null) or hallucinated. When it doesn't resolve, don't leave a "pick a
+// date below" reply pointing at nothing: one active service → open it directly; otherwise drop
+// to a services card so the visitor taps one to start. Unknown types are left in place and the
+// registry ignores them.
+function normalizeComponents(raw: UIComponent[] | null | undefined, services: ServiceItem[]): UIComponent[] {
+  if (!raw?.length) return [];
+  return raw.flatMap((c): UIComponent[] => {
+    if (c.type !== "booking-picker") return [c];
+    const wantedId = typeof c.props?.serviceId === "number" ? (c.props.serviceId as number) : undefined;
+    const wanted = wantedId != null ? services.find((s) => s.id === wantedId) : undefined;
+    const staffId = typeof c.props?.staffId === "number" ? c.props.staffId : undefined;
+    if (wanted) return [{ type: "booking-picker", props: { serviceId: wanted.id, staffId } }];
+    const active = services.filter((s) => s.active);
+    return active.length === 1
+      ? [{ type: "booking-picker", props: { serviceId: active[0].id, staffId } }]
+      : [{ type: "services", props: {} }];
+  });
 }
 
 // The model is shown bracketed UI-state notes in the history ("[Showed the visitor …]") and
 // occasionally parrots one back as its own reply instead of calling the matching show* tool.
 // Drop any line that is wholly such a stage-direction so the raw bracket never reaches the visitor.
-function stripStageDirections(text: string): string {
-  return text
+function stripStageDirections(text: string | null | undefined): string {
+  return (text ?? "")
     .split("\n")
     .filter((line) => !/^\s*\[[^\]]*\]\s*$/.test(line))
     .join("\n")
     .trim();
 }
 
+// Session id lives in sessionStorage so a reload resumes the same server-side conversation
+// (within its TTL); falls back to a fresh uuid when storage is unavailable (SSR, private mode).
+function newSessionId(salonId: number): string {
+  const gen = () =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  if (typeof window === "undefined") return gen();
+  const key = `genui:sess:${salonId}`;
+  try {
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+    const fresh = gen();
+    window.sessionStorage.setItem(key, fresh);
+    return fresh;
+  } catch {
+    return gen();
+  }
+}
+
+function resetSessionId(salonId: number): string {
+  const key = `genui:sess:${salonId}`;
+  const gen =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try { window.sessionStorage.setItem(key, gen); } catch { /* ignore */ }
+  return gen;
+}
+
+type ChatReplyResult = {
+  text: string;
+  toolsUsed: string[];
+  pendingBooking: PendingBookingResponse | null;
+  components: UIComponent[] | null;
+  suggestedQuestions: string[];
+};
+
 async function requestChatReply(
   salonId: number,
+  sessionId: string,
   context: "website" | "booking",
   message: string,
-  history: { role: "user" | "assistant"; text: string }[]
-): Promise<{ text: string; toolsUsed: string[]; pendingBooking: PendingBookingResponse | null; ui: UiDirectiveResponse | null }> {
+  uiState: string | undefined
+): Promise<ChatReplyResult> {
   try {
     const res = await apiFetch<ChatApiResponse>(`${API_BASE}/api/salon/${salonId}/chat`, {
       method: "POST",
-      body: JSON.stringify({ context, message, history }),
+      body: JSON.stringify({ sessionId, context, message, uiState }),
     });
-    return { text: res.reply, toolsUsed: res.toolsUsed ?? [], pendingBooking: res.pendingBooking ?? null, ui: res.ui ?? null };
+    return {
+      text: res.message ?? "",
+      toolsUsed: res.toolsUsed ?? [],
+      pendingBooking: res.pendingBooking ?? null,
+      components: res.components ?? null,
+      suggestedQuestions: Array.isArray(res.suggestedQuestions) ? res.suggestedQuestions : [],
+    };
   } catch {
     return {
       text: "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
       toolsUsed: [],
       pendingBooking: null,
-      ui: null,
+      components: null,
+      suggestedQuestions: [],
     };
   }
 }
@@ -285,6 +319,10 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   const [followups, setFollowups] = useState<string[]>([]);
   const [followupsLoading, setFollowupsLoading] = useState(false);
   const followupKeyRef = useRef<string>("");
+  // Opaque per-visitor conversation key. The backend keeps the transcript under it (TTL memory),
+  // so we no longer re-send history — just this id + the new message. Persisted for the tab so a
+  // reload within the TTL resumes the same conversation; "Clear chat" mints a fresh one.
+  const [sessionId, setSessionId] = useState<string>(() => newSessionId(salon.id));
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -314,18 +352,24 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     const last = messages[messages.length - 1];
     if (!last) return;
     if (last.role === "user") { reset(); return; }
-    if (!(last.text || last.card || last.pendingBooking)) return; // empty placeholder
+    if (!(last.text || last.components?.length || last.pendingBooking)) return; // empty placeholder
+    const hasPicker = last.components?.some((c) => c.type === "booking-picker") ?? false;
     // Include the picker's current step so the chips refresh as the visitor moves through the
     // interactive card (stylist → date → time → contact), each step getting its own suggestions.
-    const pickerStep = last.card?.type === "booking-picker" ? (last.picker?.step ?? "open") : "";
-    const key = `${messages.length}:${last.text}:${last.card?.type ?? ""}:${pickerStep}:${last.pendingBooking?.status ?? ""}`;
+    const pickerStep = hasPicker ? (last.picker?.step ?? "open") : "";
+    const compTypes = last.components?.map((c) => c.type).join(",") ?? "";
+    const key = `${messages.length}:${last.text}:${compTypes}:${pickerStep}:${last.pendingBooking?.status ?? ""}`;
     if (key === followupKeyRef.current) return;
     followupKeyRef.current = key;
+    // A /chat reply already carried its follow-ups inline — use them and skip the round-trip.
+    // Re-fetch only when the picker step advanced (its key changed but `suggested` is stale) or
+    // for an instant card that never hit /chat.
+    if (last.suggested && !hasPicker) { setFollowups(last.suggested.slice(0, 4)); return; }
     setFollowups([]);
     setFollowupsLoading(true);
     apiFetch<{ followups?: string[] }>(`${API_BASE}/api/salon/${salon.id}/chat/followups`, {
       method: "POST",
-      body: JSON.stringify({ context: isBooking ? "booking" : "website", history: historySnapshot() }),
+      body: JSON.stringify({ sessionId, context: isBooking ? "booking" : "website", uiState: buildUiState() }),
     })
       .then((r) => setFollowups(Array.isArray(r.followups) ? r.followups.slice(0, 4) : []))
       .catch(() => setFollowups([]))
@@ -379,17 +423,21 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   // again" / "what did you just show me". These synthetic bracketed lines stand in for it — and
   // each ends with a "Base the follow-ups on ..." steer so the chip generator ties the next
   // questions to whatever this card put on screen rather than drifting to an unrelated topic.
-  function cardHistoryClue(card: MessageCard): string | null {
-    switch (card.type) {
+  function componentHistoryClue(c: UIComponent): string | null {
+    const p = c.props ?? {};
+    const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+    switch (c.type) {
       case "services": {
+        const forStaffId = num(p.forStaffId);
         const list = services
-          .filter((s) => s.active && (card.forStaffId == null || !s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
+          .filter((s) => s.active && (forStaffId == null || !s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(forStaffId))))
           .map((s) => s.name)
           .join(", ");
-        return `[Showed the visitor an interactive services card${card.forStaffId != null ? " (filtered to one stylist)" : ""}: ${list || "no active services"}. Each row has a "Book" button. Base the follow-ups on these specific services — a price, how long one takes, who performs one, or booking one — not on an unrelated topic.]`;
+        return `[Showed the visitor an interactive services card${forStaffId != null ? " (filtered to one stylist)" : ""}: ${list || "no active services"}. Each row has a "Book" button. Base the follow-ups on these specific services — a price, how long one takes, who performs one, or booking one — not on an unrelated topic.]`;
       }
       case "staff": {
-        const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
+        const forServiceId = num(p.forServiceId);
+        const svc = forServiceId != null ? services.find((s) => s.id === forServiceId) : undefined;
         const list = staff
           .filter((m) => m.status === "ACTIVE" && (!svc || !svc.assignedStaffIds?.length || svc.assignedStaffIds.includes(String(m.id))))
           .map((m) => m.name)
@@ -399,7 +447,33 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
       case "hours": return "[Showed the visitor the opening-hours card with this week's opening hours. Base the follow-ups on the opening hours — a specific day, whether they're open now or this weekend, or an upcoming holiday/closure.]";
       case "location": return "[Showed the visitor the location card with the salon's address and a map link. Base the follow-ups on getting there — parking, the nearest transport, or which area it's in.]";
       case "contact": return "[Showed the visitor the contact card with the salon's phone and email. Base the follow-ups on getting in touch — the best way to reach the salon, or calling to ask something.]";
+      case "date-picker": return "[Showed the visitor a date picker for choosing a day against the salon's real availability. Base the follow-ups on which days work, or asking for times on a day.]";
+      case "time-slot-picker": {
+        const svc = services.find((s) => s.id === num(p.serviceId));
+        return `[Showed the visitor a list of real available time slots${svc ? ` for ${svc.name}` : ""}${p.date ? ` on ${p.date}` : ""}. Base the follow-ups on picking a time or asking about that day.]`;
+      }
+      case "form": {
+        const labels = Array.isArray(p.fields)
+          ? (p.fields as { label?: string }[]).map((f) => f?.label).filter(Boolean).join(", ")
+          : "";
+        return `[Showed the visitor a form asking for: ${labels || "some details"}. Base the follow-ups on completing it or why it's needed.]`;
+      }
+      case "button-group":
+      case "radio-group":
+      case "checkbox-group":
+      case "option-list": {
+        const labels = Array.isArray(p.choices)
+          ? (p.choices as { label?: string }[]).map((ch) => ch?.label).filter(Boolean).join(", ")
+          : "";
+        return `[Showed the visitor a set of choices${p.prompt ? ` (${p.prompt})` : ""}: ${labels || "some options"}. Base the follow-ups on picking between them.]`;
+      }
+      case "staff-profile": {
+        const m = staff.find((s) => s.id === num(p.staffId));
+        return `[Showed the visitor ${m ? `${m.name}'s` : "a"} profile card: bio and a tappable gallery of their work photos/videos, plus a "Book" button. Base the follow-ups on their background, specialties, or booking with them.]`;
+      }
+      case "quick-actions": return "[Showed the visitor a menu of tappable quick-question options (book, services, staff, hours, location, contact). Base the follow-ups on picking one of those.]";
       case "booking-picker": return null; // covered by the live picker-progress clue instead
+      default: return null;
     }
   }
 
@@ -428,7 +502,9 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
   function pickerHistoryClue(serviceId: number, p?: PickerProgress, initialStaffId?: number): string {
     const serviceName = services.find((s) => s.id === serviceId)?.name ?? `service #${serviceId}`;
     const roster = eligibleStylists(serviceId);
-    const step: PickerProgress["step"] = p?.step ?? (initialStaffId == null && roster.length > 1 ? "staff" : "date");
+    // The picker always opens on the date step first (see BookingPickerCard) - the stylist step,
+    // when there is one, comes right after a date is chosen.
+    const step: PickerProgress["step"] = p?.step ?? "date";
     const onStaffStep = step === "staff";
 
     const stylist = onStaffStep
@@ -439,7 +515,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           ? staff.find((s) => s.id === initialStaffId)?.name ?? `staff #${initialStaffId}`
           : roster.length === 1 ? roster[0].name : "any available stylist";
 
-    const dateChosen = step === "time" || step === "contact";
+    // Date is picked before the stylist step is ever reached, so it's already chosen by then too.
+    const dateChosen = step === "staff" || step === "time" || step === "contact";
     const timeLabel = step === "contact" && p?.time ? p.time : "not chosen yet";
     const contactBits = [
       p?.name ? `name "${p.name}"` : null,
@@ -461,90 +538,104 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     return `[The visitor is using the interactive booking picker for ${serviceName} — they have NOT confirmed a booking. Selected so far — stylist: ${stylist}; date: ${dateChosen ? p?.date : "not chosen yet"}; time: ${timeLabel}. Current step: ${step}.${stepFocus}${contactState} Nothing is booked and no booking has been staged for confirmation: if they ask whether it's booked, tell them not yet — they still need to finish the picker (pick a time, enter their name and an email or phone) and confirm on the review card.]`;
   }
 
-  // Prior turns, formatted for the chat API — captured before the new user message is appended.
-  function assistantHistoryText(m: Extract<Message, { role: "assistant" }>): string | null {
-    const parts: string[] = [];
-    if (m.text) parts.push(m.text);
-    if (m.card?.type === "booking-picker") {
-      parts.push(pickerHistoryClue(m.card.serviceId, m.picker, m.card.staffId));
-    } else if (m.card) {
-      const clue = cardHistoryClue(m.card);
-      if (clue) parts.push(clue);
+  // The backend keeps the transcript itself now; the one thing it can't see is the interactive
+  // widget the visitor is looking at / part-way through when they send the next message. This
+  // builds a bracketed note about the LATEST assistant turn's on-screen components + staged
+  // booking, which the backend records as a synthetic turn before the new message. Returns
+  // undefined when there's nothing on screen worth noting.
+  function buildUiState(): string | undefined {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== "assistant") continue;
+      const parts: string[] = [];
+      const picker = m.components?.find((c) => c.type === "booking-picker");
+      if (picker) {
+        parts.push(pickerHistoryClue(
+          picker.props.serviceId as number, m.picker,
+          typeof picker.props.staffId === "number" ? picker.props.staffId : undefined,
+        ));
+      }
+      for (const c of m.components ?? []) {
+        if (c.type === "booking-picker") continue;
+        const clue = componentHistoryClue(c);
+        if (clue) parts.push(clue);
+      }
+      if (m.pendingBooking) parts.push(bookingStatusSummary(m.pendingBooking));
+      return parts.length ? parts.join("\n") : undefined;
     }
-    if (m.pendingBooking) parts.push(bookingStatusSummary(m.pendingBooking));
-    return parts.length ? parts.join("\n") : null;
-  }
-
-  function historySnapshot(): { role: "user" | "assistant"; text: string }[] {
-    type Turn = { role: "user" | "assistant"; text: string };
-    return messages.flatMap((m): Turn[] => {
-      if (m.role === "user") return m.text ? [{ role: "user", text: m.text }] : [];
-      const text = assistantHistoryText(m);
-      return text ? [{ role: "assistant", text }] : [];
-    });
+    return undefined;
   }
 
   function replyCta(userText: string): "book" | undefined {
     return isBooking && !NO_CTA_PATTERN.test(userText) ? "book" : undefined;
   }
 
-  function resolveReply(userText: string, history: ReturnType<typeof historySnapshot>) {
-    requestChatReply(salon.id, isBooking ? "booking" : "website", userText, history).then(({ text: reply, toolsUsed, pendingBooking, ui }) => {
-      const cta = replyCta(userText);
-      let card = directiveToCard(ui, services);
-      const cleanedReply = stripStageDirections(reply);
-      setMessages((prev) => {
-        const next = [...prev];
-        const lastIdx = next.length - 1;
+  function resolveReply(userText: string, uiState: string | undefined) {
+    requestChatReply(salon.id, sessionId, isBooking ? "booking" : "website", userText, uiState).then(
+      ({ text: reply, toolsUsed, pendingBooking, components: rawComponents, suggestedQuestions }) => {
+        const cta = replyCta(userText);
+        let components = normalizeComponents(rawComponents, services);
+        const cleanedReply = stripStageDirections(reply);
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIdx = next.length - 1;
 
-        // A booking picker that's still in progress always follows the conversation down to the
-        // newest assistant turn, so it stays next to the last chat instead of being orphaned
-        // higher up after a few more messages. This runs whether or not the model re-called
-        // startBookingPicker this turn — the model tends not to, because the history clue tells it
-        // the picker is already on screen. Skip only when the model is deliberately swapping in a
-        // different card (e.g. a services card because the visitor asked about something else).
-        if (!card || card.type === "booking-picker") {
-          const liveIdx = next.findIndex(
-            (m, i) => i !== lastIdx && m.role === "assistant" && m.card?.type === "booking-picker",
-          );
-          const live = liveIdx >= 0 ? next[liveIdx] : undefined;
-          if (live && live.role === "assistant" && live.card?.type === "booking-picker") {
-            const liveCard = live.card;
-            card = {
-              type: "booking-picker",
-              serviceId: (card?.type === "booking-picker" ? card.serviceId : undefined) ?? liveCard.serviceId,
-              staffId: (card?.type === "booking-picker" ? card.staffId : undefined) ?? liveCard.staffId,
-              resume: live.picker,
-            };
-            // Clear it from its old spot — it's relocating, not spawning a copy.
-            next[liveIdx] = { ...live, card: undefined, picker: undefined };
+          // A booking picker that's still in progress always follows the conversation down to the
+          // newest assistant turn, so it stays next to the last chat instead of being orphaned
+          // higher up. This runs whether or not the model re-called startBookingPicker this turn
+          // — it usually doesn't, because the uiState clue tells it the picker is already on
+          // screen. Skip only when the model deliberately swapped in other components.
+          const hasPickerNow = components.some((c) => c.type === "booking-picker");
+          if (components.length === 0 || (components.length === 1 && hasPickerNow)) {
+            const liveIdx = next.findIndex(
+              (m, i) => i !== lastIdx && m.role === "assistant"
+                && (m.components?.some((c) => c.type === "booking-picker") ?? false),
+            );
+            const live = liveIdx >= 0 ? next[liveIdx] : undefined;
+            if (live && live.role === "assistant") {
+              const liveCard = live.components!.find((c) => c.type === "booking-picker")!;
+              const incoming = components.find((c) => c.type === "booking-picker");
+              const n = (v: unknown) => (typeof v === "number" ? v : undefined);
+              components = [{
+                type: "booking-picker",
+                props: {
+                  serviceId: n(incoming?.props.serviceId) ?? liveCard.props.serviceId,
+                  staffId: n(incoming?.props.staffId) ?? liveCard.props.staffId,
+                  resume: live.picker,
+                },
+              }];
+              // Clear it from its old spot — it's relocating, not spawning a copy.
+              const remaining = live.components!.filter((c) => c.type !== "booking-picker");
+              next[liveIdx] = { ...live, components: remaining.length ? remaining : undefined, picker: undefined };
+            }
           }
-        }
 
-        next[lastIdx] = {
-          role: "assistant",
-          text: cleanedReply,
-          tool: toolsUsed.length ? { name: friendlyToolLabel(toolsUsed), label: "salon-data", done: true } : undefined,
-          time: nowTime(),
-          cta,
-          pendingBooking: pendingBooking ? { ...pendingBooking, status: "proposed" } : undefined,
-          card,
-        };
-        return next;
-      });
-      setThinking(false);
-    });
+          next[lastIdx] = {
+            role: "assistant",
+            text: cleanedReply,
+            tool: toolsUsed.length ? { name: friendlyToolLabel(toolsUsed), label: "salon-data", done: true } : undefined,
+            time: nowTime(),
+            cta,
+            pendingBooking: pendingBooking ? { ...pendingBooking, status: "proposed" } : undefined,
+            components: components.length ? components : undefined,
+            suggested: suggestedQuestions.length ? suggestedQuestions : undefined,
+          };
+          return next;
+        });
+        setThinking(false);
+      },
+    );
   }
 
   function sendMessage(text: string) {
     if (!text.trim() || thinking) return;
     setStarted(true);
-    const history = historySnapshot();
+    const uiState = buildUiState();
     setMessages((prev) => [...prev, { role: "user", text, time: nowTime() }]);
     setThinking(true);
     const tool: ToolCard = { name: "salon-data", label: "Thinking…", done: false };
     setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
-    resolveReply(text, history);
+    resolveReply(text, uiState);
   }
 
   // A card-tagged quick-action renders instantly from data already on the page — no LLM call,
@@ -555,7 +646,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     setMessages((prev) => [...prev, { role: "user", text: question, time: nowTime() }]);
     setThinking(true);
     setTimeout(() => {
-      setMessages((prev) => [...prev, { role: "assistant", text: intro ?? CARD_INTRO[cardType], time: nowTime(), card: { type: cardType } }]);
+      setMessages((prev) => [...prev, { role: "assistant", text: intro ?? CARD_INTRO[cardType], time: nowTime(), components: [{ type: cardType, props: {} }] }]);
       setThinking(false);
     }, 350);
   }
@@ -573,7 +664,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           role: "assistant",
           text: `Great choice — let's find a time for ${service.name}:`,
           time: nowTime(),
-          card: { type: "booking-picker", serviceId: service.id, staffId },
+          components: [{ type: "booking-picker", props: { serviceId: service.id, staffId } }],
         },
       ]);
       setThinking(false);
@@ -599,7 +690,7 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
           role: "assistant",
           text: `Sure — which service would you like with ${member.name}?`,
           time: nowTime(),
-          card: { type: "services", forStaffId: member.id },
+          components: [{ type: "services", props: { forStaffId: member.id } }],
         },
       ]);
       setThinking(false);
@@ -613,13 +704,19 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
       const next = [...prev];
       const m = next[messageIndex];
       if (m.role !== "assistant") return prev;
-      next[messageIndex] = { ...m, card: undefined, pendingBooking: { ...fields, status: "proposed" } };
+      const remaining = (m.components ?? []).filter((c) => c.type !== "booking-picker");
+      next[messageIndex] = {
+        ...m,
+        components: remaining.length ? remaining : undefined,
+        picker: undefined,
+        pendingBooking: { ...fields, status: "proposed" },
+      };
       return next;
     });
   }
 
-  // Records the picker's live selections onto the message so historySnapshot can turn them into
-  // a clue for the assistant. Bails when nothing changed so a fresh callback identity per render
+  // Records the picker's live selections onto the message so buildUiState can turn them into a
+  // clue for the assistant. Bails when nothing changed so a fresh callback identity per render
   // doesn't churn state.
   function updatePickerProgress(messageIndex: number, progress: PickerProgress) {
     setMessages((prev) => {
@@ -636,7 +733,13 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
       const next = [...prev];
       const m = next[messageIndex];
       if (m.role !== "assistant") return prev;
-      next[messageIndex] = { ...m, card: undefined, text: "No problem — let me know if you'd like a different service or time." };
+      const remaining = (m.components ?? []).filter((c) => c.type !== "booking-picker");
+      next[messageIndex] = {
+        ...m,
+        components: remaining.length ? remaining : undefined,
+        picker: undefined,
+        text: "No problem — let me know if you'd like a different service or time.",
+      };
       return next;
     });
   }
@@ -662,6 +765,8 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
     setStarted(false);
     setFollowups([]);
     followupKeyRef.current = "";
+    // Fresh server-side conversation — the old transcript is left to expire on its TTL.
+    setSessionId(resetSessionId(salon.id));
   }
 
   // ── Booking proposal confirm/dismiss ────────────────────────────────────
@@ -746,52 +851,68 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
 
   const canBook = Boolean(salon.features?.includes("BOOKING"));
   const cardTokens: CardTokens = { theme, msgText, msgDim, bubbleBorder, bubbleShadow, asBubbleBg, accentText };
+  const genCtx: GenUICtx = { salon, staff, services, closedDateRanges, canBook };
 
-  // Each data card renders `null` when it has nothing to show. Mirror that same guard here and
-  // return `null` too, so the caller can drop in a graceful fallback instead of a blank turn
-  // (the model called the show* tool but the salon data behind it is empty).
-  function renderCard(messageIndex: number, card: MessageCard) {
-    switch (card.type) {
-      case "services": {
-        const filtered = card.forStaffId != null
-          ? services.filter((s) => s.active && (!s.assignedStaffIds?.length || s.assignedStaffIds.includes(String(card.forStaffId))))
-          : services;
-        if (!filtered.some((s) => s.active)) return null;
-        return <ServicesCard services={filtered} tokens={cardTokens} showBookPill={canBook} onBook={(s) => startBooking(s, card.forStaffId)} />;
-      }
-      case "staff": {
-        const svc = card.forServiceId != null ? services.find((s) => s.id === card.forServiceId) : undefined;
-        const filtered = svc && svc.assignedStaffIds?.length
-          ? staff.filter((m) => svc.assignedStaffIds!.includes(String(m.id)))
-          : staff;
-        if (!filtered.some((m) => m.status === "ACTIVE")) return null;
-        return <StaffCard staff={filtered} tokens={cardTokens} showBookPill={canBook} onBook={startBookingWithStaff} />;
-      }
-      case "hours":
-        return salon.operatingHours?.length ? <HoursCard salon={salon} tokens={cardTokens} /> : null;
-      case "location":
-        return salon.location?.address || salon.location?.city ? <LocationCard salon={salon} tokens={cardTokens} /> : null;
-      case "contact":
-        return salon.contact?.phone || salon.contact?.email || salon.contact?.website ? <ContactCard salon={salon} tokens={cardTokens} /> : null;
-      case "booking-picker": {
-        const service = services.find((s) => s.id === card.serviceId);
-        if (!service) return null;
-        return (
-          <BookingPickerCard
-            salon={salon}
-            service={service}
-            staff={staff}
-            tokens={cardTokens}
-            initialStaffId={card.staffId}
-            resume={card.resume}
-            closedDateRanges={closedDateRanges}
-            onComplete={(fields) => completeBookingPicker(messageIndex, fields)}
-            onCancel={() => cancelBookingPicker(messageIndex)}
-            onProgress={(p) => updatePickerProgress(messageIndex, p)}
-          />
-        );
-      }
+  // Renders one component from an assistant turn. `booking-picker` and `quick-actions` are wired
+  // here (they need page-local handlers/data beyond what the shared registry's ctx exposes);
+  // everything else goes through the shared registry. Returns `null` when there's nothing to
+  // show, so the caller can fall back gracefully.
+  function renderComponent(messageIndex: number, component: UIComponent) {
+    if (component.type === "quick-actions") {
+      if (actionButtons.length === 0) return null;
+      return (
+        <CardShell title="Quick questions" icon={LayoutGrid} tokens={cardTokens}>
+          <div className="space-y-1.5">
+            {actionButtons.map((btn) => (
+              <button
+                key={btn.label}
+                onClick={() => askQuestion(btn)}
+                disabled={thinking}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all duration-150 hover:shadow-sm active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={btn.directAction ? { backgroundColor: theme.accentColor, color: accentText } : chipStyle}
+              >
+                <btn.icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold leading-tight">{btn.label}</span>
+                  {btn.hint && <span className="block text-[10px] opacity-70 leading-snug truncate">{btn.hint}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        </CardShell>
+      );
     }
+    if (component.type === "booking-picker") {
+      const serviceId = typeof component.props.serviceId === "number" ? component.props.serviceId : undefined;
+      const service = serviceId != null ? services.find((s) => s.id === serviceId) : undefined;
+      if (!service) return null;
+      const staffId = typeof component.props.staffId === "number" ? component.props.staffId : undefined;
+      const resume = component.props.resume as PickerProgress | undefined;
+      return (
+        <BookingPickerCard
+          salon={salon}
+          service={service}
+          staff={staff}
+          tokens={cardTokens}
+          initialStaffId={staffId}
+          resume={resume}
+          closedDateRanges={closedDateRanges}
+          onComplete={(fields) => completeBookingPicker(messageIndex, fields)}
+          onCancel={() => cancelBookingPicker(messageIndex)}
+          onProgress={(p) => updatePickerProgress(messageIndex, p)}
+        />
+      );
+    }
+    return (
+      <GenUIComponent
+        component={component}
+        tokens={cardTokens}
+        ctx={genCtx}
+        onAnswer={sendMessage}
+        onBookService={startBooking}
+        onBookStaff={startBookingWithStaff}
+      />
+    );
   }
 
   // ── Dynamic suggestion chips (based on available salon data) ──────────
@@ -1067,16 +1188,23 @@ export function GenerativeUIWebsite({ salon, staff, services, theme, context = "
                   {m.cta === "book" && bookCtaBtn}
                 </div>
               )}
-              {/* Interactive cards sit outside the prose bubble — nesting a bordered card inside a
-                  padded bubble stacks 3 layers of horizontal padding and is unusably tight on phones. */}
+              {/* Interactive components sit outside the prose bubble — nesting a bordered card
+                  inside a padded bubble stacks 3 layers of horizontal padding and is unusably
+                  tight on phones. Several can render in one turn; they stack in order. */}
               {m.pendingBooking && bookingCard(i, m.pendingBooking)}
-              {m.card && (renderCard(i, m.card) ?? (m.text ? null : (
-                // Directive came back but the card has nothing to show (salon data missing, or an
-                // unresolved service) — don't leave the turn as a bare avatar with no content.
-                <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>
-                  Sorry — I couldn't pull that up just now. Please contact us directly and we'll help.
-                </p>
-              )))}
+              {m.components && m.components.length > 0 && (() => {
+                const rendered = m.components.map((c) => renderComponent(i, c));
+                if (!rendered.some(Boolean) && !m.text) {
+                  // Directives came back but nothing renders (salon data missing, or an
+                  // unresolved service) — don't leave the turn as a bare avatar with no content.
+                  return (
+                    <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>
+                      Sorry — I couldn't pull that up just now. Please contact us directly and we'll help.
+                    </p>
+                  );
+                }
+                return rendered.map((r, ci) => <React.Fragment key={ci}>{r}</React.Fragment>);
+              })()}
             </div>
           </div>
         )

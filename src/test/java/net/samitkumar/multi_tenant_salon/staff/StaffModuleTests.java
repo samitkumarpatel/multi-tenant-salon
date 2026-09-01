@@ -79,7 +79,7 @@ class StaffModuleTests {
                             "email": "cara@salon.com",
                             "role": "MAKEUP_ARTIST",
                             "bio": "Ten years doing editorial makeup.",
-                            "photoUrls": [
+                            "workMedia": [
                                 "https://cdn.example.com/staff/cara-1.jpg",
                                 "https://cdn.example.com/staff/cara-reel.mp4"
                             ]
@@ -89,9 +89,9 @@ class StaffModuleTests {
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.bio").isEqualTo("Ten years doing editorial makeup.")
-                .jsonPath("$.photoUrls").isArray()
-                .jsonPath("$.photoUrls.length()").isEqualTo(2)
-                .jsonPath("$.photoUrls[1]").isEqualTo("https://cdn.example.com/staff/cara-reel.mp4")
+                .jsonPath("$.workMedia").isArray()
+                .jsonPath("$.workMedia.length()").isEqualTo(2)
+                .jsonPath("$.workMedia[1]").isEqualTo("https://cdn.example.com/staff/cara-reel.mp4")
                 .returnResult();
 
         String location = created.getResponseHeaders().getLocation().getPath();
@@ -107,15 +107,15 @@ class StaffModuleTests {
                             "role": "MAKEUP_ARTIST",
                             "status": "ACTIVE",
                             "bio": "Now also teaching bridal.",
-                            "photoUrls": ["https://cdn.example.com/staff/cara-2.jpg"]
+                            "workMedia": ["https://cdn.example.com/staff/cara-2.jpg"]
                         }
                         """)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.bio").isEqualTo("Now also teaching bridal.")
-                .jsonPath("$.photoUrls.length()").isEqualTo(1)
-                .jsonPath("$.photoUrls[0]").isEqualTo("https://cdn.example.com/staff/cara-2.jpg");
+                .jsonPath("$.workMedia.length()").isEqualTo(1)
+                .jsonPath("$.workMedia[0]").isEqualTo("https://cdn.example.com/staff/cara-2.jpg");
     }
 
     @Test
