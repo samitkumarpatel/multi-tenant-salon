@@ -22,6 +22,8 @@ import net.samitkumar.multi_tenant_salon.staff.StaffMember;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -53,6 +55,7 @@ class BookingService implements BookingApi {
     private final StaffApi staffApi;
     private final SalonApi salonApi;
     private final ApplicationEventPublisher eventPublisher;
+    private final JdbcClient jdbcClient;
 
     BookingService(BookingRepository bookingRepo,
                    StaffAvailabilityRepository availabilityRepo,
@@ -60,7 +63,8 @@ class BookingService implements BookingApi {
                    SalonServiceApi salonServiceApi,
                    StaffApi staffApi,
                    SalonApi salonApi,
-                   ApplicationEventPublisher eventPublisher) {
+                   ApplicationEventPublisher eventPublisher,
+                   JdbcTemplate jdbcTemplate) {
         this.bookingRepo = bookingRepo;
         this.availabilityRepo = availabilityRepo;
         this.overrideRepo = overrideRepo;
@@ -68,6 +72,26 @@ class BookingService implements BookingApi {
         this.staffApi = staffApi;
         this.salonApi = salonApi;
         this.eventPublisher = eventPublisher;
+        this.jdbcClient = JdbcClient.create(jdbcTemplate);
+    }
+
+    /**
+     * Serialises every booking write for one staff member on one calendar date. Two requests
+     * for the same slot arriving together would otherwise both pass the in-memory overlap
+     * check below and both insert (Spring's default {@code READ_COMMITTED} can't see the
+     * other transaction's uncommitted row). This takes a Postgres <em>transaction-scoped</em>
+     * advisory lock keyed on {@code (staffId, epochDay)}: the first caller proceeds, any
+     * concurrent caller for the same staff+date blocks until the first transaction commits or
+     * rolls back, then re-runs its overlap check against the now-visible row and is rejected
+     * with 409. The lock is released automatically at transaction end — no unlock call, and
+     * it never leaks on error. Must be invoked inside the {@code @Transactional} method.
+     */
+    private void lockStaffDay(Long staffId, LocalDate date) {
+        jdbcClient.sql("SELECT pg_advisory_xact_lock(:key1, :key2)")
+                .param("key1", staffId.intValue())
+                .param("key2", (int) date.toEpochDay())
+                .query()
+                .singleColumn();
     }
 
     private record SalonContact(String name, String phone, String email) {}
@@ -303,6 +327,11 @@ class BookingService implements BookingApi {
 
         LocalTime endTime = startTime.plusMinutes(serviceItem.durationMinutes() != null ? serviceItem.durationMinutes() : DEFAULT_DURATION_MINUTES);
 
+        // Hold a per-(staff, date) lock across the overlap check + insert so two simultaneous
+        // requests for the same slot can't both slip through — the loser blocks here, then sees
+        // the winner's row below and gets a 409.
+        lockStaffDay(staffId, appointmentDate);
+
         boolean conflict = bookingRepo.findActiveByStaffOnDate(salonId, staffId, appointmentDate)
                 .stream().anyMatch(b -> startTime.isBefore(b.endTime()) && endTime.isAfter(b.startTime()));
         if (conflict) {
@@ -361,6 +390,16 @@ class BookingService implements BookingApi {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
             LocalTime newEndTime = newStartTime.plusMinutes(serviceItem.durationMinutes() != null ? serviceItem.durationMinutes() : DEFAULT_DURATION_MINUTES);
             Long staffId = newStaffId != null ? newStaffId : existing.staffId();
+
+            // Same guard as create(): lock the target (staff, date) then check for an overlap
+            // with any other active booking so a reschedule can't be raced onto a taken slot.
+            lockStaffDay(staffId, newDate);
+            boolean clash = bookingRepo.findActiveByStaffOnDate(salonId, staffId, newDate).stream()
+                    .filter(b -> !b.id().equals(existing.id()))
+                    .anyMatch(b -> newStartTime.isBefore(b.endTime()) && newEndTime.isAfter(b.startTime()));
+            if (clash) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Requested slot is no longer available");
+            }
 
             var updated = new Booking(existing.id(), existing.salonId(), existing.serviceId(),
                     staffId, existing.customerName(), existing.customerEmail(),

@@ -12,6 +12,15 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
 @Import(TestcontainersConfiguration.class)
@@ -476,6 +485,72 @@ class BookingModuleTests {
                         """.formatted(serviceId, staffId, TEST_DATE))
                 .exchange()
                 .expectStatus().isEqualTo(409);
+    }
+
+    @Test
+    void concurrentBookingsForSameSlotLeaveExactlyOneWinner() throws Exception {
+        client.put()
+                .uri("/api/salon-admin/{salonId}/staff/{staffId}/availability", salonId, staffId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        [{"dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "available": true}]
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+
+        int racers = 8;
+        var pool = Executors.newFixedThreadPool(racers);
+        var ready = new CountDownLatch(racers);
+        var go = new CountDownLatch(1);
+        var created = new AtomicInteger();
+        var conflict = new AtomicInteger();
+        var other = new AtomicInteger();
+
+        var tasks = new java.util.ArrayList<Callable<Void>>();
+        for (int i = 0; i < racers; i++) {
+            final int n = i;
+            tasks.add(() -> {
+                ready.countDown();
+                go.await();
+                int status = client.post()
+                        .uri("/api/salon/{salonId}/booking", salonId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {
+                                    "serviceId": %s,
+                                    "staffId": %s,
+                                    "customerName": "Racer %d",
+                                    "customerEmail": "racer%d@test.com",
+                                    "appointmentDate": "%s",
+                                    "startTime": "13:00"
+                                }
+                                """.formatted(serviceId, staffId, n, n, TEST_DATE))
+                        .exchange()
+                        .expectBody().returnResult()
+                        .getStatus().value();
+                if (status == 201) created.incrementAndGet();
+                else if (status == 409) conflict.incrementAndGet();
+                else other.incrementAndGet();
+                return null;
+            });
+        }
+
+        var futures = new java.util.ArrayList<Future<Void>>();
+        for (var t : tasks) futures.add(pool.submit(t));
+        ready.await(10, TimeUnit.SECONDS);
+        go.countDown();
+        for (var f : futures) f.get(30, TimeUnit.SECONDS);
+        pool.shutdown();
+
+        // The DB is the source of truth: no double-booking regardless of HTTP timing.
+        Integer active = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM booking WHERE salon_id = ? AND staff_id = ? AND appointment_date = ? "
+                        + "AND start_time = TIME '13:00' AND status <> 'CANCELLED'",
+                Integer.class, salonId, Long.parseLong(staffId), java.sql.Date.valueOf(TEST_DATE));
+        assertThat(active).isEqualTo(1);
+        assertThat(other).hasValue(0);
+        assertThat(created).hasValue(1);
+        assertThat(conflict).hasValue(racers - 1);
     }
 
     @Test

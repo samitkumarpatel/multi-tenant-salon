@@ -9,6 +9,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +38,17 @@ class ChatFollowupsService {
             performs one, or start a booking; right after a staff member was named: ask what
             they do or book with them). The earlier turns are context only. Don't repeat a
             question already asked.
+
+            Every follow-up MUST be consistent with what the LATEST MESSAGE just said — never
+            suggest one that assumes something it just ruled out: a day or time the salon said
+            it is closed, a service it said it does not offer, a stylist it said is unavailable.
+            When the latest message says the salon is CLOSED on the day the visitor asked about
+            (a holiday or one-off closure), do NOT offer that same day again. Pivot to the next
+            day the salon is actually open: use TODAY'S DATE plus the salon's opening hours and
+            HOLIDAYS / CLOSURES to work out that date, then phrase the follow-ups around it —
+            name the concrete date ("What's open on Wed 3 Sep?"), ask to see that day's
+            available times, or ask which stylists work then. Prefer a concrete date over a
+            vague "another day".
 
             The LATEST MESSAGE is one of two things, and the follow-ups are grounded
             differently for each:
@@ -111,6 +123,8 @@ class ChatFollowupsService {
             var earlier = String.join("\n", turns.subList(0, turns.size() - 1));
 
             var user = salonData(salonId)
+                    + "\n\nTODAY'S DATE is " + LocalDate.now() + " (yyyy-MM-dd) — resolve relative"
+                    + " dates against it and use it to name a concrete next open date when needed."
                     + "\n\nEARLIER TURNS (context only):\n" + (earlier.isBlank() ? "(none)" : earlier)
                     + "\n\nLATEST MESSAGE (base the follow-ups on THIS):\n" + latest;
 

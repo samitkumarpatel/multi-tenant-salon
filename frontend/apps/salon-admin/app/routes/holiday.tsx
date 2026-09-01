@@ -96,11 +96,23 @@ export default function HolidayPage() {
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
   }
 
+  // Last calendar day a holiday covers (end of range, or the single day),
+  // handling ranges that wrap past year-end (e.g. Dec 24 – Jan 2).
+  function holidayEndsAt(h: SalonHoliday): Date {
+    const hasRange = h.endMonth != null && h.endDay != null;
+    const endMonth = hasRange ? h.endMonth! : h.month;
+    const endDay   = hasRange ? h.endDay!   : h.day;
+    let endYear = h.year ?? new Date().getFullYear();
+    if (hasRange && endMonth < h.month) endYear += 1;
+    return new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+  }
+
+  const now        = new Date();
   const recurring  = holidays.filter((h) => h.year == null);
   const oneTime    = holidays.filter((h) => h.year != null);
-  const thisYear   = new Date().getFullYear();
-  const upcomingOT = oneTime.filter((h) => (h.year ?? 0) >= thisYear);
-  const pastOT     = oneTime.filter((h) => (h.year ?? 0) <  thisYear);
+  // One-time holidays that have already ended won't occur again — grey them out.
+  const upcomingOT = oneTime.filter((h) => holidayEndsAt(h) >= now);
+  const pastOT     = oneTime.filter((h) => holidayEndsAt(h) <  now);
 
   return (
     <>
