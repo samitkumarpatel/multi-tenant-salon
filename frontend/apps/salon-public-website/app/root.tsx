@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
 import { NavProgress } from "@salon/ui-shared";
+import { friendlyMessage } from "@salon/ui-website";
 import "./app.css";
 
 export function HydrateFallback() {
@@ -60,7 +61,7 @@ export function ErrorBoundary() {
           <p style={{ fontSize: 48, margin: "0 0 16px" }}>✂️</p>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{is404 ? "Salon not found" : "Something went wrong"}</h1>
           <p style={{ fontSize: 14, color: "#78716c", margin: "0 0 24px", lineHeight: 1.6 }}>
-            {is404 ? "This salon page doesn't exist or the link is incorrect." : "We couldn't load this page. Please try again."}
+            {is404 ? "This salon page doesn't exist or the link is incorrect." : friendlyMessage(error)}
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
             {!is404 && (

@@ -3,6 +3,10 @@ import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "
 import { NavProgress } from "@salon/ui-shared";
 import "./app.css";
 
+// Full-document error page for any loader/action throw — server `detail`,
+// network-down / timeout wording, 403/404 — instead of the framework white screen.
+export { RouteErrorBoundary as ErrorBoundary } from "@salon/ui-shared";
+
 export function links() {
   return [
     { rel: "preconnect", href: "https://fonts.googleapis.com" },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
-import { NavProgress } from "@salon/ui-shared";
+import { NavProgress, friendlyMessage } from "@salon/ui-shared";
 import "./app.css";
 
 export function links() {
@@ -82,7 +82,7 @@ export function ErrorBoundary() {
               ? "You don't have permission to view this page."
               : is404
               ? "This page doesn't exist."
-              : "We couldn't load this page. Please try again."}
+              : friendlyMessage(error)}
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
             <a href="/" style={{ padding: "10px 20px", borderRadius: 8, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14 }}>← Home</a>

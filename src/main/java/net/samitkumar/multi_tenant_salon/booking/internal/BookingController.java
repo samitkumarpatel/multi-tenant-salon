@@ -34,7 +34,7 @@ class BookingController {
 
     record UpdateBookingRequest(LocalDate appointmentDate, LocalTime startTime, Long staffId, String notes) {}
 
-    @GetMapping({"/api/salon/{salonId}/slots", "/api/salon-admin/{salonId}/slots"})
+    @GetMapping({"/api/salon/{salonId}/booking/slots", "/api/salon-admin/{salonId}/booking/slots"})
     List<AvailableSlot> getAvailableSlots(
             @PathVariable String salonId,
             @RequestParam Long serviceId,

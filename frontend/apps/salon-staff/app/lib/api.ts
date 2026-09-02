@@ -1,3 +1,5 @@
+import { ApiError, errorFromResponse, networkError } from "@salon/ui-shared";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 export const STAFF_PORTAL_API = `${API_BASE}/api/salon-staff`;
 export const COUNTRIES_API    = `${API_BASE}/api/salon-utility/countries`;
@@ -28,8 +30,13 @@ export async function uploadToPresignedUrl(presignedUrl: string, file: File): Pr
   if (/\.blob\.core\.windows\.net\//.test(presignedUrl)) {
     headers["x-ms-blob-type"] = "BlockBlob";
   }
-  const res = await fetch(presignedUrl, { method: "PUT", body: file, headers });
-  if (!res.ok) throw new Error(`Upload failed (HTTP ${res.status})`);
+  let res: Response;
+  try {
+    res = await fetch(presignedUrl, { method: "PUT", body: file, headers });
+  } catch (e) {
+    throw networkError(e, presignedUrl);
+  }
+  if (!res.ok) throw new ApiError("The file upload failed. Please try again.", { status: res.status, url: presignedUrl });
 }
 
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {
@@ -58,11 +65,11 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
         if (!window.location.pathname.endsWith("/login")) {
           window.location.href = "/login";
         }
-        throw new Error("Session expired — please sign in again.");
+        throw new ApiError("Your session has expired. Please sign in again.", { status: 401, url });
       }
 
       if (res.status === 403) {
-        throw new Error("You are not authorized to perform this action.");
+        throw new ApiError("You don't have permission to perform this action.", { status: 403, url });
       }
 
       if (!res.ok) {
@@ -70,26 +77,20 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
           lastError = new Error(`HTTP ${res.status}`);
           continue;
         }
-        let message: string | undefined;
-        try {
-          const body = await res.json();
-          message = body.message ?? body.error ?? body.detail ?? body.title;
-        } catch {
-          message = await res.text().catch(() => undefined);
-        }
-        throw new Error(message || `HTTP ${res.status}`);
+        throw await errorFromResponse(res, url);
       }
 
       if (res.status === 204) return null as T;
       return res.json() as Promise<T>;
     } catch (e) {
+      if (e instanceof ApiError) throw e;
       if (e instanceof Error && isRetryable(method, e) && attempt < MAX_EXTRA_RETRIES) {
         lastError = e;
         continue;
       }
-      throw e;
+      throw networkError(e, url);
     }
   }
 
-  throw lastError;
+  throw networkError(lastError, url);
 }

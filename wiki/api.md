@@ -16,6 +16,38 @@ used in the request.
 
 ---
 
+## Errors
+
+Every error response (`4xx`/`5xx`) is an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
+problem detail, served as `application/problem+json` and produced centrally by
+`GlobalExceptionHandler` (`@RestControllerAdvice` extending `ResponseEntityExceptionHandler`).
+
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Salon not found",
+  "instance": "/api/salon/nan/booking/slots",
+  "timestamp": "2026-09-02T10:15:30.123Z"
+}
+```
+
+| Field | Notes |
+|---|---|
+| `type` | Problem type URI; `about:blank` for generic errors. |
+| `title` | Short, human-readable summary of the status code. |
+| `status` | HTTP status code, repeated in the body. |
+| `detail` | Specific explanation (e.g. `Salon not found`, `Failed to convert 'serviceId'`). |
+| `instance` | The request path that failed. |
+| `timestamp` | When the error was produced. |
+
+Common cases: unknown salon UUID/handler → `404`; non-numeric `{serviceId}` / query param →
+`400`; unknown route → `404`; missing bearer token on a protected endpoint → `401`; wrong
+role / not the salon's owner → `403`.
+
+---
+
 ## Path Namespace Overview
 
 | Namespace | Base Path | Audience |
@@ -362,7 +394,7 @@ one-off unavailable dates — from the exact same data [Get booking slots](#get-
 already checks per date. Lets a booking calendar grey out days for a specific staff member up
 front (e.g. once pre-picked via "Book with {name}", or when they're the only one who can perform
 the service) instead of only discovering a day is empty after the visitor picks it and calls
-`/slots`.
+`/booking/slots`.
 
 **Response** `200 OK`
 
@@ -694,7 +726,7 @@ and fires the same booking-confirmation email as the step-by-step wizard.
    model can call:
    - **lookup tools** — `getSalonProfile`/`getStaff`/`getServices`/`getHolidays` (plain HTTP
      calls to this app's own `/api/salon/{salonId}/...` endpoints above) and `checkAvailability`
-     (calls `/api/salon/{salonId}/slots`, so it can't invent an open time);
+     (calls `/api/salon/{salonId}/booking/slots`, so it can't invent an open time);
    - **render tools** — `showServices`/`showStaff`/`showOpeningHours`/`showLocation`/
      `showContact`/`startBookingPicker`/`showDatePicker`/`showTimeSlots`/`showForm`/
      `showButtonGroup`/`showRadioGroup`/`showCheckboxGroup`/`showOptionList`, which hit nothing
@@ -1654,7 +1686,7 @@ Returns all closures for the salon. Used by the booking wizard to disable closed
 ## Admin — Closures
 
 Salon closures block the entire salon on a date range (vacation, public holiday, emergency). When a date falls within a closure:
-- `GET .../slots` returns an **empty array**
+- `GET .../booking/slots` returns an **empty array**
 - `POST .../booking` returns **HTTP 400**
 - Booking calendar views visually disable those dates
 

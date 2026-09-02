@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.4.2/swagger-ui.css" integrity="sha512-9ZJfeEZ6DAr3pstOThylJAyPbhr+BXMiyPsiCWmozVeJrcInppRXLZ9sUOL64n7H7DHsdDlSCRI3qk5/clvnXA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <title>multi-tenant-salon</title>
+</head>
+<body>
+<div id="openapi"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.4.2/swagger-ui-bundle.js" integrity="sha512-l5/LYUvqCJKr9NblefbJPkYEpD3yUiOOXiLUKlibcIbVynsY3UopPYBr0xisoV8By8MulIth7yTLc+KOVt6YeQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+    window.onload = function () {
+        const ui = SwaggerUIBundle({
+            url: 'OAS.yaml',
+            dom_id: "#openapi"
+        })
+    }
+</script>
+</body>
+</html>

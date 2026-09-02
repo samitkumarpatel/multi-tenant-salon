@@ -412,7 +412,7 @@ export function GenerativeUIWebsite({
   useEffect(() => { if (started) refreshSalonData(); }, [started, refreshSalonData]);
 
   // One-off closures + resolved holiday dates the booking picker's calendar must block. The
-  // server rejects these too (`/slots` returns nothing, `POST /booking` 400s) — this just keeps
+  // server rejects these too (`/booking/slots` returns nothing, `POST /booking` 400s) — this just keeps
   // the calendar from offering them.
   const bookingEnabled = salon.features?.includes("BOOKING") ?? false;
   const advanceDays = salon.bookingAdvanceDays ?? 60;

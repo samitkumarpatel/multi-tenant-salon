@@ -90,6 +90,10 @@ public class MultiTenantSalonApplication {
 								.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
 						).authorizeHttpRequests(authH -> authH
 								.requestMatchers(
+										// Error dispatch must stay open — Spring Security filters the ERROR
+										// dispatcher too, so without this any error response (404/400/500) for
+										// an unauthenticated caller gets masked as a 401 by the entry point.
+										"/error",
 										"/actuator/**",
 										"/api/salon", "/api/salon/**",
 										"/api/salon-onboarding", "/api/salon-onboarding/**",
