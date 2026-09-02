@@ -1,3 +1,5 @@
+import { ApiError, errorFromResponse, networkError } from "@salon/ui-shared";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 export const ONBOARDING_API = `${API_BASE}/api/salon-onboarding`;
 export const CUSTOMER_API   = `${API_BASE}/api/salon`;
@@ -54,26 +56,20 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
           lastError = new Error(`HTTP ${res.status}`);
           continue;
         }
-        let message: string | undefined;
-        try {
-          const body = await res.json();
-          message = body.message ?? body.error ?? body.detail ?? body.title;
-        } catch {
-          message = await res.text().catch(() => undefined);
-        }
-        throw new Error(message || `HTTP ${res.status}`);
+        throw await errorFromResponse(res, url);
       }
 
       if (res.status === 204) return null as T;
       return res.json() as Promise<T>;
     } catch (e) {
+      if (e instanceof ApiError) throw e;
       if (e instanceof Error && isRetryable(method, e) && attempt < MAX_EXTRA_RETRIES) {
         lastError = e;
         continue;
       }
-      throw e;
+      throw networkError(e, url);
     }
   }
 
-  throw lastError;
+  throw networkError(lastError, url);
 }

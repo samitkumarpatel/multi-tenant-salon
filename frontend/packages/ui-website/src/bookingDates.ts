@@ -2,7 +2,7 @@ import type { OperatingHours, SalonHoliday } from "./types";
 
 // Shared date-availability logic for the customer-facing booking surfaces (the step-by-step
 // BookingWizard and the Generative-UI BookingPickerCard). The server is the source of truth —
-// `/slots` returns nothing and `POST /booking` 400s for a closed date — this just keeps the
+// `/booking/slots` returns nothing and `POST /booking` 400s for a closed date — this just keeps the
 // calendars from offering dates that would be rejected.
 
 export type ClosureRange = { startDate: string; endDate: string };
@@ -19,7 +19,7 @@ export function isClosedByRange(isoDate: string, ranges: ClosureRange[]): boolea
 /**
  * A slot on `isoDate` starting at `startTime` (`HH:mm` or `HH:mm:ss`) has already passed. Only
  * ever true when `isoDate` is today — a time earlier today can't be booked, so the pickers must
- * not offer it even though `/slots` (which doesn't know the wall clock) still returns it.
+ * not offer it even though `/booking/slots` (which doesn't know the wall clock) still returns it.
  */
 export function isPastSlot(isoDate: string, startTime: string, now: Date = new Date()): boolean {
   if (isoDate !== iso(now)) return false;

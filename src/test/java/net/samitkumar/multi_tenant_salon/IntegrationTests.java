@@ -496,7 +496,7 @@ class IntegrationTests {
     void getAvailableSlots() {
         // BOOKING_DATE = 2027-02-01 (Monday), staff has 09:00-17:00, service is 60 min → 8 slots
         client.get()
-                .uri(u -> u.path("/api/salon/{salonId}/slots")
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", BOOKING_DATE)
                         .queryParam("staffId", staffId)
@@ -514,7 +514,7 @@ class IntegrationTests {
     @Order(51)
     void getAvailableSlotsWithoutStaffFilter() {
         client.get()
-                .uri(u -> u.path("/api/salon/{salonId}/slots")
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", BOOKING_DATE)
                         .build(salonId))

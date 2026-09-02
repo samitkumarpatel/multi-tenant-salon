@@ -206,7 +206,7 @@ class BookingModuleTests {
 
         // 3-hour window / 60 min service = 3 slots
         client.get()
-                .uri(u -> u.path("/api/salon/{salonId}/slots")
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", TEST_DATE)
                         .queryParam("staffId", staffId)
@@ -249,7 +249,7 @@ class BookingModuleTests {
                 .expectStatus().isCreated();
 
         client.get()
-                .uri(u -> u.path("/api/salon/{salonId}/slots")
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", TEST_DATE)
                         .queryParam("staffId", staffId)
@@ -270,7 +270,7 @@ class BookingModuleTests {
     void getAvailableSlotsReturnsEmptyWhenNoAvailability() {
         // Sunday is outside the default Mon–Sat seeded schedule, so 0 slots regardless
         client.get()
-                .uri(u -> u.path("/api/salon/{salonId}/slots")
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
                         .queryParam("serviceId", serviceId)
                         .queryParam("date", TEST_DATE_SUNDAY)
                         .queryParam("staffId", staffId)
@@ -285,7 +285,7 @@ class BookingModuleTests {
     @Test
     void getAvailableSlotsServiceNotFound() {
         client.get()
-                .uri(u -> u.path("/api/salon/{salonId}/slots")
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
                         .queryParam("serviceId", "99999")
                         .queryParam("date", TEST_DATE)
                         .build(salonId))

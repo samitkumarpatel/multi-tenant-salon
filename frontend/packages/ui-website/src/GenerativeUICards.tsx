@@ -344,7 +344,7 @@ export function ContactCard({ salon, tokens }: { salon: Salon; tokens: CardToken
 
 // ── Booking picker — interactive calendar + staff dropdown + time slots ─────
 // Replaces asking the visitor to type a date in free text: date/staff/time all
-// come from the salon's real availability (same /slots endpoint the step-by-step
+// come from the salon's real availability (same /booking/slots endpoint the step-by-step
 // BookingWizard uses), so there's nothing for the model to get wrong. Only the
 // final review card (rendered by the caller from the returned fields) still
 // goes through the usual confirm/dismiss flow.
@@ -550,7 +550,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     if (step !== "staff") return;
     if (isDateClosed(date, closedDays, closedDateRanges)) { setDateSlots([]); return; }
     setLoadingDateSlots(true);
-    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/slots?${new URLSearchParams({ serviceId: String(service.id), date })}`)
+    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/booking/slots?${new URLSearchParams({ serviceId: String(service.id), date })}`)
       .then((res) => setDateSlots(res.filter((s) => !s.booked && !isPastSlot(date, s.startTime))))
       .catch(() => setDateSlots([]))
       .finally(() => setLoadingDateSlots(false));
@@ -567,7 +567,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     setSlotsError(null);
     const params = new URLSearchParams({ serviceId: String(service.id), date });
     if (staffId != null) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/booking/slots?${params}`)
       .then((res) => setSlots(res.filter((s) => !s.booked)))
       .catch(() => setSlotsError("Couldn't load availability for this date — try another one."))
       .finally(() => setLoadingSlots(false));

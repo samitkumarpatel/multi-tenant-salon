@@ -105,7 +105,7 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
 }
 
 // ── time-slot-picker ────────────────────────────────────────────────────────
-// Real bookable slots for a service on a date (same /slots endpoint the wizard uses). Tapping a
+// Real bookable slots for a service on a date (same /booking/slots endpoint the wizard uses). Tapping a
 // time sends it back as the visitor's message so the assistant can start/continue a booking.
 
 export function TimeSlotPickerCard({ props, tokens, salon, closedDateRanges, onAnswer }: GenUIInteractiveProps) {
@@ -135,14 +135,14 @@ export function TimeSlotPickerCard({ props, tokens, salon, closedDateRanges, onA
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId != null) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/booking/slots?${params}`)
       .then((res) => setSlots(res.filter((s) => !s.booked)))
       .catch(() => setError("Couldn't load availability for this date — try another one."))
       .finally(() => setLoading(false));
   }, [salon.id, serviceId, staffId, date, dateClosed]);
 
   // Dedupe several staff sharing a start time down to one button, and drop any slot that has
-  // already passed today — `/slots` returns booked=false for those but they can't be taken.
+  // already passed today — `/booking/slots` returns booked=false for those but they can't be taken.
   const times = (() => {
     const map = new Map<string, AvailableSlot>();
     for (const s of slots) {

@@ -24,7 +24,7 @@ interface SalonApiClient {
     @GetExchange("/{salonId}/holidays")
     String getHolidays(@PathVariable String salonId);
 
-    @GetExchange("/{salonId}/slots")
+    @GetExchange("/{salonId}/booking/slots")
     String getSlots(@PathVariable String salonId, @RequestParam Long serviceId,
                      @RequestParam String date, @RequestParam(required = false) Long staffId);
 

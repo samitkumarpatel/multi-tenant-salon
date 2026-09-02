@@ -2076,8 +2076,42 @@ components:
   responses:
     NotFound:
       description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
 
   schemas:
+
+    # ── Errors ───────────────────────────────────────────────────────────────
+
+    ProblemDetail:
+      type: object
+      description: >
+        RFC 9457 problem detail. Every error response (4xx/5xx) uses this shape,
+        served as `application/problem+json`.
+      properties:
+        type:
+          type: string
+          format: uri
+          example: "about:blank"
+        title:
+          type: string
+          example: "Not Found"
+        status:
+          type: integer
+          example: 404
+        detail:
+          type: string
+          example: "Salon not found"
+        instance:
+          type: string
+          format: uri
+          example: "/api/salon/nan/booking/slots"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error was produced (added by the global handler).
 
     # ── Closure ──────────────────────────────────────────────────────────────
 

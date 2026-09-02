@@ -2110,7 +2110,7 @@ export default function BookingPage() {
     let cancelled = false;
     setRsSlotsLoading(true);
     const params = new URLSearchParams({ serviceId: String(rescheduleTarget.serviceId), date: rsForm.appointmentDate });
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${String(sid)}/booking/slots?${params}`)
       .then((slots) => { if (!cancelled) setRsSlots(slots); })
       .catch((e) => { if (!cancelled) { setRsSlots([]); notify(e instanceof Error ? e.message : "Failed to load slots", "error"); } })
       .finally(() => { if (!cancelled) setRsSlotsLoading(false); });

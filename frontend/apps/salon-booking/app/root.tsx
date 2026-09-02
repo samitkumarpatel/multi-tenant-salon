@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
+import { friendlyMessage } from "@salon/ui-website";
 import "./app.css";
 
 const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310B981'/%3E%3Ctext x='16' y='22' font-family='system-ui%2Csans-serif' font-size='16' font-weight='700' fill='white' text-anchor='middle'%3E%E2%9C%82%EF%B8%8F%3C/text%3E%3C/svg%3E";
@@ -65,7 +66,7 @@ export function ErrorBoundary() {
           <p style={{ fontSize: 14, color: "#78716c", margin: "0 0 24px", lineHeight: 1.6 }}>
             {is404
               ? "This booking link is invalid. Please check the URL and try again."
-              : "We couldn't load this page. Please try again."}
+              : friendlyMessage(error)}
           </p>
           {!is404 && (
             <button onClick={() => window.location.reload()} style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #d6d3d1", background: "white", cursor: "pointer", fontSize: 14, color: "#374151" }}>

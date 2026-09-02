@@ -367,7 +367,7 @@ function WeekGrid({
         const iso = toISODate(d);
         const params = new URLSearchParams({ serviceId: String(serviceId), date: iso });
         if (staffId) params.set("staffId", String(staffId));
-        return apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
+        return apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/booking/slots?${params}`)
           .then((slots) => [iso, futureSlots(iso, slots)] as const)
           .catch(() => [iso, []] as const);
       })
@@ -622,7 +622,7 @@ function DesignerGrid({
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/booking/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load availability"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -785,7 +785,7 @@ function DaySlots({
     setError(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/booking/slots?${params}`)
       .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load slots"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -1089,7 +1089,7 @@ function StepSlots({
     setSlots(null);
     const params = new URLSearchParams({ serviceId: String(serviceId), date });
     if (staffId) params.set("staffId", String(staffId));
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/slots?${params}`)
+    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/booking/slots?${params}`)
       .then((s) => setSlots(futureSlots(date, s)))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load slots"))
       .finally(() => setLoading(false));
