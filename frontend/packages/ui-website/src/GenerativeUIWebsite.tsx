@@ -742,6 +742,26 @@ export function GenerativeUIWebsite({
     }, 350);
   }
 
+  function showStaffProfile(member: StaffMember) {
+    const firstName = member.name.split(/\s+/)[0];
+    setStarted(true);
+    refreshSalonData();
+    setMessages((prev) => [...prev, { role: "user", text: `Tell me more about ${member.name}`, time: nowTime() }]);
+    setThinking(true);
+    setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: `Here's ${firstName}'s profile — you can see their portfolio and book directly from the card.`,
+          time: nowTime(),
+          components: [{ type: "staff-profile", props: { staffId: member.id } }],
+        },
+      ]);
+      setThinking(false);
+    }, 350);
+  }
+
   // The picker's own review step hands off into the exact same confirm/dismiss card (and the
   // same real POST /booking call) already used by the LLM's propose-booking flow.
   function completeBookingPicker(messageIndex: number, fields: PendingBookingFields) {
@@ -956,6 +976,7 @@ export function GenerativeUIWebsite({
         onAnswer={sendMessage}
         onBookService={startBooking}
         onBookStaff={startBookingWithStaff}
+        onViewProfile={showStaffProfile}
       />
     );
   }

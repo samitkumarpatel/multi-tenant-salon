@@ -2,6 +2,7 @@ import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   Briefcase, Users, Palette, ArrowRight, PartyPopper, ChevronRight, CheckCircle2,
+  Monitor, BotMessageSquare, ExternalLink,
 } from "lucide-react";
 import type { LayoutContext } from "~/lib/types";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
@@ -90,6 +91,38 @@ export default function Setup() {
         >
           Go to Overview <ArrowRight className="w-4 h-4" />
         </Link>
+
+        <div className="mt-8 text-left rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Get inspired — see live examples</p>
+          <div className="flex flex-col gap-2">
+            <a
+              href="https://bb.salonsaas.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-white border border-amber-200 hover:border-amber-400 transition-colors no-underline group"
+            >
+              <Monitor className="w-4 h-4 text-amber-500 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-700 group-hover:text-amber-700">Static Website example</p>
+                <p className="text-[10px] text-slate-400">bb.salonsaas.org</p>
+              </div>
+              <ExternalLink className="w-3 h-3 text-slate-300 shrink-0" />
+            </a>
+            <a
+              href="https://nan.salonsaas.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-white border border-violet-200 hover:border-violet-400 transition-colors no-underline group"
+            >
+              <BotMessageSquare className="w-4 h-4 text-violet-500 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-700 group-hover:text-violet-700">AI Receptionist example</p>
+                <p className="text-[10px] text-slate-400">nan.salonsaas.org</p>
+              </div>
+              <ExternalLink className="w-3 h-3 text-slate-300 shrink-0" />
+            </a>
+          </div>
+        </div>
       </div>
     );
   }
@@ -197,6 +230,15 @@ export default function Setup() {
                           >
                             {step.cta} →
                           </Link>
+                        </p>
+                      )}
+                      {step.key === "website" && (
+                        <p className="text-xs text-slate-400 leading-relaxed mt-2">
+                          Your website can look just like these —{" "}
+                          <a href="https://bb.salonsaas.org/" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline font-medium no-underline">Static Website</a>
+                          {" "}or{" "}
+                          <a href="https://nan.salonsaas.org/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline font-medium no-underline">AI Receptionist</a>
+                          {" "}— customised with your salon's colours, fonts, and branding.
                         </p>
                       )}
                     </div>

@@ -192,7 +192,11 @@ export default function WebsiteManagement() {
           badge="Standard"
           isLive={mode === "STATIC_WEBSITE"}
           description="A clean, customisable page with your salon's services, team, hours, and contact details."
-          features={["Services & pricing", "Team profiles", "Location & hours", "Design customisation"]}
+          features={[
+            "Showcases your services, pricing & team",
+            "Displays location, hours & contact details",
+            "Fully customisable colours, fonts & branding",
+          ]}
         >
           <div className="flex items-center gap-3 flex-wrap">
             <a
@@ -213,8 +217,16 @@ export default function WebsiteManagement() {
             </a>
           </div>
           <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-            Changes are applied immediately. You can always come back and redesign at any time.
+            Customise colours, fonts, and branding — the same design settings apply to your receptionist's chat window.
           </p>
+          <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
+            <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-slate-100 text-slate-400 border-slate-200">
+              Coming Soon
+            </span>
+            <span>
+              Choose from multiple page layouts — hero banners, grid galleries, minimal lists — so your website matches your salon's personality, not just a template.
+            </span>
+          </div>
         </ModeCard>
 
         <ModeCard

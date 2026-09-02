@@ -106,10 +106,10 @@ export function ServicesCard({ services, tokens, showBookPill, onBook }: {
 
 // ── Staff ────────────────────────────────────────────────────────────────────
 
-export function StaffCard({ staff, tokens, showBookPill, onBook }: {
-  staff: StaffMember[]; tokens: CardTokens; showBookPill: boolean; onBook: (member: StaffMember) => void;
+export function StaffCard({ staff, tokens, showBookPill, onBook, onViewProfile }: {
+  staff: StaffMember[]; tokens: CardTokens; showBookPill: boolean; onBook: (member: StaffMember) => void; onViewProfile?: (member: StaffMember) => void;
 }) {
-  const { msgText, msgDim } = tokens;
+  const { theme, msgText, msgDim } = tokens;
   const active = staff.filter((m) => m.status === "ACTIVE");
   if (active.length === 0) return null;
 
@@ -129,7 +129,19 @@ export function StaffCard({ staff, tokens, showBookPill, onBook }: {
               <p className="text-sm font-medium truncate" style={{ color: msgText }}>{m.name}</p>
               <p className="text-[11px]" style={{ color: msgDim }}>{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
             </div>
-            {showBookPill && <BookPill label="Book" tokens={tokens} onClick={() => onBook(m)} />}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onViewProfile && (
+                <button
+                  type="button"
+                  onClick={() => onViewProfile(m)}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-opacity hover:opacity-70 border"
+                  style={{ color: theme.accentColor, borderColor: theme.accentColor, background: "transparent" }}
+                >
+                  Profile
+                </button>
+              )}
+              {showBookPill && <BookPill label="Book" tokens={tokens} onClick={() => onBook(m)} />}
+            </div>
           </div>
         ))}
       </div>

@@ -33,7 +33,7 @@ const num = (v: unknown): number | undefined =>
  * or the salon data behind a data card is empty) so the caller can fall back gracefully.
  */
 export function GenUIComponent({
-  component, tokens, ctx, onAnswer, onBookService, onBookStaff,
+  component, tokens, ctx, onAnswer, onBookService, onBookStaff, onViewProfile,
 }: {
   component: UIComponent;
   tokens: CardTokens;
@@ -41,6 +41,7 @@ export function GenUIComponent({
   onAnswer: (value: string) => void;
   onBookService: (service: ServiceItem, staffId?: number) => void;
   onBookStaff: (member: StaffMember) => void;
+  onViewProfile?: (member: StaffMember) => void;
 }): React.ReactElement | null {
   const { salon, staff, services, closedDateRanges, canBook } = ctx;
   const props = component.props ?? {};
@@ -61,7 +62,7 @@ export function GenUIComponent({
         ? staff.filter((m) => svc.assignedStaffIds!.includes(String(m.id)))
         : staff;
       if (!filtered.some((m) => m.status === "ACTIVE")) return null;
-      return <StaffCard staff={filtered} tokens={tokens} showBookPill={canBook} onBook={onBookStaff} />;
+      return <StaffCard staff={filtered} tokens={tokens} showBookPill={canBook} onBook={onBookStaff} onViewProfile={onViewProfile} />;
     }
     case "staff-profile": {
       const staffId = num(props.staffId);
