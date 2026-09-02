@@ -308,15 +308,10 @@ export function LocationCard({ salon, tokens }: { salon: Salon; tokens: CardToke
         )}
         {loc.country && <p className="text-xs" style={{ color: msgDim }}>{loc.country}</p>}
       </div>
-      <a
-        href={mapsUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-xs font-semibold no-underline"
-        style={{ color: theme.accentColor }}
-      >
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
         Open in Maps <ChevronRight className="w-3 h-3" />
-      </a>
+        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+      </span>
     </CardShell>
   );
 }

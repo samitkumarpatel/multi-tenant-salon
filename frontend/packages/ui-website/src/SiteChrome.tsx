@@ -31,13 +31,14 @@ function initials(name: string) {
 }
 
 export function SiteHeader({
-  salon, theme, current, onBack, getPagePath, standalone = false, headerExtra,
+  salon, theme, current, onBack, getPagePath, onNavigate, standalone = false, headerExtra,
 }: {
   salon: Salon;
   theme: WebsiteTheme;
   current: string;
   onBack: () => void;
   getPagePath?: (page: string) => string;
+  onNavigate?: (page: string) => void;
   /** Hide "Back to website" nav — use when there is no website to return to */
   standalone?: boolean;
   /** Extra content rendered on the right side (standalone mode only) */
@@ -105,6 +106,7 @@ export function SiteHeader({
                 key={fp.path}
                 href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`}
                 className="hidden md:inline no-underline transition-colors font-medium text-slate-500 hover:text-slate-900"
+                onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}
               >
                 {fp.label}
               </a>
@@ -131,7 +133,8 @@ export function SiteHeader({
             ) : hasBooking ? (
               <a href={getPagePath ? getPagePath("book") : "/book"}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
-                style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                style={{ backgroundColor: theme.accentColor, color: accentText }}
+                onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 Book now
               </a>
             ) : null}
@@ -304,16 +307,10 @@ export function SiteFooter({
                 {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
               </address>
               {salon.location.address && (
-                <a
-                  href={theme.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    [salon.location.address, salon.location.zipCode, salon.location.city, salon.location.country].filter(Boolean).join(", ")
-                  )}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold no-underline hover:opacity-80 transition-opacity"
-                  style={{ color: theme.accentColor }}
-                >
+                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
                   Open in Maps <ChevronRight className="w-3 h-3" />
-                </a>
+                  <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+                </span>
               )}
             </div>
           )}

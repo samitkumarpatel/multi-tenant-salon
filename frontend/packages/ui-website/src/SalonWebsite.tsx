@@ -589,6 +589,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
         salon={salon} theme={theme} pageKey={featureViewKey} bookUrl={bookUrl}
         getPagePath={getPagePath}
         onBack={() => onNavigate?.(null)}
+        onNavigate={(page) => onNavigate?.(page)}
       />
     );
   }
@@ -609,7 +610,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
             {featurePages.length > 0 && (
               <nav className="hidden md:flex items-center gap-6 text-sm">
                 {featurePages.map((fp) => (
-                  <a key={fp.path} href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`} className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900">{fp.label}</a>
+                  <a key={fp.path} href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`} className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900" onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}>{fp.label}</a>
                 ))}
               </nav>
             )}
@@ -621,7 +622,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
             </span>
             {hasBooking && (
               <a href={bookUrl} data-track="nav-book-now" className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
-                style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                style={{ backgroundColor: theme.accentColor, color: accentText }}
+                onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 Book now
               </a>
             )}
@@ -676,7 +678,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
               <div className="flex flex-wrap gap-3 mt-6">
                 {hasBooking && (
                   <a href={bookUrl} data-track="hero-book-appointment" className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline transition-all hover:opacity-90 hover:scale-[1.03]"
-                    style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                    style={{ backgroundColor: theme.accentColor, color: accentText }}
+                    onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                     <CalendarCheck className="w-4 h-4" /> Book an appointment <ChevronRight className="w-4 h-4" />
                   </a>
                 )}

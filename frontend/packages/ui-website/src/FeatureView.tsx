@@ -29,7 +29,7 @@ function initials(name: string) {
 }
 
 export function FeatureView({
-  salon, theme, pageKey, bookUrl, onBack, getPagePath,
+  salon, theme, pageKey, bookUrl, onBack, getPagePath, onNavigate,
 }: {
   salon: Salon;
   theme: WebsiteTheme;
@@ -37,6 +37,7 @@ export function FeatureView({
   bookUrl: string;
   onBack: () => void;
   getPagePath?: (page: string) => string;
+  onNavigate?: (page: string) => void;
 }) {
   const page = FEATURE_VIEWS[pageKey] ?? FEATURE_VIEWS.shop;
   const Icon = page.icon;
@@ -49,7 +50,7 @@ export function FeatureView({
 
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStackCss, backgroundColor: theme.heroBg }}>
-      <SiteHeader salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
+      <SiteHeader salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} onNavigate={onNavigate} />
 
       <main className="flex-1 flex items-center">
         <div className="max-w-5xl mx-auto px-6 py-16 w-full text-center">
@@ -83,6 +84,7 @@ export function FeatureView({
                 href={bookUrl}
                 className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline hover:opacity-90 transition-opacity"
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
+                onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}
               >
                 <CalendarCheck className="w-4 h-4" /> Book an appointment
               </a>
