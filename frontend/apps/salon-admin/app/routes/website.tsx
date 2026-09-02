@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useOutletContext, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Monitor, Wand2, ExternalLink, Eye, Handshake, Mail } from "lucide-react";
+import { Monitor, BotMessageSquare, ExternalLink, Eye, Handshake, Mail } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { CONTACT_EMAIL, websiteUrl } from "~/lib/config";
@@ -223,16 +223,15 @@ export default function WebsiteManagement() {
           onSelect={setMode}
           accent="violet"
           betaTag
-          icon={<Wand2 className="w-5 h-5 text-violet-600" />}
-          title="Generative UI"
-          badge="MCP Apps"
+          icon={<BotMessageSquare className="w-5 h-5 text-violet-600" />}
+          title="AI Receptionist"
+          badge="AI Chat Agent"
           isLive={mode === "GENERATIVE_UI"}
-          description="Delivers an AI-crafted experience to every visitor — served as an interactive chat powered by your salon's data."
+          description="A generative AI chat agent that greets every visitor like your front-desk receptionist — answering questions, recommending services, and guiding them toward a booking using your salon's live data."
           features={[
-            "Personalised content per visitor",
-            "AI-curated service recommendations",
-            "Dynamic promotions & loyalty offers",
-            "Booking intelligence",
+            "Chats with visitors like a live receptionist",
+            "Answers questions on services, pricing & hours",
+            "Guides visitors toward booking",
           ]}
         >
           <div className="flex items-center gap-3 flex-wrap">
@@ -254,9 +253,16 @@ export default function WebsiteManagement() {
             </a>
           </div>
           <p className="mt-3 text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2 leading-relaxed">
-            Customise colours, fonts, and branding — the same design settings apply to your AI-powered page.{" "}
-            <span className="font-semibold">Full AI personalisation is coming soon.</span>
+            Customise colours, fonts, and branding — the same design settings apply to your receptionist's chat window.
           </p>
+          <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
+            <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-slate-100 text-slate-400 border-slate-200">
+              Coming Soon
+            </span>
+            <span>
+              An MCP server with MCP tools, so your salon's services, hours &amp; booking data can be used by any other Generative Chat Agent — not just this one.
+            </span>
+          </div>
         </ModeCard>
 
         <ModeCard

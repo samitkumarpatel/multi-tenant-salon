@@ -174,9 +174,9 @@ export default function Analytics() {
       ) : null}
 
       <div className="space-y-4 pt-2">
-        <h2 className="text-lg font-bold text-slate-900">Generative UI chat</h2>
+        <h2 className="text-lg font-bold text-slate-900">AI Receptionist chat</h2>
         <InfoBar id="analytics-genui">
-          How visitors are using the AI chat assistant on your website and booking page.
+          How visitors are using the AI Receptionist on your website and booking page.
         </InfoBar>
       </div>
 

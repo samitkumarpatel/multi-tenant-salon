@@ -35,9 +35,7 @@ const STATUS_DOT: Record<string, string> = {
 // ── Onboarding constants ──────────────────────────────────────────────────────
 
 const ROLE_EMOJI: Record<string, string> = {
-  MANAGER: "👔", STYLIST: "✂️", COLORIST: "🎨",
-  MAKEUP_ARTIST: "💄", NAIL_TECHNICIAN: "💅",
-  RECEPTIONIST: "📋", ASSISTANT: "🤝",
+  MANAGER: "👔", STYLIST: "✂️", RECEPTIONIST: "📋", ASSISTANT: "🤝",
 };
 
 // ── Form field type ───────────────────────────────────────────────────────────
@@ -591,7 +589,7 @@ function AddStaffFlow({
         className="flex items-center gap-1 text-xs text-slate-400 hover:text-matcha-600 cursor-pointer transition-colors mb-3"
       >
         {showAdvanced ? <ChevronDown className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-        {showAdvanced ? "Hide advanced options" : "Phone, specializations & availability"}
+        {showAdvanced ? "Hide advanced options" : "Phone, specializations, work media & availability"}
       </button>
       {showAdvanced && (
         <div className="mb-4 space-y-4">

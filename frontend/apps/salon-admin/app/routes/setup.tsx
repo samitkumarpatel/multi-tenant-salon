@@ -62,8 +62,8 @@ export default function Setup() {
       icon: Palette,
       title: "Design your website",
       description:
-        "Choose how customers meet your salon online — a classic Static Website (pages for services, team, hours and contact), or a Generative UI that lets them interact with your salon conversationally in a chat. Then customise its look. You can switch modes anytime from the Website tab.",
-      doneDescription: "We've automatically set up your website design. You can still switch between a Static Website and the conversational Generative UI, and customise it, anytime from the Website tab.",
+        "Choose how customers meet your salon online — a classic Static Website (pages for services, team, hours and contact), or an AI Receptionist that chats with them conversationally, like a front-desk assistant. Then customise its look. You can switch modes anytime from the Website tab.",
+      doneDescription: "We've automatically set up your website design. You can still switch between a Static Website and the conversational AI Receptionist, and customise it, anytime from the Website tab.",
       done: websiteType !== null,
       href: "website",
       cta: "Go to Website",

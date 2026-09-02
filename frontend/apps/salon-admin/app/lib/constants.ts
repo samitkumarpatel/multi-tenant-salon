@@ -13,7 +13,7 @@ export const DAYS = [
 ] as const;
 
 export const STAFF_ROLES = [
-  "MANAGER", "STYLIST", "COLORIST", "MAKEUP_ARTIST", "NAIL_TECHNICIAN", "RECEPTIONIST", "ASSISTANT",
+  "MANAGER", "STYLIST", "RECEPTIONIST", "ASSISTANT",
 ] as const;
 
 export const STAFF_STATUSES = ["ACTIVE", "INACTIVE", "ON_LEAVE"] as const;

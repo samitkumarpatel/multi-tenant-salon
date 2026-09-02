@@ -367,10 +367,10 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
         {isGenUI ? (
-          // ── Generative UI palette — only what affects the chat shell ────
+          // ── AI Receptionist palette — only what affects the chat shell ────
           <>
             <p className="text-[11px] text-slate-400 leading-relaxed bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5">
-              These settings style the <span className="font-semibold text-violet-700">chat window shell</span>. Most visual design will come from your connected MCP apps.
+              These settings style the <span className="font-semibold text-violet-700">chat window shell</span> your AI Receptionist greets visitors in.
             </p>
 
             <section>
