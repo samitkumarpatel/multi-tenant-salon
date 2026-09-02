@@ -176,13 +176,17 @@ function BookingDetailModal({
           )}
           {member && (
             <div className="flex items-center gap-2">
-              {member.avatarUrl ? (
-                <img src={member.avatarUrl} alt={member.name} className="w-5 h-5 rounded-full object-cover shrink-0 border border-slate-200" />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+              <div className="relative w-5 h-5 shrink-0">
+                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center">
                   <span className="text-[8px] font-bold text-slate-500">{member.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
                 </div>
-              )}
+                {member.avatarUrl && (
+                  <img src={member.avatarUrl} alt={member.name}
+                    className="w-5 h-5 rounded-full object-cover absolute inset-0 border border-slate-200"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
+                )}
+              </div>
               <span>{member.name} · {STAFF_ROLE_LABEL[member.role] ?? member.role}</span>
             </div>
           )}
@@ -280,13 +284,17 @@ function BookingRow({
       )}
       {member && (
         <div className="hidden md:flex items-center gap-2 min-w-0 w-28 shrink-0">
-          {member.avatarUrl ? (
-            <img src={member.avatarUrl} alt={member.name} className="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-200" />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+          <div className="relative w-6 h-6 shrink-0">
+            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
               <span className="text-[8px] font-bold text-slate-500">{member.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
             </div>
-          )}
+            {member.avatarUrl && (
+              <img src={member.avatarUrl} alt={member.name}
+                className="w-6 h-6 rounded-full object-cover absolute inset-0 border border-slate-200"
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+              />
+            )}
+          </div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-700 truncate">{member.name}</p>
             <p className="text-[10px] text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
@@ -382,6 +390,17 @@ function TimelineGrid({
           return (
             <div key={s.id} className={`flex-1 min-w-[140px] px-2 py-2 border-r border-slate-100 last:border-r-0 overflow-hidden ${paused ? "bg-amber-50/60" : ""}`}>
               <div className="flex items-center gap-1.5 min-w-0">
+                <div className="relative w-6 h-6 shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500">
+                    {s.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  {s.avatarUrl && (
+                    <img src={s.avatarUrl} alt={s.name}
+                      className="w-6 h-6 rounded-full object-cover absolute inset-0 border border-slate-200"
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  )}
+                </div>
                 <p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
                 {paused && (
                   <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold border border-amber-200">
@@ -688,13 +707,17 @@ function WeekTimelineGrid({
                           )}
                           {member && (
                             <div className="flex items-center gap-1 mt-auto pt-1">
-                              {member.avatarUrl ? (
-                                <img src={member.avatarUrl} alt={member.name} className="w-4 h-4 rounded-full object-cover shrink-0 ring-1 ring-black/10" />
-                              ) : (
-                                <div className="w-4 h-4 rounded-full bg-white/50 flex items-center justify-center shrink-0 ring-1 ring-black/10">
+                              <div className="relative w-4 h-4 shrink-0">
+                                <div className="w-4 h-4 rounded-full bg-white/50 flex items-center justify-center ring-1 ring-black/10">
                                   <span className="text-[7px] font-black leading-none">{initials(member.name)}</span>
                                 </div>
-                              )}
+                                {member.avatarUrl && (
+                                  <img src={member.avatarUrl} alt={member.name}
+                                    className="w-4 h-4 rounded-full object-cover absolute inset-0 ring-1 ring-black/10"
+                                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                  />
+                                )}
+                              </div>
                               <span className="text-[8px] opacity-60 truncate">{member.name.split(" ")[0]}</span>
                             </div>
                           )}
@@ -759,14 +782,18 @@ function WeekTimelineGrid({
               {/* Staff */}
               {member && (
                 <div className="flex items-center gap-2">
-                  {member.avatarUrl ? (
-                    <img src={member.avatarUrl} alt={member.name} className="w-6 h-6 rounded-full object-cover shrink-0 ring-2 ring-white shadow-sm" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm"
+                  <div className="relative w-6 h-6 shrink-0">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm"
                       style={{ backgroundColor: hoverStaffColor }}>
                       <span className="text-[9px] font-black text-white">{initials(member.name)}</span>
                     </div>
-                  )}
+                    {member.avatarUrl && (
+                      <img src={member.avatarUrl} alt={member.name}
+                        className="w-6 h-6 rounded-full object-cover absolute inset-0 ring-2 ring-white shadow-sm"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    )}
+                  </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-700 leading-none truncate">{member.name}</p>
                     <p className="text-[9px] text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>

@@ -577,6 +577,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
           initialServiceId={bookServiceId} initialStaffId={bookStaffId}
           getPagePath={getPagePath}
           onExit={() => { setBookServiceId(null); setBookStaffId(null); onNavigate?.(null); }}
+          onNavigate={(page) => onNavigate?.(page)}
         />
       </div>
     );

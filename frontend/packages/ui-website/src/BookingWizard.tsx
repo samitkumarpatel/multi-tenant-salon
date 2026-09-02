@@ -214,58 +214,70 @@ function StepService({
               No services match "{query}".
             </p>
           ) : (
-            <div className="space-y-2 mb-6 overflow-y-auto pr-1 max-h-[420px]">
-              {filtered.map((s) => {
-                const isSel = selected?.id === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => onSelect(s)}
-                    className="w-full text-left p-4 rounded-xl border transition-colors cursor-pointer bg-white hover:border-slate-300"
-                    style={isSel ? { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` } : { borderColor: "#e2e8f0" }}
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Radio indicator */}
-                      <span
-                        className="w-4 h-4 mt-0.5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors"
-                        style={isSel ? { borderColor: accent.color, backgroundColor: accent.color } : { borderColor: "#cbd5e1" }}
-                      >
-                        {isSel && <Check className="w-2.5 h-2.5" style={{ color: accent.text }} />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="font-semibold text-slate-900 text-sm">{s.name}</p>
-                          <p className="font-bold text-sm shrink-0 tabular-nums" style={{ color: accent.color }}>
-                            {formatPrice(s.price, s.currency)}
-                          </p>
-                        </div>
-                        {s.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-2">{s.description}</p>}
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {s.durationMinutes} min
-                          </span>
-                          <span className="text-[0.65rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                            {CATEGORY_LABEL[s.category] ?? s.category}
-                          </span>
+            <div className="relative">
+              <div className="space-y-2 overflow-y-auto pr-1 max-h-[45vh] sm:max-h-[400px]">
+                {filtered.map((s) => {
+                  const isSel = selected?.id === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onSelect(s)}
+                      className="w-full text-left p-4 rounded-xl border transition-colors cursor-pointer bg-white hover:border-slate-300"
+                      style={isSel ? { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` } : { borderColor: "#e2e8f0" }}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Radio indicator */}
+                        <span
+                          className="w-4 h-4 mt-0.5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors"
+                          style={isSel ? { borderColor: accent.color, backgroundColor: accent.color } : { borderColor: "#cbd5e1" }}
+                        >
+                          {isSel && <Check className="w-2.5 h-2.5" style={{ color: accent.text }} />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-semibold text-slate-900 text-sm">{s.name}</p>
+                            <p className="font-bold text-sm shrink-0 tabular-nums" style={{ color: accent.color }}>
+                              {formatPrice(s.price, s.currency)}
+                            </p>
+                          </div>
+                          {s.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-2">{s.description}</p>}
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {s.durationMinutes} min
+                            </span>
+                            <span className="text-[0.65rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                              {CATEGORY_LABEL[s.category] ?? s.category}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Scroll-hint gradient — visible when list overflows */}
+              {services.length > 4 && (
+                <div className="pointer-events-none absolute bottom-0 left-0 right-1 h-10 bg-gradient-to-t from-white to-transparent" />
+              )}
             </div>
           )}
         </>
       )}
 
-      <button
-        onClick={onNext}
-        disabled={!selected}
-        className={`w-full py-3 ${primaryBtnCls}`}
-        style={primaryBtnStyle(accent, !!selected)}
-      >
-        Next <ArrowRight className="w-4 h-4" />
-      </button>
+      {/* Sticky Next button — sticks to bottom of the main scroll area */}
+      <div className="sticky bottom-0 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 mt-4 bg-white border-t border-slate-100 rounded-b-2xl px-5 sm:px-6 pb-5 sm:pb-6 pt-3">
+        <button
+          onClick={onNext}
+          disabled={!selected}
+          className={`w-full py-3 ${primaryBtnCls}`}
+          style={primaryBtnStyle(accent, !!selected)}
+        >
+          Next <ArrowRight className="w-4 h-4" />
+        </button>
+        {!selected && (
+          <p className="text-center text-[11px] text-slate-400 mt-2">Select a service above to continue</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -1354,7 +1366,7 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  salon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, getPagePath, standalone = false, headerExtra,
+  salon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, onNavigate, getPagePath, standalone = false, headerExtra,
 }: {
   salon: Salon;
   services: ServiceItem[];
@@ -1367,6 +1379,8 @@ export function BookingWizard({
   initialStaffId?: number | null;
   /** Called when the visitor leaves the wizard (logo / back after confirmation) */
   onExit: () => void;
+  /** Client-side navigation for header feature links (Shop, Membership, etc.) */
+  onNavigate?: (page: string) => void;
   /** Builds a path for a given page key (e.g. "shop" → "/shop") */
   getPagePath?: (page: string) => string;
   /** Hides "Back to website" chrome — use when serving from the standalone booking subdomain */
@@ -1481,7 +1495,7 @@ export function BookingWizard({
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
 
       {/* Header — same chrome as the salon website (Book link swapped for Back) */}
-      <SiteHeader salon={salon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />
+      <SiteHeader salon={salon} theme={theme} current="book" onBack={onExit} onNavigate={onNavigate} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />
 
       {/* Body */}
       <main

@@ -708,10 +708,25 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
                     key={m.id}
                     type="button"
                     onClick={() => { setStaffId(m.id); setStep("time"); }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium cursor-pointer"
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium cursor-pointer flex items-center gap-2.5"
                     style={{ color: msgText, border: `1px solid ${bubbleBorder}` }}
                   >
-                    {m.name} <span style={{ color: msgDim }}>· {STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                    <div className="relative w-7 h-7 shrink-0">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold"
+                        style={{ backgroundColor: avatarColor(m.name), color: "#fff" }}>
+                        {m.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                      </div>
+                      {m.avatarUrl && (
+                        <img src={m.avatarUrl} alt={m.name}
+                          className="w-7 h-7 rounded-full object-cover absolute inset-0"
+                          loading="lazy"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
+                      )}
+                    </div>
+                    <span>
+                      {m.name} <span style={{ color: msgDim }}>· {STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                    </span>
                   </button>
                 ))
               ) : (

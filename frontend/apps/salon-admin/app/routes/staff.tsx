@@ -930,15 +930,19 @@ export default function Staff() {
             {staff.map((m) => (
               <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
 
-                {m.avatarUrl ? (
-                  <img src={m.avatarUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                <div className="relative w-8 h-8 shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
                     <span className="text-xs font-bold text-slate-500">
                       {m.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()}
                     </span>
                   </div>
-                )}
+                  {m.avatarUrl && (
+                    <img src={m.avatarUrl} alt={m.name}
+                      className="w-8 h-8 rounded-full object-cover absolute inset-0 border border-slate-200"
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  )}
+                </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
