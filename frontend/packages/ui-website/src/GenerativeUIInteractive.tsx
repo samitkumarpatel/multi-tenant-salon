@@ -66,7 +66,17 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
     ? [...closedDateRanges, ...staffSchedule.closedDates.map((d) => ({ startDate: d, endDate: d }))]
     : closedDateRanges;
 
-  const [date, setDate] = useState(() => firstBookableDate(today, maxDate, closedDays, closedRanges));
+  // Open on the day the visitor asked for (assistant-resolved `props.date`), if it's inside the
+  // booking window and not closed; otherwise the first day the salon is actually open.
+  const wantedDate = typeof props.date === "string" ? props.date : undefined;
+  const [date, setDate] = useState(() =>
+    wantedDate &&
+    wantedDate >= toIso(today) &&
+    wantedDate <= toIso(maxDate) &&
+    !isDateClosed(wantedDate, closedDays, closedRanges)
+      ? wantedDate
+      : firstBookableDate(today, maxDate, closedDays, closedRanges),
+  );
   const dateClosed = isDateClosed(date, closedDays, closedRanges);
 
   // Closures/holidays and the stylist's schedule land a beat after mount; if the day we defaulted

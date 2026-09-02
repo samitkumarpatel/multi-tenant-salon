@@ -62,7 +62,7 @@ role / not the salon's owner → `403`.
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/website`, `/website-type`, `/features`, `/analytics/summary`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`
 
 ---
 
@@ -669,8 +669,8 @@ plain-text turn. Each entry is `{ "type": …, "props": {…} }`:
 | `services` | `forStaffId?`, `forBooking?` | services card, optionally filtered / framed as "pick one to book" |
 | `staff` | `forServiceId?` | team card, optionally filtered to who can do a service |
 | `hours` / `location` / `contact` | — | the matching data card |
-| `booking-picker` | `serviceId`, `staffId?` | full guided staff→date→time→contact→confirm picker |
-| `date-picker` | `serviceId?`, `staffId?` | lightweight "which day works" calendar |
+| `booking-picker` | `serviceId`, `staffId?`, `date?` | full guided staff→date→time→contact→confirm picker; `date` (yyyy-MM-dd) is the day the visitor named, resolved by the assistant — the picker opens on it |
+| `date-picker` | `serviceId?`, `staffId?`, `date?` | lightweight "which day works" calendar; `date` (yyyy-MM-dd), when set, is the day it opens on |
 | `time-slot-picker` | `serviceId`, `date`, `staffId?` | real bookable slots for a day (fetches `/slots` itself) |
 | `form` | `title`, `submitLabel?`, `fields[] {name,label,type,required,pattern}` | short field collector |
 | `button-group` / `radio-group` / `checkbox-group` / `option-list` | `prompt`, `choices[] {label,value}` | a choice to tap; the `value` is sent to `POST .../chat` as the visitor's next message |
@@ -974,6 +974,46 @@ Partially updates only the booking-related settings. Any omitted field retains i
 3. Merges non-null fields from the request with existing values; all other salon fields preserved.
 4. `SalonRepository.save(Salon)` → `UPDATE salon SET booking_advance_days = ?, booking_requires_confirmation = ?`.
 5. `ApplicationEventPublisher.publishEvent(SalonUpdatedEvent)` — owner is emailed that their salon settings changed.
+6. Returns `200 OK`.
+
+---
+
+### Update contact block
+
+`PATCH /api/salon-admin/{salonId}/contact`
+
+Replaces **only** the salon's `contact` block — phone/email/website plus the social links and
+their per-platform visibility flags. Every other salon field (name, location, hours, features …)
+is preserved. This is the narrow endpoint the admin **Website** tab uses so saving social links
+can't clobber the rest of the salon.
+
+The request body is a full [ContactInfo](#contactinfo) object and **replaces** the stored one —
+send the fields you want to keep, not just the ones that changed (omitted fields become null).
+
+**Request**
+
+```json
+{
+  "phone": "+1222333444",
+  "email": "hello@yoursalon.com",
+  "website": "https://yoursalon.com",
+  "facebook": "https://facebook.com/yoursalon",
+  "facebookVisible": true,
+  "instagramVisible": false
+}
+```
+
+**Response** `200 OK` — updated salon object
+
+**Response** `404 Not Found`
+
+**Flow**
+
+1. `SalonController.patchContact(UUID, ContactInfo)` → `SalonService.updateContact(UUID, ContactInfo)`
+2. `SalonRepository.findById(UUID)` → `404` if empty.
+3. Rebuilds the `Salon` with the new `contact`, every other field copied from the existing record.
+4. `SalonRepository.save(Salon)` → `UPDATE salon SET contact_* = ?`.
+5. `ApplicationEventPublisher.publishEvent(SalonUpdatedEvent)`.
 6. Returns `200 OK`.
 
 ---
@@ -2079,11 +2119,23 @@ new is the pair of endpoints that actually activate it: [`POST /api/analytics/ev
 
 ### ContactInfo
 
-| Field | Type |
-|---|---|
-| `phone` | string |
-| `email` | string |
-| `website` | string |
+| Field | Type | Notes |
+|---|---|---|
+| `phone` | string | |
+| `email` | string | |
+| `website` | string | |
+| `facebook` | string | Public Facebook profile/page URL |
+| `facebookVisible` | boolean | Show the Facebook icon in the website footer |
+| `instagram` | string | Public Instagram profile URL |
+| `instagramVisible` | boolean | Show the Instagram icon in the website footer |
+| `tiktok` | string | Public TikTok profile URL |
+| `tiktokVisible` | boolean | Show the TikTok icon in the website footer |
+| `youtube` | string | Public YouTube channel URL |
+| `youtubeVisible` | boolean | Show the YouTube icon in the website footer |
+| `x` | string | Public X (Twitter) profile URL |
+| `xVisible` | boolean | Show the X icon in the website footer |
+
+Each social platform is opted into the public website footer icon row per-platform via its `*Visible` flag. A platform that is visible but has no URL set renders as a disabled (non-clickable) icon.
 
 ### OperatingHours
 

@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.annotation.Order;
 import org.springframework.modulith.Modulithic;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.authorization.AuthorizationDecision;
@@ -74,7 +75,6 @@ public class MultiTenantSalonApplication {
 		return converter;
 	}
 
-
 	@Bean
 	ThrowingCustomizer<HttpSecurity> httpSecurityCustomizer(
 			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
@@ -89,6 +89,7 @@ public class MultiTenantSalonApplication {
 						.oauth2ResourceServer(oauth2 -> oauth2
 								.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
 						).authorizeHttpRequests(authH -> authH
+								//.anyRequest().access((_, ctx) -> new AuthorizationDecision(ctx.getRequest().getServerName().equals("localhost")))
 								.requestMatchers(
 										// Error dispatch must stay open — Spring Security filters the ERROR
 										// dispatcher too, so without this any error response (404/400/500) for

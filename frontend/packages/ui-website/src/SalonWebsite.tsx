@@ -10,6 +10,8 @@ import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } 
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
 import { FEATURE_NAV } from "./SiteChrome";
+import { SocialLinksRow } from "./SocialIcons";
+import { CategoryIcon } from "./CategoryIcon";
 import { apiFetch, API_BASE } from "./api";
 import { staffAvatar, MediaThumb, Lightbox } from "./StaffMedia";
 import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, SalonHoliday } from "./types";
@@ -770,15 +772,16 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
               )}
 
               {salon.location?.address && (
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([salon.location.address, salon.location.zipCode, salon.location.city, salon.location.country].filter(Boolean).join(", "))}`}
-                  target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 no-underline group" style={{ color: theme.heroTextColor }}>
+                <div className="flex items-start gap-3" style={{ color: theme.heroTextColor }}>
                   <MapPin className="w-4 h-4 shrink-0 mt-0.5" style={{ color: theme.accentColor }} />
-                  <p className="font-medium leading-snug group-hover:opacity-70 transition-opacity">
+                  <p className="font-medium leading-snug">
                     {salon.location.address}{salon.location.city ? `, ${salon.location.city}` : ""}
-                    <span className="block text-[10px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: `${theme.heroTextColor}55` }}>Open in Maps ↗</span>
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide mt-0.5 opacity-40 select-none" style={{ color: `${theme.heroTextColor}55` }}>
+                      Open in Maps
+                      <span className="text-[9px] font-bold tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+                    </span>
                   </p>
-                </a>
+                </div>
               )}
 
               {(activeServices.length > 0 || activeStaff.length > 0) && (
@@ -825,8 +828,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                       </button>
                       {grouped.map(([cat]) => (
                         <button key={cat} onClick={() => { setSelectedCat(cat === selectedCat ? null : cat); setShowAllServices(false); }}
-                          className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
                           style={selectedCat === cat ? { backgroundColor: theme.accentColor, color: accentText } : { backgroundColor: "#f1f5f9", color: "#64748b" }}>
+                          <CategoryIcon category={cat} className="w-3.5 h-3.5" />
                           {CATEGORY_LABEL[cat] ?? cat}
                         </button>
                       ))}
@@ -843,9 +847,14 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         <div key={s.id} className={manyServices
                           ? "group/svc flex flex-col gap-2.5 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
                           : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"}>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900">{s.name}</p>
-                            {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
+                          <div className="flex items-start gap-3 min-w-0">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                              <CategoryIcon category={s.category} className="h-5 w-5" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900">{s.name}</p>
+                              {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
+                            </div>
                           </div>
                           <div className="flex items-center flex-wrap gap-2">
                             <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
@@ -1039,6 +1048,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 <span className="text-sm font-bold" style={{ color: footerBright }}>{salon.name}</span>
               </div>
               {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
+              <SocialLinksRow contact={salon.contact} color={footerText} />
             </div>
 
             {openHours.length > 0 && (
@@ -1114,11 +1124,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
                 </address>
                 {salon.location.address && (
-                  <a href={theme.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([salon.location.address, salon.location.zipCode, salon.location.city, salon.location.country].filter(Boolean).join(", "))}`}
-                    target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold no-underline hover:opacity-80 transition-opacity"
-                    style={{ color: theme.accentColor }}>
+                  <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
                     Open in Maps <ChevronRight className="w-3 h-3" />
-                  </a>
+                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+                  </span>
                 )}
                 {salon.showBusinessId && salon.businessRegistrationId && (
                   <p className="text-[11px] mt-3" style={{ color: footerDim }}>{salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</p>

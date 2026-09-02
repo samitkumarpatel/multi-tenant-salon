@@ -3,6 +3,7 @@ import { Sparkles, Users, User, Clock, MapPin, Phone, Mail, Globe, ChevronRight,
 import { formatPrice, CATEGORY_LABEL, STAFF_ROLE_LABEL, DAY_SHORT } from "./constants";
 import { apiFetch, API_BASE } from "./api";
 import { staffAvatar, MediaThumb, Lightbox } from "./StaffMedia";
+import { CategoryIcon } from "./CategoryIcon";
 import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays, isPastSlot } from "./bookingDates";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, OperatingHours, AvailableSlot, StaffSchedule } from "./types";
 
@@ -80,7 +81,8 @@ export function ServicesCard({ services, tokens, showBookPill, onBook }: {
       <div className="space-y-3.5">
         {grouped.map(([cat, items]) => (
           <div key={cat}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: msgDim }}>
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: msgDim }}>
+              <CategoryIcon category={cat} className="w-3 h-3" />
               {CATEGORY_LABEL[cat] ?? cat}
             </p>
             <div className="space-y-2">
@@ -476,13 +478,17 @@ export type PickerProgress = {
   phone: string;
 };
 
-export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, resume, closedDateRanges: salonClosedDateRanges = [], onComplete, onCancel, onProgress }: {
+export function BookingPickerCard({ salon, service, staff, tokens, initialStaffId, initialDate, resume, closedDateRanges: salonClosedDateRanges = [], onComplete, onCancel, onProgress }: {
   salon: Salon;
   service: ServiceItem;
   staff: StaffMember[];
   tokens: CardTokens;
   /** Pre-picked staff member (e.g. entered via "Book with {name}") — skips the staff step entirely. */
   initialStaffId?: number;
+  /** Day the visitor asked for ("next Sunday"), resolved to yyyy-MM-dd by the assistant — the
+   *  picker opens on it instead of the first bookable day. Ignored if closed / out of the booking
+   *  window; `resume.date` (a real prior selection) still wins. */
+  initialDate?: string;
   /** Selections lifted from an earlier picker this one replaces (carry-forward). Seeds staff, date
    *  and contact fields so the visitor resumes where they were. A picked time slot isn't carried —
    *  it's re-fetched — so a picker resumed from the contact step lands back on the time step. */
@@ -535,8 +541,22 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
     ? [...salonClosedDateRanges, ...staffSchedule.closedDates.map((d) => ({ startDate: d, endDate: d }))]
     : salonClosedDateRanges;
 
-  // Start on the first date the salon is actually open — not a closed weekday, holiday or closure.
-  const [date, setDate] = useState(() => resume?.date || firstBookableDate(today, maxDate, closedDays, closedDateRanges));
+  // Start on the day the visitor asked for (assistant-resolved `initialDate`), else the first date
+  // the salon is actually open — not a closed weekday, holiday or closure. A resumed real selection
+  // (`resume.date`) outranks both. `initialDate` is only honoured if it's inside the booking window
+  // and not closed; otherwise it falls through to the first bookable day.
+  const [date, setDate] = useState(() => {
+    if (resume?.date) return resume.date;
+    if (
+      initialDate &&
+      initialDate >= toIso(today) &&
+      initialDate <= toIso(maxDate) &&
+      !isDateClosed(initialDate, closedDays, closedDateRanges)
+    ) {
+      return initialDate;
+    }
+    return firstBookableDate(today, maxDate, closedDays, closedDateRanges);
+  });
   const dateIsClosed = isDateClosed(date, closedDays, closedDateRanges);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);

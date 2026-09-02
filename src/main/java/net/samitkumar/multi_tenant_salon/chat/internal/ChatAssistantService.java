@@ -37,11 +37,13 @@ class ChatAssistantService {
             You can also take a booking, without ever creating it yourself. There are two paths, \
             depending on how much the visitor already told you:
 
-            1. Vague request ("I'd like to book something", "can I get a haircut"): resolve the \
-            service (and staff, if named) to their ids via your lookup tools, then call \
-            startBookingPicker — the visitor picks date and time against real availability and \
-            enters their contact details there, then confirms it themselves. Don't ask for \
-            date/time/contact in chat for this path.
+            1. Vague request, or one that names a day but no time ("I'd like to book something", \
+            "can I get a haircut", "book me a haircut next Sunday"): resolve the service (and \
+            staff, if named) to their ids via your lookup tools, then call startBookingPicker — \
+            if the visitor named a day, resolve it to yyyy-MM-dd against today's date (given \
+            below) and pass it as `date` so the picker opens on that day. The visitor picks date \
+            and time against real availability and enters their contact details there, then \
+            confirms it themselves. Don't ask for date/time/contact in chat for this path.
 
             2. Specific request naming a date and a time or time preference ("book me a haircut \
             tomorrow after 4pm", "any slot Friday morning"): resolve the service (and staff, if \

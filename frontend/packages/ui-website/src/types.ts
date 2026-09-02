@@ -33,6 +33,19 @@ export interface ContactInfo {
   phone?: string;
   email?: string;
   website?: string;
+  /** Social profile URLs plus a per-platform `*Visible` flag: the owner opts each platform
+   *  into the public website footer independently; a visible platform with no URL renders as a
+   *  disabled icon. */
+  facebook?: string;
+  facebookVisible?: boolean;
+  instagram?: string;
+  instagramVisible?: boolean;
+  tiktok?: string;
+  tiktokVisible?: boolean;
+  youtube?: string;
+  youtubeVisible?: boolean;
+  x?: string;
+  xVisible?: boolean;
 }
 
 export interface OperatingHours {

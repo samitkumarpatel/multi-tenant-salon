@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -105,6 +106,43 @@ class SalonDataToolsTest {
         stub.availabilityJson = "{\"days\":[]}";
         String out = new SalonDataTools(stub, "s").checkAvailability(1L, "2026-09-04", null);
         assertThat(out).isEqualTo("{\"days\":[]}");
+    }
+
+    @Test
+    void startBookingPicker_carriesAResolvedUpcomingDateIntoTheComponentProps() {
+        var tools = new SalonDataTools(new StubClient(), "s");
+        var wanted = LocalDate.now().plusDays(10).toString();
+
+        tools.startBookingPicker(3L, null, wanted);
+
+        var picker = tools.components().getFirst();
+        assertThat(picker.type()).isEqualTo("booking-picker");
+        assertThat(picker.props())
+                .containsEntry("serviceId", 3L)
+                .containsEntry("date", wanted);
+    }
+
+    @Test
+    void startBookingPicker_dropsAPastOrUnparseableDateSoThePickerFallsBackToItsDefault() {
+        var past = new SalonDataTools(new StubClient(), "s");
+        past.startBookingPicker(3L, null, LocalDate.now().minusDays(1).toString());
+        assertThat(past.components().getFirst().props()).doesNotContainKey("date");
+
+        var junk = new SalonDataTools(new StubClient(), "s");
+        junk.startBookingPicker(3L, null, "next sunday");
+        assertThat(junk.components().getFirst().props()).doesNotContainKey("date");
+    }
+
+    @Test
+    void showDatePicker_carriesAResolvedUpcomingDateIntoTheComponentProps() {
+        var tools = new SalonDataTools(new StubClient(), "s");
+        var wanted = LocalDate.now().plusDays(4).toString();
+
+        tools.showDatePicker(3L, null, wanted);
+
+        var picker = tools.components().getFirst();
+        assertThat(picker.type()).isEqualTo("date-picker");
+        assertThat(picker.props()).containsEntry("date", wanted);
     }
 
     @Test

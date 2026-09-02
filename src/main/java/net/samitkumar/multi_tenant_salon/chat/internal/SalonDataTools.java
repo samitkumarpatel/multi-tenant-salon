@@ -243,12 +243,16 @@ class SalonDataTools {
             staff (if needed), date and time against real availability and enters their own \
             contact details, then confirms. This is the preferred way to take a booking: call it \
             as soon as you know the service (resolve the name to its id with getServices first) \
-            and, if the visitor named a stylist, the staff id. Do NOT also call proposeBooking or \
-            ask for the date/time/contact in chat - the picker handles all of that.""")
+            and, if the visitor named a stylist, the staff id. If the visitor named a day \
+            ("next Sunday", "the 14th", "tomorrow"), resolve it to yyyy-MM-dd against today's \
+            date and pass it as `date` so the picker opens on that day. Do NOT also call \
+            proposeBooking or ask for the date/time/contact in chat - the picker handles all of that.""")
     String startBookingPicker(
             @ToolParam(description = "The service's id, from getServices") Long serviceId,
-            @ToolParam(required = false, description = "Preferred staff member's id if the visitor named one; omit to let them choose") Long staffId) {
-        components.add(new UiComponent("booking-picker", props("serviceId", serviceId, "staffId", staffId)));
+            @ToolParam(required = false, description = "Preferred staff member's id if the visitor named one; omit to let them choose") Long staffId,
+            @ToolParam(required = false, description = "The day the visitor asked for, resolved to yyyy-MM-dd against today; the picker opens on this date. Omit if they didn't name a day.") String date) {
+        components.add(new UiComponent("booking-picker",
+                props("serviceId", serviceId, "staffId", staffId, "date", upcomingDateOrNull(date))));
         return "Booking picker opened for the visitor to choose a time and confirm.";
     }
 
@@ -257,11 +261,14 @@ class SalonDataTools {
             salon's real availability - use this when they're asking about days (e.g. "what days \
             is Nat free next week?") but haven't committed to booking yet. For the full guided \
             booking flow (staff -> date -> time -> contact -> confirm) use startBookingPicker \
-            instead.""")
+            instead. If the visitor named a day, resolve it to yyyy-MM-dd against today's date \
+            and pass it as `date` so the calendar opens on that day.""")
     String showDatePicker(
             @ToolParam(required = false, description = "Service the visitor is interested in, from getServices - narrows availability") Long serviceId,
-            @ToolParam(required = false, description = "Staff member the visitor named, from getStaff") Long staffId) {
-        components.add(new UiComponent("date-picker", props("serviceId", serviceId, "staffId", staffId)));
+            @ToolParam(required = false, description = "Staff member the visitor named, from getStaff") Long staffId,
+            @ToolParam(required = false, description = "The day the visitor asked for, resolved to yyyy-MM-dd against today; the calendar opens on this date. Omit if they didn't name a day.") String date) {
+        components.add(new UiComponent("date-picker",
+                props("serviceId", serviceId, "staffId", staffId, "date", upcomingDateOrNull(date))));
         return "Date picker shown to the visitor.";
     }
 
@@ -338,6 +345,22 @@ class SalonDataTools {
 
     List<UiComponent> components() {
         return List.copyOf(components);
+    }
+
+    /**
+     * The model resolves a relative phrase ("next Sunday") to a yyyy-MM-dd itself; keep that date
+     * only if it parses and isn't in the past. A bad or stale value is dropped so the picker just
+     * falls back to its own default (first bookable day) rather than opening on nonsense.
+     */
+    private static String upcomingDateOrNull(String date) {
+        if (date == null || date.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(date).isBefore(LocalDate.now()) ? null : date;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** {@code Map.of} rejects null values; render-tool props routinely have optional (null) args. */

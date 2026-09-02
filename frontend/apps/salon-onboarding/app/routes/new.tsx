@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
-import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard } from "lucide-react";
+import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown } from "lucide-react";
+import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl } from "~/lib/config";
 import { SiteFooter } from "~/components/SiteFooter";
@@ -505,6 +506,7 @@ export default function NewSalon() {
 
   const [reuseOwnerContact,  setReuseOwnerContact]  = useState(true);
   const [formShaking,        setFormShaking]        = useState(false);
+  const [socialOpen,         setSocialOpen]         = useState(false);
 
   function setOwner(patch: Partial<Owner>)         { setForm((f) => ({ ...f, owner:    { ...f.owner,    ...patch } })); }
   function setLocation(patch: Partial<Location>)   { setForm((f) => ({ ...f, location: { ...f.location, ...patch } })); }
@@ -600,6 +602,12 @@ export default function NewSalon() {
             phone:   form.contact.phone?.trim()   || null,
             email:   form.contact.email?.trim()   || null,
             website: form.contact.website?.trim() || null,
+            ...Object.fromEntries(
+              SOCIAL_PLATFORMS.flatMap((p) => [
+                [p.urlKey, form.contact[p.urlKey]?.trim() || null],
+                [p.visibleKey, form.contact[p.visibleKey] === true],
+              ]),
+            ),
           },
           operatingHours: form.hours,
           features:       form.features,
@@ -798,6 +806,53 @@ export default function NewSalon() {
               <label className={labelCls}>Website</label>
               <input className={`${inputCls} ${errors.contactWebsite ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.website ?? ""} onChange={(e) => setContact({ website: e.target.value })} placeholder="https://yoursalon.com" />
               {errors.contactWebsite && <FieldError msg={errors.contactWebsite} />}
+            </div>
+
+            <div className="border-t border-stone-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setSocialOpen((v) => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-700 cursor-pointer"
+                aria-expanded={socialOpen}
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${socialOpen ? "" : "-rotate-90"}`} />
+                Add social links (optional)
+              </button>
+              {socialOpen && (
+                <div className="mt-3 space-y-2.5">
+                  <p className="text-xs text-stone-400 -mt-0.5">
+                    Turn a platform on to show its icon in your website footer. Add the link to make it clickable.
+                  </p>
+                  {SOCIAL_PLATFORMS.map((p) => {
+                    const on = form.contact[p.visibleKey] === true;
+                    return (
+                      <div key={p.key} className="flex items-center gap-2.5">
+                        <span className="flex items-center gap-1.5 w-[104px] shrink-0 text-xs font-medium text-stone-600">
+                          <p.Icon className={`w-4 h-4 shrink-0 ${on ? "text-stone-500" : "text-stone-300"}`} />
+                          <span className="truncate">{p.label}</span>
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={on}
+                          aria-label={`Show ${p.label} icon`}
+                          onClick={() => setContact({ [p.visibleKey]: !on } as Partial<ContactInfo>)}
+                          className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${on ? "bg-matcha-600" : "bg-stone-200"}`}
+                        >
+                          <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                        <input
+                          className={`${inputCls} ${on ? "" : "opacity-50"}`}
+                          value={form.contact[p.urlKey] ?? ""}
+                          onChange={(e) => setContact({ [p.urlKey]: e.target.value } as Partial<ContactInfo>)}
+                          placeholder={p.placeholder}
+                          aria-label={`${p.label} URL`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         );

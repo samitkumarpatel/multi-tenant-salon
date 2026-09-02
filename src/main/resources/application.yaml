@@ -90,6 +90,8 @@ spring:
         - classpath:db/V4__theme_palette_defaults.sql
         - classpath:db/V5__staff_bio_and_photos.sql
         - classpath:db/V6__analytics_events.sql
+        - classpath:db/V7__genui_events.sql
+        - classpath:db/V8__salon_social_links.sql
   modulith:
     events:
       jdbc:

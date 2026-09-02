@@ -170,10 +170,11 @@ function normalizeComponents(raw: UIComponent[] | null | undefined, services: Se
     const wantedId = typeof c.props?.serviceId === "number" ? (c.props.serviceId as number) : undefined;
     const wanted = wantedId != null ? services.find((s) => s.id === wantedId) : undefined;
     const staffId = typeof c.props?.staffId === "number" ? c.props.staffId : undefined;
-    if (wanted) return [{ type: "booking-picker", props: { serviceId: wanted.id, staffId } }];
+    const date = typeof c.props?.date === "string" ? c.props.date : undefined;
+    if (wanted) return [{ type: "booking-picker", props: { serviceId: wanted.id, staffId, date } }];
     const active = services.filter((s) => s.active);
     return active.length === 1
-      ? [{ type: "booking-picker", props: { serviceId: active[0].id, staffId } }]
+      ? [{ type: "booking-picker", props: { serviceId: active[0].id, staffId, date } }]
       : [{ type: "services", props: {} }];
   });
 }
@@ -634,11 +635,13 @@ export function GenerativeUIWebsite({
               const liveCard = live.components!.find((c) => c.type === "booking-picker")!;
               const incoming = components.find((c) => c.type === "booking-picker");
               const n = (v: unknown) => (typeof v === "number" ? v : undefined);
+              const s = (v: unknown) => (typeof v === "string" ? v : undefined);
               components = [{
                 type: "booking-picker",
                 props: {
                   serviceId: n(incoming?.props.serviceId) ?? liveCard.props.serviceId,
                   staffId: n(incoming?.props.staffId) ?? liveCard.props.staffId,
+                  date: s(incoming?.props.date) ?? liveCard.props.date,
                   resume: live.picker,
                 },
               }];
@@ -952,6 +955,7 @@ export function GenerativeUIWebsite({
       const service = serviceId != null ? services.find((s) => s.id === serviceId) : undefined;
       if (!service) return null;
       const staffId = typeof component.props.staffId === "number" ? component.props.staffId : undefined;
+      const initialDate = typeof component.props.date === "string" ? component.props.date : undefined;
       const resume = component.props.resume as PickerProgress | undefined;
       return (
         <BookingPickerCard
@@ -960,6 +964,7 @@ export function GenerativeUIWebsite({
           staff={staff}
           tokens={cardTokens}
           initialStaffId={staffId}
+          initialDate={initialDate}
           resume={resume}
           closedDateRanges={closedDateRanges}
           onComplete={(fields) => completeBookingPicker(messageIndex, fields)}

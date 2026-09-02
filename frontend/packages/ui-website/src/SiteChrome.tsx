@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
+import { SocialLinksRow } from "./SocialIcons";
 import type { OperatingHours, Salon, WebsiteTheme } from "./types";
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -239,6 +240,7 @@ export function SiteFooter({
               <span className="text-sm font-bold" style={{ color: footerBright }}>{salon.name}</span>
             </div>
             {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
+            <SocialLinksRow contact={salon.contact} color={footerText} />
             {current === "book" && (
               <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity cursor-pointer" style={{ backgroundColor: theme.accentColor, color: accentText }}>
                 <ArrowLeft className="w-3.5 h-3.5" /> Back to website

@@ -20,6 +20,7 @@ import {
 import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
+import { CategoryIcon } from "./CategoryIcon";
 import { fontStack, loadGoogleFont, contrastText } from "./theme";
 import PhoneInput from "./PhoneInput";
 import { type ClosureRange, isClosedByRange, resolveHolidayRanges } from "./bookingDates";
@@ -245,7 +246,8 @@ function StepService({
                             <span className="text-xs text-slate-400 flex items-center gap-1">
                               <Clock className="w-3 h-3" /> {s.durationMinutes} min
                             </span>
-                            <span className="text-[0.65rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                            <span className="inline-flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                              <CategoryIcon category={s.category} className="w-3 h-3" />
                               {CATEGORY_LABEL[s.category] ?? s.category}
                             </span>
                           </div>

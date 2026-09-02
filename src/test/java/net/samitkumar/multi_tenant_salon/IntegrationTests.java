@@ -149,12 +149,54 @@ class IntegrationTests {
                                 "state": "NT",
                                 "country": "US",
                                 "zipCode": "67890"
+                            },
+                            "contact": {
+                                "email": "contact@integration.com",
+                                "instagram": "https://instagram.com/integrationsalon",
+                                "instagramVisible": true,
+                                "tiktok": "https://tiktok.com/@integrationsalon",
+                                "tiktokVisible": true,
+                                "facebookVisible": true
                             }
                         }
                         """)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
+                .jsonPath("$.name").isEqualTo("Integration Salon Pro")
+                .jsonPath("$.location.city").isEqualTo("Newtown")
+                .jsonPath("$.contact.instagram").isEqualTo("https://instagram.com/integrationsalon")
+                .jsonPath("$.contact.instagramVisible").isEqualTo(true)
+                .jsonPath("$.contact.tiktok").isEqualTo("https://tiktok.com/@integrationsalon")
+                .jsonPath("$.contact.facebookVisible").isEqualTo(true)
+                .jsonPath("$.contact.facebook").doesNotExist();
+    }
+
+    @Test
+    @Order(7)
+    void patchSalonContactUpdatesOnlyContact() {
+        client.patch()
+                .uri("/api/salon-admin/{id}/contact", salonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "phone": "+1222333444",
+                            "email": "hello@integration-salon.com",
+                            "facebook": "https://facebook.com/integrationsalon",
+                            "facebookVisible": true,
+                            "instagramVisible": false
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                // contact block fully replaced by the patch body
+                .jsonPath("$.contact.phone").isEqualTo("+1222333444")
+                .jsonPath("$.contact.email").isEqualTo("hello@integration-salon.com")
+                .jsonPath("$.contact.facebook").isEqualTo("https://facebook.com/integrationsalon")
+                .jsonPath("$.contact.facebookVisible").isEqualTo(true)
+                .jsonPath("$.contact.instagram").doesNotExist()
+                // everything outside contact is preserved
                 .jsonPath("$.name").isEqualTo("Integration Salon Pro")
                 .jsonPath("$.location.city").isEqualTo("Newtown");
     }

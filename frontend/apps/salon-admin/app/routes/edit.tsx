@@ -4,6 +4,7 @@ import { ADMIN_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Salon, Location, ContactInfo, Country } from "~/lib/types";
 import { HoursTable, TileGrid, CountrySelect, PhoneInput, InfoBar } from "@salon/ui-shared";
+import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 
 export async function clientLoader() {
   const countries = await apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []);
@@ -84,6 +85,12 @@ export default function Edit() {
             phone:   contact.phone?.trim()   || null,
             email:   contact.email?.trim()   || null,
             website: contact.website?.trim() || null,
+            ...Object.fromEntries(
+              SOCIAL_PLATFORMS.flatMap((p) => [
+                [p.urlKey, contact[p.urlKey]?.trim() || null],
+                [p.visibleKey, contact[p.visibleKey] === true],
+              ]),
+            ),
           },
           operatingHours: hours,
           businessRegistrationId: bizRegId.trim() || null,
@@ -196,6 +203,44 @@ export default function Edit() {
             <div className={fieldCls}>
               <label className={labelCls}>Website</label>
               <input className={inputCls} value={contact.website ?? ""} onChange={(e) => patchCon({ website: e.target.value })} placeholder="https://yoursalon.com" />
+            </div>
+
+            <div className="pt-3 mt-1 border-t border-stone-100">
+              <label className={labelCls}>Social media</label>
+              <p className="text-xs text-stone-400 mb-3 -mt-0.5">
+                Turn a platform on to show its icon in your website footer. Add the link to make it clickable —
+                a visible platform with no link shows as a disabled icon.
+              </p>
+              <div className="space-y-2.5">
+                {SOCIAL_PLATFORMS.map((p) => {
+                  const on = contact[p.visibleKey] === true;
+                  return (
+                    <div key={p.key} className="flex items-center gap-2.5">
+                      <span className="flex items-center gap-1.5 w-[104px] shrink-0 text-xs font-medium text-stone-600">
+                        <p.Icon className={`w-4 h-4 shrink-0 ${on ? "text-stone-500" : "text-stone-300"}`} />
+                        <span className="truncate">{p.label}</span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        aria-label={`Show ${p.label} icon`}
+                        onClick={() => patchCon({ [p.visibleKey]: !on } as Partial<ContactInfo>)}
+                        className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${on ? "bg-matcha-600" : "bg-stone-200"}`}
+                      >
+                        <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
+                      </button>
+                      <input
+                        className={`${inputCls} ${on ? "" : "opacity-50"}`}
+                        value={contact[p.urlKey] ?? ""}
+                        onChange={(e) => patchCon({ [p.urlKey]: e.target.value } as Partial<ContactInfo>)}
+                        placeholder={p.placeholder}
+                        aria-label={`${p.label} URL`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         );

@@ -803,6 +803,36 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/salon-admin/{salonId}/contact:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+
+    patch:
+      tags: [SalonAdmin]
+      summary: Update the salon contact block (admin)
+      description: |
+        Admin-only. Replaces **only** the salon's `contact` block — phone/email/website plus
+        the social links and their per-platform `*Visible` flags. Every other salon field
+        (name, location, hours, features) is preserved. The body is a full `ContactInfo` and
+        replaces the stored one, so send the fields to keep (omitted fields become null).
+        Used by the admin Website tab's Social links editor. Emits **SalonUpdatedEvent**.
+      operationId: patchSalonContact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInfo"
+      responses:
+        "200":
+          description: Contact updated; full salon object returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Salon"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Admin — Analytics ────────────────────────────────────────────────────────
 
   /api/salon-admin/{salonId}/analytics/summary:
@@ -2436,6 +2466,41 @@ components:
         website:
           type: string
           format: uri
+        facebook:
+          type: string
+          format: uri
+          description: Public Facebook profile/page URL.
+        facebookVisible:
+          type: boolean
+          description: Show the Facebook icon in the website footer. When true with no URL set, the icon renders disabled.
+        instagram:
+          type: string
+          format: uri
+          description: Public Instagram profile URL.
+        instagramVisible:
+          type: boolean
+          description: Show the Instagram icon in the website footer. When true with no URL set, the icon renders disabled.
+        tiktok:
+          type: string
+          format: uri
+          description: Public TikTok profile URL.
+        tiktokVisible:
+          type: boolean
+          description: Show the TikTok icon in the website footer. When true with no URL set, the icon renders disabled.
+        youtube:
+          type: string
+          format: uri
+          description: Public YouTube channel URL.
+        youtubeVisible:
+          type: boolean
+          description: Show the YouTube icon in the website footer. When true with no URL set, the icon renders disabled.
+        x:
+          type: string
+          format: uri
+          description: Public X (Twitter) profile URL.
+        xVisible:
+          type: boolean
+          description: Show the X icon in the website footer. When true with no URL set, the icon renders disabled.
 
     OperatingHours:
       type: object
@@ -3417,7 +3482,8 @@ components:
           description: |
             Component-specific scaffolding. Common keys by type:
             `services` → `forStaffId`, `forBooking`; `staff` → `forServiceId`;
-            `booking-picker` / `date-picker` → `serviceId`, `staffId`;
+            `booking-picker` / `date-picker` → `serviceId`, `staffId`, `date`
+            (`date` is yyyy-MM-dd, the day the visitor named — the picker opens on it);
             `time-slot-picker` → `serviceId`, `date`, `staffId`;
             `form` → `title`, `submitLabel`, `fields[] {name,label,type,required,pattern}`;
             `button-group` / `radio-group` / `checkbox-group` / `option-list` →

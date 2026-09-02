@@ -52,10 +52,25 @@ public record Salon(
 
     public record Location(String address, String city, String state, String country, String zipCode) {}
 
+    /**
+     * Phone/email/website plus the salon's social profiles. Each social platform carries its URL
+     * and an independent {@code *Visible} flag — the owner opts a platform into the public website
+     * footer per-platform; a visible platform with no URL yet renders as a disabled icon.
+     */
     public record ContactInfo(
             @Column("contact_phone") String phone,
             @Column("contact_email") String email,
-            @Column("contact_website") String website
+            @Column("contact_website") String website,
+            @Column("contact_facebook") String facebook,
+            @Column("contact_facebook_visible") Boolean facebookVisible,
+            @Column("contact_instagram") String instagram,
+            @Column("contact_instagram_visible") Boolean instagramVisible,
+            @Column("contact_tiktok") String tiktok,
+            @Column("contact_tiktok_visible") Boolean tiktokVisible,
+            @Column("contact_youtube") String youtube,
+            @Column("contact_youtube_visible") Boolean youtubeVisible,
+            @Column("contact_x") String x,
+            @Column("contact_x_visible") Boolean xVisible
     ) {}
 
     @Table("salon_operating_hours")

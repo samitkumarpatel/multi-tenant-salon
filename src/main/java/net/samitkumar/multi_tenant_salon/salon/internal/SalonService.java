@@ -199,6 +199,26 @@ class SalonService implements SalonApi {
         });
     }
 
+    /**
+     * Replace only the salon's contact block (phone/email/website + social links). Everything else
+     * on the aggregate is preserved — this is the narrow endpoint the admin Website tab uses so
+     * saving social links can't clobber name/location/hours.
+     */
+    @Transactional
+    Optional<Salon> updateContact(UUID id, Salon.ContactInfo contact) {
+        log.info("[SalonService] Updating contact for salon id={}", id);
+        return repository.findById(id).map(existing -> {
+            var updated = new Salon(existing.id(), existing.name(), existing.handler(), existing.owner(),
+                    existing.location(), contact, existing.operatingHours(), existing.features(),
+                    existing.bookingAdvanceDays(), existing.businessRegistrationId(), existing.showBusinessId(),
+                    existing.bookingRequiresConfirmation(), existing.businessIdLabel(), existing.createdAt(), existing.status(),
+                    existing.termsAccepted(), existing.termsAcceptedAt());
+            var saved = repository.save(updated);
+            publishSalonUpdated(saved);
+            return saved;
+        });
+    }
+
     Optional<Salon> updateBookingSettings(UUID id, Integer bookingAdvanceDays, Boolean bookingRequiresConfirmation) {
         log.info("[SalonService] Updating booking settings for salon id={}", id);
         return repository.findById(id).map(existing -> {

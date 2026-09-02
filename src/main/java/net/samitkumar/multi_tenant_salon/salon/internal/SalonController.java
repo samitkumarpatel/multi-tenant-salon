@@ -106,6 +106,14 @@ class SalonController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PatchMapping("/api/salon-admin/{id}/contact")
+    ResponseEntity<Salon> patchContact(@PathVariable String id, @RequestBody Salon.ContactInfo contact) {
+        var salonId = service.resolveId(id);
+        return service.updateContact(salonId, contact)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     record PatchBookingSettingsRequest(Integer bookingAdvanceDays, Boolean bookingRequiresConfirmation) {}
 
     @PatchMapping("/api/salon-admin/{id}/booking-settings")

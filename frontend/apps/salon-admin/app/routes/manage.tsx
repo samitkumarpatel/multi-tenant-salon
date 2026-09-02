@@ -1,6 +1,8 @@
 import { useOutletContext, Link } from "react-router";
-import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink } from "lucide-react";
+import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink, Share2 } from "lucide-react";
 import React, { useState } from "react";
+import { SOCIAL_PLATFORMS } from "@salon/ui-website";
+import { SocialLinksForm } from "~/components/SocialLinksForm";
 import type { LayoutContext } from "~/lib/types";
 import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
 import { InfoBar } from "@salon/ui-shared";
@@ -18,9 +20,10 @@ const FEATURE_HINTS: Record<string, string> = {
 type LinkKey = "admin" | "staff" | "booking" | "website";
 
 export default function Manage() {
-  const { salon } = useOutletContext<LayoutContext>();
+  const { salon, setSalon } = useOutletContext<LayoutContext>();
   const [copied, setCopied] = useState<string | null>(null);
   const [tab, setTab]       = useState<"details" | "links">("details");
+  const [editSocial, setEditSocial] = useState(false);
 
   const openHours      = salon.operatingHours?.filter((h) => !h.closed) ?? [];
   const enabledKeys    = new Set(salon.features ?? []);
@@ -206,6 +209,58 @@ export default function Manage() {
                 )}
               </div>
             )}
+
+            {/* Social Media */}
+            <div
+              className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"
+              style={editSocial ? { gridColumn: "1 / -1" } : undefined}
+            >
+              <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
+                <Share2 className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Social Media</span>
+                {!editSocial && (
+                  <button
+                    type="button"
+                    onClick={() => setEditSocial(true)}
+                    className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" /> Edit
+                  </button>
+                )}
+              </div>
+
+              {editSocial ? (
+                <>
+                  <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                    Turn a platform on to show its icon in your website footer; add the link to make it
+                    clickable. A visible platform with no link shows as a disabled icon.
+                  </p>
+                  <SocialLinksForm salon={salon} onSaved={setSalon} onCancel={() => setEditSocial(false)} />
+                </>
+              ) : (() => {
+                const shown = SOCIAL_PLATFORMS.filter((p) => salon.contact?.[p.visibleKey] === true);
+                if (shown.length === 0) {
+                  return <span className="text-xs text-slate-400 italic">None shown on your website</span>;
+                }
+                return shown.map((p) => {
+                  const url = salon.contact?.[p.urlKey]?.trim();
+                  return (
+                    <div key={p.key} className="flex gap-3 py-0.5 text-sm items-center">
+                      <span className="text-xs text-slate-400 min-w-[80px] shrink-0 flex items-center gap-1.5">
+                        <p.Icon className="w-3 h-3" /> {p.label}
+                      </span>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-matcha-600 hover:underline truncate">
+                          {url}
+                        </a>
+                      ) : (
+                        <span className="text-slate-400 italic">shown, no link yet</span>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
 
             {/* Features */}
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
