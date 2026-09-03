@@ -7,7 +7,7 @@ export const ADMIN_API      = `${API_BASE}/api/salon-admin`;
 export const COUNTRIES_API  = `${API_BASE}/api/salon-utility/countries`;
 export const CURRENCIES_API = `${API_BASE}/api/salon-utility/currencies`;
 
-const ATTEMPT_TIMEOUT_MS = 5_000;
+const ATTEMPT_TIMEOUT_MS = 55_000;
 const MAX_EXTRA_RETRIES  = 1;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

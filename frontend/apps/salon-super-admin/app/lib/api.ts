@@ -5,7 +5,7 @@ export const SUPER_ADMIN_API = `${API_BASE}/api/salon-super-admin`;
 export const ADMIN_API = `${API_BASE}/api/salon-admin`;
 export const COUNTRIES_API = `${API_BASE}/api/salon-utility/countries`;
 
-const ATTEMPT_TIMEOUT_MS = 8_000;
+const ATTEMPT_TIMEOUT_MS = 55_000;
 
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {
   // Lazy import avoids a circular dependency (auth.ts also calls fetch directly for tokens).

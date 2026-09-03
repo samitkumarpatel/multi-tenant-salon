@@ -2,7 +2,7 @@ import { ApiError, errorFromResponse, networkError } from "./apiError";
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
-const ATTEMPT_TIMEOUT_MS = 8_000;
+const ATTEMPT_TIMEOUT_MS = 55_000;
 
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {
   let res: Response;

@@ -4,7 +4,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 export const STAFF_PORTAL_API = `${API_BASE}/api/salon-staff`;
 export const COUNTRIES_API    = `${API_BASE}/api/salon-utility/countries`;
 
-const ATTEMPT_TIMEOUT_MS = 5_000;
+const ATTEMPT_TIMEOUT_MS = 55_000;
 const MAX_EXTRA_RETRIES  = 1;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
