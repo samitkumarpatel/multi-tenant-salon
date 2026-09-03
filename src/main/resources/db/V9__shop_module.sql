@@ -36,6 +36,16 @@ CREATE TABLE IF NOT EXISTS product (
 );
 CREATE INDEX IF NOT EXISTS idx_product_salon_id ON product(salon_id);
 
+-- Ordered image gallery for a product. `product.image_url` stays as the cover image
+-- (always mirrors images[0]); this child table holds the full list, same shape as
+-- staff_member_photo, with the *_key column preserving list order.
+CREATE TABLE IF NOT EXISTS product_image (
+  product_id  BIGINT        NOT NULL REFERENCES product(id) ON DELETE CASCADE,
+  product_key INTEGER,
+  value       VARCHAR(1000) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_product_image_product_id ON product_image(product_id);
+
 CREATE TABLE IF NOT EXISTS product_variant (
   id               BIGSERIAL      PRIMARY KEY,
   product_id       BIGINT         NOT NULL REFERENCES product(id) ON DELETE CASCADE,
@@ -126,6 +136,9 @@ CREATE TABLE IF NOT EXISTS shop_credit_note (
 CREATE INDEX IF NOT EXISTS idx_shop_credit_note_salon_id ON shop_credit_note(salon_id);
 CREATE INDEX IF NOT EXISTS idx_shop_credit_note_order_id ON shop_credit_note(order_id);
 
+-- Order-level activity timeline. CUSTOMER_NOTIFIED rows also carry the actual email the
+-- customer received (subject/body/channel/status) — appended by the shop module when the
+-- notification module acknowledges a send via OrderCustomerNotifiedEvent.
 CREATE TABLE IF NOT EXISTS shop_order_activity (
   id         BIGSERIAL    PRIMARY KEY,
   order_id   BIGINT       NOT NULL REFERENCES shop_order(id) ON DELETE CASCADE,
@@ -134,6 +147,10 @@ CREATE TABLE IF NOT EXISTS shop_order_activity (
   message    TEXT,
   actor      VARCHAR(120),
   notified   BOOLEAN      NOT NULL DEFAULT FALSE,
+  channel    VARCHAR(16),
+  subject    VARCHAR(500),
+  body       TEXT,
+  status     VARCHAR(16),
   created_at TIMESTAMPTZ  NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_shop_order_activity_order_id ON shop_order_activity(order_id);

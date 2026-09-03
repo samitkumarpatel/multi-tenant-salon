@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, Check, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, X,
+  ArrowLeft, Check, ChevronLeft, ChevronRight, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, X,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
@@ -430,38 +430,50 @@ function ProductCard({
       style={{
         backgroundColor: cardBg,
         border: `1px solid ${cardBorder}`,
-        opacity: allSold ? 0.6 : 1,
-        filter: allSold ? "grayscale(0.4)" : undefined,
+        // No `opacity`/`filter`/`transform` on this element or the image wrapper: any of
+        // them makes Chromium drop the `overflow:hidden`+`border-radius` clip for the
+        // transform-animated <img>, so it pokes out past the card's rounded top. The
+        // "sold" dim + grayscale therefore live on the leaf <img> / info block instead.
       }}
     >
-      {/* Image — click opens detail */}
-      <button
-        onClick={onExpand}
-        className="relative w-full aspect-[3/4] flex items-center justify-center overflow-hidden cursor-pointer"
+      {/* Image — click opens detail. object-contain + slight inset so the whole
+          product is visible and stays inside the card, never cropped or overflowing. */}
+      <div
+        className="relative w-full aspect-[3/4] overflow-hidden rounded-t-2xl isolate"
         style={{ backgroundColor: imgBg }}
-        aria-label={`View ${product.name} details`}
       >
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-        ) : (
-          <span className="text-4xl font-black select-none" style={{ color: `${theme.accentColor}55` }}>
-            {initials(product.name)}
-          </span>
-        )}
+        <button
+          onClick={onExpand}
+          className="absolute inset-0 flex items-center justify-center cursor-pointer"
+          aria-label={`View ${product.name} details`}
+        >
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-full h-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+              style={{ filter: allSold ? "grayscale(1)" : undefined, opacity: allSold ? 0.65 : 1 }}
+            />
+          ) : (
+            <span className="text-4xl font-black select-none" style={{ color: `${theme.accentColor}55` }}>
+              {initials(product.name)}
+            </span>
+          )}
+        </button>
 
         {/* Sold / out-of-stock badge */}
         {allSold && (
           <div
-            className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm"
+            className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
             style={{ backgroundColor: "rgba(15,23,42,0.70)", color: "#FFFFFF" }}
           >
             Sold
           </div>
         )}
-      </button>
+      </div>
 
       {/* Info — brand/name/category click opens detail; pills and add-to-cart stay interactive */}
-      <div className="p-4 flex flex-col gap-2 flex-1" style={{ backgroundColor: cardBg }}>
+      <div className="p-4 flex flex-col gap-2 flex-1" style={{ backgroundColor: cardBg, opacity: allSold ? 0.55 : 1 }}>
         {/* Brand */}
         <button onClick={onExpand} className="text-left cursor-pointer">
           {product.brandName && (
@@ -570,6 +582,15 @@ function ProductDetailModal({
   const allSold = product.variants.length > 0 && product.variants.every((v) => v.quantityOnHand <= 0);
   const hasCompareAt = variant && variant.compareAtPrice != null && variant.compareAtPrice > variant.price;
 
+  const gallery = product.images?.length
+    ? product.images
+    : product.imageUrl
+      ? [product.imageUrl]
+      : [];
+  const [imgIdx, setImgIdx] = useState(0);
+  useEffect(() => { setImgIdx(0); }, [product.id]);
+  const activeImg = gallery[Math.min(imgIdx, gallery.length - 1)] ?? null;
+
   // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -608,28 +629,67 @@ function ProductDetailModal({
         </button>
 
         <div className="flex flex-col sm:flex-row overflow-y-auto sm:overflow-hidden flex-1 min-h-0">
-          {/* Image panel */}
-          <div
-            className="w-full sm:w-[42%] shrink-0 aspect-[4/3] sm:aspect-auto sm:h-auto relative flex items-center justify-center overflow-hidden"
-            style={{ backgroundColor: imgBg }}
-          >
-            {product.imageUrl ? (
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-6xl font-black select-none" style={{ color: `${theme.accentColor}44` }}>
-                {initials(product.name)}
-              </span>
-            )}
-            {allSold && (
-              <div
-                className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
-                style={{ backgroundColor: "rgba(15,23,42,0.70)", color: "#FFFFFF" }}
-              >
-                Sold
+          {/* Image panel — gallery */}
+          <div className="w-full sm:w-[42%] shrink-0 flex flex-col">
+            <div
+              className="relative aspect-[4/3] sm:aspect-square flex items-center justify-center overflow-hidden"
+              style={{ backgroundColor: imgBg }}
+            >
+              {activeImg ? (
+                <img src={activeImg} alt={product.name} className="w-full h-full object-contain p-6" />
+              ) : (
+                <span className="text-6xl font-black select-none" style={{ color: `${theme.accentColor}44` }}>
+                  {initials(product.name)}
+                </span>
+              )}
+              {allSold && (
+                <div
+                  className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
+                  style={{ backgroundColor: "rgba(15,23,42,0.70)", color: "#FFFFFF" }}
+                >
+                  Sold
+                </div>
+              )}
+              {gallery.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setImgIdx((i) => (i - 1 + gallery.length) % gallery.length)}
+                    aria-label="Previous image"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+                    style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.65)", color: sub }}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImgIdx((i) => (i + 1) % gallery.length)}
+                    aria-label="Next image"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+                    style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.65)", color: sub }}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+            {gallery.length > 1 && (
+              <div className="flex gap-2 p-2 overflow-x-auto" style={{ backgroundColor: imgBg }}>
+                {gallery.map((src, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setImgIdx(i)}
+                    aria-label={`View image ${i + 1}`}
+                    className="w-14 h-14 shrink-0 rounded-lg overflow-hidden cursor-pointer"
+                    style={{
+                      border: `2px solid ${i === imgIdx ? theme.accentColor : "transparent"}`,
+                      backgroundColor: heroLight ? "#FFFFFF" : "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <img src={src} alt="" className="w-full h-full object-contain p-1" />
+                  </button>
+                ))}
               </div>
             )}
           </div>

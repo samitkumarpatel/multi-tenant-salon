@@ -113,7 +113,7 @@ export default function ShopBrands() {
             <div key={b.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
               <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
                 {b.logoUrl ? (
-                  <img src={b.logoUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={b.logoUrl} alt="" className="w-full h-full object-contain p-1" />
                 ) : (
                   <Tag className="w-4 h-4 text-slate-400" />
                 )}

@@ -213,6 +213,11 @@ export interface ShopOrderActivity {
   message?: string | null;
   actor?: string | null;
   notified: boolean;
+  /** CUSTOMER_NOTIFIED only — the exact message the customer received. */
+  channel?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  status?: string | null;
   createdAt: string;
 }
 
@@ -285,7 +290,10 @@ export interface ShopProduct {
   categoryName?: string | null;
   name: string;
   description?: string | null;
+  /** Cover image — always mirrors `images[0]`. */
   imageUrl?: string | null;
+  /** Ordered gallery (includes the cover as the first entry). */
+  images?: string[] | null;
   active: boolean;
   createdAt?: string;
   variants: ShopVariant[];

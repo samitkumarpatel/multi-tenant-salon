@@ -1,4 +1,16 @@
-import type { ShopOrderStatus, OrderLineActivityType, ShopOrderActivityType } from "~/lib/types";
+import type { ShopOrder, ShopOrderStatus, OrderLineActivityType, ShopOrderActivityType } from "~/lib/types";
+
+/** Server-side page envelope returned by `GET /shop/orders`. */
+export interface ShopOrdersPage {
+  content: ShopOrder[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  statusCounts: Partial<Record<ShopOrderStatus, number>>;
+}
+
+export type OrderSort = "newest" | "oldest";
 
 export const ORDER_STATUS_STYLE: Record<ShopOrderStatus, string> = {
   NEW: "bg-slate-100 text-slate-600 border-slate-200",

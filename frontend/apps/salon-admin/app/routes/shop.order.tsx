@@ -91,6 +91,9 @@ export default function ShopOrderDetail() {
   // Inline note
   const [noteText, setNoteText] = useState("");
 
+  // Which timeline entry's sent email is expanded
+  const [openEmail, setOpenEmail] = useState<number | null>(null);
+
   function closeModal() { setModal(null); }
 
   async function apiAction<T>(call: () => Promise<T>, onSuccess: (r: T) => void, msg: string) {
@@ -433,6 +436,8 @@ export default function ShopOrderDetail() {
               {activities.map((a) => {
                 const meta = ACTIVITY_META[a.type] ?? { label: a.type, dot: "bg-slate-300" };
                 const isNote = a.type === "WORK_NOTE";
+                const email = a.type === "CUSTOMER_NOTIFIED" && a.body ? a : null;
+                const isOpen = openEmail === a.id;
                 return (
                   <li key={a.id} className="ml-5 pb-4 last:pb-0">
                     <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white ${meta.dot}`} />
@@ -445,12 +450,38 @@ export default function ShopOrderDetail() {
                           <Send className="w-2.5 h-2.5" /> Notified
                         </span>
                       )}
+                      {email && a.status && a.status !== "SENT" && (
+                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5">
+                          {a.status === "LOGGED" ? "not sent (dev)" : a.status.toLowerCase()}
+                        </span>
+                      )}
                       <span className="text-[11px] text-slate-400">{relativeTime(a.createdAt)}</span>
                     </div>
                     {a.message && (
                       <p className={`text-xs mt-0.5 leading-relaxed ${isNote ? "text-slate-400 italic" : "text-slate-500"}`}>
                         {a.message}
                       </p>
+                    )}
+                    {email && (
+                      <div className="mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setOpenEmail(isOpen ? null : a.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-700 hover:text-matcha-900 cursor-pointer"
+                        >
+                          <Mail className="w-3 h-3" /> {isOpen ? "Hide email" : "View email"}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <p className="text-[11px] text-slate-400">
+                              To <span className="font-medium text-slate-600">{order.customerEmail}</span>
+                              {email.channel ? ` · ${email.channel.toLowerCase()}` : ""}
+                            </p>
+                            {email.subject && <p className="font-semibold text-slate-800 mt-1">{email.subject}</p>}
+                            <pre className="mt-1.5 whitespace-pre-wrap font-sans leading-relaxed text-slate-600">{email.body}</pre>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </li>
                 );

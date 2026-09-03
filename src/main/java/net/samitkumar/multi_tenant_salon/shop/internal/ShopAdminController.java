@@ -7,12 +7,15 @@ import net.samitkumar.multi_tenant_salon.shop.Category;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopManager.VariantSpec;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.InventoryRow;
+import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderPage;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderView;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.ProductView;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,7 +45,7 @@ class ShopAdminController {
     record CategoryRequest(String name, String description, Boolean active) {}
 
     record ProductRequest(Long brandId, Long categoryId, String name, String description,
-                          String imageUrl, Boolean active, List<VariantSpec> variants) {}
+                          String imageUrl, List<String> images, Boolean active, List<VariantSpec> variants) {}
 
     record InventoryRequest(Integer quantityOnHand, Integer reorderLevel) {}
 
@@ -129,7 +132,7 @@ class ShopAdminController {
     @PostMapping("/products")
     ResponseEntity<ProductView> addProduct(@PathVariable String salonId, @RequestBody ProductRequest req) {
         var product = shop.addProduct(salonApi.resolveId(salonId), req.brandId(), req.categoryId(), req.name(),
-                req.description(), req.imageUrl(), req.variants());
+                req.description(), req.imageUrl(), req.images(), req.variants());
         return created(product, product.id());
     }
 
@@ -137,7 +140,8 @@ class ShopAdminController {
     ResponseEntity<ProductView> updateProduct(@PathVariable String salonId, @PathVariable Long productId,
                                               @RequestBody ProductRequest req) {
         return shop.updateProduct(salonApi.resolveId(salonId), productId, req.brandId(), req.categoryId(),
-                        req.name(), req.description(), req.imageUrl(), req.active() == null || req.active(), req.variants())
+                        req.name(), req.description(), req.imageUrl(), req.images(),
+                        req.active() == null || req.active(), req.variants())
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -177,9 +181,22 @@ class ShopAdminController {
 
     // ── orders ───────────────────────────────────────────────────────────────
 
+    /**
+     * Paginated, searchable orders list. {@code q} matches the order number, customer
+     * name/email/phone, payment reference, tracking number, or any line's product name.
+     * {@code from}/{@code to} are {@code yyyy-MM-dd} bounds on the order date (the {@code to} day
+     * is included). {@code sort} is {@code newest} (default) or {@code oldest}.
+     */
     @GetMapping("/orders")
-    List<OrderView> listOrders(@PathVariable String salonId) {
-        return shop.listOrders(salonApi.resolveId(salonId));
+    OrderPage listOrders(@PathVariable String salonId,
+                         @RequestParam(required = false) String q,
+                         @RequestParam(required = false) OrderStatus status,
+                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                         @RequestParam(defaultValue = "newest") String sort,
+                         @RequestParam(defaultValue = "0") int page,
+                         @RequestParam(defaultValue = "20") int size) {
+        return shop.listOrders(salonApi.resolveId(salonId), q, status, from, to, sort, page, size);
     }
 
     @GetMapping("/orders/{orderId}")

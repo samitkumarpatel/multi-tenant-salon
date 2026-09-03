@@ -1,26 +1,52 @@
-import { useState } from "react";
-import { Link, useLoaderData, useOutletContext } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { ClipboardList, ChevronRight } from "lucide-react";
+import { ClipboardList, ChevronRight, ChevronDown, ChevronLeft, Check, Search, X } from "lucide-react";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
 import { ORDER_STATUS_LABEL, ORDER_STATUS_STYLE } from "~/lib/shopOrders";
-import type { ShopOrder, ShopOrderStatus } from "~/lib/types";
+import type { ShopOrdersPage } from "~/lib/shopOrders";
+import type { ShopOrderStatus } from "~/lib/types";
 import type { ShopOutletContext } from "./shop";
 
-export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+const FORWARDED = ["q", "status", "from", "to", "sort", "page"] as const;
+
+export async function clientLoader({ request, params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const orders = await apiFetch<ShopOrder[]>(`${ADMIN_API}/${sid}/shop/orders`);
-  return { orders };
+  const incoming = new URL(request.url).searchParams;
+  const qs = new URLSearchParams();
+  for (const key of FORWARDED) {
+    const v = incoming.get(key);
+    if (v) qs.set(key, v);
+  }
+  const query = qs.toString();
+  const page = await apiFetch<ShopOrdersPage>(
+    `${ADMIN_API}/${sid}/shop/orders${query ? `?${query}` : ""}`,
+  );
+  return { page };
 }
 
 const ALL_STATUSES: ShopOrderStatus[] = ["NEW", "PROCESSING", "SHIPPED", "FULFILLED", "CANCELLED"];
+const STATUS_FILTERS: (ShopOrderStatus | "ALL")[] = ["ALL", ...ALL_STATUSES];
+
+/** Per-status row tint + text shades tuned for contrast on that tint. */
+const ORDER_ROW_STYLE: Record<
+  ShopOrderStatus,
+  { row: string; strong: string; muted: string; faint: string; link: string }
+> = {
+  NEW:        { row: "bg-slate-50 hover:bg-slate-100/80",   strong: "text-slate-800", muted: "text-slate-500", faint: "text-slate-400",     link: "text-slate-700" },
+  PROCESSING: { row: "bg-amber-50/70 hover:bg-amber-100/70", strong: "text-amber-900", muted: "text-amber-700", faint: "text-amber-600/70",  link: "text-amber-800" },
+  SHIPPED:    { row: "bg-blue-50/70 hover:bg-blue-100/70",   strong: "text-blue-900",  muted: "text-blue-700",  faint: "text-blue-500/80",   link: "text-blue-800" },
+  FULFILLED:  { row: "bg-green-50/70 hover:bg-green-100/70",  strong: "text-green-900", muted: "text-green-700", faint: "text-green-600/70",  link: "text-green-800" },
+  CANCELLED:  { row: "bg-red-50/60 hover:bg-red-100/60",     strong: "text-red-800",   muted: "text-red-600",   faint: "text-red-500/70",    link: "text-red-700" },
+};
+
+const controlCls =
+  "px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-700 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
 
 function StatusBadge({ status }: { status: ShopOrderStatus }) {
   return (
-    <span
-      className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${ORDER_STATUS_STYLE[status]}`}
-    >
+    <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${ORDER_STATUS_STYLE[status]}`}>
       {ORDER_STATUS_LABEL[status]}
     </span>
   );
@@ -32,17 +58,57 @@ function fmtDate(ts: string) {
 
 export default function ShopOrders() {
   useOutletContext<ShopOutletContext>();
-  const { orders } = useLoaderData<typeof clientLoader>();
-  const [filter, setFilter] = useState<ShopOrderStatus | "ALL">("ALL");
+  const { page } = useLoaderData<typeof clientLoader>();
+  const [params, setParams] = useSearchParams();
 
-  const counts = ALL_STATUSES.reduce<Record<string, number>>((acc, s) => {
-    acc[s] = orders.filter((o) => o.status === s).length;
-    return acc;
-  }, {});
+  const q = params.get("q") ?? "";
+  const status = (params.get("status") as ShopOrderStatus | null) ?? "ALL";
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
+  const sort = params.get("sort") === "oldest" ? "oldest" : "newest";
 
-  const visible = filter === "ALL" ? orders : orders.filter((o) => o.status === filter);
+  const filtersActive = !!(q || params.get("status") || from || to);
 
-  if (orders.length === 0) {
+  /** Merge a patch into the query string. Any change but an explicit page bump resets to page 0. */
+  function update(patch: Record<string, string | null>) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === null || v === "") next.delete(k);
+          else next.set(k, v);
+        }
+        if (!("page" in patch)) next.delete("page");
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  // Debounced search box — local draft, pushed to the URL after a pause.
+  const [draft, setDraft] = useState(q);
+  useEffect(() => setDraft(q), [q]);
+  useEffect(() => {
+    if (draft === q) return;
+    const t = setTimeout(() => update({ q: draft || null }), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
+  const counts = page.statusCounts ?? {};
+  const filterCount = (f: ShopOrderStatus | "ALL") =>
+    f === "ALL"
+      ? ALL_STATUSES.reduce((n, s) => n + (counts[s] ?? 0), 0)
+      : counts[f] ?? 0;
+
+  const orders = page.content;
+  const { totalElements, totalPages, page: pageIdx } = page;
+  const rangeStart = totalElements === 0 ? 0 : pageIdx * page.size + 1;
+  const rangeEnd = pageIdx * page.size + orders.length;
+
+  const firstEverEmpty = totalElements === 0 && !filtersActive;
+
+  if (firstEverEmpty) {
     return (
       <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
         <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
@@ -56,48 +122,75 @@ export default function ShopOrders() {
 
   return (
     <div className="space-y-3">
-      {/* Status filter chips */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setFilter("ALL")}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-            filter === "ALL"
-              ? "bg-slate-700 text-white border-slate-700"
-              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-          }`}
+      {/* ── Toolbar ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Search */}
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && update({ q: draft || null })}
+            placeholder="Search orders…"
+            className={`${controlCls} pl-8 pr-7 w-60`}
+          />
+          {draft && (
+            <button
+              onClick={() => setDraft("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <StatusMenu value={status} count={filterCount} onPick={(f) => update({ status: f === "ALL" ? null : f })} />
+
+        <select
+          value={sort}
+          onChange={(e) => update({ sort: e.target.value === "oldest" ? "oldest" : null })}
+          className={`${controlCls} cursor-pointer`}
         >
-          All
-          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
-            {orders.length}
-          </span>
-        </button>
-        {ALL_STATUSES.map((s) => (
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+
+        <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+          From
+          <input
+            type="date"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => update({ from: e.target.value || null })}
+            className={`${controlCls} cursor-pointer`}
+          />
+        </label>
+        <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+          To
+          <input
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => update({ to: e.target.value || null })}
+            className={`${controlCls} cursor-pointer`}
+          />
+        </label>
+
+        {filtersActive && (
           <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-              filter === s
-                ? "bg-slate-700 text-white border-slate-700"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            }`}
+            onClick={() => setParams(new URLSearchParams(), { replace: true })}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
           >
-            {ORDER_STATUS_LABEL[s]}
-            {counts[s] > 0 && (
-              <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
-                filter === s ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
-              }`}>
-                {counts[s]}
-              </span>
-            )}
+            <X className="w-3.5 h-3.5" /> Clear
           </button>
-        ))}
+        )}
       </div>
 
+      {/* ── Table ────────────────────────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
-        {visible.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">
-            No {ORDER_STATUS_LABEL[filter as ShopOrderStatus]} orders.
-          </div>
+        {orders.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-500">No orders match your filters.</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -111,32 +204,33 @@ export default function ShopOrders() {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {visible.map((o) => {
+            <tbody className="divide-y divide-white">
+              {orders.map((o) => {
                 const items = o.lines.reduce((n, l) => n + l.quantity, 0);
+                const st = ORDER_ROW_STYLE[o.status];
                 return (
                   <tr
                     key={o.id}
-                    className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                    className={`${st.row} transition-colors cursor-pointer group`}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest("a,button")) return;
                       (e.currentTarget.querySelector("a[data-row-link]") as HTMLAnchorElement | null)?.click();
                     }}
                   >
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{o.orderNumber}</td>
-                    <td className="px-4 py-3 text-slate-500">{fmtDate(o.createdAt)}</td>
+                    <td className={`px-4 py-3 font-mono text-xs font-semibold ${st.strong}`}>{o.orderNumber}</td>
+                    <td className={`px-4 py-3 ${st.muted}`}>{fmtDate(o.createdAt)}</td>
                     <td className="px-4 py-3">
-                      <div className="text-slate-800">{o.customerName}</div>
-                      <div className="text-[11px] text-slate-400">{o.customerEmail}</div>
+                      <div className={st.strong}>{o.customerName}</div>
+                      <div className={`text-[11px] ${st.faint}`}>{o.customerEmail}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{items}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{formatPrice(o.subtotal, o.currency)}</td>
+                    <td className={`px-4 py-3 ${st.muted}`}>{items}</td>
+                    <td className={`px-4 py-3 font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency)}</td>
                     <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3 text-right">
                       <Link
                         data-row-link
                         to={`${o.id}`}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-matcha-700 group-hover:text-matcha-800"
+                        className={`inline-flex items-center gap-1 text-xs font-medium ${st.link} group-hover:underline`}
                       >
                         View <ChevronRight className="w-3.5 h-3.5" />
                       </Link>
@@ -148,6 +242,101 @@ export default function ShopOrders() {
           </table>
         )}
       </div>
+
+      {/* ── Pagination ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+        <span>
+          {totalElements === 0
+            ? "No orders"
+            : `${rangeStart}–${rangeEnd} of ${totalElements} order${totalElements === 1 ? "" : "s"}`}
+        </span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              disabled={pageIdx <= 0}
+              onClick={() => update({ page: String(pageIdx - 1) })}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-medium text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> Prev
+            </button>
+            <span className="px-2 tabular-nums">
+              Page {pageIdx + 1} / {totalPages}
+            </span>
+            <button
+              disabled={pageIdx >= totalPages - 1}
+              onClick={() => update({ page: String(pageIdx + 1) })}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-medium text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Status dropdown ──────────────────────────────────────────────────────────
+
+function StatusMenu({
+  value,
+  count,
+  onPick,
+}: {
+  value: ShopOrderStatus | "ALL";
+  count: (f: ShopOrderStatus | "ALL") => number;
+  onPick: (f: ShopOrderStatus | "ALL") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label = useMemo(() => (value === "ALL" ? "All orders" : ORDER_STATUS_LABEL[value]), [value]);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`${controlCls} inline-flex items-center gap-2 font-semibold cursor-pointer`}
+      >
+        <span className="font-medium text-slate-400">Status</span>
+        {label}
+        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+          {count(value)}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 mt-1.5 w-56 z-50 bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+            {STATUS_FILTERS.map((f) => {
+              const active = value === f;
+              return (
+                <button
+                  key={f}
+                  onClick={() => {
+                    onPick(f);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left transition-colors ${
+                    active ? "bg-slate-50" : "hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-3.5 flex justify-center shrink-0">
+                      {active && <Check className="w-3.5 h-3.5 text-matcha-600" />}
+                    </span>
+                    {f === "ALL" ? (
+                      <span className="font-medium text-slate-700">All orders</span>
+                    ) : (
+                      <StatusBadge status={f} />
+                    )}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">{count(f)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

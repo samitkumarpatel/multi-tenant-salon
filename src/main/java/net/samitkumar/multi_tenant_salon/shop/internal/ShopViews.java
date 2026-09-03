@@ -10,6 +10,7 @@ import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Read-side shapes the controllers return — {@link net.samitkumar.multi_tenant_salon.shop.Product}
@@ -27,6 +28,7 @@ final class ShopViews {
             String name,
             String description,
             String imageUrl,
+            List<String> images,
             boolean active,
             Instant createdAt,
             List<ProductVariant> variants
@@ -78,5 +80,19 @@ final class ShopViews {
             String trackingNumber,
             List<OrderLineView> lines,
             List<ShopOrderActivity> activities
+    ) {}
+
+    /**
+     * One page of the admin orders list. {@code statusCounts} is faceted on the active search /
+     * date-range scope but <em>not</em> on the status filter itself, so the UI can show how many
+     * orders sit in every status without losing the current text/date query.
+     */
+    record OrderPage(
+            List<OrderView> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            Map<OrderStatus, Long> statusCounts
     ) {}
 }

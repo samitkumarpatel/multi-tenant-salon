@@ -42,6 +42,7 @@ interface ProductVariantRepository extends ListCrudRepository<ProductVariant, Lo
 interface ShopOrderRepository extends ListCrudRepository<ShopOrder, Long> {
     List<ShopOrder> findBySalonIdOrderByCreatedAtDesc(UUID salonId);
     Optional<ShopOrder> findByIdAndSalonId(Long id, UUID salonId);
+    Optional<ShopOrder> findByOrderNumberAndSalonId(String orderNumber, UUID salonId);
 }
 
 interface OrderLineActivityRepository extends ListCrudRepository<OrderLineActivity, Long> {

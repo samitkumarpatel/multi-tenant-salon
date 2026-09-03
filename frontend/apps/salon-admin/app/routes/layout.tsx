@@ -5,7 +5,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Trash2, LayoutDashboard, Pencil, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
+import { Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -508,15 +508,9 @@ export default function Layout() {
               </Tooltip>
             )}
 
-            <Tooltip content="A read-only snapshot of your salon — identity, location, hours, and active features.">
+            <Tooltip content="View your salon's identity, location, hours, and active features — and edit any of it.">
               <NavLink to="" end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
                 <LayoutDashboard className="w-4 h-4 shrink-0" /> Overview
-              </NavLink>
-            </Tooltip>
-
-            <Tooltip content="Update your salon's name, location, contact info, operating hours, and enabled features.">
-              <NavLink to="edit" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <Pencil className="w-4 h-4 shrink-0" /> Edit Salon
               </NavLink>
             </Tooltip>
 

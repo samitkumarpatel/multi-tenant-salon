@@ -19,6 +19,7 @@ import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
 import net.samitkumar.multi_tenant_salon.shop.ShopRefund;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.InventoryRow;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderLineView;
+import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderPage;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderView;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.ProductView;
 import org.springframework.context.ApplicationEventPublisher;
@@ -31,8 +32,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -159,7 +164,7 @@ class ShopManager {
                     return new ProductView(p.id(), p.salonId(),
                             p.brandId(), p.brandId() == null ? null : brandNames.get(p.brandId()),
                             p.categoryId(), p.categoryId() == null ? null : categoryNames.get(p.categoryId()),
-                            p.name(), p.description(), p.imageUrl(), p.active(), p.createdAt(), visible);
+                            p.name(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), visible);
                 })
                 // the public catalogue hides products with nothing buyable
                 .filter(pv -> !activeOnly || !pv.variants().isEmpty())
@@ -192,27 +197,33 @@ class ShopManager {
 
     @Transactional
     ProductView addProduct(UUID salonId, Long brandId, Long categoryId, String name, String description,
-                           String imageUrl, List<VariantSpec> variants) {
+                           String imageUrl, List<String> images, List<VariantSpec> variants) {
         requireText(name, "Product name is required");
         validateBrandCategory(salonId, brandId, categoryId);
+        var gallery = resolveImages(imageUrl, images);
+        var cover = gallery.isEmpty() ? null : gallery.get(0);
         var product = productRepo.save(new Product(null, salonId, brandId, categoryId, name.trim(),
-                description, imageUrl, true, Instant.now()));
+                description, cover, true, Instant.now(),
+                gallery.stream().map(Product.ProductImage::new).toList()));
         var saved = (variants == null ? List.<VariantSpec>of() : variants).stream()
                 .map(v -> variantRepo.save(newVariant(null, product.id(), salonId, v)))
                 .toList();
-        log.info("[ShopManager] Product added id={} salon={} variants={}", product.id(), salonId, saved.size());
+        log.info("[ShopManager] Product added id={} salon={} variants={} images={}", product.id(), salonId, saved.size(), gallery.size());
         return toProductView(product, saved);
     }
 
     @Transactional
     Optional<ProductView> updateProduct(UUID salonId, Long productId, Long brandId, Long categoryId,
-                                        String name, String description, String imageUrl, boolean active,
-                                        List<VariantSpec> variants) {
+                                        String name, String description, String imageUrl, List<String> images,
+                                        boolean active, List<VariantSpec> variants) {
         requireText(name, "Product name is required");
         validateBrandCategory(salonId, brandId, categoryId);
         return productRepo.findByIdAndSalonId(productId, salonId).map(existing -> {
+            var gallery = resolveImages(imageUrl, images);
+            var cover = gallery.isEmpty() ? null : gallery.get(0);
             var updated = productRepo.save(new Product(existing.id(), salonId, brandId, categoryId, name.trim(),
-                    description, imageUrl, active, existing.createdAt()));
+                    description, cover, active, existing.createdAt(),
+                    gallery.stream().map(Product.ProductImage::new).toList()));
 
             var specs = variants == null ? List.<VariantSpec>of() : variants;
             var keepIds = specs.stream().map(VariantSpec::id).filter(Objects::nonNull).collect(Collectors.toSet());
@@ -271,10 +282,85 @@ class ShopManager {
 
     // ── Orders ───────────────────────────────────────────────────────────────
 
-    List<OrderView> listOrders(UUID salonId) {
-        return orderRepo.findBySalonIdOrderByCreatedAtDesc(salonId).stream()
+    /**
+     * One page of the salon's orders, filtered server-side. {@code q} is a case-insensitive
+     * substring match against the order number, customer name / email / phone, payment reference,
+     * tracking number, and any line's product name. {@code from}/{@code to} bound {@code created_at}
+     * (inclusive of the whole {@code to} day, interpreted in UTC). {@code sort} is {@code "newest"}
+     * (default) or {@code "oldest"}. Line activity timelines are omitted from the list rows.
+     */
+    OrderPage listOrders(UUID salonId, String q, OrderStatus status,
+                         LocalDate from, LocalDate to, String sort, int page, int size) {
+        int pageIdx = Math.max(0, page);
+        int pageSize = Math.min(Math.max(size, 1), 100);
+
+        // WHERE shared by the facet-count, total-count and id-page queries.
+        var where = new StringBuilder("o.salon_id = :salon");
+        var params = new HashMap<String, Object>();
+        params.put("salon", salonId);
+
+        if (from != null) {
+            where.append(" AND o.created_at >= :from");
+            params.put("from", from.atStartOfDay().atOffset(ZoneOffset.UTC));
+        }
+        if (to != null) {
+            where.append(" AND o.created_at < :to");
+            params.put("to", to.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC));
+        }
+        var term = q == null ? "" : q.strip();
+        if (!term.isEmpty()) {
+            where.append(" AND (o.order_number ILIKE :q OR o.customer_name ILIKE :q")
+                 .append(" OR o.customer_email ILIKE :q OR o.customer_phone ILIKE :q")
+                 .append(" OR o.payment_reference ILIKE :q OR o.tracking_number ILIKE :q")
+                 .append(" OR EXISTS (SELECT 1 FROM shop_order_line l")
+                 .append(" WHERE l.order_id = o.id AND l.product_name ILIKE :q))");
+            var escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+            params.put("q", "%" + escaped + "%");
+        }
+
+        // Status facet counts over the search / date scope — deliberately ignores `status`.
+        var facet = new EnumMap<OrderStatus, Long>(OrderStatus.class);
+        for (OrderStatus s : OrderStatus.values()) facet.put(s, 0L);
+        jdbcClient.sql("SELECT o.status AS status, COUNT(*) AS c FROM shop_order o WHERE " + where
+                        + " GROUP BY o.status")
+                .params(params)
+                .query((rs, rowNum) -> Map.entry(OrderStatus.valueOf(rs.getString("status")), rs.getLong("c")))
+                .list()
+                .forEach(e -> facet.put(e.getKey(), e.getValue()));
+
+        // From here on the status filter joins the WHERE for the actual page.
+        if (status != null) {
+            where.append(" AND o.status = :status");
+            params.put("status", status.name());
+        }
+
+        long total = jdbcClient.sql("SELECT COUNT(*) FROM shop_order o WHERE " + where)
+                .params(params)
+                .query(Long.class)
+                .single();
+
+        var orderBy = "oldest".equalsIgnoreCase(sort)
+                ? "o.created_at ASC, o.id ASC"
+                : "o.created_at DESC, o.id DESC";
+        var ids = jdbcClient.sql("SELECT o.id FROM shop_order o WHERE " + where
+                        + " ORDER BY " + orderBy + " LIMIT :limit OFFSET :offset")
+                .params(params)
+                .param("limit", pageSize)
+                .param("offset", (long) pageIdx * pageSize)
+                .query(Long.class)
+                .list();
+
+        Map<Long, ShopOrder> byId = ids.isEmpty()
+                ? Map.of()
+                : orderRepo.findAllById(ids).stream().collect(Collectors.toMap(ShopOrder::id, o -> o));
+        var content = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
                 .map(o -> toOrderView(o, Map.of()))
                 .toList();
+
+        int totalPages = (int) Math.ceil(total / (double) pageSize);
+        return new OrderPage(content, pageIdx, pageSize, total, totalPages, facet);
     }
 
     Optional<OrderView> getOrder(UUID salonId, Long orderId) {
@@ -431,12 +517,33 @@ class ShopManager {
     /** Records an order-level activity and, when {@code notify=true}, logs a dummy notification. */
     private ShopOrderActivity recordOrderActivity(Long orderId, UUID salonId, String type, String message,
                                                   String actor, boolean notify, String customerEmail, String customerPhone) {
-        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, notify, Instant.now()));
+        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, notify,
+                null, null, null, null, Instant.now()));
         if (notify) {
             log.info("[NOTIFICATION] To: {} | Phone: {} | Type: {} | Message: {}",
                     customerEmail, customerPhone != null ? customerPhone : "—", type, message);
         }
         return activity;
+    }
+
+    /**
+     * Appends the exact email a customer received to an order's activity timeline. Driven by
+     * {@link net.samitkumar.multi_tenant_salon.shop.OrderCustomerNotifiedEvent}, which the
+     * notification module publishes once it has dispatched (or logged) the message — so the
+     * salon admin can open any order and see everything that went out.
+     */
+    @Transactional
+    void recordCustomerNotification(UUID salonId, String orderNumber, String channel, String recipient,
+                                    String subject, String body, String status, Instant sentAt) {
+        var order = orderRepo.findByOrderNumberAndSalonId(orderNumber, salonId).orElse(null);
+        if (order == null) {
+            log.warn("[ShopManager] Notification ack for unknown order {} salon {} — dropped", orderNumber, salonId);
+            return;
+        }
+        orderActivityRepo.save(new ShopOrderActivity(null, order.id(), salonId, "CUSTOMER_NOTIFIED",
+                subject, "system", true, channel, subject, body, status,
+                sentAt != null ? sentAt : Instant.now()));
+        log.info("[ShopManager] Recorded customer notification for order {} ({}, {})", orderNumber, channel, status);
     }
 
     Optional<OrderView> sendInvoice(UUID salonId, Long orderId) {
@@ -578,7 +685,27 @@ class ShopManager {
         String categoryName = p.categoryId() == null ? null
                 : categoryRepo.findById(p.categoryId()).map(Category::name).orElse(null);
         return new ProductView(p.id(), p.salonId(), p.brandId(), brandName, p.categoryId(), categoryName,
-                p.name(), p.description(), p.imageUrl(), p.active(), p.createdAt(), variants);
+                p.name(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), variants);
+    }
+
+    private static List<String> imagesOf(Product p) {
+        return p.images().stream().map(Product.ProductImage::value).toList();
+    }
+
+    /** The ordered gallery to persist: an explicit {@code images} list wins; otherwise fall back to
+     *  the legacy single {@code imageUrl}. Blanks and duplicates are dropped, order is preserved,
+     *  and the list is capped so a malformed request can't insert thousands of rows. */
+    private static List<String> resolveImages(String imageUrl, List<String> images) {
+        var src = images != null ? images
+                : imageUrl != null ? List.of(imageUrl)
+                : List.<String>of();
+        return src.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .limit(12)
+                .toList();
     }
 
     private OrderView toOrderView(ShopOrder o, Map<Long, List<OrderLineActivity>> activitiesByLine) {

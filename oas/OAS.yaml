@@ -2446,16 +2446,27 @@ paths:
       - $ref: "#/components/parameters/SalonId"
     get:
       tags: [AdminShop]
-      summary: List orders (newest first)
+      summary: List orders — paginated, searchable, sortable
+      description: >
+        Server-side paged list. `q` is a case-insensitive substring match against the order number,
+        customer name / email / phone, payment reference, tracking number, or any line's product name.
+        `from` / `to` bound the order date (`yyyy-MM-dd`, the `to` day is included, interpreted in UTC).
+        `statusCounts` in the response is faceted on `q` + date range but not on `status`.
       operationId: adminListOrders
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/OrderStatus" } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: sort, in: query, required: false, schema: { type: string, enum: [newest, oldest], default: newest } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
         "200":
-          description: Orders (line activity timelines omitted from the list view)
+          description: One page of orders (line activity timelines omitted from the list view)
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/ShopOrder" }
+              schema: { $ref: "#/components/schemas/ShopOrderPage" }
 
   /api/salon-admin/{salonId}/shop/orders/{orderId}:
     parameters:
@@ -4187,7 +4198,11 @@ components:
         categoryName: { type: string, nullable: true }
         name: { type: string }
         description: { type: string, nullable: true }
-        imageUrl: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true, description: "Cover image — always mirrors images[0]." }
+        images:
+          type: array
+          description: "Ordered image gallery (first entry is the cover)."
+          items: { type: string }
         active: { type: boolean }
         createdAt: { type: string, format: date-time }
         variants:
@@ -4217,7 +4232,12 @@ components:
         categoryId: { type: integer, format: int64, nullable: true }
         name: { type: string }
         description: { type: string, nullable: true }
-        imageUrl: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true, description: "Legacy single-image field. Ignored when `images` is provided." }
+        images:
+          type: array
+          nullable: true
+          description: "Ordered image gallery; the first entry becomes the cover (`imageUrl`). Blanks/duplicates are dropped, max 12."
+          items: { type: string }
         active: { type: boolean, description: "Update only; defaults true." }
         variants:
           type: array
@@ -4261,6 +4281,31 @@ components:
         actor: { type: string, nullable: true, description: '"customer" or "admin".' }
         createdAt: { type: string, format: date-time }
 
+    OrderActivity:
+      type: object
+      description: >
+        One entry on an order's activity timeline. `CUSTOMER_NOTIFIED` entries additionally carry
+        the exact email the customer received — `channel` / `subject` / `body` / `status` — appended
+        by the shop module when the notification module acknowledges a send. All other types leave
+        those four fields null.
+      properties:
+        id: { type: integer, format: int64 }
+        orderId: { type: integer, format: int64 }
+        type:
+          type: string
+          enum:
+            [ORDER_PLACED, INVOICE_SENT, STATUS_CHANGED, REFUND_INITIATED, REFUND_ACCEPTED,
+             REFUND_REJECTED, CREDIT_NOTE_CREATED, CREDIT_PAID, SHIPMENT_CREATED, CUSTOMER_NOTIFIED,
+             WORK_NOTE]
+        message: { type: string, nullable: true }
+        actor: { type: string, nullable: true }
+        notified: { type: boolean }
+        channel: { type: string, nullable: true, example: EMAIL }
+        subject: { type: string, nullable: true }
+        body: { type: string, nullable: true, description: Plain-text body of the sent message. }
+        status: { type: string, nullable: true, enum: [SENT, LOGGED, FAILED], description: "LOGGED = dispatch skipped (e.g. provider not configured in dev)." }
+        createdAt: { type: string, format: date-time }
+
     ShopOrderLine:
       type: object
       properties:
@@ -4297,6 +4342,27 @@ components:
         lines:
           type: array
           items: { $ref: "#/components/schemas/ShopOrderLine" }
+        activities:
+          type: array
+          description: The order's activity timeline. Populated on the order-detail endpoint; omitted in the list view.
+          items: { $ref: "#/components/schemas/OrderActivity" }
+
+    ShopOrderPage:
+      type: object
+      description: One page of the admin orders list.
+      properties:
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/ShopOrder" }
+        page: { type: integer, description: Zero-based page index }
+        size: { type: integer, description: Page size actually applied (1–100) }
+        totalElements: { type: integer, format: int64, description: Orders matching the filter across all pages }
+        totalPages: { type: integer }
+        statusCounts:
+          type: object
+          description: Count per status over the search / date scope (ignores the `status` filter).
+          additionalProperties: { type: integer, format: int64 }
+          example: { NEW: 5, PROCESSING: 2, SHIPPED: 1, FULFILLED: 8, CANCELLED: 0 }
 
     ShopCheckoutRequest:
       type: object

@@ -13,16 +13,19 @@ import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderCustomerNotifiedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Currency;
 import java.util.List;
@@ -44,6 +47,7 @@ class NotificationService {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
 
     private final MailjetClient mailjetClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${spring.application.notification.mailjet.sender:noreply@salonsaas.org}")
     private String sender;
@@ -62,8 +66,9 @@ class NotificationService {
     @Value("${spring.application.notification.support-email:admin@salonsaas.org}")
     private String supportEmail;
 
-    NotificationService(MailjetClient mailjetClient) {
+    NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher) {
         this.mailjetClient = mailjetClient;
+        this.eventPublisher = eventPublisher;
     }
 
     // ── Salon lifecycle ──────────────────────────────────────────────────────
@@ -448,7 +453,8 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
     void notifyOrderStatusChanged(OrderStatusChangedEvent event) {
@@ -481,7 +487,8 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
     void notifyOrderLineUser(OrderLineActivityAddedEvent event) {
@@ -504,7 +511,8 @@ class NotificationService {
                 """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
     // ── Dispatch ──────────────────────────────────────────────────────────────
@@ -581,15 +589,30 @@ class NotificationService {
         return sb.toString();
     }
 
-    /** The one place that actually talks to Mailjet. Never throws — a notification failure must not break the triggering business flow. */
+    /** Fire-and-forget send with no audit trail — used for internal (salon/staff) notifications. */
     private void sendEmail(String toEmail, String toName, String subject, String textBody, String htmlBody) {
+        dispatch(toEmail, toName, subject, textBody, htmlBody);
+    }
+
+    /**
+     * Send, then publish an acknowledgement event so the owning module can record exactly what the
+     * customer received (subject + body + delivery status) on its own timeline.
+     */
+    private void sendEmail(String toEmail, String toName, String subject, String textBody, String htmlBody,
+                           NotificationContext ctx) {
+        var status = dispatch(toEmail, toName, subject, textBody, htmlBody);
+        acknowledge(toEmail, subject, textBody, status, ctx);
+    }
+
+    /** The one place that actually talks to Mailjet. Never throws — a notification failure must not break the triggering business flow. */
+    private DispatchStatus dispatch(String toEmail, String toName, String subject, String textBody, String htmlBody) {
         if (!StringUtils.hasText(toEmail)) {
             log.warn("[NOTIFICATION] No recipient email — skipping send. subject='{}'", subject);
-            return;
+            return DispatchStatus.FAILED;
         }
         if (!StringUtils.hasText(apiKey)) {
             log.info("[NOTIFICATION] Mailjet not configured — skipping send. to={} <{}> subject='{}'", toName, toEmail, subject);
-            return;
+            return DispatchStatus.LOGGED;
         }
         try {
             var request = new MailjetRequest(List.of(new MailjetMessage(
@@ -598,8 +621,31 @@ class NotificationService {
                     subject, textBody, htmlBody)));
             var result = mailjetClient.send(request);
             log.info("[NOTIFICATION] Sent '{}' to {} <{}> — result: {}", subject, toName, toEmail, result);
+            return DispatchStatus.SENT;
         } catch (Exception e) {
             log.error("[NOTIFICATION] Failed to send '{}' to {} <{}>", subject, toName, toEmail, e);
+            return DispatchStatus.FAILED;
         }
     }
+
+    /**
+     * Tells the entity's owning module what was sent, via an acknowledgement event it already owns
+     * (keeps the round-trip event-driven and cycle-free). A failure here must never break sending.
+     */
+    private void acknowledge(String toEmail, String subject, String body,
+                             DispatchStatus status, NotificationContext ctx) {
+        if (ctx == null) return;
+        try {
+            if (NotificationContext.TYPE_SHOP_ORDER.equals(ctx.relatedType())) {
+                eventPublisher.publishEvent(new OrderCustomerNotifiedEvent(
+                        ctx.salonId(), ctx.relatedRef(), OrderCustomerNotifiedEvent.CHANNEL_EMAIL,
+                        toEmail, subject, body, status.name(), Instant.now()));
+            }
+        } catch (Exception e) {
+            log.error("[NOTIFICATION] Failed to publish notification acknowledgement for subject='{}'", subject, e);
+        }
+    }
+
+    /** What happened when we tried to hand the message to the provider. */
+    enum DispatchStatus { SENT, LOGGED, FAILED }
 }

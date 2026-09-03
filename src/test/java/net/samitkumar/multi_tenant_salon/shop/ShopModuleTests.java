@@ -11,6 +11,7 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
@@ -169,7 +170,7 @@ class ShopModuleTests {
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.orderNumber").isNotEmpty()
-                .jsonPath("$.status").isEqualTo("PAID")
+                .jsonPath("$.status").isEqualTo("NEW")
                 .jsonPath("$.paymentStatus").isEqualTo("PAID")
                 .jsonPath("$.subtotal").isEqualTo(45.00)
                 .jsonPath("$.lines.length()").isEqualTo(1)
@@ -192,9 +193,14 @@ class ShopModuleTests {
                 .exchange()
                 .expectStatus().isEqualTo(409);
 
-        // admin sees the order
+        // admin sees the order — the list is now a paged envelope
         client.get().uri(adminBase() + "/orders").exchange()
-                .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1);
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.page").isEqualTo(0)
+                .jsonPath("$.totalPages").isEqualTo(1)
+                .jsonPath("$.statusCounts.NEW").isEqualTo(1);
 
         // "Notify User" appends a USER_NOTIFIED activity
         client.post().uri(adminBase() + "/orders/" + orderId + "/lines/" + lineId + "/notify")
@@ -225,6 +231,90 @@ class ShopModuleTests {
     }
 
     @Test
+    void ordersListIsSearchableSortableAndPaged() {
+        var created = client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                          "name": "Argan Oil Serum",
+                          "variants": [ { "label": "50 ml", "price": 10.00, "currency": "USD", "quantityOnHand": 50 } ]
+                        }
+                        """)
+                .exchange().expectStatus().isCreated().expectBody().returnResult();
+        var variantId = jsonLong(created.getResponseBody(), "$.variants[0].id");
+
+        // Three orders, placed oldest → newest: Alice, Bob, Carol.
+        placeOrder(variantId, "Alice Adams", "alice@example.com", 1);
+        placeOrder(variantId, "Bob Brown", "bob@contractor.org", 2);
+        placeOrder(variantId, "Carol Clark", "carol@example.com", 1);
+
+        // Default page: newest first, everything on one page.
+        client.get().uri(adminBase() + "/orders").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(3)
+                .jsonPath("$.totalElements").isEqualTo(3)
+                .jsonPath("$.totalPages").isEqualTo(1)
+                .jsonPath("$.content[0].customerName").isEqualTo("Carol Clark")
+                .jsonPath("$.statusCounts.NEW").isEqualTo(3)
+                .jsonPath("$.statusCounts.SHIPPED").isEqualTo(0);
+
+        // Pagination.
+        client.get().uri(adminBase() + "/orders?size=2").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(2)
+                .jsonPath("$.totalElements").isEqualTo(3)
+                .jsonPath("$.totalPages").isEqualTo(2);
+        client.get().uri(adminBase() + "/orders?size=2&page=1").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].customerName").isEqualTo("Alice Adams");
+
+        // Sort oldest-first.
+        client.get().uri(adminBase() + "/orders?sort=oldest").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content[0].customerName").isEqualTo("Alice Adams");
+
+        // Search: by email, by name fragment, and by line product name.
+        client.get().uri(adminBase() + "/orders?q=bob@contractor.org").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].customerName").isEqualTo("Bob Brown");
+        client.get().uri(adminBase() + "/orders?q=clark").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].customerName").isEqualTo("Carol Clark");
+        client.get().uri(adminBase() + "/orders?q=argan").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(3);
+
+        // Status filter — facet counts stay scoped to the search, not the status.
+        client.get().uri(adminBase() + "/orders?status=SHIPPED").exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.totalElements").isEqualTo(0)
+                .jsonPath("$.statusCounts.NEW").isEqualTo(3);
+
+        // Date range on the order date.
+        var today = LocalDate.now();
+        client.get().uri(adminBase() + "/orders?from=" + today + "&to=" + today).exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(3);
+        client.get().uri(adminBase() + "/orders?from=" + today.plusDays(1)).exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0);
+    }
+
+    private void placeOrder(long variantId, String name, String email, int qty) {
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "%s", "customerEmail": "%s",
+                          "items": [ { "variantId": %d, "quantity": %d } ] }
+                        """.formatted(name, email, variantId, qty))
+                .exchange().expectStatus().isCreated();
+    }
+
+    @Test
     void checkoutRejectsEmptyCart() {
         client.post().uri(customerBase() + "/orders")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -251,6 +341,75 @@ class ShopModuleTests {
         client.get().uri("/api/salon-admin/" + otherSalon + "/shop/products/" + productId)
                 .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    // ── Product image gallery ─────────────────────────────────────────────
+
+    @Test
+    void productGallerySupportsMultipleImagesAndReorder() {
+        var created = client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                          "name": "Gift Set",
+                          "images": ["https://cdn.test/a.jpg", "https://cdn.test/b.jpg", "https://cdn.test/c.jpg"],
+                          "variants": [ { "label": "one", "price": 40.00, "currency": "USD", "quantityOnHand": 5 } ]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.images.length()").isEqualTo(3)
+                .jsonPath("$.images[0]").isEqualTo("https://cdn.test/a.jpg")
+                .jsonPath("$.imageUrl").isEqualTo("https://cdn.test/a.jpg") // cover mirrors images[0]
+                .returnResult();
+
+        var productId = jsonLong(created.getResponseBody(), "$.id");
+        var variantId = jsonLong(created.getResponseBody(), "$.variants[0].id");
+
+        // Reorder (c first) and drop b
+        client.put().uri(adminBase() + "/products/" + productId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                          "name": "Gift Set",
+                          "images": ["https://cdn.test/c.jpg", "https://cdn.test/a.jpg"],
+                          "variants": [ { "id": %d, "label": "one", "price": 40.00, "currency": "USD", "quantityOnHand": 5 } ]
+                        }
+                        """.formatted(variantId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.images.length()").isEqualTo(2)
+                .jsonPath("$.images[0]").isEqualTo("https://cdn.test/c.jpg")
+                .jsonPath("$.imageUrl").isEqualTo("https://cdn.test/c.jpg");
+
+        // Public detail view carries the ordered gallery too
+        client.get().uri(customerBase() + "/products/" + productId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.images.length()").isEqualTo(2)
+                .jsonPath("$.images[1]").isEqualTo("https://cdn.test/a.jpg");
+    }
+
+    @Test
+    void legacyImageUrlStillPopulatesGallery() {
+        client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                          "name": "Legacy",
+                          "imageUrl": "https://cdn.test/legacy.jpg",
+                          "variants": [ { "label": "x", "price": 1.00, "quantityOnHand": 1 } ]
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.imageUrl").isEqualTo("https://cdn.test/legacy.jpg")
+                .jsonPath("$.images.length()").isEqualTo(1)
+                .jsonPath("$.images[0]").isEqualTo("https://cdn.test/legacy.jpg");
     }
 
     // ── helpers ────────────────────────────────────────────────────────────

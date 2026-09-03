@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { DEFAULT_THEME, BookingWizard, GenerativeUIBooking, SalonErrorPage, apiFetch, API_BASE, contrastText } from "@salon/ui-website";
+import { DEFAULT_THEME, BookingWizard, SalonErrorPage, apiFetch, API_BASE } from "@salon/ui-website";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, Country } from "@salon/ui-website";
-import { CalendarCheck, Sparkles } from "lucide-react";
 
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
@@ -77,56 +76,6 @@ function buildFaviconHref(name: string, bgColor: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-// ── mode toggle ───────────────────────────────────────────────────────────────
-
-type BookingMode = "wizard" | "ai";
-
-function ModeToggle({
-  active, onSwitch, theme,
-}: {
-  active: BookingMode;
-  onSwitch: (m: BookingMode) => void;
-  theme: WebsiteTheme;
-}) {
-  const accent = theme.accentColor;
-  const at = contrastText(accent);
-  return (
-    <div
-      className="inline-flex items-center rounded-xl p-1 gap-0.5"
-      style={{ backgroundColor: `${accent}12`, border: `1.5px solid ${accent}30` }}
-    >
-      <button
-        onClick={() => onSwitch("ai")}
-        disabled={active === "ai"}
-        title="Explore with AI"
-        className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer disabled:cursor-default"
-        style={
-          active === "ai"
-            ? { backgroundColor: accent, color: at, boxShadow: `0 2px 10px ${accent}55` }
-            : { color: accent }
-        }
-      >
-        <Sparkles className="w-3.5 h-3.5 shrink-0" />
-        Book with GenAI
-      </button>
-      <button
-        onClick={() => onSwitch("wizard")}
-        disabled={active === "wizard"}
-        title="Step-by-step booking"
-        className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer disabled:cursor-default"
-        style={
-          active === "wizard"
-            ? { backgroundColor: accent, color: at, boxShadow: `0 2px 10px ${accent}55` }
-            : { color: accent }
-        }
-      >
-        <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
-        Book Now
-      </button>
-    </div>
-  );
-}
-
 // ── booking-disabled page ─────────────────────────────────────────────────────
 
 function BookingUnavailablePage({ salonName }: { salonName?: string }) {
@@ -162,7 +111,6 @@ export default function SalonBookingRoute() {
   const data = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
   const [wizardKey, setWizardKey] = useState(0);
-  const [mode, setMode] = useState<BookingMode>("wizard");
 
   useEffect(() => {
     if (data.status !== "ok") return;
@@ -184,18 +132,6 @@ export default function SalonBookingRoute() {
   const serviceId = Number(searchParams.get("serviceId"));
   const staffId   = Number(searchParams.get("staffId"));
 
-  if (mode === "ai") {
-    return (
-      <GenerativeUIBooking
-        salon={salon}
-        services={services}
-        staff={staff}
-        theme={theme}
-        onSwitchToWizard={() => setMode("wizard")}
-      />
-    );
-  }
-
   return (
     <BookingWizard
       key={wizardKey}
@@ -207,7 +143,6 @@ export default function SalonBookingRoute() {
       initialServiceId={Number.isFinite(serviceId) && serviceId > 0 ? serviceId : null}
       initialStaffId={Number.isFinite(staffId) && staffId > 0 ? staffId : null}
       standalone
-      headerExtra={<ModeToggle active="wizard" onSwitch={setMode} theme={theme} />}
       onExit={() => setWizardKey((k) => k + 1)}
     />
   );

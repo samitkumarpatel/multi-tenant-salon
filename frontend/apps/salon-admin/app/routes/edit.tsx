@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOutletContext, useLoaderData, useSearchParams, useRevalidator } from "react-router";
+import { Link, useOutletContext, useLoaderData, useSearchParams, useRevalidator } from "react-router";
 import { ADMIN_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Salon, Location, ContactInfo, Country } from "~/lib/types";
@@ -272,6 +272,9 @@ export default function Edit() {
     <div className="max-w-lg mx-auto">
       {/* Page intro */}
       <div className="mb-6 space-y-2">
+        <Link to=".." relative="path" className="inline-flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-stone-600 no-underline">
+          ← Overview
+        </Link>
         <h1 className="text-xl font-bold text-stone-900">Edit Salon</h1>
         <InfoBar id="edit-salon">
           Update your salon's name, location, contact info, opening hours, and which features are active.

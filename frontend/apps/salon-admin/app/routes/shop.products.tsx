@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { ImagePlus, LayoutGrid, List, Package, Pencil, Plus, Trash2 } from "lucide-react";
+import { ImagePlus, LayoutGrid, List, Package, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
 import { Toast, useToast } from "@salon/ui-shared";
@@ -45,12 +45,20 @@ interface VariantRow {
   active: boolean;
 }
 
+/** One slot in the product gallery. `file` set = a pending upload (`url` is a local blob: preview);
+ *  `file` unset = an image already stored on the server (`url` is its public URL). */
+interface GalleryItem {
+  key: string;
+  url: string;
+  file?: File;
+}
+
 interface ProductForm {
   name: string;
   description: string;
   brandId: string;
   categoryId: string;
-  imageUrl: string;
+  gallery: GalleryItem[];
   active: boolean;
   variants: VariantRow[];
 }
@@ -77,9 +85,15 @@ const blankVariant = (currency = "USD"): VariantRow => ({
 });
 
 const blankForm = (currency = "USD"): ProductForm => ({
-  name: "", description: "", brandId: "", categoryId: "", imageUrl: "", active: true,
+  name: "", description: "", brandId: "", categoryId: "", gallery: [], active: true,
   variants: [blankVariant(currency)],
 });
+
+/** Existing product images → gallery slots (falls back to the single legacy cover). */
+function toGallery(p: ShopProduct): GalleryItem[] {
+  const urls = p.images?.length ? p.images : p.imageUrl ? [p.imageUrl] : [];
+  return urls.map((url, i) => ({ key: `existing-${i}-${url}`, url }));
+}
 
 function priceRange(p: ShopProduct): string {
   const prices = p.variants.map((v) => v.price).filter((n) => typeof n === "number");
@@ -88,6 +102,37 @@ function priceRange(p: ShopProduct): string {
   const max = Math.max(...prices);
   const currency = p.variants[0]?.currency ?? "USD";
   return min === max ? formatPrice(min, currency) : `${formatPrice(min, currency)} – ${formatPrice(max, currency)}`;
+}
+
+// Roll the per-variant stock up to a product-level view. "low" = at least one variant
+// at or below its reorder level (but not fully out); "out" = every variant at zero.
+function stockInfo(p: ShopProduct): { total: number; low: boolean; out: boolean } {
+  const total = p.variants.reduce((s, v) => s + Math.max(0, v.quantityOnHand ?? 0), 0);
+  const out = p.variants.length > 0 && p.variants.every((v) => (v.quantityOnHand ?? 0) <= 0);
+  const low = !out && p.variants.some((v) => (v.quantityOnHand ?? 0) <= (v.reorderLevel ?? 0));
+  return { total, low, out };
+}
+
+function StockBadge({ p }: { p: ShopProduct }) {
+  const { total, low, out } = stockInfo(p);
+  const cls = out
+    ? "bg-red-50 text-red-700 border-red-200"
+    : low
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-slate-50 text-slate-600 border-slate-200";
+  const title =
+    p.variants.length > 1
+      ? p.variants.map((v) => `${v.label ?? "Default"}: ${v.quantityOnHand ?? 0}`).join("\n")
+      : undefined;
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full border shrink-0 ${cls}`}
+    >
+      <Package className="w-3 h-3" />
+      {out ? "Out of stock" : `${total} in stock${low ? " · low" : ""}`}
+    </span>
+  );
 }
 
 function toRows(p: ShopProduct): VariantRow[] {
@@ -116,7 +161,8 @@ function buildPayload(f: ProductForm) {
     description: f.description || null,
     brandId: f.brandId ? Number(f.brandId) : null,
     categoryId: f.categoryId ? Number(f.categoryId) : null,
-    imageUrl: f.imageUrl || null,
+    // `images` (and the derived `imageUrl` cover) are attached by the submit handlers
+    // after any pending files upload — see submitAdd / submitEdit.
     active: f.active,
     variants: f.variants.map((v) => {
       const labelParts = [v.labelValue.trim(), v.labelUnit.trim()].filter(Boolean);
@@ -155,7 +201,7 @@ export default function ShopProducts() {
   const [target, setTarget] = useState<ShopProduct | null>(null);
   const [modal, setModal] = useState<{ kind: "add" | "edit" | "del" } | null>(null);
   const [f, setF] = useState<ProductForm>(blankForm(salonCurrency));
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   // Inline brand/category creation state
   const [newBrandName, setNewBrandName] = useState("");
@@ -182,8 +228,12 @@ export default function ShopProducts() {
   }, [f.name, f.brandId, f.categoryId]);
 
   const close = () => {
+    setF((prev) => {
+      prev.gallery.forEach((g) => { if (g.file) URL.revokeObjectURL(g.url); });
+      return prev;
+    });
     setModal(null);
-    setImageFile(null);
+    setDragIdx(null);
     setShowNewBrand(false);
     setNewBrandName("");
     setShowNewCat(false);
@@ -192,7 +242,7 @@ export default function ShopProducts() {
 
   function openAdd() {
     setF(blankForm(salonCurrency));
-    setImageFile(null);
+    setDragIdx(null);
     setShowNewBrand(false);
     setNewBrandName("");
     setShowNewCat(false);
@@ -206,16 +256,42 @@ export default function ShopProducts() {
       description: p.description ?? "",
       brandId: p.brandId != null ? String(p.brandId) : "",
       categoryId: p.categoryId != null ? String(p.categoryId) : "",
-      imageUrl: p.imageUrl ?? "",
+      gallery: toGallery(p),
       active: p.active,
       variants: toRows(p),
     });
-    setImageFile(null);
+    setDragIdx(null);
     setShowNewBrand(false);
     setNewBrandName("");
     setShowNewCat(false);
     setNewCatName("");
     setModal({ kind: "edit" });
+  }
+
+  function addImageFiles(files: FileList | null) {
+    if (!files) return;
+    const items: GalleryItem[] = Array.from(files)
+      .filter((file) => file.type.startsWith("image/"))
+      .map((file) => ({ key: crypto.randomUUID(), url: URL.createObjectURL(file), file }));
+    if (items.length) setF((p) => ({ ...p, gallery: [...p.gallery, ...items] }));
+  }
+
+  function removeImage(key: string) {
+    setF((p) => {
+      const gone = p.gallery.find((g) => g.key === key);
+      if (gone?.file) URL.revokeObjectURL(gone.url);
+      return { ...p, gallery: p.gallery.filter((g) => g.key !== key) };
+    });
+  }
+
+  function moveImage(from: number, to: number) {
+    setF((p) => {
+      if (to < 0 || to >= p.gallery.length || from === to) return p;
+      const g = [...p.gallery];
+      const [it] = g.splice(from, 1);
+      g.splice(to, 0, it);
+      return { ...p, gallery: g };
+    });
   }
   function openDel(p: ShopProduct) {
     setTarget(p);
@@ -295,14 +371,23 @@ export default function ShopProducts() {
 
   const canSubmit = f.name.trim() !== "" && f.variants.length > 0 && f.variants.every((v) => v.price !== "");
 
-  async function uploadImageFor(productId: number): Promise<string | null> {
-    if (!imageFile) return null;
-    const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/shop/products/${productId}/image-upload-url`, {
-      method: "POST",
-      body: JSON.stringify({ contentType: imageFile.type }),
-    });
-    await uploadToPresignedUrl(upload.presignedUrl, imageFile);
-    return upload.publicUrl;
+  // Upload every pending file in the gallery and return the final ordered URL list —
+  // already-stored images keep their URL, new ones get their public URL post-upload.
+  async function uploadGallery(productId: number, gallery: GalleryItem[]): Promise<string[]> {
+    const urls: string[] = [];
+    for (const item of gallery) {
+      if (!item.file) {
+        urls.push(item.url);
+        continue;
+      }
+      const upload = await apiFetch<PresignedUpload>(`${ADMIN_API}/${sid}/shop/products/${productId}/image-upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ contentType: item.file.type }),
+      });
+      await uploadToPresignedUrl(upload.presignedUrl, item.file);
+      urls.push(upload.publicUrl);
+    }
+    return urls;
   }
 
   async function submitAdd() {
@@ -313,11 +398,11 @@ export default function ShopProducts() {
         method: "POST",
         body: JSON.stringify(buildPayload(f)),
       });
-      const publicUrl = await uploadImageFor(created.id).catch(() => null);
-      if (publicUrl) {
+      if (f.gallery.length) {
+        const images = await uploadGallery(created.id, f.gallery);
         created = await apiFetch<ShopProduct>(`${ADMIN_API}/${sid}/shop/products/${created.id}`, {
           method: "PUT",
-          body: JSON.stringify({ ...buildPayload({ ...f, variants: toRows(created) }), imageUrl: publicUrl }),
+          body: JSON.stringify({ ...buildPayload({ ...f, variants: toRows(created) }), images }),
         });
       }
       setProducts((p) => [created, ...p]);
@@ -334,12 +419,10 @@ export default function ShopProducts() {
     if (!target || !canSubmit) return;
     setBusy(true);
     try {
-      let imageUrl = f.imageUrl || null;
-      const publicUrl = await uploadImageFor(target.id).catch(() => null);
-      if (publicUrl) imageUrl = publicUrl;
+      const images = await uploadGallery(target.id, f.gallery);
       const updated = await apiFetch<ShopProduct>(`${ADMIN_API}/${sid}/shop/products/${target.id}`, {
         method: "PUT",
-        body: JSON.stringify({ ...buildPayload(f), imageUrl }),
+        body: JSON.stringify({ ...buildPayload(f), images }),
       });
       setProducts((p) => p.map((x) => (x.id === updated.id ? updated : x)));
       close();
@@ -457,17 +540,26 @@ export default function ShopProducts() {
           {view === "list" && (
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
               {products.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors group">
+                <div
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openEdit(p)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(p); }
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none transition-colors group cursor-pointer"
+                >
                   {/* Thumbnail */}
                   <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                     {p.imageUrl ? (
-                      <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                      <img src={p.imageUrl} alt="" className="w-full h-full object-contain p-1" />
                     ) : (
                       <Package className="w-4 h-4 text-slate-300" />
                     )}
                   </div>
 
-                  {/* Name + meta */}
+                  {/* Name + meta (stock rides along as a tag) */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-slate-900 truncate">{p.name}</span>
@@ -476,6 +568,7 @@ export default function ShopProducts() {
                           Inactive
                         </span>
                       )}
+                      <StockBadge p={p} />
                     </div>
                     <div className="flex items-center gap-2 text-[0.67rem] text-slate-400 mt-0.5 flex-wrap">
                       {brandName(p.brandId) && <span className="font-medium text-slate-500">{brandName(p.brandId)}</span>}
@@ -485,19 +578,22 @@ export default function ShopProducts() {
                   </div>
 
                   {/* Price */}
-                  <span className="text-sm font-extrabold text-matcha-600 shrink-0 hidden sm:block">{priceRange(p)}</span>
+                  <span className="w-28 shrink-0 text-right text-sm font-extrabold text-matcha-600 tabular-nums whitespace-nowrap">
+                    {priceRange(p)}
+                  </span>
 
-                  {/* Actions */}
-                  <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  {/* Actions — hover-revealed, at the very end */}
+                  <div className="w-[84px] shrink-0 flex items-center justify-end gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
-                      onClick={() => openEdit(p)}
+                      onClick={(e) => { e.stopPropagation(); openEdit(p); }}
                     >
                       <Pencil className="w-3 h-3" /> Edit
                     </button>
                     <button
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
-                      onClick={() => openDel(p)}
+                      onClick={(e) => { e.stopPropagation(); openDel(p); }}
+                      aria-label={`Delete ${p.name}`}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -514,7 +610,7 @@ export default function ShopProducts() {
                 <div key={p.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col group">
                   <div className="aspect-[4/3] bg-slate-100 flex items-center justify-center overflow-hidden">
                     {p.imageUrl ? (
-                      <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={p.imageUrl} alt={p.name} className="w-full h-full object-contain p-4" />
                     ) : (
                       <Package className="w-8 h-8 text-slate-300" />
                     )}
@@ -533,7 +629,10 @@ export default function ShopProducts() {
                       {categoryName(p.categoryId) && <span>· {categoryName(p.categoryId)}</span>}
                       <span>· {p.variants.length} variant{p.variants.length !== 1 ? "s" : ""}</span>
                     </div>
-                    <span className="text-sm font-extrabold text-matcha-600 mt-0.5">{priceRange(p)}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-sm font-extrabold text-matcha-600">{priceRange(p)}</span>
+                      <StockBadge p={p} />
+                    </div>
                     <div className="mt-auto pt-2 flex items-center gap-1.5">
                       <button
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
@@ -675,41 +774,59 @@ export default function ShopProducts() {
             </div>
           </div>
 
-          {/* Image */}
+          {/* Images */}
           <div className="mb-4">
-            <label className={fieldLabel}>Image</label>
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                {imageFile ? (
-                  <img src={URL.createObjectURL(imageFile)} alt="" className="w-full h-full object-cover" />
-                ) : f.imageUrl ? (
-                  <img src={f.imageUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <ImagePlus className="w-5 h-5 text-slate-400" />
-                )}
-              </div>
-              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer">
-                <ImagePlus className="w-3.5 h-3.5" />
-                {imageFile || f.imageUrl ? "Change image" : "Upload image"}
+            <label className={fieldLabel}>Images</label>
+            <p className="text-[11px] text-slate-400 mb-2 -mt-0.5">
+              The first image is the cover shown in listings. Drag thumbnails to reorder.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {f.gallery.map((item, i) => (
+                <div
+                  key={item.key}
+                  draggable
+                  onDragStart={() => setDragIdx(i)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIdx !== null) moveImage(dragIdx, i);
+                    setDragIdx(null);
+                  }}
+                  onDragEnd={() => setDragIdx(null)}
+                  className={`group/thumb relative w-20 h-20 rounded-lg border bg-slate-100 overflow-hidden shrink-0 cursor-grab active:cursor-grabbing transition-opacity ${
+                    dragIdx === i ? "opacity-40 border-matcha-400" : "border-slate-200"
+                  }`}
+                >
+                  <img src={item.url} alt="" className="w-full h-full object-contain p-1" />
+                  {i === 0 && (
+                    <span className="absolute inset-x-0 bottom-0 bg-matcha-600/90 text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">
+                      Cover
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeImage(item.key)}
+                    aria-label="Remove image"
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-red-500 hover:border-red-300 cursor-pointer opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="w-20 h-20 rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-400 hover:border-matcha-400 hover:text-matcha-600 cursor-pointer shrink-0 transition-colors">
+                <ImagePlus className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Add</span>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
-                  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    addImageFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
                 />
               </label>
-              {(imageFile || f.imageUrl) && (
-                <button
-                  type="button"
-                  className="text-xs text-slate-400 hover:text-red-500 cursor-pointer"
-                  onClick={() => {
-                    setImageFile(null);
-                    setF((p) => ({ ...p, imageUrl: "" }));
-                  }}
-                >
-                  Remove
-                </button>
-              )}
             </div>
           </div>
 
