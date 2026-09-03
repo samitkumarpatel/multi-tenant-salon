@@ -10,8 +10,11 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.IntStream;
 
 /**
  * Suggests the questions a visitor is likely to want to ask <em>next</em>, given the salon's
@@ -46,9 +49,14 @@ class ChatFollowupsService {
             (a holiday or one-off closure), do NOT offer that same day again. Pivot to the next
             day the salon is actually open: use TODAY'S DATE plus the salon's opening hours and
             HOLIDAYS / CLOSURES to work out that date, then phrase the follow-ups around it —
-            name the concrete date ("What's open on Wed 3 Sep?"), ask to see that day's
-            available times, or ask which stylists work then. Prefer a concrete date over a
-            vague "another day".
+            name the concrete date, ask to see that day's available times, or ask which stylists
+            work then. Prefer a concrete date over a vague "another day".
+
+            NEVER compute or guess a weekday name for a date yourself — you get it wrong. Every
+            date you name in a follow-up MUST come paired with its weekday copied verbatim from
+            the UPCOMING DATES list below (e.g. write "Friday, September 4" only if the list pairs
+            September 4 with Friday). If a date you want to suggest isn't on that list, name the
+            date without a weekday rather than risk a wrong one.
 
             The LATEST MESSAGE is one of two things, and the follow-ups are grounded
             differently for each:
@@ -125,6 +133,7 @@ class ChatFollowupsService {
             var user = salonData(salonId)
                     + "\n\nTODAY'S DATE is " + LocalDate.now() + " (yyyy-MM-dd) — resolve relative"
                     + " dates against it and use it to name a concrete next open date when needed."
+                    + "\n\n" + upcomingDates()
                     + "\n\nEARLIER TURNS (context only):\n" + (earlier.isBlank() ? "(none)" : earlier)
                     + "\n\nLATEST MESSAGE (base the follow-ups on THIS):\n" + latest;
 
@@ -153,6 +162,23 @@ class ChatFollowupsService {
             return "Assistant: " + m.getText();
         }
         return null;
+    }
+
+    /**
+     * The model has no tool access here (unlike {@link ChatAssistantService}, whose
+     * checkAvailability/showDatePicker tools echo the real weekday for a date) — so a follow-up
+     * naming a concrete date is otherwise left to compute the weekday itself, which it gets
+     * wrong. Precomputing the correct date-to-weekday pairing for the next few weeks and handing
+     * it over verbatim removes that arithmetic from the model entirely.
+     */
+    private static String upcomingDates() {
+        var today = LocalDate.now();
+        var rows = IntStream.range(0, 21)
+                .mapToObj(today::plusDays)
+                .map(d -> d + " = " + d.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+                .toList();
+        return "UPCOMING DATES (date = weekday, already correctly paired — copy verbatim, never"
+                + " recompute):\n" + String.join("\n", rows);
     }
 
     private String salonData(String salonId) {

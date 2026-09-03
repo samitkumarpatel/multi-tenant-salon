@@ -1367,7 +1367,15 @@ export function GenerativeUIWebsite({
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate" style={{ color: topText }}>{salon.name}</p>
+          <p className="text-sm font-bold truncate flex items-center gap-1.5" style={{ color: topText }}>
+            <span className="truncate">{salon.name}</span>
+            <span
+              className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
+              style={{ color: theme.accentColor, borderColor: theme.accentColor }}
+            >
+              Beta
+            </span>
+          </p>
           <p className="text-[11px]" style={{ color: topDim }}>
             {thinking ? "Thinking…" : isOpenNow(salon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
           </p>

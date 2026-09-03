@@ -31,6 +31,18 @@ function initials(name: string) {
   return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
+/** Small pill flagging a feature (or the whole site) as still in beta. */
+function BetaBadge({ color }: { color: string }) {
+  return (
+    <span
+      className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
+      style={{ color, borderColor: color }}
+    >
+      Beta
+    </span>
+  );
+}
+
 export function SiteHeader({
   salon, theme, current, onBack, getPagePath, onNavigate, standalone = false, headerExtra,
 }: {
@@ -74,6 +86,7 @@ export function SiteHeader({
               </span>
             </div>
             <span className="text-sm font-bold truncate" style={{ color: headerText }}>{salon.name}</span>
+            <BetaBadge color={theme.accentColor} />
           </button>
           {/* Right: mode toggle */}
           {headerExtra && <div className="flex items-center shrink-0">{headerExtra}</div>}
@@ -91,6 +104,7 @@ export function SiteHeader({
               </span>
             </div>
             <span className="text-sm font-bold truncate" style={{ color: headerText }}>{salon.name}</span>
+            <BetaBadge color={theme.accentColor} />
           </button>
 
           <nav className="flex items-center gap-4 sm:gap-6 text-sm min-w-0">

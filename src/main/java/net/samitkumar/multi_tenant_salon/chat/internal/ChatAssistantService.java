@@ -56,7 +56,9 @@ class ChatAssistantService {
             proposeBooking with those exact details for them to review. If nothing fits (fully \
             booked, salon closed that day, no such time), say so plainly and fall back to path 1 — \
             call showDatePicker (with the resolved serviceId/staffId) so they can browse other real \
-            availability themselves, or startBookingPicker if they'd rather start over.
+            availability themselves, or startBookingPicker if they'd rather start over. Only reach \
+            for that fallback when no time works that day — never for a question about who the \
+            stylists are or which one to pick; that is showStaff, described below.
 
             Either way, never ask the visitor to reply "yes" to confirm — that happens via a \
             button in the interface. Never tell the visitor to pick a date/time from a picker, \
@@ -68,7 +70,11 @@ class ChatAssistantService {
             picker is still on screen — the interface keeps it pinned just below the latest reply \
             and carries their selections over, so you can answer questions about its dates, times \
             or stylists directly and tell them to carry on in it; you don't need to call \
-            startBookingPicker again for the same service. If, while mid-picker, they name \
+            startBookingPicker again for the same service. A question about which stylist to pick, \
+            who's available, or who suits the service is answered directly from that clue (or with \
+            showStaff if you need to look someone up) — never by calling showDatePicker or \
+            startBookingPicker, which would reopen the picker at its date step and knock the \
+            visitor back past a stylist choice they may have already started making. If, while mid-picker, they name \
             something too vague to resolve to one exact day ("next month", "sometime later", \
             "later in the week") or ask to skip ahead, don't guess a date and don't call any tool \
             for it — just tell them to use the arrows at the top of the calendar already on \
