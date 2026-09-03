@@ -196,3 +196,175 @@ export interface SalonHoliday {
   endDay?: number | null;
   year?: number | null;
 }
+
+// ── Shop / web-shop ─────────────────────────────────────────────────────────
+
+export type ShopOrderActivityType =
+  | "ORDER_PLACED" | "INVOICE_SENT" | "STATUS_CHANGED"
+  | "REFUND_INITIATED" | "REFUND_ACCEPTED" | "REFUND_REJECTED"
+  | "CREDIT_NOTE_CREATED" | "CREDIT_PAID"
+  | "WORK_NOTE" | "SHIPMENT_CREATED" | "CUSTOMER_NOTIFIED";
+
+export interface ShopOrderActivity {
+  id: number;
+  orderId: number;
+  salonId?: string;
+  type: ShopOrderActivityType;
+  message?: string | null;
+  actor?: string | null;
+  notified: boolean;
+  createdAt: string;
+}
+
+export type ShopRefundStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+
+export interface ShopRefund {
+  id: number;
+  salonId?: string;
+  orderId: number;
+  amount: number;
+  reason?: string | null;
+  status: ShopRefundStatus;
+  createdAt: string;
+}
+
+export interface ShopCreditNote {
+  id: number;
+  salonId?: string;
+  orderId: number;
+  amount: number;
+  reason?: string | null;
+  reference?: string | null;
+  status?: string | null;
+  createdAt: string;
+}
+
+export type ShopOrderStatus = "NEW" | "PROCESSING" | "SHIPPED" | "FULFILLED" | "CANCELLED";
+export type ShopPaymentStatus = "PENDING" | "PAID";
+export type OrderLineActivityType = "LINE_CREATED" | "STATUS_CHANGED" | "USER_NOTIFIED" | "NOTE_ADDED";
+
+export interface ShopBrand {
+  id: number;
+  salonId?: string;
+  name: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface ShopCategory {
+  id: number;
+  salonId?: string;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface ShopVariant {
+  id: number;
+  productId: number;
+  salonId?: string;
+  sku?: string | null;
+  label?: string | null;
+  price: number;
+  compareAtPrice?: number | null;
+  currency: string;
+  quantityOnHand: number;
+  reorderLevel: number;
+  active: boolean;
+}
+
+export interface ShopProduct {
+  id: number;
+  salonId?: string;
+  brandId?: number | null;
+  brandName?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  name: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  active: boolean;
+  createdAt?: string;
+  variants: ShopVariant[];
+}
+
+export interface ShopInventoryRow {
+  variantId: number;
+  productId: number;
+  productName: string;
+  productActive: boolean;
+  sku?: string | null;
+  label?: string | null;
+  price: number;
+  currency: string;
+  quantityOnHand: number;
+  reorderLevel: number;
+  active: boolean;
+}
+
+export interface ShopShippingAddress {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zipCode?: string;
+}
+
+export interface OrderLineActivity {
+  id: number;
+  orderLineId: number;
+  type: OrderLineActivityType;
+  message?: string | null;
+  actor?: string | null;
+  createdAt: string;
+}
+
+export interface ShopOrderLine {
+  id: number;
+  productId?: number | null;
+  variantId?: number | null;
+  productName: string;
+  variantLabel?: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  activities: OrderLineActivity[];
+}
+
+export interface ShopOrder {
+  id: number;
+  salonId?: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  shippingAddress?: ShopShippingAddress | null;
+  status: ShopOrderStatus;
+  paymentStatus: ShopPaymentStatus;
+  paymentReference?: string;
+  subtotal: number;
+  currency: string;
+  createdAt: string;
+  trackingCarrier?: string | null;
+  trackingNumber?: string | null;
+  lines: ShopOrderLine[];
+  activities?: ShopOrderActivity[];
+}
+
+/** A single line held in the browser-side shopping cart (localStorage). */
+export interface CartLine {
+  variantId: number;
+  productId: number;
+  productName: string;
+  variantLabel?: string | null;
+  unitPrice: number;
+  currency: string;
+  quantity: number;
+  imageUrl?: string | null;
+  /** Stock ceiling captured when the item was added, so the stepper can't exceed it. */
+  maxQuantity: number;
+}

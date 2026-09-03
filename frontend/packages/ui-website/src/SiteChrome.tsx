@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, Globe, Mail, MapPin, Phone,
+  ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, Globe, Mail, MapPin, Phone, ShoppingCart,
 } from "lucide-react";
 import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
@@ -45,6 +45,7 @@ function BetaBadge({ color }: { color: string }) {
 
 export function SiteHeader({
   salon, theme, current, onBack, getPagePath, onNavigate, standalone = false, headerExtra,
+  cartCount, onCartOpen,
 }: {
   salon: Salon;
   theme: WebsiteTheme;
@@ -56,6 +57,9 @@ export function SiteHeader({
   standalone?: boolean;
   /** Extra content rendered on the right side (standalone mode only) */
   headerExtra?: React.ReactNode;
+  /** When in shop, show a cart icon in the header */
+  cartCount?: number;
+  onCartOpen?: () => void;
 }) {
   const open        = isOpenNow(salon.operatingHours);
   const hasBooking  = salon.features?.includes("BOOKING");
@@ -138,7 +142,24 @@ export function SiteHeader({
               {open && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
               {open ? "Open now" : "Closed"}
             </span>
-            {current === "book" ? (
+            {current === "shop" && onCartOpen ? (
+              <button
+                onClick={onCartOpen}
+                className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
+                style={{ backgroundColor: theme.accentColor, color: accentText }}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span className="hidden sm:inline">Cart</span>
+                {(cartCount ?? 0) > 0 && (
+                  <span
+                    className="min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center"
+                    style={{ backgroundColor: accentText, color: theme.accentColor }}
+                  >
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            ) : current === "book" ? (
               <span
                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
                 style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}

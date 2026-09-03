@@ -31,7 +31,16 @@ class AzureBlobMediaServiceImpl implements MediaService {
 
     @Override
     public PresignedUpload generateStaffPhotoUploadUrl(Long staffId, String contentType) {
-        String ext = switch (contentType == null ? "" : contentType.toLowerCase()) {
+        return signedUpload("uploads/profile/" + staffId + "/" + UUID.randomUUID() + extensionFor(contentType));
+    }
+
+    @Override
+    public PresignedUpload generateProductImageUploadUrl(Long productId, String contentType) {
+        return signedUpload("uploads/product/" + productId + "/" + UUID.randomUUID() + extensionFor(contentType));
+    }
+
+    private static String extensionFor(String contentType) {
+        return switch (contentType == null ? "" : contentType.toLowerCase()) {
             case "image/png"       -> ".png";
             case "image/webp"      -> ".webp";
             case "image/gif"       -> ".gif";
@@ -40,7 +49,9 @@ class AzureBlobMediaServiceImpl implements MediaService {
             case "video/quicktime" -> ".mov";
             default                -> ".jpg";
         };
-        String key = "uploads/profile/" + staffId + "/" + UUID.randomUUID() + ext;
+    }
+
+    private PresignedUpload signedUpload(String key) {
         BlobClient blobClient = blobServiceClient.getBlobContainerClient(containerName).getBlobClient(key);
 
         // Shared-key SAS: the BlobServiceClient is configured with the account key

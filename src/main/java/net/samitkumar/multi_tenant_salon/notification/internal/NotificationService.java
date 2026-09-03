@@ -13,12 +13,18 @@ import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -413,6 +419,94 @@ class NotificationService {
         sendEmail(event.staffEmail(), event.staffName(), subject, text, html);
     }
 
+    // ── Shop / orders ────────────────────────────────────────────────────────
+
+    void notifyOrderPlaced(OrderPlacedEvent event) {
+        var subject = salonSubject(event.salonName(), "Order received — " + event.orderNumber());
+        var total = formatMoney(event.subtotal(), event.currency());
+        var text = """
+                Hi %s,
+
+                Thanks for your order! We've received order %s — %d item%s, %s.
+
+                Payment was completed and the salon has been notified. You'll get another
+                message as your order moves to processing and then fulfilment.
+                %s
+                %s
+                """.formatted(event.customerName(), event.orderNumber(), event.itemCount(),
+                event.itemCount() == 1 ? "" : "s", total,
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>Thanks for your order! We've received order <strong>%s</strong> — %d item%s, <strong>%s</strong>.</p>
+                <p>Payment was completed and the salon has been notified. You'll get another message as your order moves to processing and then fulfilment.</p>
+                %s
+                %s
+                """.formatted(event.customerName(), event.orderNumber(), event.itemCount(),
+                event.itemCount() == 1 ? "" : "s", total,
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+    }
+
+    void notifyOrderStatusChanged(OrderStatusChangedEvent event) {
+        var message = switch (event.newStatus()) {
+            case NEW -> "Your order has been placed and is awaiting processing.";
+            case PROCESSING -> "Your order is now being prepared.";
+            case SHIPPED -> "Your order has been shipped!";
+            case FULFILLED -> "Your order has been fulfilled. Thank you for shopping with us!";
+            case CANCELLED -> "Your order has been cancelled. Please contact the salon if this is unexpected.";
+        };
+        var subject = salonSubject(event.salonName(), "Order update — " + event.orderNumber());
+        var text = """
+                Hi %s,
+
+                %s
+
+                Order %s
+                %s
+                %s
+                """.formatted(event.customerName(), message, event.orderNumber(),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <p>Order <strong>%s</strong></p>
+                %s
+                %s
+                """.formatted(event.customerName(), message, event.orderNumber(),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+    }
+
+    void notifyOrderLineUser(OrderLineActivityAddedEvent event) {
+        var subject = salonSubject(event.salonName(), "Update on your order — " + event.orderNumber());
+        var body = StringUtils.hasText(event.message()) ? event.message() : "There's an update on your order.";
+        var text = """
+                Hi %s,
+
+                %s
+
+                Regarding: %s (order %s)
+                %s
+                """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <p><small>Regarding: %s (order %s)</small></p>
+                %s
+                """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+    }
+
     // ── Dispatch ──────────────────────────────────────────────────────────────
 
     private String adminSalonUrl(Object salonId) {
@@ -463,6 +557,18 @@ class NotificationService {
 
     private String teamSignatureHtml(String salonName) {
         return "<p><small>Regards,<br>Team " + (StringUtils.hasText(salonName) ? salonName : "SalonSaaS") + "</small></p>";
+    }
+
+    /** "12.50" + "EUR" → "€12.50"; falls back to "12.50 EUR" for an unknown currency code. */
+    private String formatMoney(BigDecimal amount, String currencyCode) {
+        var value = amount != null ? amount : BigDecimal.ZERO;
+        try {
+            var fmt = NumberFormat.getCurrencyInstance(Locale.US);
+            fmt.setCurrency(Currency.getInstance(StringUtils.hasText(currencyCode) ? currencyCode : "USD"));
+            return fmt.format(value);
+        } catch (RuntimeException e) {
+            return value.toPlainString() + " " + (StringUtils.hasText(currencyCode) ? currencyCode : "USD");
+        }
     }
 
     /** "MAKEUP_ARTIST" → "Makeup Artist" — enum constants read fine in logs but not in an email a human reads. */

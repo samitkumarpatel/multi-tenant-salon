@@ -118,6 +118,17 @@ tags:
       public Analytics endpoint. Mounted under the same {salonId}-templated admin prefix, so
       it inherits the ownership check from the global security config. Returns 403 if the
       salon hasn't enabled the `ANALYTICS` feature.
+  - name: Shop
+    description: |
+      Public storefront for the `WEBSHOP` feature — browse active products (with per-variant
+      pricing and stock) and place an order. Checkout runs an atomic stock decrement and a
+      dummy payment step (the order comes back `PAID`).
+  - name: AdminShop
+    description: |
+      Owner/admin management of the shop: brands, categories, products and their variants,
+      inventory (stock counts live on the variant), and customer orders. Each order line
+      carries an activity timeline; "Notify User" and "Add a Note" append to it (the notify
+      action also emits a dummy customer email).
   - name: StaffPortal
     description: |
       Staff self-service portal endpoints. A staff member authenticates via OAuth2 (or,
@@ -2048,6 +2059,490 @@ paths:
         "404":
           description: Staff member not found
 
+  # ─── Shop — Customer ─────────────────────────────────────────────────────────
+
+  /api/salon/{salonId}/shop/brands:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Shop]
+      summary: List active brands for the public storefront
+      operationId: listPublicShopBrands
+      responses:
+        "200":
+          description: Active brands
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShopBrand"
+
+  /api/salon/{salonId}/shop/categories:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Shop]
+      summary: List active categories for the public storefront
+      operationId: listPublicShopCategories
+      responses:
+        "200":
+          description: Active categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShopCategory"
+
+  /api/salon/{salonId}/shop/products:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Shop]
+      summary: List active shop products
+      operationId: listShopProducts
+      parameters:
+        - name: brandId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: Filter by brand ID (server-side)
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: Filter by category ID (server-side)
+      responses:
+        "200":
+          description: Active products with their active variants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShopProduct"
+
+  /api/salon/{salonId}/shop/products/{productId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/ProductId"
+    get:
+      tags: [Shop]
+      summary: Get an active shop product
+      operationId: getShopProduct
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopProduct"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon/{salonId}/shop/orders:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [Shop]
+      summary: Place an order (checkout)
+      description: |
+        Validates each variant, atomically decrements stock, snapshots price/name onto the
+        order lines, then completes a dummy payment — the returned order is `PAID`. Returns
+        409 if any item is out of stock, 400 for an empty cart or missing name/email.
+      operationId: placeShopOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopCheckoutRequest"
+      responses:
+        "201":
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopOrder"
+        "400":
+          description: Empty cart, or missing customer name / email
+        "409":
+          description: An item is out of stock or no longer available
+
+  # ─── Shop — Admin ────────────────────────────────────────────────────────────
+
+  /api/salon-admin/{salonId}/shop/brands:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminShop]
+      summary: List brands
+      operationId: adminListBrands
+      responses:
+        "200":
+          description: Brands
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShopBrand" }
+    post:
+      tags: [AdminShop]
+      summary: Add a brand
+      operationId: addBrand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopBrandRequest" }
+      responses:
+        "201":
+          description: Brand created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopBrand" }
+
+  /api/salon-admin/{salonId}/shop/brands/{brandId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/BrandId"
+    put:
+      tags: [AdminShop]
+      summary: Update a brand
+      operationId: updateBrand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopBrandRequest" }
+      responses:
+        "200":
+          description: Brand updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopBrand" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [AdminShop]
+      summary: Delete a brand
+      operationId: deleteBrand
+      responses:
+        "204":
+          description: Brand deleted
+
+  /api/salon-admin/{salonId}/shop/categories:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminShop]
+      summary: List categories
+      operationId: adminListShopCategories
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShopCategory" }
+    post:
+      tags: [AdminShop]
+      summary: Add a category
+      operationId: addShopCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopCategoryRequest" }
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopCategory" }
+
+  /api/salon-admin/{salonId}/shop/categories/{categoryId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CategoryId"
+    put:
+      tags: [AdminShop]
+      summary: Update a category
+      operationId: updateShopCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopCategoryRequest" }
+      responses:
+        "200":
+          description: Category updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopCategory" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [AdminShop]
+      summary: Delete a category
+      operationId: deleteShopCategory
+      responses:
+        "204":
+          description: Category deleted
+
+  /api/salon-admin/{salonId}/shop/products:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminShop]
+      summary: List all products (admin)
+      operationId: adminListShopProducts
+      responses:
+        "200":
+          description: Products (active and inactive) with all variants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShopProduct" }
+    post:
+      tags: [AdminShop]
+      summary: Add a product with its variants
+      operationId: addProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopProductRequest" }
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopProduct" }
+
+  /api/salon-admin/{salonId}/shop/products/{productId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/ProductId"
+    get:
+      tags: [AdminShop]
+      summary: Get a product (admin)
+      operationId: adminGetShopProduct
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopProduct" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [AdminShop]
+      summary: Update a product and reconcile its variants
+      description: |
+        Variants with an `id` are updated, those without are created, and any existing
+        variant absent from the payload is deleted (order-line snapshots and their FK-null
+        keep purchase history intact).
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopProductRequest" }
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopProduct" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [AdminShop]
+      summary: Delete a product
+      operationId: deleteProduct
+      responses:
+        "204":
+          description: Product deleted
+
+  /api/salon-admin/{salonId}/shop/products/{productId}/image-upload-url:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/ProductId"
+    post:
+      tags: [AdminShop]
+      summary: Get a pre-signed URL to upload a product image
+      operationId: productImageUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contentType: { type: string, example: image/jpeg }
+      responses:
+        "200":
+          description: Pre-signed upload + public URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PresignedUpload" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: No media backend configured
+
+  /api/salon-admin/{salonId}/shop/inventory:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminShop]
+      summary: List every variant with its stock
+      operationId: listInventory
+      responses:
+        "200":
+          description: Inventory rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShopInventoryRow" }
+
+  /api/salon-admin/{salonId}/shop/inventory/{variantId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/VariantId"
+    put:
+      tags: [AdminShop]
+      summary: Set a variant's stock level
+      operationId: updateInventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantityOnHand: { type: integer }
+                reorderLevel: { type: integer }
+      responses:
+        "200":
+          description: Updated inventory row
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopInventoryRow" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon-admin/{salonId}/shop/orders:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminShop]
+      summary: List orders (newest first)
+      operationId: adminListOrders
+      responses:
+        "200":
+          description: Orders (line activity timelines omitted from the list view)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShopOrder" }
+
+  /api/salon-admin/{salonId}/shop/orders/{orderId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/OrderId"
+    get:
+      tags: [AdminShop]
+      summary: Get an order with each line's activity timeline
+      operationId: adminGetOrder
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopOrder" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon-admin/{salonId}/shop/orders/{orderId}/status:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: [AdminShop]
+      summary: Move an order to a new status
+      operationId: updateOrderStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { $ref: "#/components/schemas/OrderStatus" }
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopOrder" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon-admin/{salonId}/shop/orders/{orderId}/lines/{lineId}/notify:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/OrderId"
+      - $ref: "#/components/parameters/LineId"
+    post:
+      tags: [AdminShop]
+      summary: "\"Notify User\" — append a USER_NOTIFIED activity + send a dummy email"
+      operationId: notifyOrderLineUser
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopOrder" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon-admin/{salonId}/shop/orders/{orderId}/lines/{lineId}/notes:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/OrderId"
+      - $ref: "#/components/parameters/LineId"
+    post:
+      tags: [AdminShop]
+      summary: "\"Add a Note\" — append a NOTE_ADDED activity (internal, no email)"
+      operationId: addOrderLineNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopOrder" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 
 # ─── Components ───────────────────────────────────────────────────────────────
 
@@ -2102,6 +2597,48 @@ components:
         type: integer
         format: int64
       description: Booking ID
+
+    BrandId:
+      name: brandId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+      description: Shop brand ID
+
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+      description: Shop category ID
+
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+      description: Product ID
+
+    VariantId:
+      name: variantId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+      description: Product variant ID
+
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+      description: Shop order ID
+
+    LineId:
+      name: lineId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+      description: Order line ID
 
   responses:
     NotFound:
@@ -3578,3 +4115,204 @@ components:
         active:
           type: boolean
           description: True when both the salon and the staff/owner record are active.
+
+    # ─── Shop ────────────────────────────────────────────────────────────────
+
+    OrderStatus:
+      type: string
+      enum: [PENDING, PAID, PROCESSING, FULFILLED, CANCELLED]
+
+    ShopBrand:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    ShopBrandRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        active: { type: boolean, description: "Update only; defaults true." }
+
+    ShopCategory:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    ShopCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        active: { type: boolean }
+
+    ShopVariant:
+      type: object
+      description: A purchasable option of a product — its own SKU, price and stock.
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        sku: { type: string, nullable: true }
+        label: { type: string, nullable: true, example: "250 ml" }
+        price: { type: number, format: double }
+        compareAtPrice: { type: number, format: double, nullable: true, description: "Original/was price for showing sale discount" }
+        currency: { type: string, example: USD }
+        quantityOnHand: { type: integer }
+        reorderLevel: { type: integer }
+        active: { type: boolean }
+
+    ShopProduct:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        brandId: { type: integer, format: int64, nullable: true }
+        brandName: { type: string, nullable: true }
+        categoryId: { type: integer, format: int64, nullable: true }
+        categoryName: { type: string, nullable: true }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/ShopVariant" }
+
+    ShopVariantSpec:
+      type: object
+      description: One variant in a product create/update payload. `id` omitted = create a new one.
+      required: [price]
+      properties:
+        id: { type: integer, format: int64, nullable: true }
+        sku: { type: string, nullable: true }
+        label: { type: string, nullable: true }
+        price: { type: number, format: double }
+        compareAtPrice: { type: number, format: double, nullable: true, description: "Original/was price" }
+        currency: { type: string, example: USD }
+        quantityOnHand: { type: integer }
+        reorderLevel: { type: integer }
+        active: { type: boolean }
+
+    ShopProductRequest:
+      type: object
+      required: [name, variants]
+      properties:
+        brandId: { type: integer, format: int64, nullable: true }
+        categoryId: { type: integer, format: int64, nullable: true }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+        active: { type: boolean, description: "Update only; defaults true." }
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/ShopVariantSpec" }
+
+    ShopInventoryRow:
+      type: object
+      properties:
+        variantId: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        productActive: { type: boolean }
+        sku: { type: string, nullable: true }
+        label: { type: string, nullable: true }
+        price: { type: number, format: double }
+        currency: { type: string }
+        quantityOnHand: { type: integer }
+        reorderLevel: { type: integer }
+        active: { type: boolean }
+
+    ShopShippingAddress:
+      type: object
+      properties:
+        line1: { type: string, nullable: true }
+        line2: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        state: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+        zipCode: { type: string, nullable: true }
+
+    OrderLineActivity:
+      type: object
+      description: One entry on an order line's timeline.
+      properties:
+        id: { type: integer, format: int64 }
+        orderLineId: { type: integer, format: int64 }
+        type:
+          type: string
+          enum: [LINE_CREATED, STATUS_CHANGED, USER_NOTIFIED, NOTE_ADDED]
+        message: { type: string, nullable: true }
+        actor: { type: string, nullable: true, description: '"customer" or "admin".' }
+        createdAt: { type: string, format: date-time }
+
+    ShopOrderLine:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64, nullable: true }
+        variantId: { type: integer, format: int64, nullable: true }
+        productName: { type: string }
+        variantLabel: { type: string, nullable: true }
+        unitPrice: { type: number, format: double }
+        quantity: { type: integer }
+        lineTotal: { type: number, format: double }
+        activities:
+          type: array
+          description: Populated on the order-detail endpoint; empty in the list view.
+          items: { $ref: "#/components/schemas/OrderLineActivity" }
+
+    ShopOrder:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        orderNumber: { type: string, example: "SO-1A2B3C4D" }
+        customerName: { type: string }
+        customerEmail: { type: string, format: email }
+        customerPhone: { type: string, nullable: true }
+        shippingAddress:
+          $ref: "#/components/schemas/ShopShippingAddress"
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        paymentStatus: { type: string, enum: [PENDING, PAID] }
+        paymentReference: { type: string, nullable: true, example: "DUMMY-1A2B3C4D" }
+        subtotal: { type: number, format: double }
+        currency: { type: string }
+        createdAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/ShopOrderLine" }
+
+    ShopCheckoutRequest:
+      type: object
+      required: [customerName, customerEmail, items]
+      properties:
+        customerName: { type: string }
+        customerEmail: { type: string, format: email }
+        customerPhone: { type: string, nullable: true }
+        shippingAddress:
+          $ref: "#/components/schemas/ShopShippingAddress"
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [variantId, quantity]
+            properties:
+              variantId: { type: integer, format: int64 }
+              quantity: { type: integer, minimum: 1 }

@@ -1,5 +1,5 @@
 import { useOutletContext, useLocation, useNavigate } from "react-router";
-import { SalonWebsite, GenerativeUIWebsite, BookingWizard } from "@salon/ui-website";
+import { SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
 
 export default function PublicWebsitePage() {
@@ -25,6 +25,18 @@ export default function PublicWebsitePage() {
           theme={theme}
           onExit={() => navigate(`/${search}`)}
           getPagePath={(page) => `/${page}${search}`}
+        />
+      );
+    }
+
+    // Same for /shop — the full storefront, themed to match the site
+    if (activePage === "shop" && data.salon.features?.includes("WEBSHOP")) {
+      return (
+        <ShopView
+          salon={data.salon}
+          theme={theme}
+          getPagePath={(page) => `/${page}${search}`}
+          onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
         />
       );
     }

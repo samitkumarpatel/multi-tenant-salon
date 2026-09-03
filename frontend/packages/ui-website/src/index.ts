@@ -28,4 +28,13 @@ export type {
   Booking, BookingStatus, AvailableSlot, StaffAvailability, StaffAvailabilityOverride,
   SalonClosure, SalonHoliday,
   Country, Currency,
+  ShopBrand, ShopCategory, ShopVariant, ShopProduct, ShopInventoryRow,
+  ShopShippingAddress, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
+  OrderLineActivity, OrderLineActivityType, CartLine,
 } from "./types";
+
+export { ShopView } from "./ShopView";
+export type { ShopViewProps } from "./ShopView";
+export {
+  useCart, readCart, addToCart, setCartQty, removeFromCart, clearCart, cartCount, cartSubtotal,
+} from "./shopCart";

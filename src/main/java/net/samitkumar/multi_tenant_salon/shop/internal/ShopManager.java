@@ -1,0 +1,667 @@
+package net.samitkumar.multi_tenant_salon.shop.internal;
+
+import lombok.extern.slf4j.Slf4j;
+import net.samitkumar.multi_tenant_salon.salon.SalonApi;
+import net.samitkumar.multi_tenant_salon.shop.Brand;
+import net.samitkumar.multi_tenant_salon.shop.Category;
+import net.samitkumar.multi_tenant_salon.shop.OrderLineActivity;
+import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityType;
+import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
+import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
+import net.samitkumar.multi_tenant_salon.shop.PaymentStatus;
+import net.samitkumar.multi_tenant_salon.shop.Product;
+import net.samitkumar.multi_tenant_salon.shop.ProductVariant;
+import net.samitkumar.multi_tenant_salon.shop.ShopCreditNote;
+import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
+import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
+import net.samitkumar.multi_tenant_salon.shop.ShopRefund;
+import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.InventoryRow;
+import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderLineView;
+import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderView;
+import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.ProductView;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * The single write/read entry point for the shop module: catalogue (brands, categories, products
+ * and their variants), inventory, and customer orders with the per-line activity timeline.
+ * Everything is salon-scoped — callers pass the resolved salon UUID from {@code SalonApi.resolveId}.
+ */
+@Slf4j
+@Service
+class ShopManager {
+
+    private static final String DEFAULT_CURRENCY = "USD";
+
+    private final BrandRepository brandRepo;
+    private final CategoryRepository categoryRepo;
+    private final ProductRepository productRepo;
+    private final ProductVariantRepository variantRepo;
+    private final ShopOrderRepository orderRepo;
+    private final OrderLineActivityRepository activityRepo;
+    private final ShopRefundRepository refundRepo;
+    private final ShopCreditNoteRepository creditNoteRepo;
+    private final ShopOrderActivityRepository orderActivityRepo;
+    private final SalonApi salonApi;
+    private final ApplicationEventPublisher eventPublisher;
+    private final JdbcClient jdbcClient;
+
+    ShopManager(BrandRepository brandRepo, CategoryRepository categoryRepo, ProductRepository productRepo,
+                ProductVariantRepository variantRepo, ShopOrderRepository orderRepo,
+                OrderLineActivityRepository activityRepo, ShopRefundRepository refundRepo,
+                ShopCreditNoteRepository creditNoteRepo, ShopOrderActivityRepository orderActivityRepo,
+                SalonApi salonApi, ApplicationEventPublisher eventPublisher, JdbcTemplate jdbcTemplate) {
+        this.brandRepo = brandRepo;
+        this.categoryRepo = categoryRepo;
+        this.productRepo = productRepo;
+        this.variantRepo = variantRepo;
+        this.orderRepo = orderRepo;
+        this.activityRepo = activityRepo;
+        this.refundRepo = refundRepo;
+        this.creditNoteRepo = creditNoteRepo;
+        this.orderActivityRepo = orderActivityRepo;
+        this.salonApi = salonApi;
+        this.eventPublisher = eventPublisher;
+        this.jdbcClient = JdbcClient.create(jdbcTemplate);
+    }
+
+    /** What the admin edit form sends per variant — {@code id} null = a new one. */
+    public record VariantSpec(Long id, String sku, String label, BigDecimal price, BigDecimal compareAtPrice,
+                              String currency, Integer quantityOnHand, Integer reorderLevel, Boolean active) {}
+
+    public record CheckoutItem(Long variantId, int quantity) {}
+
+    public record CheckoutRequest(String customerName, String customerEmail, String customerPhone,
+                                  ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items) {}
+
+    // ── Brands ───────────────────────────────────────────────────────────────
+
+    List<Brand> listBrands(UUID salonId) {
+        return brandRepo.findBySalonIdOrderByNameAsc(salonId);
+    }
+
+    Brand addBrand(UUID salonId, String name, String description, String logoUrl) {
+        requireText(name, "Brand name is required");
+        return brandRepo.save(new Brand(null, salonId, name.trim(), description, logoUrl, true, Instant.now()));
+    }
+
+    Optional<Brand> updateBrand(UUID salonId, Long brandId, String name, String description, String logoUrl, boolean active) {
+        requireText(name, "Brand name is required");
+        return brandRepo.findByIdAndSalonId(brandId, salonId)
+                .map(b -> brandRepo.save(new Brand(b.id(), salonId, name.trim(), description, logoUrl, active, b.createdAt())));
+    }
+
+    void deleteBrand(UUID salonId, Long brandId) {
+        brandRepo.findByIdAndSalonId(brandId, salonId).ifPresent(b -> brandRepo.deleteById(brandId));
+    }
+
+    // ── Categories ───────────────────────────────────────────────────────────
+
+    List<Category> listCategories(UUID salonId) {
+        return categoryRepo.findBySalonIdOrderByNameAsc(salonId);
+    }
+
+    Category addCategory(UUID salonId, String name, String description) {
+        requireText(name, "Category name is required");
+        return categoryRepo.save(new Category(null, salonId, name.trim(), description, true, Instant.now()));
+    }
+
+    Optional<Category> updateCategory(UUID salonId, Long categoryId, String name, String description, boolean active) {
+        requireText(name, "Category name is required");
+        return categoryRepo.findByIdAndSalonId(categoryId, salonId)
+                .map(c -> categoryRepo.save(new Category(c.id(), salonId, name.trim(), description, active, c.createdAt())));
+    }
+
+    void deleteCategory(UUID salonId, Long categoryId) {
+        categoryRepo.findByIdAndSalonId(categoryId, salonId).ifPresent(c -> categoryRepo.deleteById(categoryId));
+    }
+
+    // ── Products + variants ──────────────────────────────────────────────────
+
+    List<ProductView> listProducts(UUID salonId, boolean activeOnly) {
+        return listProducts(salonId, activeOnly, null, null);
+    }
+
+    List<ProductView> listProducts(UUID salonId, boolean activeOnly, Long brandId, Long categoryId) {
+        var products = activeOnly
+                ? productRepo.findBySalonIdAndActiveOrderByCreatedAtDesc(salonId, true)
+                : productRepo.findBySalonIdOrderByCreatedAtDesc(salonId);
+        var variantsByProduct = variantRepo.findBySalonId(salonId).stream()
+                .collect(Collectors.groupingBy(ProductVariant::productId));
+        var brandNames = brandRepo.findBySalonIdOrderByNameAsc(salonId).stream()
+                .collect(Collectors.toMap(Brand::id, Brand::name));
+        var categoryNames = categoryRepo.findBySalonIdOrderByNameAsc(salonId).stream()
+                .collect(Collectors.toMap(Category::id, Category::name));
+
+        return products.stream()
+                .map(p -> {
+                    var vs = variantsByProduct.getOrDefault(p.id(), List.of());
+                    var visible = activeOnly ? vs.stream().filter(ProductVariant::active).toList() : vs;
+                    return new ProductView(p.id(), p.salonId(),
+                            p.brandId(), p.brandId() == null ? null : brandNames.get(p.brandId()),
+                            p.categoryId(), p.categoryId() == null ? null : categoryNames.get(p.categoryId()),
+                            p.name(), p.description(), p.imageUrl(), p.active(), p.createdAt(), visible);
+                })
+                // the public catalogue hides products with nothing buyable
+                .filter(pv -> !activeOnly || !pv.variants().isEmpty())
+                .filter(pv -> brandId == null || Objects.equals(pv.brandId(), brandId))
+                .filter(pv -> categoryId == null || Objects.equals(pv.categoryId(), categoryId))
+                .toList();
+    }
+
+    List<Brand> listPublicBrands(UUID salonId) {
+        return brandRepo.findBySalonIdOrderByNameAsc(salonId).stream()
+                .filter(Brand::active)
+                .toList();
+    }
+
+    List<Category> listPublicCategories(UUID salonId) {
+        return categoryRepo.findBySalonIdOrderByNameAsc(salonId).stream()
+                .filter(Category::active)
+                .toList();
+    }
+
+    Optional<ProductView> getProduct(UUID salonId, Long productId, boolean activeOnly) {
+        return productRepo.findByIdAndSalonId(productId, salonId)
+                .filter(p -> !activeOnly || p.active())
+                .map(p -> {
+                    var vs = variantRepo.findByProductId(p.id());
+                    var visible = activeOnly ? vs.stream().filter(ProductVariant::active).toList() : vs;
+                    return toProductView(p, visible);
+                });
+    }
+
+    @Transactional
+    ProductView addProduct(UUID salonId, Long brandId, Long categoryId, String name, String description,
+                           String imageUrl, List<VariantSpec> variants) {
+        requireText(name, "Product name is required");
+        validateBrandCategory(salonId, brandId, categoryId);
+        var product = productRepo.save(new Product(null, salonId, brandId, categoryId, name.trim(),
+                description, imageUrl, true, Instant.now()));
+        var saved = (variants == null ? List.<VariantSpec>of() : variants).stream()
+                .map(v -> variantRepo.save(newVariant(null, product.id(), salonId, v)))
+                .toList();
+        log.info("[ShopManager] Product added id={} salon={} variants={}", product.id(), salonId, saved.size());
+        return toProductView(product, saved);
+    }
+
+    @Transactional
+    Optional<ProductView> updateProduct(UUID salonId, Long productId, Long brandId, Long categoryId,
+                                        String name, String description, String imageUrl, boolean active,
+                                        List<VariantSpec> variants) {
+        requireText(name, "Product name is required");
+        validateBrandCategory(salonId, brandId, categoryId);
+        return productRepo.findByIdAndSalonId(productId, salonId).map(existing -> {
+            var updated = productRepo.save(new Product(existing.id(), salonId, brandId, categoryId, name.trim(),
+                    description, imageUrl, active, existing.createdAt()));
+
+            var specs = variants == null ? List.<VariantSpec>of() : variants;
+            var keepIds = specs.stream().map(VariantSpec::id).filter(Objects::nonNull).collect(Collectors.toSet());
+            // Drop removed variants. Order lines keep their price/label snapshot and their FK
+            // goes NULL (see V9 migration), so purchase history is never lost.
+            variantRepo.findByProductId(productId).stream()
+                    .filter(v -> !keepIds.contains(v.id()))
+                    .forEach(v -> variantRepo.deleteById(v.id()));
+
+            var result = specs.stream()
+                    .map(v -> variantRepo.save(newVariant(v.id(), productId, salonId, v)))
+                    .toList();
+            log.info("[ShopManager] Product updated id={} salon={} active={} variants={}", productId, salonId, active, result.size());
+            return toProductView(updated, result);
+        });
+    }
+
+    @Transactional
+    void deleteProduct(UUID salonId, Long productId) {
+        productRepo.findByIdAndSalonId(productId, salonId).ifPresent(p -> {
+            variantRepo.deleteByProductId(productId);
+            productRepo.deleteById(productId);
+            log.info("[ShopManager] Product deleted id={} salon={}", productId, salonId);
+        });
+    }
+
+    // ── Inventory ────────────────────────────────────────────────────────────
+
+    List<InventoryRow> listInventory(UUID salonId) {
+        var products = productRepo.findBySalonIdOrderByCreatedAtDesc(salonId).stream()
+                .collect(Collectors.toMap(Product::id, p -> p));
+        return variantRepo.findBySalonId(salonId).stream()
+                .map(v -> {
+                    var p = products.get(v.productId());
+                    return new InventoryRow(v.id(), v.productId(),
+                            p != null ? p.name() : "(unknown product)", p != null && p.active(),
+                            v.sku(), v.label(), v.price(), v.currency(),
+                            v.quantityOnHand(), v.reorderLevel(), v.active());
+                })
+                .sorted(Comparator.comparing(InventoryRow::productName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(r -> r.label() == null ? "" : r.label(), String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    Optional<InventoryRow> updateInventory(UUID salonId, Long variantId, int quantityOnHand, int reorderLevel) {
+        return variantRepo.findByIdAndSalonId(variantId, salonId).map(v -> {
+            var saved = variantRepo.save(new ProductVariant(v.id(), v.productId(), v.salonId(), v.sku(), v.label(),
+                    v.price(), v.compareAtPrice(), v.currency(), Math.max(0, quantityOnHand), Math.max(0, reorderLevel), v.active()));
+            var p = productRepo.findById(saved.productId()).orElse(null);
+            return new InventoryRow(saved.id(), saved.productId(),
+                    p != null ? p.name() : "(unknown product)", p != null && p.active(),
+                    saved.sku(), saved.label(), saved.price(), saved.currency(),
+                    saved.quantityOnHand(), saved.reorderLevel(), saved.active());
+        });
+    }
+
+    // ── Orders ───────────────────────────────────────────────────────────────
+
+    List<OrderView> listOrders(UUID salonId) {
+        return orderRepo.findBySalonIdOrderByCreatedAtDesc(salonId).stream()
+                .map(o -> toOrderView(o, Map.of()))
+                .toList();
+    }
+
+    Optional<OrderView> getOrder(UUID salonId, Long orderId) {
+        return orderRepo.findByIdAndSalonId(orderId, salonId).map(o -> {
+            var lineIds = o.lines().stream().map(ShopOrder.OrderLine::id).toList();
+            var byLine = lineIds.isEmpty()
+                    ? Map.<Long, List<OrderLineActivity>>of()
+                    : activityRepo.findByOrderLineIdInOrderByCreatedAtAsc(lineIds).stream()
+                        .collect(Collectors.groupingBy(OrderLineActivity::orderLineId));
+            var orderActivities = orderActivityRepo.findByOrderIdOrderByCreatedAtAsc(orderId);
+            return toOrderView(o, byLine, orderActivities);
+        });
+    }
+
+    @Transactional
+    OrderView placeOrder(UUID salonId, CheckoutRequest req) {
+        if (req == null || req.items() == null || req.items().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Your cart is empty");
+        }
+        if (isBlank(req.customerName()) || isBlank(req.customerEmail())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and email are required");
+        }
+
+        var lines = new ArrayList<ShopOrder.OrderLine>();
+        BigDecimal subtotal = BigDecimal.ZERO;
+        String currency = null;
+
+        for (var item : req.items()) {
+            if (item.variantId() == null || item.quantity() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cart item");
+            }
+            var variant = variantRepo.findByIdAndSalonId(item.variantId(), salonId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product option not found"));
+            var product = productRepo.findByIdAndSalonId(variant.productId(), salonId)
+                    .filter(Product::active)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "This product is no longer available"));
+
+            // Atomic conditional decrement — two simultaneous buyers are serialised by the row
+            // lock, and whoever would push stock negative gets 0 rows back and a 409.
+            int changed = jdbcClient.sql("""
+                            UPDATE product_variant SET quantity_on_hand = quantity_on_hand - :qty
+                            WHERE id = :id AND salon_id = :salon AND active = true AND quantity_on_hand >= :qty
+                            """)
+                    .param("qty", item.quantity())
+                    .param("id", variant.id())
+                    .param("salon", salonId)
+                    .update();
+            if (changed != 1) {
+                var label = variant.label() != null && !variant.label().isBlank() ? " – " + variant.label() : "";
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "'" + product.name() + label + "' is out of stock");
+            }
+
+            var unitPrice = variant.price() != null ? variant.price() : BigDecimal.ZERO;
+            var lineTotal = unitPrice.multiply(BigDecimal.valueOf(item.quantity()));
+            subtotal = subtotal.add(lineTotal);
+            if (currency == null) currency = variant.currency();
+            lines.add(new ShopOrder.OrderLine(null, product.id(), variant.id(), product.name(), variant.label(),
+                    unitPrice, item.quantity(), lineTotal));
+        }
+
+        var now = Instant.now();
+        var order = new ShopOrder(null, salonId, generateOrderNumber(),
+                req.customerName().trim(), req.customerEmail().trim(), trimToNull(req.customerPhone()),
+                req.shippingAddress(), OrderStatus.NEW, PaymentStatus.PAID,
+                "DUMMY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT),
+                subtotal, currency != null ? currency : DEFAULT_CURRENCY, now, null, null, lines);
+        var saved = orderRepo.save(order);
+
+        for (var line : saved.lines()) {
+            var label = line.variantLabel() != null && !line.variantLabel().isBlank() ? " (" + line.variantLabel() + ")" : "";
+            activityRepo.save(new OrderLineActivity(null, line.id(), salonId, OrderLineActivityType.LINE_CREATED,
+                    line.quantity() + " × " + line.productName() + label + " ordered", "customer", now));
+        }
+
+        var contact = salonContact(salonId);
+        eventPublisher.publishEvent(new OrderPlacedEvent(saved.id(), salonId, saved.orderNumber(),
+                saved.customerName(), saved.customerEmail(), saved.customerPhone(),
+                saved.lines().stream().mapToInt(ShopOrder.OrderLine::quantity).sum(),
+                saved.subtotal(), saved.currency(), contact.name(), contact.phone(), contact.email()));
+
+        recordOrderActivity(saved.id(), salonId, "ORDER_PLACED",
+                "Order " + saved.orderNumber() + " placed by " + saved.customerName(),
+                "customer", false, saved.customerEmail(), saved.customerPhone());
+        log.info("[ShopManager] Order placed id={} number={} salon={} lines={} subtotal={} {}",
+                saved.id(), saved.orderNumber(), salonId, saved.lines().size(), saved.subtotal(), saved.currency());
+        return getOrder(salonId, saved.id()).orElseThrow();
+    }
+
+    @Transactional
+    Optional<OrderView> updateOrderStatus(UUID salonId, Long orderId, OrderStatus newStatus, String actor) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null) return Optional.empty();
+        if (order.status() == newStatus) return getOrder(salonId, orderId);
+
+        jdbcClient.sql("UPDATE shop_order SET status = :s WHERE id = :id AND salon_id = :salon")
+                .param("s", newStatus.name())
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
+
+        var now = Instant.now();
+        var message = "Order moved to " + prettyStatus(newStatus);
+        for (var line : order.lines()) {
+            activityRepo.save(new OrderLineActivity(null, line.id(), salonId, OrderLineActivityType.STATUS_CHANGED,
+                    message, actor, now));
+        }
+
+        recordOrderActivity(orderId, salonId, "STATUS_CHANGED",
+                "Order status changed to " + prettyStatus(newStatus),
+                actor, true, order.customerEmail(), order.customerPhone());
+        var contact = salonContact(salonId);
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(orderId, salonId, order.orderNumber(), newStatus,
+                order.customerName(), order.customerEmail(), contact.name(), contact.phone(), contact.email()));
+        log.info("[ShopManager] Order id={} salon={} status → {}", orderId, salonId, newStatus);
+        return getOrder(salonId, orderId);
+    }
+
+    @Transactional
+    Optional<OrderView> notifyUserForLine(UUID salonId, Long orderId, Long lineId, String customMessage, String actor) {
+        return addLineActivity(salonId, orderId, lineId, OrderLineActivityType.USER_NOTIFIED,
+                line -> customMessage != null ? customMessage : "Customer notified about " + line.productName(), actor, true);
+    }
+
+    @Transactional
+    Optional<OrderView> addNoteToLine(UUID salonId, Long orderId, Long lineId, String note, String actor) {
+        requireText(note, "Note text is required");
+        return addLineActivity(salonId, orderId, lineId, OrderLineActivityType.NOTE_ADDED,
+                line -> note.trim(), actor, false);
+    }
+
+    private Optional<OrderView> addLineActivity(UUID salonId, Long orderId, Long lineId, OrderLineActivityType type,
+                                                java.util.function.Function<ShopOrder.OrderLine, String> message,
+                                                String actor, boolean emitEvent) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null) return Optional.empty();
+        var line = order.lines().stream().filter(l -> l.id().equals(lineId)).findFirst().orElse(null);
+        if (line == null) return Optional.empty();
+
+        var text = message.apply(line);
+        activityRepo.save(new OrderLineActivity(null, lineId, salonId, type, text, actor, Instant.now()));
+
+        if (emitEvent) {
+            var contact = salonContact(salonId);
+            eventPublisher.publishEvent(new OrderLineActivityAddedEvent(orderId, salonId, order.orderNumber(), lineId,
+                    line.productName(), type, text, order.customerName(), order.customerEmail(),
+                    contact.name(), contact.email()));
+        }
+        return getOrder(salonId, orderId);
+    }
+
+    // ── Order-level activities ─────────────────────────────────────────────────
+
+    /** Records an order-level activity and, when {@code notify=true}, logs a dummy notification. */
+    private ShopOrderActivity recordOrderActivity(Long orderId, UUID salonId, String type, String message,
+                                                  String actor, boolean notify, String customerEmail, String customerPhone) {
+        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, notify, Instant.now()));
+        if (notify) {
+            log.info("[NOTIFICATION] To: {} | Phone: {} | Type: {} | Message: {}",
+                    customerEmail, customerPhone != null ? customerPhone : "—", type, message);
+        }
+        return activity;
+    }
+
+    Optional<OrderView> sendInvoice(UUID salonId, Long orderId) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        recordOrderActivity(orderId, salonId, "INVOICE_SENT",
+                "Invoice for order " + order.orderNumber() + " sent to " + order.customerEmail(),
+                "admin", true, order.customerEmail(), order.customerPhone());
+        return getOrder(salonId, orderId);
+    }
+
+    Optional<OrderView> addWorkNote(UUID salonId, Long orderId, String note) {
+        orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        recordOrderActivity(orderId, salonId, "WORK_NOTE", note.trim(), "admin", false, null, null);
+        return getOrder(salonId, orderId);
+    }
+
+    // ── Refunds ───────────────────────────────────────────────────────────────
+
+    List<ShopRefund> listRefunds(UUID salonId) {
+        return refundRepo.findBySalonIdOrderByCreatedAtDesc(salonId);
+    }
+
+    List<ShopRefund> listRefundsForOrder(UUID salonId, Long orderId) {
+        return refundRepo.findByOrderIdAndSalonIdOrderByCreatedAtDesc(orderId, salonId);
+    }
+
+    @Transactional
+    ShopRefund createRefund(UUID salonId, Long orderId, BigDecimal amount, String reason) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        var refund = refundRepo.save(new ShopRefund(null, salonId, orderId, amount, reason, "PENDING", Instant.now()));
+        var msg = "Refund of " + amount + " " + order.currency() + (reason != null && !reason.isBlank() ? " — " + reason : "") + " initiated";
+        recordOrderActivity(orderId, salonId, "REFUND_INITIATED", msg, "admin", true, order.customerEmail(), order.customerPhone());
+        return refund;
+    }
+
+    @Transactional
+    ShopRefund acceptRefund(UUID salonId, Long refundId) {
+        var refund = refundRepo.findById(refundId)
+                .filter(r -> r.salonId().equals(salonId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Refund not found"));
+        var updated = refundRepo.save(new ShopRefund(refund.id(), refund.salonId(), refund.orderId(),
+                refund.amount(), refund.reason(), "ACCEPTED", refund.createdAt()));
+        var order = orderRepo.findByIdAndSalonId(refund.orderId(), salonId).orElse(null);
+        if (order != null) {
+            // Auto-create a credit note for the accepted refund amount
+            var ref = "CN-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
+            creditNoteRepo.save(new ShopCreditNote(null, salonId, refund.orderId(),
+                    refund.amount(), refund.reason(), ref, "PENDING", Instant.now()));
+            recordOrderActivity(refund.orderId(), salonId, "REFUND_ACCEPTED",
+                    "Refund of " + refund.amount() + " " + order.currency() + " accepted — credit note created",
+                    "admin", true, order.customerEmail(), order.customerPhone());
+        }
+        return updated;
+    }
+
+    @Transactional
+    ShopRefund rejectRefund(UUID salonId, Long refundId) {
+        var refund = refundRepo.findById(refundId)
+                .filter(r -> r.salonId().equals(salonId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Refund not found"));
+        var updated = refundRepo.save(new ShopRefund(refund.id(), refund.salonId(), refund.orderId(),
+                refund.amount(), refund.reason(), "REJECTED", refund.createdAt()));
+        var order = orderRepo.findByIdAndSalonId(refund.orderId(), salonId).orElse(null);
+        if (order != null) {
+            recordOrderActivity(refund.orderId(), salonId, "REFUND_REJECTED",
+                    "Refund of " + refund.amount() + " " + order.currency() + " rejected",
+                    "admin", true, order.customerEmail(), order.customerPhone());
+        }
+        return updated;
+    }
+
+    // ── Credit notes ─────────────────────────────────────────────────────────
+
+    List<ShopCreditNote> listCreditNotes(UUID salonId) {
+        return creditNoteRepo.findBySalonIdOrderByCreatedAtDesc(salonId);
+    }
+
+    List<ShopCreditNote> listCreditNotesForOrder(UUID salonId, Long orderId) {
+        return creditNoteRepo.findByOrderIdAndSalonIdOrderByCreatedAtDesc(orderId, salonId);
+    }
+
+    @Transactional
+    ShopCreditNote createCreditNote(UUID salonId, Long orderId, BigDecimal amount, String reason, String reference) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        var note = creditNoteRepo.save(new ShopCreditNote(null, salonId, orderId, amount, reason, reference, "PENDING", Instant.now()));
+        recordOrderActivity(orderId, salonId, "CREDIT_NOTE_CREATED",
+                "Credit note of " + amount + " " + order.currency() + " created",
+                "admin", true, order.customerEmail(), order.customerPhone());
+        log.info("[CREDIT_NOTE] Created credit note id={} orderId={} amount={} ref={}", note.id(), orderId, amount, reference);
+        return note;
+    }
+
+    @Transactional
+    ShopCreditNote payCreditNote(UUID salonId, Long creditNoteId) {
+        var note = creditNoteRepo.findById(creditNoteId)
+                .filter(n -> n.salonId().equals(salonId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Credit note not found"));
+        var updated = creditNoteRepo.save(new ShopCreditNote(note.id(), note.salonId(), note.orderId(),
+                note.amount(), note.reason(), note.reference(), "PAID", note.createdAt()));
+        var order = orderRepo.findByIdAndSalonId(note.orderId(), salonId).orElse(null);
+        if (order != null) {
+            recordOrderActivity(note.orderId(), salonId, "CREDIT_PAID",
+                    "Credit note of " + note.amount() + " " + order.currency() + " paid back to customer",
+                    "admin", true, order.customerEmail(), order.customerPhone());
+        }
+        return updated;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private ProductVariant newVariant(Long id, Long productId, UUID salonId, VariantSpec v) {
+        var currency = v.currency() != null && !v.currency().isBlank() ? v.currency().trim().toUpperCase(Locale.ROOT) : DEFAULT_CURRENCY;
+        return new ProductVariant(id, productId, salonId,
+                trimToNull(v.sku()), trimToNull(v.label()),
+                v.price() != null ? v.price() : BigDecimal.ZERO,
+                v.compareAtPrice(),
+                currency,
+                v.quantityOnHand() != null ? Math.max(0, v.quantityOnHand()) : 0,
+                v.reorderLevel() != null ? Math.max(0, v.reorderLevel()) : 0,
+                v.active() == null || v.active());
+    }
+
+    private void validateBrandCategory(UUID salonId, Long brandId, Long categoryId) {
+        if (brandId != null && brandRepo.findByIdAndSalonId(brandId, salonId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown brand");
+        }
+        if (categoryId != null && categoryRepo.findByIdAndSalonId(categoryId, salonId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown category");
+        }
+    }
+
+    private ProductView toProductView(Product p, List<ProductVariant> variants) {
+        String brandName = p.brandId() == null ? null
+                : brandRepo.findById(p.brandId()).map(Brand::name).orElse(null);
+        String categoryName = p.categoryId() == null ? null
+                : categoryRepo.findById(p.categoryId()).map(Category::name).orElse(null);
+        return new ProductView(p.id(), p.salonId(), p.brandId(), brandName, p.categoryId(), categoryName,
+                p.name(), p.description(), p.imageUrl(), p.active(), p.createdAt(), variants);
+    }
+
+    private OrderView toOrderView(ShopOrder o, Map<Long, List<OrderLineActivity>> activitiesByLine) {
+        return toOrderView(o, activitiesByLine, List.of());
+    }
+
+    private OrderView toOrderView(ShopOrder o, Map<Long, List<OrderLineActivity>> activitiesByLine,
+                                  List<ShopOrderActivity> orderActivities) {
+        var lines = o.lines().stream()
+                .map(l -> new OrderLineView(l.id(), l.productId(), l.variantId(), l.productName(), l.variantLabel(),
+                        l.unitPrice(), l.quantity(), l.lineTotal(),
+                        activitiesByLine.getOrDefault(l.id(), List.of())))
+                .toList();
+        return new OrderView(o.id(), o.salonId(), o.orderNumber(), o.customerName(), o.customerEmail(), o.customerPhone(),
+                o.shippingAddress(), o.status(), o.paymentStatus(), o.paymentReference(), o.subtotal(), o.currency(),
+                o.createdAt(), o.trackingCarrier(), o.trackingNumber(), lines, orderActivities);
+    }
+
+    @Transactional
+    Optional<OrderView> addShipping(UUID salonId, Long orderId, String carrier, String trackingNumber) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null) return Optional.empty();
+        jdbcClient.sql("UPDATE shop_order SET tracking_carrier = :c, tracking_number = :t, status = 'SHIPPED' WHERE id = :id AND salon_id = :salon")
+                .param("c", trimToNull(carrier))
+                .param("t", trimToNull(trackingNumber))
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
+        var msg = "Shipment dispatched"
+                + (carrier != null && !carrier.isBlank() ? " via " + carrier.trim() : "")
+                + (trackingNumber != null && !trackingNumber.isBlank() ? " — tracking: " + trackingNumber.trim() : "");
+        recordOrderActivity(orderId, salonId, "SHIPMENT_CREATED", msg, "admin", true,
+                order.customerEmail(), order.customerPhone());
+        log.info("[ShopManager] Shipping set orderId={} carrier={} tracking={}", orderId, carrier, trackingNumber);
+        return getOrder(salonId, orderId);
+    }
+
+    @Transactional
+    Optional<OrderView> notifyCustomer(UUID salonId, Long orderId, String message) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null) return Optional.empty();
+        requireText(message, "Message is required");
+        recordOrderActivity(orderId, salonId, "CUSTOMER_NOTIFIED", message.trim(), "admin", true,
+                order.customerEmail(), order.customerPhone());
+        return getOrder(salonId, orderId);
+    }
+
+    private record SalonContact(String name, String phone, String email) {}
+
+    private SalonContact salonContact(UUID salonId) {
+        return salonApi.findById(salonId)
+                .map(s -> new SalonContact(s.name(),
+                        s.contact() != null ? s.contact().phone() : null,
+                        s.contact() != null ? s.contact().email() : null))
+                .orElse(new SalonContact(null, null, null));
+    }
+
+    private static String generateOrderNumber() {
+        // nanoTime can be negative — mask the sign so the number is always clean base-36.
+        return "SO-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
+    }
+
+    private static String prettyStatus(OrderStatus s) {
+        return switch (s) {
+            case NEW -> "new";
+            case PROCESSING -> "processing";
+            case SHIPPED -> "shipped";
+            case FULFILLED -> "fulfilled";
+            case CANCELLED -> "cancelled";
+        };
+    }
+
+    private static void requireText(String value, String message) {
+        if (isBlank(value)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) return null;
+        var t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+}

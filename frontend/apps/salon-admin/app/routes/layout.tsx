@@ -82,7 +82,7 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
   { key: "BOOKING",         label: "Booking Calendar", hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
   { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: "coming-soon" },
-  { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "coming-soon" },
+  { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "shop" },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: "analytics" },
   { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "coming-soon" },
 ];
@@ -597,7 +597,7 @@ export default function Layout() {
                             </button>
                           </div>
                           <p className="text-[11px] text-amber-800 leading-snug">
-                            Choose how your public page looks — classic, AI-generated, or contact form.
+                            Choose how your public page looks — Static Website, Gen AI Receptionist, or you want to apply your own idea.
                           </p>
                         </div>
                       )}
