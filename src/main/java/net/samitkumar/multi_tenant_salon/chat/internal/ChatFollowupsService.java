@@ -182,6 +182,15 @@ class ChatFollowupsService {
         if (cleaned.startsWith("```")) {
             cleaned = cleaned.replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "").strip();
         }
+        // The model is told to return ONLY a JSON array, but sometimes wraps it in a sentence
+        // ("Sure, here are some follow-ups: [...]") — pull out just the array in that case.
+        if (!cleaned.startsWith("[")) {
+            var start = cleaned.indexOf('[');
+            var end = cleaned.lastIndexOf(']');
+            if (start >= 0 && end > start) {
+                cleaned = cleaned.substring(start, end + 1);
+            }
+        }
         try {
             return objectMapper.<List<String>>readValue(cleaned, new TypeReference<List<String>>() {}).stream()
                     .filter(s -> s != null && !s.isBlank() && s.length() <= MAX_LEN)

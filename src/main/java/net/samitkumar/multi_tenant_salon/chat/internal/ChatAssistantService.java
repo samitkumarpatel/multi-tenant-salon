@@ -68,7 +68,12 @@ class ChatAssistantService {
             picker is still on screen — the interface keeps it pinned just below the latest reply \
             and carries their selections over, so you can answer questions about its dates, times \
             or stylists directly and tell them to carry on in it; you don't need to call \
-            startBookingPicker again for the same service.
+            startBookingPicker again for the same service. If, while mid-picker, they name \
+            something too vague to resolve to one exact day ("next month", "sometime later", \
+            "later in the week") or ask to skip ahead, don't guess a date and don't call any tool \
+            for it — just tell them to use the arrows at the top of the calendar already on \
+            screen to browse to a month/day that suits them and tap it; it already reflects real \
+            availability that far out.
             """;
 
     private static final String RENDER_TOOL_INSTRUCTIONS = """
@@ -170,16 +175,20 @@ class ChatAssistantService {
                 // The model can call a render tool without adding any trailing prose (e.g. an
                 // off-topic decline that only invokes showQuickActions) - never forward a
                 // null/blank reply, the frontend renders this text as the chat bubble.
-                content = components.isEmpty()
-                        ? "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly."
-                        : "Here's what I can help with:";
+                if (components.isEmpty()) {
+                    log.warn("Chat assistant returned blank content and no components for salon {} (message: {})",
+                            salonId, message);
+                    content = "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.";
+                } else {
+                    content = "Here's what I can help with:";
+                }
             }
             var suggestedQuestions = chatFollowupsService.followups(
                     salonId, conversationId, latestMessageClue(content, components));
             return new ChatReply(content, components, suggestedQuestions,
                     tools.invokedToolNames(), tools.pendingBooking());
         } catch (Exception e) {
-            log.warn("Chat assistant failed for salon {}: {}", salonId, e.getMessage());
+            log.warn("Chat assistant failed for salon {} (message: {})", salonId, message, e);
             return new ChatReply(
                     "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
                     List.of(), List.of(), List.of(), null);

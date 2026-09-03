@@ -737,9 +737,9 @@ export default function NewSalon() {
                       role="switch"
                       aria-checked={form.showBusinessId}
                       onClick={() => setForm((f) => ({ ...f, showBusinessId: !f.showBusinessId }))}
-                      className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${form.showBusinessId ? "bg-matcha-600" : "bg-stone-200"}`}
+                      className={`relative inline-flex w-9 h-5 rounded-full shrink-0 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-2 ${form.showBusinessId ? "bg-matcha-600" : "bg-stone-200"}`}
                     >
-                      <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${form.showBusinessId ? "translate-x-4" : "translate-x-0.5"}`} />
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out ${form.showBusinessId ? "translate-x-4" : "translate-x-0"}`} />
                     </button>
                     <span className="text-xs text-stone-500">Show on public website</span>
                   </label>
@@ -837,9 +837,9 @@ export default function NewSalon() {
                           aria-checked={on}
                           aria-label={`Show ${p.label} icon`}
                           onClick={() => setContact({ [p.visibleKey]: !on } as Partial<ContactInfo>)}
-                          className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer shrink-0 ${on ? "bg-matcha-600" : "bg-stone-200"}`}
+                          className={`relative inline-flex w-9 h-5 rounded-full shrink-0 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-2 ${on ? "bg-matcha-600" : "bg-stone-200"}`}
                         >
-                          <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out ${on ? "translate-x-4" : "translate-x-0"}`} />
                         </button>
                         <input
                           className={`${inputCls} ${on ? "" : "opacity-50"}`}
