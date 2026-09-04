@@ -3,11 +3,15 @@ import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
 import { CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
+import { PRIVACY_TEXT } from "~/lib/legal";
+import { LegalModal } from "~/components/LegalModal";
+import { SiteFooter } from "~/components/SiteFooter";
 
 type CookieChoice = "all" | "essential";
 
 function CookieBanner() {
   const [visible, setVisible] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem(`${SALON_DOMAIN}:cookie-consent`)) {
@@ -23,41 +27,47 @@ function CookieBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-50 animate-[slide-up_0.3s_ease_both]">
-      <div className="bg-white border-t border-stone-200 shadow-[0_-4px_24px_rgba(0,0,0,0.07)]">
-        <div className="max-w-5xl mx-auto px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-5">
+    <>
+      <div className="fixed bottom-0 inset-x-0 z-50 animate-[slide-up_0.3s_ease_both]">
+        <div className="bg-white border-t border-stone-200 shadow-[0_-4px_24px_rgba(0,0,0,0.07)]">
+          <div className="max-w-5xl mx-auto px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-5">
 
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <Cookie className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-stone-800 mb-0.5">We use cookies</p>
-              <p className="text-xs text-stone-500 leading-relaxed">
-                We use essential cookies to make our site work, and optional analytics cookies to understand how you use it.
-                See our{" "}
-                <a href="#" className="text-matcha-600 hover:underline">cookie policy</a>{" "}
-                for details. You can change your preferences at any time.
-              </p>
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <Cookie className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-stone-800 mb-0.5">We use cookies</p>
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  We use essential cookies to make our site work, and optional analytics cookies to understand how you use it.
+                  See our{" "}
+                  <button type="button" onClick={() => setShowPolicy(true)} className="text-matcha-600 hover:underline cursor-pointer">cookie policy</button>{" "}
+                  for details. You can change your preferences at any time.
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 shrink-0 sm:flex-col lg:flex-row">
-            <button
-              onClick={() => save("essential")}
-              className="flex-1 sm:flex-none text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 px-4 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
-            >
-              Essential only
-            </button>
-            <button
-              onClick={() => save("all")}
-              className="flex-1 sm:flex-none text-xs font-semibold bg-matcha-600 hover:bg-matcha-700 text-white px-5 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
-            >
-              Accept all cookies
-            </button>
-          </div>
+            <div className="flex items-center gap-2 shrink-0 sm:flex-col lg:flex-row">
+              <button
+                onClick={() => save("essential")}
+                className="flex-1 sm:flex-none text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 px-4 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Essential only
+              </button>
+              <button
+                onClick={() => save("all")}
+                className="flex-1 sm:flex-none text-xs font-semibold bg-matcha-600 hover:bg-matcha-700 text-white px-5 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Accept all cookies
+              </button>
+            </div>
 
+          </div>
         </div>
       </div>
-    </div>
+
+      {showPolicy && (
+        <LegalModal title="Privacy Policy" text={PRIVACY_TEXT} onClose={() => setShowPolicy(false)} />
+      )}
+    </>
   );
 }
 
@@ -124,14 +134,7 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="px-5 pb-8">
-        <div className="max-w-2xl mx-auto">
-          <hr className="border-stone-200 mb-3" />
-          <p className="text-right text-[11px] text-stone-400">
-            © {new Date().getFullYear()} {SALON_DOMAIN} · All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
 
       <CookieBanner />
     </div>

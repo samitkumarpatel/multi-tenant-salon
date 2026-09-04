@@ -7,7 +7,7 @@ const ADMIN_BASE_URL: string =
 
 export const ADMIN_APP_URL = ADMIN_BASE_URL;
 
-export const CONTACT_EMAIL = `contact@${SALON_DOMAIN}`;
+export const CONTACT_EMAIL = `admin@${SALON_DOMAIN}`;
 
 // In dev, the public website runs at localhost:5174 with path-based routing.
 // In production, it uses subdomain routing: {handler}.{SALON_DOMAIN}.
@@ -25,6 +25,9 @@ export function websiteUrl(handler: string): string {
 export const STAFF_APP_URL: string =
   import.meta.env.VITE_STAFF_APP_URL ??
   (import.meta.env.DEV ? "http://localhost:5176" : `https://staff.${SALON_DOMAIN}`);
+
+// Placeholder until a docs site exists — same subdomain convention as the other apps.
+export const DOCS_URL: string = `https://docs.${SALON_DOMAIN}`;
 
 const BOOKING_BASE_URL: string =
   import.meta.env.VITE_BOOKING_APP_URL ??

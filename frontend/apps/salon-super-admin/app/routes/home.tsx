@@ -540,7 +540,18 @@ export default function SuperAdminHome() {
             ))}
           </div>
         ) : (
-          <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+          <>
+            {/* Below sm the table's auto layout can't shrink the Salon column enough to
+                keep Status/chevron on screen — they end up silently clipped by the
+                wrapper's overflow-hidden. Reuse the already mobile-friendly SalonCard
+                instead of a second bespoke layout. */}
+            <div className="sm:hidden flex flex-col gap-3">
+              {salons.map((s) => (
+                <SalonCard key={s.id} salon={s} onClick={() => setSelected(s)} />
+              ))}
+            </div>
+
+            <div className="hidden sm:block bg-white border border-stone-200 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-left">
@@ -603,7 +614,8 @@ export default function SuperAdminHome() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

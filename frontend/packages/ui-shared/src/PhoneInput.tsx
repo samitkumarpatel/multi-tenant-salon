@@ -54,9 +54,23 @@ export function PhoneInput({ value, onChange, countries, defaultCountry, autoFoc
     if (open) {
       const idx = filtered.findIndex((c) => c.dialCode === dialCode);
       setHighlight(idx >= 0 ? idx : 0);
-      searchRef.current?.focus();
+      // Autofocus pops the on-screen keyboard, which shrinks the dvh-sized sheet a beat
+      // after it mounts — a visible jump on touch devices. Desktop has no virtual
+      // keyboard, so it keeps the instant-focus keyboard-nav-friendly behavior.
+      if (!window.matchMedia("(pointer: coarse)").matches) {
+        searchRef.current?.focus();
+      }
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock background scroll while the sheet is open (prevents scroll bleed-through
+  // behind the fixed sheet on touch devices).
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
 
   // reset highlight when query changes
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLoaderData } from "react-router";
 import { ONBOARDING_API, apiFetch } from "~/lib/api";
-import { ADMIN_APP_URL } from "~/lib/config";
+import { bookingUrl, websiteUrl } from "~/lib/config";
 import type { Salon } from "~/lib/types";
 import { FEATURE_LABEL } from "~/lib/constants";
 
@@ -22,7 +22,6 @@ function SalonCard({ salon: s }: { salon: Salon }) {
     <div className="bg-white rounded-2xl border border-stone-200 flex flex-col overflow-hidden">
       <div className="p-5 flex-1">
         <p className="font-semibold text-stone-900">{s.name}</p>
-        {s.owner?.name && <p className="text-stone-500 text-xs mt-0.5">{s.owner.name}</p>}
         {place && <p className="text-stone-400 text-xs mt-0.5">{place}</p>}
 
         {s.features && s.features.length > 0 && (
@@ -53,8 +52,9 @@ function SalonCard({ salon: s }: { salon: Salon }) {
 
       <div className="px-5 pb-5">
         <a
-          href={hasBooking ? `${ADMIN_APP_URL}/${s.id}/book` : `${ADMIN_APP_URL}/${s.id}`}
-          className="block text-center w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors no-underline"
+          href={hasBooking && s.handler ? bookingUrl(s.handler) : s.handler ? websiteUrl(s.handler) : undefined}
+          className="block text-center w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors no-underline aria-disabled:opacity-40 aria-disabled:pointer-events-none"
+          aria-disabled={!s.handler}
         >
           {hasBooking ? "Book now" : "Visit salon"}
         </a>

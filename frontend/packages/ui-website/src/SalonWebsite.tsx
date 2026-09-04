@@ -1062,7 +1062,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
       )}
 
       {/* ── Floating actions ─────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-[100]" style={{
+      {/* sm+ only — the footer's own "Back to top" link covers this on mobile, and the
+          floating button collides with it once the (shorter, stacked) mobile footer scrolls into view */}
+      <div className="hidden sm:block fixed bottom-6 right-6 z-[100]" style={{
         opacity: heroVisible ? 0 : 1, transform: heroVisible ? "translateY(12px) scale(0.95)" : "translateY(0) scale(1)",
         pointerEvents: heroVisible ? "none" : "auto", transition: "opacity 0.3s ease, transform 0.3s ease",
       }}>
