@@ -92,6 +92,7 @@ spring:
         - classpath:db/V6__analytics_events.sql
         - classpath:db/V7__genui_events.sql
         - classpath:db/V8__salon_social_links.sql
+        - classpath:db/V9__shop_module.sql
   modulith:
     events:
       jdbc:

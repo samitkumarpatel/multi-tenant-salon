@@ -13,12 +13,21 @@ import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderCustomerNotifiedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.text.NumberFormat;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -38,6 +47,7 @@ class NotificationService {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
 
     private final MailjetClient mailjetClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${spring.application.notification.mailjet.sender:noreply@salonsaas.org}")
     private String sender;
@@ -56,8 +66,9 @@ class NotificationService {
     @Value("${spring.application.notification.support-email:admin@salonsaas.org}")
     private String supportEmail;
 
-    NotificationService(MailjetClient mailjetClient) {
+    NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher) {
         this.mailjetClient = mailjetClient;
+        this.eventPublisher = eventPublisher;
     }
 
     // ── Salon lifecycle ──────────────────────────────────────────────────────
@@ -413,6 +424,102 @@ class NotificationService {
         sendEmail(event.staffEmail(), event.staffName(), subject, text, html);
     }
 
+    // ── Shop / orders ────────────────────────────────────────────────────────
+
+    void notifyOrderPlaced(OrderPlacedEvent event) {
+        var subject = salonSubject(event.salonName(), "Order received — " + event.orderNumber());
+        var total = formatMoney(event.subtotal(), event.currency());
+        var text = """
+                Hi %s,
+
+                Thanks for your order! We've received order %s — %d item%s, %s.
+
+                Payment was completed and the salon has been notified. You'll get another
+                message as your order moves to processing and then fulfilment.
+                %s
+                %s
+                """.formatted(event.customerName(), event.orderNumber(), event.itemCount(),
+                event.itemCount() == 1 ? "" : "s", total,
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>Thanks for your order! We've received order <strong>%s</strong> — %d item%s, <strong>%s</strong>.</p>
+                <p>Payment was completed and the salon has been notified. You'll get another message as your order moves to processing and then fulfilment.</p>
+                %s
+                %s
+                """.formatted(event.customerName(), event.orderNumber(), event.itemCount(),
+                event.itemCount() == 1 ? "" : "s", total,
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
+    }
+
+    void notifyOrderStatusChanged(OrderStatusChangedEvent event) {
+        var message = switch (event.newStatus()) {
+            case NEW -> "Your order has been placed and is awaiting processing.";
+            case CONFIRMED -> "Your order has been confirmed.";
+            case PROCESSING -> "Your order is now being prepared.";
+            case READY_TO_SHIP -> "Your order is ready to ship.";
+            case SHIPPED -> "Your order has been shipped!";
+            case DELIVERED -> "Your order has been delivered.";
+            case FULFILLED -> "Your order has been fulfilled. Thank you for shopping with us!";
+            case CANCELLED -> "Your order has been cancelled. Please contact the salon if this is unexpected.";
+            case FAILED -> "There was a problem with your order. Please contact us.";
+            case ON_HOLD -> "Your order is currently on hold. We will update you shortly.";
+        };
+        var subject = salonSubject(event.salonName(), "Order update — " + event.orderNumber());
+        var text = """
+                Hi %s,
+
+                %s
+
+                Order %s
+                %s
+                %s
+                """.formatted(event.customerName(), message, event.orderNumber(),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <p>Order <strong>%s</strong></p>
+                %s
+                %s
+                """.formatted(event.customerName(), message, event.orderNumber(),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
+    }
+
+    void notifyOrderLineUser(OrderLineActivityAddedEvent event) {
+        var subject = salonSubject(event.salonName(), "Update on your order — " + event.orderNumber());
+        var body = StringUtils.hasText(event.message()) ? event.message() : "There's an update on your order.";
+        var text = """
+                Hi %s,
+
+                %s
+
+                Regarding: %s (order %s)
+                %s
+                """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <p><small>Regarding: %s (order %s)</small></p>
+                %s
+                """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
+    }
+
     // ── Dispatch ──────────────────────────────────────────────────────────────
 
     private String adminSalonUrl(Object salonId) {
@@ -465,6 +572,18 @@ class NotificationService {
         return "<p><small>Regards,<br>Team " + (StringUtils.hasText(salonName) ? salonName : "SalonSaaS") + "</small></p>";
     }
 
+    /** "12.50" + "EUR" → "€12.50"; falls back to "12.50 EUR" for an unknown currency code. */
+    private String formatMoney(BigDecimal amount, String currencyCode) {
+        var value = amount != null ? amount : BigDecimal.ZERO;
+        try {
+            var fmt = NumberFormat.getCurrencyInstance(Locale.US);
+            fmt.setCurrency(Currency.getInstance(StringUtils.hasText(currencyCode) ? currencyCode : "USD"));
+            return fmt.format(value);
+        } catch (RuntimeException e) {
+            return value.toPlainString() + " " + (StringUtils.hasText(currencyCode) ? currencyCode : "USD");
+        }
+    }
+
     /** "MAKEUP_ARTIST" → "Makeup Artist" — enum constants read fine in logs but not in an email a human reads. */
     private String humanize(Enum<?> value) {
         var sb = new StringBuilder();
@@ -475,15 +594,30 @@ class NotificationService {
         return sb.toString();
     }
 
-    /** The one place that actually talks to Mailjet. Never throws — a notification failure must not break the triggering business flow. */
+    /** Fire-and-forget send with no audit trail — used for internal (salon/staff) notifications. */
     private void sendEmail(String toEmail, String toName, String subject, String textBody, String htmlBody) {
+        dispatch(toEmail, toName, subject, textBody, htmlBody);
+    }
+
+    /**
+     * Send, then publish an acknowledgement event so the owning module can record exactly what the
+     * customer received (subject + body + delivery status) on its own timeline.
+     */
+    private void sendEmail(String toEmail, String toName, String subject, String textBody, String htmlBody,
+                           NotificationContext ctx) {
+        var status = dispatch(toEmail, toName, subject, textBody, htmlBody);
+        acknowledge(toEmail, subject, textBody, status, ctx);
+    }
+
+    /** The one place that actually talks to Mailjet. Never throws — a notification failure must not break the triggering business flow. */
+    private DispatchStatus dispatch(String toEmail, String toName, String subject, String textBody, String htmlBody) {
         if (!StringUtils.hasText(toEmail)) {
             log.warn("[NOTIFICATION] No recipient email — skipping send. subject='{}'", subject);
-            return;
+            return DispatchStatus.FAILED;
         }
         if (!StringUtils.hasText(apiKey)) {
             log.info("[NOTIFICATION] Mailjet not configured — skipping send. to={} <{}> subject='{}'", toName, toEmail, subject);
-            return;
+            return DispatchStatus.LOGGED;
         }
         try {
             var request = new MailjetRequest(List.of(new MailjetMessage(
@@ -492,8 +626,31 @@ class NotificationService {
                     subject, textBody, htmlBody)));
             var result = mailjetClient.send(request);
             log.info("[NOTIFICATION] Sent '{}' to {} <{}> — result: {}", subject, toName, toEmail, result);
+            return DispatchStatus.SENT;
         } catch (Exception e) {
             log.error("[NOTIFICATION] Failed to send '{}' to {} <{}>", subject, toName, toEmail, e);
+            return DispatchStatus.FAILED;
         }
     }
+
+    /**
+     * Tells the entity's owning module what was sent, via an acknowledgement event it already owns
+     * (keeps the round-trip event-driven and cycle-free). A failure here must never break sending.
+     */
+    private void acknowledge(String toEmail, String subject, String body,
+                             DispatchStatus status, NotificationContext ctx) {
+        if (ctx == null) return;
+        try {
+            if (NotificationContext.TYPE_SHOP_ORDER.equals(ctx.relatedType())) {
+                eventPublisher.publishEvent(new OrderCustomerNotifiedEvent(
+                        ctx.salonId(), ctx.relatedRef(), OrderCustomerNotifiedEvent.CHANNEL_EMAIL,
+                        toEmail, subject, body, status.name(), Instant.now()));
+            }
+        } catch (Exception e) {
+            log.error("[NOTIFICATION] Failed to publish notification acknowledgement for subject='{}'", subject, e);
+        }
+    }
+
+    /** What happened when we tried to hand the message to the provider. */
+    enum DispatchStatus { SENT, LOGGED, FAILED }
 }

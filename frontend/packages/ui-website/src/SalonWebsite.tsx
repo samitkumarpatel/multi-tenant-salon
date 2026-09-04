@@ -9,6 +9,7 @@ import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl,
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
+import { ShopView } from "./ShopView";
 import { FEATURE_NAV } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
 import { CategoryIcon } from "./CategoryIcon";
@@ -582,6 +583,17 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
           onNavigate={(page) => onNavigate?.(page)}
         />
       </div>
+    );
+  }
+
+  if (currentPage === "shop" && salon.features?.includes("WEBSHOP")) {
+    return (
+      <ShopView
+        salon={salon}
+        theme={theme}
+        getPagePath={getPagePath}
+        onNavigate={(page) => onNavigate?.(page)}
+      />
     );
   }
 

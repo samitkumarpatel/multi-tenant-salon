@@ -27,7 +27,21 @@ class S3MediaServiceImpl implements MediaService {
 
     @Override
     public PresignedUpload generateStaffPhotoUploadUrl(Long staffId, String contentType) {
-        String ext = switch (contentType == null ? "" : contentType.toLowerCase()) {
+        return signedUpload("uploads/profile/" + staffId + "/" + UUID.randomUUID() + extensionFor(contentType));
+    }
+
+    @Override
+    public PresignedUpload generateProductImageUploadUrl(Long productId, String contentType) {
+        return signedUpload("uploads/product/" + productId + "/" + UUID.randomUUID() + extensionFor(contentType));
+    }
+
+    private PresignedUpload signedUpload(String key) {
+        String presignedUrl = s3Template.createSignedPutURL(bucketName, key, Duration.ofMinutes(15)).toString();
+        return new PresignedUpload(presignedUrl, cdnBaseUrl + "/" + key);
+    }
+
+    private static String extensionFor(String contentType) {
+        return switch (contentType == null ? "" : contentType.toLowerCase()) {
             case "image/png"       -> ".png";
             case "image/webp"      -> ".webp";
             case "image/gif"       -> ".gif";
@@ -36,8 +50,5 @@ class S3MediaServiceImpl implements MediaService {
             case "video/quicktime" -> ".mov";
             default                -> ".jpg";
         };
-        String key = "uploads/profile/" + staffId + "/" + UUID.randomUUID() + ext;
-        String presignedUrl = s3Template.createSignedPutURL(bucketName, key, Duration.ofMinutes(15)).toString();
-        return new PresignedUpload(presignedUrl, cdnBaseUrl + "/" + key);
     }
 }

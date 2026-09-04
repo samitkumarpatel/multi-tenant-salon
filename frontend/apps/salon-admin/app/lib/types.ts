@@ -2,6 +2,11 @@ export type {
   Country, Currency, Owner, Location, ContactInfo, OperatingHours, Salon, WebsiteMode,
   StaffMember, WebsiteTheme, ServiceItem, BookingStatus, Booking,
   AvailableSlot, StaffAvailability, StaffAvailabilityOverride, SalonClosure, SalonHoliday,
+  ShopBrand, ShopCategory, ShopVariant, ShopProduct, ShopInventoryRow,
+  ShopShippingAddress, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
+  OrderLineActivity, OrderLineActivityType, ShopRefundStatus, ShopReturnStatus, ShopCreditNoteStatus,
+  ShopOrderActivity, ShopOrderActivityType,
+  CommunicationPreference,
 } from "@salon/ui-website";
 
 import type { Salon, WebsiteMode } from "@salon/ui-website";

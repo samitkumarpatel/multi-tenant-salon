@@ -196,3 +196,184 @@ export interface SalonHoliday {
   endDay?: number | null;
   year?: number | null;
 }
+
+// ── Shop / web-shop ─────────────────────────────────────────────────────────
+
+export type CommunicationPreference = "ALL" | "IMPORTANT_ONLY";
+
+export type ShopOrderActivityType =
+  | "ORDER_PLACED" | "INVOICE_SENT" | "STATUS_CHANGED"
+  | "REFUND_INITIATED" | "REFUND_APPROVED" | "REFUND_ACCEPTED" | "REFUND_REJECTED"
+  | "CREDIT_NOTE_CREATED" | "CREDIT_PAID"
+  | "WORK_NOTE" | "SHIPMENT_CREATED" | "CUSTOMER_NOTIFIED"
+  | "RETURN_REQUESTED" | "RETURN_UPDATED";
+
+export interface ShopOrderActivity {
+  id: number;
+  orderId: number;
+  salonId?: string;
+  type: ShopOrderActivityType;
+  message?: string | null;
+  actor?: string | null;
+  notified: boolean;
+  /** CUSTOMER_NOTIFIED only — the exact message the customer received. */
+  channel?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  status?: string | null;
+  createdAt: string;
+}
+
+export type ShopRefundStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACCEPTED";
+
+export type ShopOrderStatus =
+  | "NEW" | "CONFIRMED" | "PROCESSING" | "READY_TO_SHIP"
+  | "SHIPPED" | "DELIVERED" | "FULFILLED"
+  | "CANCELLED" | "FAILED" | "ON_HOLD";
+export type ShopPaymentStatus = "PENDING" | "AUTHORIZED" | "CAPTURED" | "PAID" | "SETTLED" | "FAILED" | "VOIDED";
+export type ShopReturnStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "ITEM_SHIPPED" | "RECEIVED" | "INSPECTING" | "ACCEPTED" | "CLOSED";
+export type ShopCreditNoteStatus = "PENDING" | "PAID";
+export type OrderLineActivityType = "LINE_CREATED" | "STATUS_CHANGED" | "USER_NOTIFIED" | "NOTE_ADDED";
+
+export interface ShopBrand {
+  id: number;
+  salonId?: string;
+  name: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface ShopCategory {
+  id: number;
+  salonId?: string;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface ShopVariant {
+  id: number;
+  productId: number;
+  salonId?: string;
+  sku?: string | null;
+  label?: string | null;
+  price: number;
+  compareAtPrice?: number | null;
+  currency: string;
+  quantityOnHand: number;
+  reorderLevel: number;
+  active: boolean;
+}
+
+export interface ShopProduct {
+  id: number;
+  salonId?: string;
+  brandId?: number | null;
+  brandName?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  name: string;
+  description?: string | null;
+  /** Cover image — always mirrors `images[0]`. */
+  imageUrl?: string | null;
+  /** Ordered gallery (includes the cover as the first entry). */
+  images?: string[] | null;
+  active: boolean;
+  createdAt?: string;
+  variants: ShopVariant[];
+}
+
+export interface ShopInventoryRow {
+  variantId: number;
+  productId: number;
+  productName: string;
+  productActive: boolean;
+  sku?: string | null;
+  label?: string | null;
+  price: number;
+  currency: string;
+  quantityOnHand: number;
+  reorderLevel: number;
+  active: boolean;
+}
+
+export interface ShopShippingAddress {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zipCode?: string;
+}
+
+export interface OrderLineActivity {
+  id: number;
+  orderLineId: number;
+  type: OrderLineActivityType;
+  message?: string | null;
+  actor?: string | null;
+  createdAt: string;
+}
+
+export interface ShopOrderLine {
+  id: number;
+  productId?: number | null;
+  variantId?: number | null;
+  productName: string;
+  variantLabel?: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  activities: OrderLineActivity[];
+}
+
+export interface ShopOrder {
+  id: number;
+  salonId?: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  shippingAddress?: ShopShippingAddress | null;
+  status: ShopOrderStatus;
+  paymentStatus: ShopPaymentStatus;
+  paymentReference?: string;
+  subtotal: number;
+  currency: string;
+  createdAt: string;
+  trackingCarrier?: string | null;
+  trackingNumber?: string | null;
+  communicationPreference: CommunicationPreference;
+  /** Inline refund lifecycle */
+  refundAmount?: number | null;
+  refundReason?: string | null;
+  refundStatus?: ShopRefundStatus | null;
+  /** Inline return lifecycle */
+  returnStatus?: ShopReturnStatus | null;
+  returnReason?: string | null;
+  returnNotes?: string | null;
+  returnUpdatedAt?: string | null;
+  /** Inline credit note */
+  creditNoteRef?: string | null;
+  creditNoteStatus?: ShopCreditNoteStatus | null;
+  creditNoteAt?: string | null;
+  lines: ShopOrderLine[];
+  activities?: ShopOrderActivity[];
+}
+
+/** A single line held in the browser-side shopping cart (localStorage). */
+export interface CartLine {
+  variantId: number;
+  productId: number;
+  productName: string;
+  variantLabel?: string | null;
+  unitPrice: number;
+  currency: string;
+  quantity: number;
+  imageUrl?: string | null;
+  /** Stock ceiling captured when the item was added, so the stepper can't exceed it. */
+  maxQuantity: number;
+}

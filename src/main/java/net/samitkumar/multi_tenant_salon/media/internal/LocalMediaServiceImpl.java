@@ -32,16 +32,15 @@ class LocalMediaServiceImpl implements MediaService {
 
     @Override
     public PresignedUpload generateStaffPhotoUploadUrl(Long staffId, String contentType) {
-        String ext = switch (contentType == null ? "" : contentType.toLowerCase()) {
-            case "image/png"       -> ".png";
-            case "image/webp"      -> ".webp";
-            case "image/gif"       -> ".gif";
-            case "video/mp4"       -> ".mp4";
-            case "video/webm"      -> ".webm";
-            case "video/quicktime" -> ".mov";
-            default                -> ".jpg";
-        };
-        String key = "uploads/profile/" + staffId + "/" + UUID.randomUUID() + ext;
+        return signedUpload("uploads/profile/" + staffId + "/" + UUID.randomUUID() + extensionFor(contentType));
+    }
+
+    @Override
+    public PresignedUpload generateProductImageUploadUrl(Long productId, String contentType) {
+        return signedUpload("uploads/product/" + productId + "/" + UUID.randomUUID() + extensionFor(contentType));
+    }
+
+    private PresignedUpload signedUpload(String key) {
         // Encode slashes so the key fits in a single path segment for the upload endpoint.
         String encodedKey = key.replace("/", "~");
         long expires = Instant.now().plusSeconds(UPLOAD_URL_TTL_SECONDS).getEpochSecond();
@@ -53,5 +52,17 @@ class LocalMediaServiceImpl implements MediaService {
         String publicUrl = baseUrl + "/api/media/photos/" + key;
         log.debug("[LocalMediaService] upload URL: {} public URL: {}", presignedUrl, publicUrl);
         return new PresignedUpload(presignedUrl, publicUrl);
+    }
+
+    private static String extensionFor(String contentType) {
+        return switch (contentType == null ? "" : contentType.toLowerCase()) {
+            case "image/png"       -> ".png";
+            case "image/webp"      -> ".webp";
+            case "image/gif"       -> ".gif";
+            case "video/mp4"       -> ".mp4";
+            case "video/webm"      -> ".webm";
+            case "video/quicktime" -> ".mov";
+            default                -> ".jpg";
+        };
     }
 }

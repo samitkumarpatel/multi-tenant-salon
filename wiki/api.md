@@ -1913,6 +1913,210 @@ Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 
 ---
 
+## Shop (Customer)
+
+Public storefront for the `WEBSHOP` feature. No auth. Only **active** products with **active**
+variants are returned.
+
+### List products
+
+`GET /api/salon/{salonId}/shop/products`
+
+**Response** `200 OK` — array of product objects:
+
+```json
+{
+  "id": 12, "name": "Nourishing Shampoo", "description": "For dry hair",
+  "brandId": 3, "brandName": "Kerastase", "categoryId": 1, "categoryName": "Hair Care",
+  "imageUrl": "http://localhost:8080/api/media/photos/uploads/product/12/a.jpg",
+  "images": [
+    "http://localhost:8080/api/media/photos/uploads/product/12/a.jpg",
+    "http://localhost:8080/api/media/photos/uploads/product/12/b.jpg"
+  ],
+  "active": true,
+  "variants": [
+    { "id": 40, "productId": 12, "sku": "SHMP-250", "label": "250 ml",
+      "price": 18.00, "currency": "USD", "quantityOnHand": 10, "reorderLevel": 3, "active": true }
+  ]
+}
+```
+
+### Get a product
+
+`GET /api/salon/{salonId}/shop/products/{productId}` → `200` / `404`.
+
+### Place an order (checkout)
+
+`POST /api/salon/{salonId}/shop/orders`
+
+```json
+{
+  "customerName": "Alex Doe",
+  "customerEmail": "alex@example.com",
+  "customerPhone": "+1 555 0100",
+  "shippingAddress": { "line1": "1 Main St", "city": "Townsville", "country": "US", "zipCode": "12345" },
+  "items": [ { "variantId": 40, "quantity": 2 } ]
+}
+```
+
+Validates each variant, **atomically decrements stock**, snapshots the price/name onto the order
+lines, then completes a **dummy payment** — the returned order is already `PAID`. Emits
+**OrderPlacedEvent**.
+
+**Response** `201 Created` — the full order object (see below), with an `SO-…` `orderNumber`.
+
+**Response** `400 Bad Request` — empty cart, or missing `customerName` / `customerEmail`.
+
+**Response** `409 Conflict` — an item is out of stock or its product is inactive.
+
+---
+
+## Shop (Admin)
+
+Owner-only, under `/api/salon-admin/{salonId}/shop`. Inherits the ownership check from the global
+security config.
+
+### Brands
+
+| Method & path | Purpose |
+|---|---|
+| `GET /brands` | List brands |
+| `POST /brands` | Add — `{ name*, description?, logoUrl? }` → `201` |
+| `PUT /brands/{brandId}` | Update — `{ name*, description?, logoUrl?, active? }` |
+| `DELETE /brands/{brandId}` | Delete (`204`); products' `brandId` is set null |
+
+### Categories
+
+`GET|POST /categories`, `PUT|DELETE /categories/{categoryId}` — body `{ name*, description?, active? }`.
+
+### Products
+
+| Method & path | Purpose |
+|---|---|
+| `GET /products` | List all products (active + inactive), every variant |
+| `GET /products/{productId}` | One product |
+| `POST /products` | Create — body below → `201` |
+| `PUT /products/{productId}` | Update + **reconcile variants** (see below) |
+| `DELETE /products/{productId}` | Delete product + variants (`204`); order lines keep their snapshot |
+| `POST /products/{productId}/image-upload-url` | `{ contentType }` → `{ presignedUrl, publicUrl }` (PUT the file to `presignedUrl`, then add `publicUrl` to `images`). Call once per image — each call mints a unique key. |
+
+Product body:
+
+```json
+{
+  "name": "Nourishing Shampoo", "description": "For dry hair",
+  "brandId": 3, "categoryId": 1, "active": true,
+  "images": [
+    "http://localhost:8080/api/media/photos/uploads/product/12/a.jpg",
+    "http://localhost:8080/api/media/photos/uploads/product/12/b.jpg"
+  ],
+  "variants": [
+    { "id": 40, "sku": "SHMP-250", "label": "250 ml", "price": 18.00, "currency": "USD",
+      "quantityOnHand": 10, "reorderLevel": 3, "active": true },
+    { "sku": "SHMP-500", "label": "500 ml", "price": 30.00, "currency": "USD",
+      "quantityOnHand": 5, "reorderLevel": 2 }
+  ]
+}
+```
+
+`images` is the ordered gallery — the **first entry becomes the cover** (`imageUrl`); blanks and
+duplicates are dropped and the list is capped at 12. The legacy single `imageUrl` field is still
+accepted and used only when `images` is omitted.
+
+On `PUT`, variants **with** an `id` are updated, those **without** are created, and any existing
+variant **absent** from the payload is deleted (order-line snapshots + `ON DELETE SET NULL` keep
+purchase history intact).
+
+### Inventory
+
+`GET /inventory` → one row per variant `{ variantId, productId, productName, sku, label, price,
+currency, quantityOnHand, reorderLevel, active }`.
+
+`PUT /inventory/{variantId}` — `{ quantityOnHand, reorderLevel }` → the updated row. (Stock also
+lives on the variant, so a product `PUT` can set it too; this endpoint is the quick single-field
+path for the Inventory screen.)
+
+### Orders
+
+| Method & path | Purpose |
+|---|---|
+| `GET /orders` | **Paged / searchable / sortable** list — returns a page envelope, not a bare array. `activities` omitted |
+| `GET /orders/{orderId}` | Full order incl. the order's **activity timeline** and each line's timeline |
+| `POST /orders/{orderId}/status` | `{ status }` (`PROCESSING` / `FULFILLED` / `CANCELLED` / …). Emits **OrderStatusChangedEvent** + a `STATUS_CHANGED` activity on every line |
+| `POST /orders/{orderId}/lines/{lineId}/notify` | **"Notify User"** — appends a `USER_NOTIFIED` activity and emits **OrderLineActivityAddedEvent** (dummy customer email) |
+| `POST /orders/{orderId}/lines/{lineId}/notes` | **"Add a Note"** — `{ note }`, appends a `NOTE_ADDED` activity (internal, no email) |
+
+**`GET /orders` query params** (all optional):
+
+| Param | Meaning |
+|---|---|
+| `q` | Case-insensitive substring match on order number, customer name / email / phone, payment reference, tracking number, or any line's product name |
+| `status` | One of `NEW` `PROCESSING` `SHIPPED` `FULFILLED` `CANCELLED` |
+| `from`, `to` | Order-date bounds, `yyyy-MM-dd`; the `to` day is included (UTC) |
+| `sort` | `newest` (default) or `oldest` |
+| `page` | Zero-based page index (default `0`) |
+| `size` | Page size, `1`–`100` (default `20`) |
+
+Response envelope:
+
+```json
+{
+  "content": [ /* Order objects, activities omitted */ ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 42,
+  "totalPages": 3,
+  "statusCounts": { "NEW": 5, "PROCESSING": 2, "SHIPPED": 1, "FULFILLED": 34, "CANCELLED": 0 }
+}
+```
+
+`statusCounts` is faceted on `q` + date range but **not** on `status`, so the UI can show per-status totals while a status filter is active.
+
+Order object:
+
+```json
+{
+  "id": 7, "orderNumber": "SO-1A2B3C4D", "status": "PAID", "paymentStatus": "PAID",
+  "paymentReference": "DUMMY-1A2B3C4D", "subtotal": 45.00, "currency": "USD",
+  "customerName": "Alex Doe", "customerEmail": "alex@example.com", "customerPhone": "+1 555 0100",
+  "shippingAddress": { "line1": "1 Main St", "city": "Townsville", "country": "US", "zipCode": "12345" },
+  "createdAt": "2026-09-03T10:15:30Z",
+  "lines": [
+    {
+      "id": 21, "productId": 12, "variantId": 40, "productName": "Nourishing Shampoo",
+      "variantLabel": "250 ml", "unitPrice": 18.00, "quantity": 2, "lineTotal": 36.00,
+      "activities": [
+        { "id": 1, "orderLineId": 21, "type": "LINE_CREATED", "message": "2 × Nourishing Shampoo (250 ml) ordered", "actor": "customer", "createdAt": "2026-09-03T10:15:30Z" }
+      ]
+    }
+  ],
+  "activities": [
+    { "id": 5, "orderId": 7, "type": "STATUS_CHANGED", "message": "Order status changed to Processing", "actor": "admin", "notified": true, "createdAt": "2026-09-03T11:00:00Z" },
+    {
+      "id": 6, "orderId": 7, "type": "CUSTOMER_NOTIFIED", "actor": "system", "notified": true,
+      "channel": "EMAIL", "status": "SENT",
+      "subject": "SalonSaaS[Bloom & Bloom] Order update — SO-1A2B3C4D",
+      "message": "SalonSaaS[Bloom & Bloom] Order update — SO-1A2B3C4D",
+      "body": "Hi Alex,\n\nYour order is now being prepared.\n\nOrder SO-1A2B3C4D\n…",
+      "createdAt": "2026-09-03T11:00:01Z"
+    }
+  ]
+}
+```
+
+`OrderStatus`: `PENDING`, `PAID`, `PROCESSING`, `FULFILLED`, `CANCELLED`.
+`OrderLineActivity.type`: `LINE_CREATED`, `STATUS_CHANGED`, `USER_NOTIFIED`, `NOTE_ADDED`.
+
+`OrderActivity.type`: `ORDER_PLACED`, `INVOICE_SENT`, `STATUS_CHANGED`, `REFUND_INITIATED`,
+`REFUND_ACCEPTED`, `REFUND_REJECTED`, `CREDIT_NOTE_CREATED`, `CREDIT_PAID`, `SHIPMENT_CREATED`,
+`CUSTOMER_NOTIFIED`, `WORK_NOTE`. **`CUSTOMER_NOTIFIED`** entries carry the exact email the
+customer received (`channel` / `subject` / `body` / `status`, where `status` ∈ `SENT` / `LOGGED`
+(dispatch skipped — e.g. provider not configured in dev) / `FAILED`); the shop module appends them
+when the notification module acknowledges a send via `OrderCustomerNotifiedEvent`. All other types
+leave those four fields null.
+
+---
+
 ## Super Admin
 
 Platform-wide management endpoints. Accessible via the Super Admin portal (`admin@my-salon.online` + OTP). All paths are prefixed `/api/salon-super-admin`.
