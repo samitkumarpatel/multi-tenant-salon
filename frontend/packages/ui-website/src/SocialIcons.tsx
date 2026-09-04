@@ -83,7 +83,7 @@ export function SocialLinksRow({
   if (shown.length === 0) return null;
 
   return (
-    <div className={`flex items-center gap-3.5 mt-3.5 ${className ?? ""}`}>
+    <div className={`flex items-center flex-wrap gap-3.5 mt-3.5 ${className ?? ""}`}>
       {shown.map((p) => {
         const url = contact?.[p.urlKey]?.trim();
         const { Icon } = p;

@@ -716,18 +716,21 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-3 mt-6">
+              <div className="grid grid-cols-2 gap-3 mt-6 sm:flex sm:flex-wrap">
                 {hasBooking && (
-                  <a href={bookUrl} data-track="hero-book-appointment" className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline transition-all hover:opacity-90 hover:scale-[1.03]"
+                  <a href={bookUrl} data-track="hero-book-appointment" className="min-w-0 inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 sm:px-6 py-3 rounded-xl no-underline transition-all hover:opacity-90 hover:scale-[1.03]"
                     style={{ backgroundColor: theme.accentColor, color: accentText }}
                     onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
-                    <CalendarCheck className="w-4 h-4" /> Book an appointment <ChevronRight className="w-4 h-4" />
+                    <CalendarCheck className="w-4 h-4 shrink-0" />
+                    <span className="sm:hidden truncate">Book now</span>
+                    <span className="hidden sm:inline">Book an appointment</span>
+                    <ChevronRight className="w-4 h-4 shrink-0 hidden sm:inline" />
                   </a>
                 )}
                 {salon.contact?.phone && (
-                  <a href={`tel:${salon.contact.phone}`} data-track="hero-call" className="inline-flex items-center gap-2 border text-sm font-medium px-6 py-3 rounded-xl no-underline transition-all hover:opacity-75"
+                  <a href={`tel:${salon.contact.phone}`} data-track="hero-call" className="min-w-0 inline-flex items-center justify-center gap-2 border text-sm font-medium px-4 sm:px-6 py-3 rounded-xl no-underline transition-all hover:opacity-75"
                     style={{ color: hero.sub, borderColor: hero.chipBorder }}>
-                    <Phone className="w-4 h-4" /> {salon.contact.phone}
+                    <Phone className="w-4 h-4 shrink-0" /> <span className="truncate">{salon.contact.phone}</span>
                   </a>
                 )}
               </div>
@@ -853,7 +856,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 <FadeIn>
                   <div className="mb-6">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>What we offer</p>
-                    <h2 className="text-2xl font-bold text-slate-900">Services &amp; pricing</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Services &amp; pricing</h2>
                   </div>
                 </FadeIn>
                 {grouped.length > 1 && (
@@ -878,31 +881,31 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 <FadeIn delay={80}>
                   <div className="relative">
                     <div className={`${manyServices
-                      ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
+                      ? "grid grid-cols-2 gap-2.5 sm:gap-3"
                       : "bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100"} ${
                       hasHiddenServicesOnMobile && !showAllServices ? "max-h-[380px] overflow-hidden sm:max-h-none sm:overflow-visible" : ""}`}>
                       {visibleServices.map((s) => (
                         <div key={s.id} className={manyServices
-                          ? "group/svc flex flex-col gap-2.5 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
+                          ? "min-w-0 group/svc flex flex-col gap-2 sm:gap-2.5 p-3 sm:p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
                           : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"}>
-                          <div className="flex items-start gap-3 min-w-0">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                              <CategoryIcon category={s.category} className="h-5 w-5" />
+                          <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                            <span className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                              <CategoryIcon category={s.category} className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
                             </span>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900">{s.name}</p>
-                              {s.description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
+                              <p className="text-sm font-semibold text-slate-900 leading-tight">{s.name}</p>
+                              {s.description && <p className="hidden sm:block text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
                             </div>
                           </div>
-                          <div className="flex items-center flex-wrap gap-2">
+                          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
                             <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
                               <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                             </span>
-                            <span className="text-xs text-slate-400">-</span>
+                            <span className="hidden sm:inline text-xs text-slate-400">-</span>
                             <span className="text-xs font-semibold text-slate-900 tabular-nums">{formatPrice(s.price, s.currency)}</span>
                             {hasBooking && (
                               <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
-                                className="ml-auto inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-100 sm:opacity-0 sm:group-hover/svc:opacity-100 sm:group-focus-within/svc:opacity-100 transition-opacity shrink-0"
+                                className="w-full sm:w-auto sm:ml-auto inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-100 sm:opacity-0 sm:group-hover/svc:opacity-100 sm:group-focus-within/svc:opacity-100 transition-opacity shrink-0"
                                 style={{ backgroundColor: theme.accentColor, color: accentText }}>
                                 Book <ChevronRight className="w-3 h-3" />
                               </a>
@@ -935,7 +938,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 <FadeIn delay={100}>
                   <div className="mb-4">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
-                    <h2 className="text-2xl font-bold text-slate-900">Meet our team</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Meet our team</h2>
                     {activeStaff.some(staffHasDetails) && (
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                         <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
@@ -944,7 +947,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                     )}
                   </div>
 
-                  {/* Mobile — swipeable cards; tap to open the stylist spotlight */}
+                  {/* Mobile — swipeable cards (2+ staff only); tap to open the stylist spotlight */}
+                  {activeStaff.length > 1 && (
                   <div className="sm:hidden -mx-4 px-4">
                     <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
                       {activeStaff.map((m) => {
@@ -985,9 +989,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                       })}
                     </div>
                   </div>
+                  )}
 
-                  {/* Desktop / tablet — rows with a portfolio peek; click opens the spotlight */}
-                  <div className="hidden sm:block">
+                  {/* Desktop / tablet — rows with a portfolio peek; click opens the spotlight. Also used on mobile for a single staff member, matching the "Services & pricing" list style. */}
+                  <div className={activeStaff.length === 1 ? "block" : "hidden sm:block"}>
                   <div className={manyStaff
                     ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
                     : "bg-slate-50 rounded-2xl border border-slate-200 divide-y divide-slate-200/70 overflow-hidden"}>
@@ -1078,21 +1083,52 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer id="contact" className="mt-auto scroll-mt-16" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
+          <div className="grid grid-cols-2 items-stretch gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
-            <div className="lg:max-w-[220px]">
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: theme.logoBgColor }}>
-                  <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
+            {/* Left column: brand (desktop only) + find us + social — mobile shows just find us, then social below a divider */}
+            <div className="min-w-0 flex flex-col justify-between lg:contents">
+              <div className="hidden lg:block min-w-0 lg:order-1 lg:max-w-[220px]">
+                <div className="flex items-center gap-2.5 mb-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: theme.logoBgColor }}>
+                    <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
+                  </div>
+                  <span className="text-sm font-bold truncate min-w-0" style={{ color: footerBright }}>{salon.name}</span>
                 </div>
-                <span className="text-sm font-bold" style={{ color: footerBright }}>{salon.name}</span>
+                {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
+                <SocialLinksRow contact={salon.contact} color={footerText} />
               </div>
-              {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
-              <SocialLinksRow contact={salon.contact} color={footerText} />
+
+              {salon.location && (salon.location.address || salon.location.city) && (
+                <div className="min-w-0 lg:order-3">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
+                    <MapPin className="w-3.5 h-3.5" /> Find us
+                  </h3>
+                  <address className="not-italic flex flex-col gap-0.5 text-xs">
+                    {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
+                    {(salon.location.zipCode || salon.location.city) && (
+                      <p style={{ color: footerDim }}>{[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}{salon.location.state ? `, ${salon.location.state}` : ""}</p>
+                    )}
+                    {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
+                  </address>
+                  {salon.location.address && (
+                    <span className="mt-2 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
+                      Open in Maps <ChevronRight className="w-3 h-3" />
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+                    </span>
+                  )}
+                  {salon.showBusinessId && salon.businessRegistrationId && (
+                    <p className="text-[11px] mt-3" style={{ color: footerDim }}>{salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</p>
+                  )}
+                  <div className="lg:hidden pt-3">
+                    <SocialLinksRow contact={salon.contact} color={footerText} />
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Right column: opening hours, matched in width to the left column and stretched to its height */}
             {openHours.length > 0 && (
-              <div>
+              <div className="min-w-0 lg:order-2">
                 <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
                   <Clock className="w-3.5 h-3.5" /> Opening hours
                 </h3>
@@ -1109,7 +1145,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         (hol.year == null || hol.year === slotDate.getFullYear())
                     ) ?? null;
                     return (
-                      <div key={h.day} className={`flex items-center gap-3 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
+                      <div key={h.day} className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
                         <span className="w-8 shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
                         {dayHoliday ? (
                           <>
@@ -1147,30 +1183,6 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                       );
                     })}
                   </div>
-                )}
-              </div>
-            )}
-
-            {salon.location && (salon.location.address || salon.location.city) && (
-              <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                  <MapPin className="w-3.5 h-3.5" /> Find us
-                </h3>
-                <address className="not-italic flex flex-col gap-0.5 text-xs">
-                  {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
-                  {(salon.location.zipCode || salon.location.city) && (
-                    <p style={{ color: footerDim }}>{[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}{salon.location.state ? `, ${salon.location.state}` : ""}</p>
-                  )}
-                  {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
-                </address>
-                {salon.location.address && (
-                  <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
-                    Open in Maps <ChevronRight className="w-3 h-3" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
-                  </span>
-                )}
-                {salon.showBusinessId && salon.businessRegistrationId && (
-                  <p className="text-[11px] mt-3" style={{ color: footerDim }}>{salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</p>
                 )}
               </div>
             )}

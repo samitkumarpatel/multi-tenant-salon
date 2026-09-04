@@ -1,0 +1,225 @@
+### Full salon journey — onboarding -> webshop setup
+### Run top to bottom in IntelliJ's HTTP Client (select the "local" environment).
+### Each request captures what the next one needs into client.global variables,
+### so re-running the whole file end-to-end always works against a fresh salon.
+###
+### Requires the backend running locally, e.g.:
+###   ./mvnw spring-boot:test-run
+
+baseUrl= http://localhost:8080
+### 1. Onboard a new salon
+POST {{baseUrl}}/api/salon-onboarding
+Content-Type: application/json
+
+{
+  "name": "Journey Test Salon",
+  "ownerName": "Jamie Rivera",
+  "ownerEmail": "jamie.rivera@example.com",
+  "ownerPhone": "+15125550100",
+  "location": {
+    "address": "200 Congress Ave",
+    "city": "Austin",
+    "state": "Texas",
+    "zipCode": "78701",
+    "country": "United States"
+  },
+  "contact": {
+    "email": "hello@journeytestsalon.com",
+    "phone": "+15125550101",
+    "website": "https://journeytestsalon.com"
+  },
+  "operatingHours": [
+    { "day": "MONDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
+    { "day": "TUESDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
+    { "day": "WEDNESDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
+    { "day": "THURSDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
+    { "day": "FRIDAY", "openTime": "09:00", "closeTime": "18:00", "closed": false },
+    { "day": "SATURDAY", "openTime": "10:00", "closeTime": "16:00", "closed": false },
+    { "day": "SUNDAY", "openTime": "00:00", "closeTime": "00:00", "closed": true }
+  ],
+  "features": ["STATIC_WEBSITE", "BOOKING", "WEBSHOP"],
+  "businessRegistrationId": "TX-2026-000123",
+  "showBusinessId": false,
+  "termsAccepted": true
+}
+
+> {%
+    client.test("salon created (201)", () => client.assert(response.status === 201, `expected 201, got ${response.status}`));
+    client.global.set("salonId", response.body.salonId);
+    client.global.set("salonHandler", response.body.salonHandler);
+    client.global.set("ownerEmail", response.body.emailId);
+    client.log("salonId = " + response.body.salonId);
+%}
+
+
+### 2. Sanity check — fetch the salon back by id (public endpoint)
+GET {{baseUrl}}/api/salon/{{salonId}}
+
+> {%
+    client.test("salon fetch (200)", () => client.assert(response.status === 200, `expected 200, got ${response.status}`));
+    client.test("webshop feature enabled", () => client.assert(response.body.features.includes("WEBSHOP"), "WEBSHOP not in features"));
+%}
+
+
+### 3. Create a shop brand
+POST {{baseUrl}}/api/salon-admin/{{salonId}}/shop/brands
+Content-Type: application/json
+
+{
+  "name": "Lumière Haircare",
+  "description": "In-house professional haircare line.",
+  "logoUrl": null
+}
+
+> {%
+    client.test("brand created (201)", () => client.assert(response.status === 201, `expected 201, got ${response.status}`));
+    client.global.set("brandId", response.body.id);
+    client.log("brandId = " + response.body.id);
+%}
+
+
+### 4. Create a shop category
+POST {{baseUrl}}/api/salon-admin/{{salonId}}/shop/categories
+Content-Type: application/json
+
+{
+  "name": "Shampoo & Conditioner",
+  "description": "Take-home hair care products.",
+  "active": true
+}
+
+> {%
+    client.test("category created (201)", () => client.assert(response.status === 201, `expected 201, got ${response.status}`));
+    client.global.set("categoryId", response.body.id);
+    client.log("categoryId = " + response.body.id);
+%}
+
+
+### 5. Create product #1 — two variants, brand + category attached
+POST {{baseUrl}}/api/salon-admin/{{salonId}}/shop/products
+Content-Type: application/json
+
+{
+  "brandId": {{brandId}},
+  "categoryId": {{categoryId}},
+  "name": "Repair Shampoo",
+  "description": "Sulfate-free repair shampoo for damaged hair.",
+  "images": [
+    "https://picsum.photos/seed/repair-shampoo-1/800/800",
+    "https://picsum.photos/seed/repair-shampoo-2/800/800"
+  ],
+  "active": true,
+  "variants": [
+    {
+      "sku": "REPAIR-250",
+      "label": "250 ml",
+      "price": 18.50,
+      "compareAtPrice": 22.00,
+      "currency": "USD",
+      "quantityOnHand": 40,
+      "reorderLevel": 10,
+      "active": true
+    },
+    {
+      "sku": "REPAIR-500",
+      "label": "500 ml",
+      "price": 32.00,
+      "compareAtPrice": null,
+      "currency": "USD",
+      "quantityOnHand": 25,
+      "reorderLevel": 8,
+      "active": true
+    }
+  ]
+}
+
+> {%
+    client.test("product #1 created (201)", () => client.assert(response.status === 201, `expected 201, got ${response.status}`));
+    client.global.set("product1Id", response.body.id);
+    client.global.set("variant1Id", response.body.variants[0].id);
+    client.global.set("variant2Id", response.body.variants[1].id);
+    client.log("product1Id = " + response.body.id);
+%}
+
+
+### 6. Create product #2 — no brand/category, single variant
+POST {{baseUrl}}/api/salon-admin/{{salonId}}/shop/products
+Content-Type: application/json
+
+{
+  "brandId": null,
+  "categoryId": null,
+  "name": "Salon Tote Bag",
+  "description": "Branded canvas tote — walk-in extra.",
+  "images": [
+    "https://picsum.photos/seed/salon-tote/800/800"
+  ],
+  "active": true,
+  "variants": [
+    {
+      "sku": "TOTE-STD",
+      "label": null,
+      "price": 12.00,
+      "compareAtPrice": null,
+      "currency": "USD",
+      "quantityOnHand": 15,
+      "reorderLevel": 3,
+      "active": true
+    }
+  ]
+}
+
+> {%
+    client.test("product #2 created (201)", () => client.assert(response.status === 201, `expected 201, got ${response.status}`));
+    client.global.set("product2Id", response.body.id);
+    client.global.set("variant3Id", response.body.variants[0].id);
+    client.log("product2Id = " + response.body.id);
+%}
+
+
+### 7. Adjust stock on the 250ml variant (simulate a restock)
+PUT {{baseUrl}}/api/salon-admin/{{salonId}}/shop/inventory/{{variant1Id}}
+Content-Type: application/json
+
+{
+  "quantityOnHand": 60,
+  "reorderLevel": 10
+}
+
+> {%
+    client.test("inventory updated (200)", () => client.assert(response.status === 200, `expected 200, got ${response.status}`));
+    client.test("quantity applied", () => client.assert(response.body.quantityOnHand === 60, "quantityOnHand not updated"));
+%}
+
+
+### 8. List products — confirm both products + all variants are there
+GET {{baseUrl}}/api/salon-admin/{{salonId}}/shop/products
+
+> {%
+    client.test("2 products present", () => client.assert(response.body.length === 2, `expected 2 products, got ${response.body.length}`));
+%}
+
+
+### 9. List inventory — confirm all 3 variants show up with stock
+GET {{baseUrl}}/api/salon-admin/{{salonId}}/shop/inventory
+
+> {%
+    client.test("3 variants present", () => client.assert(response.body.length === 3, `expected 3 variants, got ${response.body.length}`));
+%}
+
+
+### 10. Print a summary of everything created (no request — just a log via a lightweight GET)
+GET {{baseUrl}}/api/salon/{{salonId}}
+
+> {%
+    client.log("=== Journey summary ===");
+    client.log("salonId:     " + client.global.get("salonId"));
+    client.log("handler:     " + client.global.get("salonHandler"));
+    client.log("ownerEmail:  " + client.global.get("ownerEmail"));
+    client.log("brandId:     " + client.global.get("brandId"));
+    client.log("categoryId:  " + client.global.get("categoryId"));
+    client.log("product1Id:  " + client.global.get("product1Id") + " (variants " + client.global.get("variant1Id") + ", " + client.global.get("variant2Id") + ")");
+    client.log("product2Id:  " + client.global.get("product2Id") + " (variant " + client.global.get("variant3Id") + ")");
+    client.log("Public site: http://localhost:5174/?slug=" + client.global.get("salonHandler"));
+    client.log("Admin panel: http://localhost:5173/" + client.global.get("salonId"));
+%}

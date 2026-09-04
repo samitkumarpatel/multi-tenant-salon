@@ -282,28 +282,89 @@ export function SiteFooter({
   return (
     <footer className="mt-auto" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
+        <div className="grid grid-cols-2 items-stretch gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
-          <div className="lg:max-w-[220px]">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: theme.logoBgColor }}>
-                <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>
-                  {initials(salon.name)}
-                </span>
+          {/* Left column: brand (desktop only) + contact + find us — mobile shows contact/find us, then social below a divider */}
+          <div className="min-w-0 flex flex-col justify-between lg:contents">
+            <div className="hidden lg:block min-w-0 lg:order-1 lg:max-w-[220px]">
+              <div className="flex items-center gap-2.5 mb-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: theme.logoBgColor }}>
+                  <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>
+                    {initials(salon.name)}
+                  </span>
+                </div>
+                <span className="text-sm font-bold truncate min-w-0" style={{ color: footerBright }}>{salon.name}</span>
               </div>
-              <span className="text-sm font-bold" style={{ color: footerBright }}>{salon.name}</span>
+              {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
+              <SocialLinksRow contact={salon.contact} color={footerText} />
+              {current === "book" && (
+                <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity cursor-pointer" style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back to website
+                </button>
+              )}
             </div>
-            {city && <p className="text-xs leading-relaxed" style={{ color: footerDim }}>{city}</p>}
-            <SocialLinksRow contact={salon.contact} color={footerText} />
-            {current === "book" && (
-              <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity cursor-pointer" style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                <ArrowLeft className="w-3.5 h-3.5" /> Back to website
-              </button>
+
+            {salon.contact && (salon.contact.phone || salon.contact.email || salon.contact.website) && (
+              <div className="min-w-0 lg:order-3">
+                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
+                  <Phone className="w-3.5 h-3.5" /> Contact
+                </h3>
+                <div className="flex flex-col gap-2.5">
+                  {salon.contact.phone && (
+                    <a href={`tel:${salon.contact.phone}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity truncate" style={{ color: footerText }}>
+                      <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> {salon.contact.phone}
+                    </a>
+                  )}
+                  {salon.contact.email && (
+                    <a href={`mailto:${salon.contact.email}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
+                      <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{salon.contact.email}</span>
+                    </a>
+                  )}
+                  {salon.contact.website && (
+                    <a href={salon.contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
+                      <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{salon.contact.website}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {salon.location && (salon.location.address || salon.location.city) && (
+              <>
+                {salon.contact && (salon.contact.phone || salon.contact.email || salon.contact.website) && (
+                  <hr className="lg:hidden my-6" style={{ borderColor: footerBorder }} />
+                )}
+                <div className="min-w-0 lg:order-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
+                    <MapPin className="w-3.5 h-3.5" /> Find us
+                  </h3>
+                  <address className="not-italic flex flex-col gap-0.5 text-xs">
+                    {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
+                    {(salon.location.zipCode || salon.location.city) && (
+                      <p style={{ color: footerDim }}>
+                        {[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}
+                        {salon.location.state ? `, ${salon.location.state}` : ""}
+                      </p>
+                    )}
+                    {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
+                  </address>
+                  {salon.location.address && (
+                    <span className="mt-3 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
+                      Open in Maps <ChevronRight className="w-3 h-3" />
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+                    </span>
+                  )}
+                  <div className="lg:hidden pt-3">
+                    <SocialLinksRow contact={salon.contact} color={footerText} />
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
+          {/* Right column: opening hours, matched in width to the left column and stretched to its height */}
           {openHours.length > 0 && (
-            <div>
+            <div className="min-w-0 lg:order-2">
               <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
                 <Clock className="w-3.5 h-3.5" /> Opening hours
               </h3>
@@ -311,7 +372,7 @@ export function SiteFooter({
                 {openHours.map((h) => {
                   const isToday = h.day === todayName;
                   return (
-                    <div key={h.day} className={`flex items-center gap-3 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
+                    <div key={h.day} className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
                       <span className="w-8 shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
                       <span className="font-mono">{h.openTime}–{h.closeTime}</span>
                       {isToday && <span className="text-[9px] font-bold uppercase tracking-wider">today</span>}
@@ -319,55 +380,6 @@ export function SiteFooter({
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {salon.contact && (salon.contact.phone || salon.contact.email || salon.contact.website) && (
-            <div>
-              <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                <Phone className="w-3.5 h-3.5" /> Contact
-              </h3>
-              <div className="flex flex-col gap-2.5">
-                {salon.contact.phone && (
-                  <a href={`tel:${salon.contact.phone}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
-                    <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> {salon.contact.phone}
-                  </a>
-                )}
-                {salon.contact.email && (
-                  <a href={`mailto:${salon.contact.email}`} className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
-                    <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{salon.contact.email}</span>
-                  </a>
-                )}
-                {salon.contact.website && (
-                  <a href={salon.contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 no-underline text-xs hover:opacity-80 transition-opacity" style={{ color: footerText }}>
-                    <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: footerDim }} /> <span className="truncate">{salon.contact.website}</span>
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {salon.location && (salon.location.address || salon.location.city) && (
-            <div>
-              <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                <MapPin className="w-3.5 h-3.5" /> Find us
-              </h3>
-              <address className="not-italic flex flex-col gap-0.5 text-xs">
-                {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
-                {(salon.location.zipCode || salon.location.city) && (
-                  <p style={{ color: footerDim }}>
-                    {[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}
-                    {salon.location.state ? `, ${salon.location.state}` : ""}
-                  </p>
-                )}
-                {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
-              </address>
-              {salon.location.address && (
-                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
-                  Open in Maps <ChevronRight className="w-3 h-3" />
-                  <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
-                </span>
-              )}
             </div>
           )}
         </div>
