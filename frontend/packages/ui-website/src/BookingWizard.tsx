@@ -13,10 +13,11 @@
  *  5 – Confirmation
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, Info,
 } from "lucide-react";
+import { StaffSpotlight } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
@@ -139,7 +140,7 @@ function SelectionSummary({
   ].filter(Boolean) as string[];
   if (chips.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center justify-center gap-1.5 mb-6">
+    <div className="flex flex-wrap items-center justify-center gap-1.5">
       {chips.map((c) => (
         <span
           key={c}
@@ -880,7 +881,7 @@ function DaySlots({
 // ── Step 2: Date + staff selection ────────────────────────────────────────────
 
 function StepDate({
-  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
+  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, theme, accentText, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
 }: {
   salonId: string;
   serviceId: number;
@@ -891,6 +892,8 @@ function StepDate({
   setStaffId: (id: number | null) => void;
   selectedSlot: AvailableSlot | null;
   accent: Accent;
+  theme: WebsiteTheme;
+  accentText: string;
   closedDays: Set<string>;
   closedDateRanges: ClosureRange[];
   maxDate: Date;
@@ -902,85 +905,167 @@ function StepDate({
   onPickSlot: (date: string, slot: AvailableSlot) => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
-  const [dateMode, setDateMode] = useState<"input" | "week" | "designer">(defaultMode);
+  // The designer (by-stylist) grid is a comparison table that doesn't suit a first
+  // view on either breakpoint — mobile defaults to Week view, desktop to Pick a date.
+  const [dateMode, setDateMode] = useState<"input" | "week" | "designer">(() => {
+    if (defaultMode !== "designer") return defaultMode;
+    if (typeof window === "undefined") return "input";
+    return window.innerWidth < 640 ? "week" : "input";
+  });
   const MODE_LABEL = { input: "Pick a date", week: "Week view", designer: "By stylist" } as const;
   const selStyle = { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` };
   const unselStyle = { borderColor: "#e2e8f0" };
+
+  // "Know more" — profile modal (bio + work media) for a stylist in the picker
+  const [profileStaff, setProfileStaff] = useState<StaffMember | null>(null);
+
+  // Preferred-staff carousel: snap-scroll + arrow nav instead of a bare scrollbar
+  const staffScrollRef = useRef<HTMLDivElement>(null);
+  const [staffScroll, setStaffScroll] = useState({ atStart: true, atEnd: true });
+  const updateStaffScroll = () => {
+    const el = staffScrollRef.current;
+    if (!el) return;
+    setStaffScroll({
+      atStart: el.scrollLeft <= 4,
+      atEnd: el.scrollLeft >= el.scrollWidth - el.clientWidth - 4,
+    });
+  };
+  useEffect(() => {
+    updateStaffScroll();
+    window.addEventListener("resize", updateStaffScroll);
+    return () => window.removeEventListener("resize", updateStaffScroll);
+  }, [staff.length]);
+  const scrollStaff = (dir: 1 | -1) => {
+    staffScrollRef.current?.scrollBy({ left: dir * (staffScrollRef.current.clientWidth * 0.7), behavior: "smooth" });
+  };
 
   const staffPicker = staff.length > 0 && (
     <div>
       <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
         Preferred staff member <span className="font-normal normal-case">— optional</span>
       </label>
-      <div className="flex flex-wrap gap-2">
-        {/* Anyone available */}
-        <button
-          onClick={() => setStaffId(null)}
-          className="relative flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
-          style={staffId === null ? selStyle : unselStyle}
+      <div className="relative">
+        <div
+          ref={staffScrollRef}
+          onScroll={updateStaffScroll}
+          className="flex gap-2 overflow-x-auto snap-x snap-mandatory scroll-smooth -mx-5 sm:-mx-6 px-5 sm:px-6 pt-2 pb-2 [&::-webkit-scrollbar]:hidden"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-            <Users className="w-4 h-4 text-slate-400" />
-          </div>
-          <span className="text-[11px] font-semibold text-slate-700 text-center w-14">Anyone</span>
-          {staffId === null && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>
-              <Check className="w-3 h-3" style={{ color: accent.text }} />
-            </span>
-          )}
-        </button>
-
-        {staff.map((s) => (
+          {/* Anyone available */}
           <button
-            key={s.id}
-            onClick={() => setStaffId(s.id)}
-            className="relative flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
-            style={staffId === s.id ? selStyle : unselStyle}
+            onClick={() => setStaffId(null)}
+            className="relative flex flex-1 min-w-[4.5rem] snap-start flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
+            style={staffId === null ? selStyle : unselStyle}
           >
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden shrink-0"
-              style={{ backgroundColor: accent.tint, color: accent.color }}
-            >
-              {staffAvatar(s) ? (
-                <img
-                  src={staffAvatar(s)}
-                  alt={s.name}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }}
-                />
-              ) : (
-                initials(s.name)
-              )}
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+              <Users className="w-4 h-4 text-slate-400" />
             </div>
-            <span className="text-[11px] font-semibold text-slate-700 text-center w-14 truncate">{s.name.split(" ")[0]}</span>
-            <span className="text-[9px] text-slate-400 -mt-0.5 w-14 truncate text-center">{STAFF_ROLE_LABEL[s.role] ?? s.role}</span>
-            {staffId === s.id && (
+            <span className="text-[11px] font-semibold text-slate-700 text-center w-14">Anyone</span>
+            {staffId === null && (
               <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>
                 <Check className="w-3 h-3" style={{ color: accent.text }} />
               </span>
             )}
           </button>
-        ))}
+
+          {staff.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setStaffId(s.id)}
+              className="relative flex flex-1 min-w-[4.5rem] snap-start flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
+              style={staffId === s.id ? selStyle : unselStyle}
+            >
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden shrink-0"
+                style={{ backgroundColor: accent.tint, color: accent.color }}
+              >
+                {staffAvatar(s) ? (
+                  <img
+                    src={staffAvatar(s)}
+                    alt={s.name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
+                ) : (
+                  initials(s.name)
+                )}
+              </div>
+              <span className="text-[11px] font-semibold text-slate-700 text-center w-14 truncate">{s.name.split(" ")[0]}</span>
+              <span className="text-[9px] text-slate-400 -mt-0.5 w-14 truncate text-center">{STAFF_ROLE_LABEL[s.role] ?? s.role}</span>
+
+              {staffId === s.id && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>
+                  <Check className="w-3 h-3" style={{ color: accent.text }} />
+                </span>
+              )}
+
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); setProfileStaff(s); }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setProfileStaff(s); } }}
+                aria-label={`Know more about ${s.name}`}
+                title="Know more"
+                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-colors cursor-pointer"
+              >
+                <Info className="w-3 h-3" />
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {!staffScroll.atStart && (
+          <>
+            <div className="pointer-events-none absolute left-0 top-0 bottom-1 w-8 bg-gradient-to-r from-white to-transparent" />
+            <button
+              type="button"
+              onClick={() => scrollStaff(-1)}
+              aria-label="Scroll staff list left"
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer transition-colors"
+            >
+              <ArrowLeft className="w-3 h-3" />
+            </button>
+          </>
+        )}
+        {!staffScroll.atEnd && (
+          <>
+            <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-white to-transparent" />
+            <button
+              type="button"
+              onClick={() => scrollStaff(1)}
+              aria-label="Scroll staff list right"
+              className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer transition-colors"
+            >
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 mb-0.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-0.5">
         <h2 className="text-lg font-bold text-slate-900">Pick a date</h2>
-        <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 shrink-0">
+        <div className="grid grid-cols-3 sm:flex sm:items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 sm:shrink-0">
           {(["designer", "week", "input"] as const).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setDateMode(m)}
-              className="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
+              className="relative px-2 sm:px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
               style={dateMode === m
                 ? { backgroundColor: "#ffffff", color: accent.color, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }
                 : { color: "#64748b" }}
             >
+              {dateMode !== m && (
+                <span
+                  className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full animate-pulse"
+                  style={{ backgroundColor: accent.color }}
+                />
+              )}
               {MODE_LABEL[m]}
             </button>
           ))}
@@ -1073,6 +1158,15 @@ function StepDate({
           <Clock className="w-3.5 h-3.5" /> Select a time above to continue
         </div>
       </div>
+
+      {profileStaff && (
+        <StaffSpotlight
+          member={profileStaff}
+          theme={theme}
+          accentText={accentText}
+          onClose={() => setProfileStaff(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1448,6 +1542,12 @@ export function BookingWizard({
     return d;
   })();
 
+  function goBack() {
+    if (step === 2) setStep(1);
+    else if (step === 3) setStep(2);
+    else if (step === 4) setStep(viaWeek ? 2 : 3);
+  }
+
   async function submitBooking() {
     if (!service || !slot) return;
     // Guard: never allow booking a time that has already passed
@@ -1507,14 +1607,27 @@ export function BookingWizard({
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}
         <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
           {step < 5 && <StepBar current={step} accent={accent} />}
-          {step < 5 && (
-            <SelectionSummary
-              service={service}
-              date={step > 2 ? date : ""}
-              slot={step > 3 ? slot : null}
-              staffName={step > 3 && slot ? staffMap.get(slot.staffId)?.name : undefined}
-              accent={accent}
-            />
+          {step < 5 && (step > 1 || service) && (
+            <div className="flex items-center gap-2 mb-6">
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back
+                </button>
+              )}
+              <div className="flex-1 min-w-0">
+                <SelectionSummary
+                  service={service}
+                  date={step > 2 ? date : ""}
+                  slot={step > 3 ? slot : null}
+                  staffName={step > 3 && slot ? staffMap.get(slot.staffId)?.name : undefined}
+                  accent={accent}
+                />
+              </div>
+            </div>
           )}
 
           {error && (
@@ -1552,11 +1665,13 @@ export function BookingWizard({
               setStaffId={(id) => { setStaffId(id); setSlot(null); }}
               selectedSlot={slot}
               accent={accent}
+              theme={theme}
+              accentText={accent.text}
               closedDays={closedDays}
               closedDateRanges={allClosedRanges}
               maxDate={maxDate}
               defaultMode={preStaff ? "week" : "designer"}
-              onBack={() => setStep(1)}
+              onBack={goBack}
               onNext={() => { setViaWeek(false); setStep(3); }}
               onPickSlot={(d, s) => { setDate(d); setSlot(s); setViaWeek(true); setStep(4); }}
             />
@@ -1572,7 +1687,7 @@ export function BookingWizard({
               selectedSlot={slot}
               accent={accent}
               onSelect={setSlot}
-              onBack={() => setStep(2)}
+              onBack={goBack}
               onNext={() => { setViaWeek(false); setStep(4); }}
             />
           )}
@@ -1584,7 +1699,7 @@ export function BookingWizard({
               countries={countries}
               salonCountry={salon.location?.country}
               accent={accent}
-              onBack={() => setStep(viaWeek ? 2 : 3)}
+              onBack={goBack}
               onSubmit={submitBooking}
               busy={busy}
             />

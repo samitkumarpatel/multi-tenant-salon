@@ -35,7 +35,7 @@ function initials(name: string) {
 function BetaBadge({ color }: { color: string }) {
   return (
     <span
-      className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
+      className="hidden sm:inline-block shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
       style={{ color, borderColor: color }}
     >
       Beta
@@ -98,8 +98,8 @@ export function SiteHeader({
           {headerExtra && <div className="flex items-center shrink-0">{headerExtra}</div>}
         </div>
       ) : (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
-        <div className="flex items-center gap-4 sm:gap-8 min-w-0">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-6">
+        <div className="flex items-center gap-2 sm:gap-8 min-w-0 flex-1">
           <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group min-w-0">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity"
@@ -180,10 +180,10 @@ export function SiteHeader({
               </>
             ) : current === "book" ? (
               <span
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0"
                 style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}
               >
-                <CalendarCheck className="w-3.5 h-3.5" /> Book appointment
+                <CalendarCheck className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Book appointment</span>
               </span>
             ) : hasBooking ? (
               <a href={getPagePath ? getPagePath("book") : "/book"}
