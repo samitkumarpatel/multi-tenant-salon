@@ -190,8 +190,41 @@ export default function ShopOrders() {
         )}
       </div>
 
-      {/* ── Table ────────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
+      {/* ── Cards (below sm — a 7-column table has no room here and overflow-x-auto
+             on a table isn't a discoverable mobile gesture) ─────────────────── */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {orders.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">No orders match your filters.</div>
+        ) : (
+          orders.map((o) => {
+            const items = o.lines.reduce((n, l) => n + l.quantity, 0);
+            const st = ORDER_ROW_STYLE[o.status];
+            return (
+              <Link
+                key={o.id}
+                to={`${o.id}`}
+                className={`block rounded-xl border border-slate-200 px-4 py-3 no-underline ${st.row} transition-colors`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`font-mono text-xs font-semibold ${st.strong}`}>{o.orderNumber}</span>
+                  <StatusBadge status={o.status} />
+                </div>
+                <div className="mt-1.5 min-w-0">
+                  <div className={`truncate ${st.strong}`}>{o.customerName}</div>
+                  <div className={`text-[11px] truncate ${st.faint}`}>{o.customerEmail}</div>
+                </div>
+                <div className={`mt-2 flex items-center justify-between gap-2 text-xs ${st.muted}`}>
+                  <span>{fmtDate(o.createdAt)} · {items} item{items !== 1 ? "s" : ""}</span>
+                  <span className={`font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency)}</span>
+                </div>
+              </Link>
+            );
+          })
+        )}
+      </div>
+
+      {/* ── Table (sm and up) ────────────────────────────────────────────── */}
+      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
         {orders.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">No orders match your filters.</div>
         ) : (

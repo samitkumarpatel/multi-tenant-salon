@@ -559,44 +559,49 @@ export default function ShopProducts() {
                     )}
                   </div>
 
-                  {/* Name + meta (stock rides along as a tag) */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-slate-900 truncate">{p.name}</span>
-                      {!p.active && (
-                        <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 shrink-0">
-                          Inactive
-                        </span>
-                      )}
-                      <StockBadge p={p} />
+                  {/* Name/meta stack on top, price+actions below — side by side from sm up, where there's room */}
+                  <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+                    {/* Name + meta (stock rides along as a tag) */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-slate-900 truncate">{p.name}</span>
+                        {!p.active && (
+                          <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 shrink-0">
+                            Inactive
+                          </span>
+                        )}
+                        <StockBadge p={p} />
+                      </div>
+                      <div className="flex items-center gap-2 text-[0.67rem] text-slate-400 mt-0.5 flex-wrap">
+                        {brandName(p.brandId) && <span className="font-medium text-slate-500">{brandName(p.brandId)}</span>}
+                        {categoryName(p.categoryId) && <span>· {categoryName(p.categoryId)}</span>}
+                        <span>· {p.variants.length} variant{p.variants.length !== 1 ? "s" : ""}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-[0.67rem] text-slate-400 mt-0.5 flex-wrap">
-                      {brandName(p.brandId) && <span className="font-medium text-slate-500">{brandName(p.brandId)}</span>}
-                      {categoryName(p.categoryId) && <span>· {categoryName(p.categoryId)}</span>}
-                      <span>· {p.variants.length} variant{p.variants.length !== 1 ? "s" : ""}</span>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                      {/* Price */}
+                      <span className="sm:w-28 shrink-0 text-sm font-extrabold text-matcha-600 tabular-nums whitespace-nowrap sm:text-right">
+                        {priceRange(p)}
+                      </span>
+
+                      {/* Actions — hover-revealed on desktop, always visible on touch */}
+                      <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <button
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); openEdit(p); }}
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                        <button
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); openDel(p); }}
+                          aria-label={`Delete ${p.name}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Price */}
-                  <span className="w-28 shrink-0 text-right text-sm font-extrabold text-matcha-600 tabular-nums whitespace-nowrap">
-                    {priceRange(p)}
-                  </span>
-
-                  {/* Actions — hover-revealed, at the very end */}
-                  <div className="w-[84px] shrink-0 flex items-center justify-end gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                    <button
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); openEdit(p); }}
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); openDel(p); }}
-                      aria-label={`Delete ${p.name}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
                   </div>
                 </div>
               ))}

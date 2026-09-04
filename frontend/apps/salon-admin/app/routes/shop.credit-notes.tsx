@@ -57,7 +57,41 @@ export default function ShopCreditNotes() {
 
   return (
     <>
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      {/* ── Cards (below sm — a 7-column table has no room here and overflow-x-auto
+             on a table isn't a discoverable mobile gesture) ─────────────────── */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {orders.map((o) => (
+          <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <Link to={`../orders/${o.id}`} className="font-mono text-xs text-blue-600 hover:underline inline-flex items-center gap-1">
+                {o.orderNumber} <ChevronRight className="w-3 h-3" />
+              </Link>
+              <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${CN_STATUS_STYLE[o.creditNoteStatus ?? "PENDING"] ?? ""}`}>
+                {o.creditNoteStatus ?? "Pending"}
+              </span>
+            </div>
+            <div className="mt-1.5 text-xs text-slate-600">{o.customerName}</div>
+            {o.creditNoteRef && <div className="text-xs text-slate-500 font-mono mt-0.5">{o.creditNoteRef}</div>}
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-400">
+              <span>{o.creditNoteAt ? relativeTime(o.creditNoteAt) : relativeTime(o.createdAt)}</span>
+              <span className="font-semibold text-slate-800">
+                {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency) : "—"}
+              </span>
+            </div>
+            {(o.creditNoteStatus === "PENDING" || !o.creditNoteStatus) && (
+              <button
+                disabled={busy === o.id}
+                onClick={() => payCreditNote(o)}
+                className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
+              >
+                <Banknote className="w-3 h-3" /> Pay back
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">

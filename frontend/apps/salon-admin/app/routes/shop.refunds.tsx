@@ -217,8 +217,62 @@ export default function ShopRefunds() {
         )}
       </div>
 
-      {/* ── Table ────────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      {/* ── Cards (below sm — a 7-column table has no room here and overflow-x-auto
+             on a table isn't a discoverable mobile gesture) ─────────────────── */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">No refunds match your filters.</div>
+        ) : (
+          filtered.map((o) => (
+            <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <Link to={`../orders/${o.id}`} className="font-mono text-xs text-blue-600 hover:underline">
+                  {o.orderNumber}
+                </Link>
+                {o.refundStatus ? <StatusBadge status={o.refundStatus} /> : "—"}
+              </div>
+              <div className="mt-1.5 text-xs text-slate-600">{o.customerName}</div>
+              {o.refundReason && <div className="text-xs text-slate-500 mt-0.5">{o.refundReason}</div>}
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-400">
+                <span>{fmtDate(o.createdAt)}</span>
+                <span className="font-semibold text-slate-800">
+                  {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency) : "—"}
+                </span>
+              </div>
+              {o.refundStatus === "PENDING" && (
+                <div className="flex items-center gap-1.5 mt-2.5">
+                  <button
+                    disabled={busy === o.id}
+                    onClick={() => action(o, "approve")}
+                    className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
+                  >
+                    <Check className="w-3 h-3" /> Approve
+                  </button>
+                  <button
+                    disabled={busy === o.id}
+                    onClick={() => action(o, "reject")}
+                    className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40"
+                  >
+                    <X className="w-3 h-3" /> Reject
+                  </button>
+                </div>
+              )}
+              {o.refundStatus === "APPROVED" && (
+                <button
+                  disabled={busy === o.id}
+                  onClick={() => action(o, "accept")}
+                  className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-blue-200 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 cursor-pointer disabled:opacity-40"
+                >
+                  <Check className="w-3 h-3" /> Accept
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── Table (sm and up) ────────────────────────────────────────────── */}
+      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">No refunds match your filters.</div>
         ) : (

@@ -100,9 +100,9 @@ export function SiteHeader({
       ) : (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
         <div className="flex items-center gap-4 sm:gap-8 min-w-0">
-          <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group shrink-0">
+          <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group min-w-0">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center group-hover:opacity-80 transition-opacity"
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity"
               style={{ backgroundColor: theme.logoBgColor }}
             >
               <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>
@@ -113,14 +113,15 @@ export function SiteHeader({
             <BetaBadge color={theme.accentColor} />
           </button>
 
-          <nav className="flex items-center gap-4 sm:gap-6 text-sm min-w-0">
+          <nav className="flex items-center gap-4 sm:gap-6 text-sm min-w-0 shrink-0">
+            {/* Tapping the logo already goes back — this text link is redundant (and doesn't
+                fit) once the shop's avatar/cart icons are on screen too, so keep it sm+ only. */}
             <button
               onClick={onBack}
-              className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900 cursor-pointer flex items-center gap-1.5 shrink-0"
+              className="hidden sm:flex no-underline transition-colors font-medium text-slate-500 hover:text-slate-900 cursor-pointer items-center gap-1.5 shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Back to website</span>
-              <span className="sm:hidden">Back</span>
+              <span>Back to website</span>
             </button>
             {featurePages.map((fp) => (
               <a

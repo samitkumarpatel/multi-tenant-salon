@@ -51,7 +51,67 @@ export default function ShopReturns() {
 
   return (
     <>
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      {/* ── Cards (below sm — a 6-column table has no room here and overflow-x-auto
+             on a table isn't a discoverable mobile gesture) ─────────────────── */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {orders.map((o) => (
+          <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <Link to={`../orders/${o.id}`} className="text-xs text-blue-600 hover:underline font-medium inline-flex items-center gap-1">
+                {o.orderNumber} <ChevronRight className="w-3 h-3" />
+              </Link>
+              {o.returnStatus && (
+                <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${RETURN_STATUS_STYLE[o.returnStatus] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                  {RETURN_STATUS_LABEL[o.returnStatus] ?? o.returnStatus}
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 text-xs text-slate-600">{o.customerName}</div>
+            {o.returnReason && <div className="text-xs text-slate-500 mt-0.5">{o.returnReason}</div>}
+            <div className="mt-2 text-xs text-slate-400">
+              {o.returnUpdatedAt ? relativeTime(o.returnUpdatedAt) : relativeTime(o.createdAt)}
+            </div>
+            {o.returnStatus === "REQUESTED" && (
+              <div className="flex items-center gap-1.5 mt-2.5">
+                <button
+                  disabled={busy === o.id}
+                  onClick={() => updateStatus(o, "APPROVED")}
+                  className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
+                >
+                  <Check className="w-3 h-3" /> Approve
+                </button>
+                <button
+                  disabled={busy === o.id}
+                  onClick={() => updateStatus(o, "REJECTED")}
+                  className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40"
+                >
+                  <X className="w-3 h-3" /> Reject
+                </button>
+              </div>
+            )}
+            {o.returnStatus === "APPROVED" && (
+              <button
+                disabled={busy === o.id}
+                onClick={() => updateStatus(o, "RECEIVED")}
+                className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer disabled:opacity-40"
+              >
+                Mark Received
+              </button>
+            )}
+            {o.returnStatus === "RECEIVED" && (
+              <button
+                disabled={busy === o.id}
+                onClick={() => updateStatus(o, "ACCEPTED")}
+                className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
+              >
+                <Check className="w-3 h-3" /> Accept Return
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">

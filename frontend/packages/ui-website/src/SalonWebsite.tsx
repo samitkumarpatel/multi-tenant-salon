@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   MapPin, Phone, Mail, Globe, Clock, Timer,
   ChevronRight, ChevronLeft, CalendarCheck, ArrowUp,
-  Play, Film, Images, Quote, Sparkles, X,
+  Play, Film, Images, Quote, Sparkles, X, Menu,
 } from "lucide-react";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
@@ -458,6 +458,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const [bookStaffId, setBookStaffId]     = useState<number | null>(null);
   const [mounted, setMounted]             = useState(false);
   const [holidays, setHolidays]           = useState<SalonHoliday[]>([]);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -616,11 +617,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
       <header className="sticky top-0 z-50 backdrop-blur-md border-b" style={{ backgroundColor: `${headerBg}CC`, borderColor: headerBorder }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-8 min-w-0">
-            <a href="#top" className="flex items-center gap-2 no-underline group shrink-0">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center group-hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.logoBgColor }}>
+            <a href="#top" className="flex items-center gap-2 no-underline group min-w-0">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.logoBgColor }}>
                 <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
               </div>
-              <span className="text-sm font-bold" style={{ color: headerText }}>{salon.name}</span>
+              <span className="text-sm font-bold truncate" style={{ color: headerText }}>{salon.name}</span>
             </a>
             {featurePages.length > 0 && (
               <nav className="hidden md:flex items-center gap-6 text-sm">
@@ -642,8 +643,33 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 Book now
               </a>
             )}
+            {featurePages.length > 0 && (
+              <button
+                type="button"
+                aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileNavOpen}
+                onClick={() => setMobileNavOpen((v) => !v)}
+                className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            )}
           </div>
         </div>
+        {featurePages.length > 0 && mobileNavOpen && (
+          <nav className="md:hidden border-t px-4 sm:px-6 py-2 flex flex-col" style={{ borderColor: headerBorder, backgroundColor: headerBg }}>
+            {featurePages.map((fp) => (
+              <a
+                key={fp.path}
+                href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`}
+                className="no-underline transition-colors font-medium text-sm text-slate-500 hover:text-slate-900 py-2.5"
+                onClick={(e) => { setMobileNavOpen(false); if (onNavigate) { e.preventDefault(); onNavigate(fp.path); } }}
+              >
+                {fp.label}
+              </a>
+            ))}
+          </nav>
+        )}
         <ScrollProgress color={theme.accentColor} />
       </header>
 
