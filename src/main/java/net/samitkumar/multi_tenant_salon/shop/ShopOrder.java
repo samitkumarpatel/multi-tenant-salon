@@ -20,6 +20,9 @@ import java.util.UUID;
  * <p>Each line snapshots the product/variant name and unit price at purchase time so order
  * history survives later catalogue edits (the {@code product_id}/{@code variant_id} FKs are
  * {@code ON DELETE SET NULL}).
+ *
+ * <p>Refund, return and credit-note data are stored as inline columns to avoid separate
+ * tables for what is at most one refund/return per order in a small salon context.
  */
 @Table("shop_order")
 public record ShopOrder(
@@ -38,12 +41,27 @@ public record ShopOrder(
         Instant createdAt,
         String trackingCarrier,
         String trackingNumber,
+        CommunicationPreference communicationPreference,
+        // Inline refund
+        BigDecimal refundAmount,
+        String refundReason,
+        String refundStatus,
+        // Inline return
+        String returnStatus,
+        String returnReason,
+        String returnNotes,
+        Instant returnUpdatedAt,
+        // Inline credit note
+        String creditNoteRef,
+        String creditNoteStatus,
+        Instant creditNoteAt,
         @MappedCollection(idColumn = "order_id", keyColumn = "order_key") List<OrderLine> lines
 ) {
     public ShopOrder {
         lines = lines != null ? List.copyOf(lines) : List.of();
         if (status == null) status = OrderStatus.NEW;
         if (paymentStatus == null) paymentStatus = PaymentStatus.PENDING;
+        if (communicationPreference == null) communicationPreference = CommunicationPreference.IMPORTANT_ONLY;
     }
 
     public record ShippingAddress(

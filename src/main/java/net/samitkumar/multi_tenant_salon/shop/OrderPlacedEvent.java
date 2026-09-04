@@ -16,5 +16,6 @@ public record OrderPlacedEvent(
         String currency,
         String salonName,
         String salonPhone,
-        String salonEmail
+        String salonEmail,
+        CommunicationPreference communicationPreference
 ) {}

@@ -6,5 +6,5 @@ package net.samitkumar.multi_tenant_salon.shop;
  * {@code CANCELLED} at any point.
  */
 public enum OrderStatus {
-    NEW, PROCESSING, SHIPPED, FULFILLED, CANCELLED
+    NEW, CONFIRMED, PROCESSING, READY_TO_SHIP, SHIPPED, DELIVERED, FULFILLED, CANCELLED, FAILED, ON_HOLD
 }

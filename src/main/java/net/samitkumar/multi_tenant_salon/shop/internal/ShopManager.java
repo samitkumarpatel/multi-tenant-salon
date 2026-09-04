@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.shop.Brand;
 import net.samitkumar.multi_tenant_salon.shop.Category;
+import net.samitkumar.multi_tenant_salon.shop.CommunicationPreference;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivity;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityType;
@@ -13,10 +14,8 @@ import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.shop.PaymentStatus;
 import net.samitkumar.multi_tenant_salon.shop.Product;
 import net.samitkumar.multi_tenant_salon.shop.ProductVariant;
-import net.samitkumar.multi_tenant_salon.shop.ShopCreditNote;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
-import net.samitkumar.multi_tenant_salon.shop.ShopRefund;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.InventoryRow;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderLineView;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderPage;
@@ -46,11 +45,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * The single write/read entry point for the shop module: catalogue (brands, categories, products
- * and their variants), inventory, and customer orders with the per-line activity timeline.
- * Everything is salon-scoped — callers pass the resolved salon UUID from {@code SalonApi.resolveId}.
- */
 @Slf4j
 @Service
 class ShopManager {
@@ -63,8 +57,6 @@ class ShopManager {
     private final ProductVariantRepository variantRepo;
     private final ShopOrderRepository orderRepo;
     private final OrderLineActivityRepository activityRepo;
-    private final ShopRefundRepository refundRepo;
-    private final ShopCreditNoteRepository creditNoteRepo;
     private final ShopOrderActivityRepository orderActivityRepo;
     private final SalonApi salonApi;
     private final ApplicationEventPublisher eventPublisher;
@@ -72,8 +64,7 @@ class ShopManager {
 
     ShopManager(BrandRepository brandRepo, CategoryRepository categoryRepo, ProductRepository productRepo,
                 ProductVariantRepository variantRepo, ShopOrderRepository orderRepo,
-                OrderLineActivityRepository activityRepo, ShopRefundRepository refundRepo,
-                ShopCreditNoteRepository creditNoteRepo, ShopOrderActivityRepository orderActivityRepo,
+                OrderLineActivityRepository activityRepo, ShopOrderActivityRepository orderActivityRepo,
                 SalonApi salonApi, ApplicationEventPublisher eventPublisher, JdbcTemplate jdbcTemplate) {
         this.brandRepo = brandRepo;
         this.categoryRepo = categoryRepo;
@@ -81,22 +72,20 @@ class ShopManager {
         this.variantRepo = variantRepo;
         this.orderRepo = orderRepo;
         this.activityRepo = activityRepo;
-        this.refundRepo = refundRepo;
-        this.creditNoteRepo = creditNoteRepo;
         this.orderActivityRepo = orderActivityRepo;
         this.salonApi = salonApi;
         this.eventPublisher = eventPublisher;
         this.jdbcClient = JdbcClient.create(jdbcTemplate);
     }
 
-    /** What the admin edit form sends per variant — {@code id} null = a new one. */
     public record VariantSpec(Long id, String sku, String label, BigDecimal price, BigDecimal compareAtPrice,
                               String currency, Integer quantityOnHand, Integer reorderLevel, Boolean active) {}
 
     public record CheckoutItem(Long variantId, int quantity) {}
 
     public record CheckoutRequest(String customerName, String customerEmail, String customerPhone,
-                                  ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items) {}
+                                  ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
+                                  CommunicationPreference communicationPreference) {}
 
     // ── Brands ───────────────────────────────────────────────────────────────
 
@@ -166,7 +155,6 @@ class ShopManager {
                             p.categoryId(), p.categoryId() == null ? null : categoryNames.get(p.categoryId()),
                             p.name(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), visible);
                 })
-                // the public catalogue hides products with nothing buyable
                 .filter(pv -> !activeOnly || !pv.variants().isEmpty())
                 .filter(pv -> brandId == null || Objects.equals(pv.brandId(), brandId))
                 .filter(pv -> categoryId == null || Objects.equals(pv.categoryId(), categoryId))
@@ -174,15 +162,11 @@ class ShopManager {
     }
 
     List<Brand> listPublicBrands(UUID salonId) {
-        return brandRepo.findBySalonIdOrderByNameAsc(salonId).stream()
-                .filter(Brand::active)
-                .toList();
+        return brandRepo.findBySalonIdOrderByNameAsc(salonId).stream().filter(Brand::active).toList();
     }
 
     List<Category> listPublicCategories(UUID salonId) {
-        return categoryRepo.findBySalonIdOrderByNameAsc(salonId).stream()
-                .filter(Category::active)
-                .toList();
+        return categoryRepo.findBySalonIdOrderByNameAsc(salonId).stream().filter(Category::active).toList();
     }
 
     Optional<ProductView> getProduct(UUID salonId, Long productId, boolean activeOnly) {
@@ -227,8 +211,6 @@ class ShopManager {
 
             var specs = variants == null ? List.<VariantSpec>of() : variants;
             var keepIds = specs.stream().map(VariantSpec::id).filter(Objects::nonNull).collect(Collectors.toSet());
-            // Drop removed variants. Order lines keep their price/label snapshot and their FK
-            // goes NULL (see V9 migration), so purchase history is never lost.
             variantRepo.findByProductId(productId).stream()
                     .filter(v -> !keepIds.contains(v.id()))
                     .forEach(v -> variantRepo.deleteById(v.id()));
@@ -282,19 +264,11 @@ class ShopManager {
 
     // ── Orders ───────────────────────────────────────────────────────────────
 
-    /**
-     * One page of the salon's orders, filtered server-side. {@code q} is a case-insensitive
-     * substring match against the order number, customer name / email / phone, payment reference,
-     * tracking number, and any line's product name. {@code from}/{@code to} bound {@code created_at}
-     * (inclusive of the whole {@code to} day, interpreted in UTC). {@code sort} is {@code "newest"}
-     * (default) or {@code "oldest"}. Line activity timelines are omitted from the list rows.
-     */
     OrderPage listOrders(UUID salonId, String q, OrderStatus status,
                          LocalDate from, LocalDate to, String sort, int page, int size) {
         int pageIdx = Math.max(0, page);
         int pageSize = Math.min(Math.max(size, 1), 100);
 
-        // WHERE shared by the facet-count, total-count and id-page queries.
         var where = new StringBuilder("o.salon_id = :salon");
         var params = new HashMap<String, Object>();
         params.put("salon", salonId);
@@ -318,7 +292,6 @@ class ShopManager {
             params.put("q", "%" + escaped + "%");
         }
 
-        // Status facet counts over the search / date scope — deliberately ignores `status`.
         var facet = new EnumMap<OrderStatus, Long>(OrderStatus.class);
         for (OrderStatus s : OrderStatus.values()) facet.put(s, 0L);
         jdbcClient.sql("SELECT o.status AS status, COUNT(*) AS c FROM shop_order o WHERE " + where
@@ -328,7 +301,6 @@ class ShopManager {
                 .list()
                 .forEach(e -> facet.put(e.getKey(), e.getValue()));
 
-        // From here on the status filter joins the WHERE for the actual page.
         if (status != null) {
             where.append(" AND o.status = :status");
             params.put("status", status.name());
@@ -356,7 +328,7 @@ class ShopManager {
         var content = ids.stream()
                 .map(byId::get)
                 .filter(Objects::nonNull)
-                .map(o -> toOrderView(o, Map.of()))
+                .map(o -> toOrderView(o, Map.of(), List.of()))
                 .toList();
 
         int totalPages = (int) Math.ceil(total / (double) pageSize);
@@ -398,8 +370,6 @@ class ShopManager {
                     .filter(Product::active)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "This product is no longer available"));
 
-            // Atomic conditional decrement — two simultaneous buyers are serialised by the row
-            // lock, and whoever would push stock negative gets 0 rows back and a 409.
             int changed = jdbcClient.sql("""
                             UPDATE product_variant SET quantity_on_hand = quantity_on_hand - :qty
                             WHERE id = :id AND salon_id = :salon AND active = true AND quantity_on_hand >= :qty
@@ -423,11 +393,17 @@ class ShopManager {
         }
 
         var now = Instant.now();
+        var finalCurrency = currency != null ? currency : DEFAULT_CURRENCY;
+        var pref = req.communicationPreference() != null ? req.communicationPreference() : CommunicationPreference.IMPORTANT_ONLY;
         var order = new ShopOrder(null, salonId, generateOrderNumber(),
                 req.customerName().trim(), req.customerEmail().trim(), trimToNull(req.customerPhone()),
                 req.shippingAddress(), OrderStatus.NEW, PaymentStatus.PAID,
                 "DUMMY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT),
-                subtotal, currency != null ? currency : DEFAULT_CURRENCY, now, null, null, lines);
+                subtotal, finalCurrency, now, null, null, pref,
+                null, null, null,
+                null, null, null, null,
+                null, null, null,
+                lines);
         var saved = orderRepo.save(order);
 
         for (var line : saved.lines()) {
@@ -440,7 +416,8 @@ class ShopManager {
         eventPublisher.publishEvent(new OrderPlacedEvent(saved.id(), salonId, saved.orderNumber(),
                 saved.customerName(), saved.customerEmail(), saved.customerPhone(),
                 saved.lines().stream().mapToInt(ShopOrder.OrderLine::quantity).sum(),
-                saved.subtotal(), saved.currency(), contact.name(), contact.phone(), contact.email()));
+                saved.subtotal(), saved.currency(), contact.name(), contact.phone(), contact.email(),
+                saved.communicationPreference()));
 
         recordOrderActivity(saved.id(), salonId, "ORDER_PLACED",
                 "Order " + saved.orderNumber() + " placed by " + saved.customerName(),
@@ -455,6 +432,15 @@ class ShopManager {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
         if (order == null) return Optional.empty();
         if (order.status() == newStatus) return getOrder(salonId, orderId);
+
+        if (newStatus == OrderStatus.CANCELLED) {
+            var current = order.status();
+            if (current == OrderStatus.SHIPPED || current == OrderStatus.DELIVERED
+                    || current == OrderStatus.FULFILLED) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Cannot cancel a " + current.name().toLowerCase() + " order. Start a return instead.");
+            }
+        }
 
         jdbcClient.sql("UPDATE shop_order SET status = :s WHERE id = :id AND salon_id = :salon")
                 .param("s", newStatus.name())
@@ -474,7 +460,8 @@ class ShopManager {
                 actor, true, order.customerEmail(), order.customerPhone());
         var contact = salonContact(salonId);
         eventPublisher.publishEvent(new OrderStatusChangedEvent(orderId, salonId, order.orderNumber(), newStatus,
-                order.customerName(), order.customerEmail(), contact.name(), contact.phone(), contact.email()));
+                order.customerName(), order.customerEmail(), contact.name(), contact.phone(), contact.email(),
+                order.communicationPreference()));
         log.info("[ShopManager] Order id={} salon={} status → {}", orderId, salonId, newStatus);
         return getOrder(salonId, orderId);
     }
@@ -514,24 +501,33 @@ class ShopManager {
 
     // ── Order-level activities ─────────────────────────────────────────────────
 
-    /** Records an order-level activity and, when {@code notify=true}, logs a dummy notification. */
+    private static boolean isImportantActivity(String type) {
+        return switch (type) {
+            case "SHIPMENT_CREATED", "INVOICE_SENT", "REFUND_ACCEPTED", "CREDIT_PAID" -> true;
+            default -> false;
+        };
+    }
+
     private ShopOrderActivity recordOrderActivity(Long orderId, UUID salonId, String type, String message,
                                                   String actor, boolean notify, String customerEmail, String customerPhone) {
-        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, notify,
+        boolean shouldNotify = notify;
+        if (shouldNotify) {
+            var commPref = orderRepo.findById(orderId)
+                    .map(ShopOrder::communicationPreference)
+                    .orElse(CommunicationPreference.IMPORTANT_ONLY);
+            if (commPref == CommunicationPreference.IMPORTANT_ONLY && !isImportantActivity(type)) {
+                shouldNotify = false;
+            }
+        }
+        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, shouldNotify,
                 null, null, null, null, Instant.now()));
-        if (notify) {
+        if (shouldNotify) {
             log.info("[NOTIFICATION] To: {} | Phone: {} | Type: {} | Message: {}",
                     customerEmail, customerPhone != null ? customerPhone : "—", type, message);
         }
         return activity;
     }
 
-    /**
-     * Appends the exact email a customer received to an order's activity timeline. Driven by
-     * {@link net.samitkumar.multi_tenant_salon.shop.OrderCustomerNotifiedEvent}, which the
-     * notification module publishes once it has dispatched (or logged) the message — so the
-     * salon admin can open any order and see everything that went out.
-     */
     @Transactional
     void recordCustomerNotification(UUID salonId, String orderNumber, String channel, String recipient,
                                     String subject, String body, String status, Instant sentAt) {
@@ -549,9 +545,11 @@ class ShopManager {
     Optional<OrderView> sendInvoice(UUID salonId, Long orderId) {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        var invoiceNumber = "INV-" + order.orderNumber();
         recordOrderActivity(orderId, salonId, "INVOICE_SENT",
-                "Invoice for order " + order.orderNumber() + " sent to " + order.customerEmail(),
+                "Invoice " + invoiceNumber + " issued and sent to " + order.customerEmail(),
                 "admin", true, order.customerEmail(), order.customerPhone());
+        log.info("[ShopManager] Invoice sent for orderId={}", orderId);
         return getOrder(salonId, orderId);
     }
 
@@ -562,98 +560,202 @@ class ShopManager {
         return getOrder(salonId, orderId);
     }
 
-    // ── Refunds ───────────────────────────────────────────────────────────────
+    @Transactional
+    Optional<OrderView> addShipping(UUID salonId, Long orderId, String carrier, String trackingNumber) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null) return Optional.empty();
 
-    List<ShopRefund> listRefunds(UUID salonId) {
-        return refundRepo.findBySalonIdOrderByCreatedAtDesc(salonId);
-    }
+        jdbcClient.sql("UPDATE shop_order SET tracking_carrier = :c, tracking_number = :t WHERE id = :id AND salon_id = :salon")
+                .param("c", trimToNull(carrier))
+                .param("t", trimToNull(trackingNumber))
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
 
-    List<ShopRefund> listRefundsForOrder(UUID salonId, Long orderId) {
-        return refundRepo.findByOrderIdAndSalonIdOrderByCreatedAtDesc(orderId, salonId);
+        if (order.status() != OrderStatus.SHIPPED && order.status() != OrderStatus.DELIVERED
+                && order.status() != OrderStatus.FULFILLED) {
+            jdbcClient.sql("UPDATE shop_order SET status = 'SHIPPED' WHERE id = :id AND salon_id = :salon")
+                    .param("id", orderId).param("salon", salonId).update();
+        }
+
+        var msg = "Shipment dispatched"
+                + (carrier != null && !carrier.isBlank() ? " via " + carrier.trim() : "")
+                + (trackingNumber != null && !trackingNumber.isBlank() ? " — tracking: " + trackingNumber.trim() : "");
+        recordOrderActivity(orderId, salonId, "SHIPMENT_CREATED", msg, "admin", true,
+                order.customerEmail(), order.customerPhone());
+        log.info("[ShopManager] Shipping set orderId={} carrier={} tracking={}", orderId, carrier, trackingNumber);
+        return getOrder(salonId, orderId);
     }
 
     @Transactional
-    ShopRefund createRefund(UUID salonId, Long orderId, BigDecimal amount, String reason) {
+    Optional<OrderView> notifyCustomer(UUID salonId, Long orderId, String message) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null) return Optional.empty();
+        requireText(message, "Message is required");
+        recordOrderActivity(orderId, salonId, "CUSTOMER_NOTIFIED", message.trim(), "admin", true,
+                order.customerEmail(), order.customerPhone());
+        return getOrder(salonId, orderId);
+    }
+
+    // ── Refunds (inline on order) ─────────────────────────────────────────────
+
+    List<OrderView> listRefunds(UUID salonId) {
+        return orderRepo.findBySalonIdOrderByCreatedAtDesc(salonId).stream()
+                .filter(o -> o.refundStatus() != null)
+                .map(o -> toOrderView(o, Map.of(), List.of()))
+                .toList();
+    }
+
+    @Transactional
+    OrderView createRefund(UUID salonId, Long orderId, BigDecimal amount, String reason) {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
-        var refund = refundRepo.save(new ShopRefund(null, salonId, orderId, amount, reason, "PENDING", Instant.now()));
+        if (order.refundStatus() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A refund already exists for this order");
+        }
+        jdbcClient.sql("UPDATE shop_order SET refund_amount = :a, refund_reason = :r, refund_status = 'PENDING' WHERE id = :id AND salon_id = :salon")
+                .param("a", amount)
+                .param("r", trimToNull(reason))
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
         var msg = "Refund of " + amount + " " + order.currency() + (reason != null && !reason.isBlank() ? " — " + reason : "") + " initiated";
         recordOrderActivity(orderId, salonId, "REFUND_INITIATED", msg, "admin", true, order.customerEmail(), order.customerPhone());
-        return refund;
+        return getOrder(salonId, orderId).orElseThrow();
     }
 
     @Transactional
-    ShopRefund acceptRefund(UUID salonId, Long refundId) {
-        var refund = refundRepo.findById(refundId)
-                .filter(r -> r.salonId().equals(salonId))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Refund not found"));
-        var updated = refundRepo.save(new ShopRefund(refund.id(), refund.salonId(), refund.orderId(),
-                refund.amount(), refund.reason(), "ACCEPTED", refund.createdAt()));
-        var order = orderRepo.findByIdAndSalonId(refund.orderId(), salonId).orElse(null);
-        if (order != null) {
-            // Auto-create a credit note for the accepted refund amount
-            var ref = "CN-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
-            creditNoteRepo.save(new ShopCreditNote(null, salonId, refund.orderId(),
-                    refund.amount(), refund.reason(), ref, "PENDING", Instant.now()));
-            recordOrderActivity(refund.orderId(), salonId, "REFUND_ACCEPTED",
-                    "Refund of " + refund.amount() + " " + order.currency() + " accepted — credit note created",
-                    "admin", true, order.customerEmail(), order.customerPhone());
-        }
-        return updated;
-    }
-
-    @Transactional
-    ShopRefund rejectRefund(UUID salonId, Long refundId) {
-        var refund = refundRepo.findById(refundId)
-                .filter(r -> r.salonId().equals(salonId))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Refund not found"));
-        var updated = refundRepo.save(new ShopRefund(refund.id(), refund.salonId(), refund.orderId(),
-                refund.amount(), refund.reason(), "REJECTED", refund.createdAt()));
-        var order = orderRepo.findByIdAndSalonId(refund.orderId(), salonId).orElse(null);
-        if (order != null) {
-            recordOrderActivity(refund.orderId(), salonId, "REFUND_REJECTED",
-                    "Refund of " + refund.amount() + " " + order.currency() + " rejected",
-                    "admin", true, order.customerEmail(), order.customerPhone());
-        }
-        return updated;
-    }
-
-    // ── Credit notes ─────────────────────────────────────────────────────────
-
-    List<ShopCreditNote> listCreditNotes(UUID salonId) {
-        return creditNoteRepo.findBySalonIdOrderByCreatedAtDesc(salonId);
-    }
-
-    List<ShopCreditNote> listCreditNotesForOrder(UUID salonId, Long orderId) {
-        return creditNoteRepo.findByOrderIdAndSalonIdOrderByCreatedAtDesc(orderId, salonId);
-    }
-
-    @Transactional
-    ShopCreditNote createCreditNote(UUID salonId, Long orderId, BigDecimal amount, String reason, String reference) {
+    OrderView approveRefund(UUID salonId, Long orderId) {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
-        var note = creditNoteRepo.save(new ShopCreditNote(null, salonId, orderId, amount, reason, reference, "PENDING", Instant.now()));
-        recordOrderActivity(orderId, salonId, "CREDIT_NOTE_CREATED",
-                "Credit note of " + amount + " " + order.currency() + " created",
-                "admin", true, order.customerEmail(), order.customerPhone());
-        log.info("[CREDIT_NOTE] Created credit note id={} orderId={} amount={} ref={}", note.id(), orderId, amount, reference);
-        return note;
+        if (!"PENDING".equals(order.refundStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only PENDING refunds can be approved");
+        }
+        jdbcClient.sql("UPDATE shop_order SET refund_status = 'APPROVED' WHERE id = :id AND salon_id = :salon")
+                .param("id", orderId).param("salon", salonId).update();
+        recordOrderActivity(orderId, salonId, "REFUND_APPROVED",
+                "Refund of " + order.refundAmount() + " " + order.currency() + " approved — awaiting item return",
+                "admin", false, null, null);
+        return getOrder(salonId, orderId).orElseThrow();
     }
 
     @Transactional
-    ShopCreditNote payCreditNote(UUID salonId, Long creditNoteId) {
-        var note = creditNoteRepo.findById(creditNoteId)
-                .filter(n -> n.salonId().equals(salonId))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Credit note not found"));
-        var updated = creditNoteRepo.save(new ShopCreditNote(note.id(), note.salonId(), note.orderId(),
-                note.amount(), note.reason(), note.reference(), "PAID", note.createdAt()));
-        var order = orderRepo.findByIdAndSalonId(note.orderId(), salonId).orElse(null);
-        if (order != null) {
-            recordOrderActivity(note.orderId(), salonId, "CREDIT_PAID",
-                    "Credit note of " + note.amount() + " " + order.currency() + " paid back to customer",
-                    "admin", true, order.customerEmail(), order.customerPhone());
+    OrderView acceptRefund(UUID salonId, Long orderId) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (!"APPROVED".equals(order.refundStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only APPROVED refunds can be accepted");
         }
-        return updated;
+        var ref = "CN-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
+        var now = Instant.now();
+        jdbcClient.sql("""
+                UPDATE shop_order SET refund_status = 'ACCEPTED',
+                    credit_note_ref = :ref, credit_note_status = 'PENDING', credit_note_at = :at
+                WHERE id = :id AND salon_id = :salon
+                """)
+                .param("ref", ref)
+                .param("at", now)
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
+        recordOrderActivity(orderId, salonId, "REFUND_ACCEPTED",
+                "Refund of " + order.refundAmount() + " " + order.currency() + " processed — credit note " + ref + " created",
+                "admin", true, order.customerEmail(), order.customerPhone());
+        return getOrder(salonId, orderId).orElseThrow();
+    }
+
+    @Transactional
+    OrderView rejectRefund(UUID salonId, Long orderId) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (order.refundStatus() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No refund on this order");
+        }
+        jdbcClient.sql("UPDATE shop_order SET refund_status = 'REJECTED' WHERE id = :id AND salon_id = :salon")
+                .param("id", orderId).param("salon", salonId).update();
+        recordOrderActivity(orderId, salonId, "REFUND_REJECTED",
+                "Refund of " + order.refundAmount() + " " + order.currency() + " rejected",
+                "admin", true, order.customerEmail(), order.customerPhone());
+        return getOrder(salonId, orderId).orElseThrow();
+    }
+
+    // ── Credit note (inline on order) ─────────────────────────────────────────
+
+    @Transactional
+    OrderView payCreditNote(UUID salonId, Long orderId) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (!"PENDING".equals(order.creditNoteStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No pending credit note on this order");
+        }
+        jdbcClient.sql("UPDATE shop_order SET credit_note_status = 'PAID' WHERE id = :id AND salon_id = :salon")
+                .param("id", orderId).param("salon", salonId).update();
+        recordOrderActivity(orderId, salonId, "CREDIT_PAID",
+                "Credit note " + order.creditNoteRef() + " paid back to customer",
+                "admin", true, order.customerEmail(), order.customerPhone());
+        return getOrder(salonId, orderId).orElseThrow();
+    }
+
+    // ── Credit note list ──────────────────────────────────────────────────────
+
+    List<OrderView> listCreditNoteOrders(UUID salonId) {
+        return orderRepo.findBySalonIdOrderByCreatedAtDesc(salonId).stream()
+                .filter(o -> o.creditNoteRef() != null)
+                .map(o -> toOrderView(o, Map.of(), List.of()))
+                .toList();
+    }
+
+    // ── Returns (inline on order) ─────────────────────────────────────────────
+
+    List<OrderView> listReturns(UUID salonId) {
+        return orderRepo.findBySalonIdOrderByCreatedAtDesc(salonId).stream()
+                .filter(o -> o.returnStatus() != null)
+                .map(o -> toOrderView(o, Map.of(), List.of()))
+                .toList();
+    }
+
+    @Transactional
+    OrderView createReturn(UUID salonId, Long orderId, String reason) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (order.returnStatus() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A return already exists for this order");
+        }
+        var now = Instant.now();
+        jdbcClient.sql("UPDATE shop_order SET return_status = 'REQUESTED', return_reason = :r, return_updated_at = :at WHERE id = :id AND salon_id = :salon")
+                .param("r", trimToNull(reason))
+                .param("at", now)
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
+        recordOrderActivity(orderId, salonId, "RETURN_REQUESTED",
+                "Return requested" + (reason != null && !reason.isBlank() ? " — " + reason : ""),
+                "customer", true, order.customerEmail(), order.customerPhone());
+        log.info("[ShopManager] Return created orderId={} salon={}", orderId, salonId);
+        return getOrder(salonId, orderId).orElseThrow();
+    }
+
+    @Transactional
+    OrderView updateReturnStatus(UUID salonId, Long orderId, String status, String notes) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (order.returnStatus() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No return on this order");
+        }
+        var now = Instant.now();
+        jdbcClient.sql("UPDATE shop_order SET return_status = :s, return_notes = :n, return_updated_at = :at WHERE id = :id AND salon_id = :salon")
+                .param("s", status)
+                .param("n", trimToNull(notes))
+                .param("at", now)
+                .param("id", orderId)
+                .param("salon", salonId)
+                .update();
+        boolean notify = "APPROVED".equals(status) || "ACCEPTED".equals(status);
+        recordOrderActivity(orderId, salonId, "RETURN_UPDATED",
+                "Return → " + status.toLowerCase().replace('_', ' '),
+                "admin", notify, order.customerEmail(), order.customerPhone());
+        log.info("[ShopManager] Return status orderId={} → {}", orderId, status);
+        return getOrder(salonId, orderId).orElseThrow();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -692,9 +794,6 @@ class ShopManager {
         return p.images().stream().map(Product.ProductImage::value).toList();
     }
 
-    /** The ordered gallery to persist: an explicit {@code images} list wins; otherwise fall back to
-     *  the legacy single {@code imageUrl}. Blanks and duplicates are dropped, order is preserved,
-     *  and the list is capped so a malformed request can't insert thousands of rows. */
     private static List<String> resolveImages(String imageUrl, List<String> images) {
         var src = images != null ? images
                 : imageUrl != null ? List.of(imageUrl)
@@ -708,10 +807,6 @@ class ShopManager {
                 .toList();
     }
 
-    private OrderView toOrderView(ShopOrder o, Map<Long, List<OrderLineActivity>> activitiesByLine) {
-        return toOrderView(o, activitiesByLine, List.of());
-    }
-
     private OrderView toOrderView(ShopOrder o, Map<Long, List<OrderLineActivity>> activitiesByLine,
                                   List<ShopOrderActivity> orderActivities) {
         var lines = o.lines().stream()
@@ -721,36 +816,11 @@ class ShopManager {
                 .toList();
         return new OrderView(o.id(), o.salonId(), o.orderNumber(), o.customerName(), o.customerEmail(), o.customerPhone(),
                 o.shippingAddress(), o.status(), o.paymentStatus(), o.paymentReference(), o.subtotal(), o.currency(),
-                o.createdAt(), o.trackingCarrier(), o.trackingNumber(), lines, orderActivities);
-    }
-
-    @Transactional
-    Optional<OrderView> addShipping(UUID salonId, Long orderId, String carrier, String trackingNumber) {
-        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
-        if (order == null) return Optional.empty();
-        jdbcClient.sql("UPDATE shop_order SET tracking_carrier = :c, tracking_number = :t, status = 'SHIPPED' WHERE id = :id AND salon_id = :salon")
-                .param("c", trimToNull(carrier))
-                .param("t", trimToNull(trackingNumber))
-                .param("id", orderId)
-                .param("salon", salonId)
-                .update();
-        var msg = "Shipment dispatched"
-                + (carrier != null && !carrier.isBlank() ? " via " + carrier.trim() : "")
-                + (trackingNumber != null && !trackingNumber.isBlank() ? " — tracking: " + trackingNumber.trim() : "");
-        recordOrderActivity(orderId, salonId, "SHIPMENT_CREATED", msg, "admin", true,
-                order.customerEmail(), order.customerPhone());
-        log.info("[ShopManager] Shipping set orderId={} carrier={} tracking={}", orderId, carrier, trackingNumber);
-        return getOrder(salonId, orderId);
-    }
-
-    @Transactional
-    Optional<OrderView> notifyCustomer(UUID salonId, Long orderId, String message) {
-        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
-        if (order == null) return Optional.empty();
-        requireText(message, "Message is required");
-        recordOrderActivity(orderId, salonId, "CUSTOMER_NOTIFIED", message.trim(), "admin", true,
-                order.customerEmail(), order.customerPhone());
-        return getOrder(salonId, orderId);
+                o.createdAt(), o.trackingCarrier(), o.trackingNumber(), o.communicationPreference(),
+                o.refundAmount(), o.refundReason(), o.refundStatus(),
+                o.returnStatus(), o.returnReason(), o.returnNotes(), o.returnUpdatedAt(),
+                o.creditNoteRef(), o.creditNoteStatus(), o.creditNoteAt(),
+                lines, orderActivities);
     }
 
     private record SalonContact(String name, String phone, String email) {}
@@ -764,17 +834,21 @@ class ShopManager {
     }
 
     private static String generateOrderNumber() {
-        // nanoTime can be negative — mask the sign so the number is always clean base-36.
         return "SO-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
     }
 
     private static String prettyStatus(OrderStatus s) {
         return switch (s) {
             case NEW -> "new";
+            case CONFIRMED -> "confirmed";
             case PROCESSING -> "processing";
+            case READY_TO_SHIP -> "ready to ship";
             case SHIPPED -> "shipped";
+            case DELIVERED -> "delivered";
             case FULFILLED -> "fulfilled";
             case CANCELLED -> "cancelled";
+            case FAILED -> "failed";
+            case ON_HOLD -> "on hold";
         };
     }
 

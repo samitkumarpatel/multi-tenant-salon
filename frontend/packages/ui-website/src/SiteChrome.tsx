@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, Globe, Mail, MapPin, Phone, ShoppingCart,
+  ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, Globe, Mail, MapPin, Phone, ShoppingCart, User,
 } from "lucide-react";
 import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
@@ -45,7 +45,7 @@ function BetaBadge({ color }: { color: string }) {
 
 export function SiteHeader({
   salon, theme, current, onBack, getPagePath, onNavigate, standalone = false, headerExtra,
-  cartCount, onCartOpen,
+  cartCount, onCartOpen, onAvatarOpen,
 }: {
   salon: Salon;
   theme: WebsiteTheme;
@@ -60,6 +60,8 @@ export function SiteHeader({
   /** When in shop, show a cart icon in the header */
   cartCount?: number;
   onCartOpen?: () => void;
+  /** When in shop, show an avatar icon (future: account panel) */
+  onAvatarOpen?: () => void;
 }) {
   const open        = isOpenNow(salon.operatingHours);
   const hasBooking  = salon.features?.includes("BOOKING");
@@ -134,31 +136,47 @@ export function SiteHeader({
         </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <span className={`hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
-              open
-                ? "bg-amber-50 text-amber-700 border-amber-200"
-                : "bg-slate-50 text-slate-400 border-slate-200"
-            }`}>
-              {open && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-              {open ? "Open now" : "Closed"}
-            </span>
+            {current !== "shop" && (
+              <span className={`hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                open
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-slate-50 text-slate-400 border-slate-200"
+              }`}>
+                {open && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
+                {open ? "Open now" : "Closed"}
+              </span>
+            )}
             {current === "shop" && onCartOpen ? (
-              <button
-                onClick={onCartOpen}
-                className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
-                style={{ backgroundColor: theme.accentColor, color: accentText }}
-              >
-                <ShoppingCart className="w-4 h-4" />
-                <span className="hidden sm:inline">Cart</span>
-                {(cartCount ?? 0) > 0 && (
-                  <span
-                    className="min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center"
-                    style={{ backgroundColor: accentText, color: theme.accentColor }}
-                  >
-                    {cartCount}
-                  </span>
-                )}
-              </button>
+              <>
+                <button
+                  onClick={onAvatarOpen}
+                  aria-label="Account"
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer"
+                  style={{
+                    backgroundColor: headerIsLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.10)",
+                    border: `1.5px solid ${headerIsLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.18)"}`,
+                    color: headerText,
+                  }}
+                >
+                  <User className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onCartOpen}
+                  className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
+                  style={{ backgroundColor: theme.accentColor, color: accentText }}
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span className="hidden sm:inline">Cart</span>
+                  {(cartCount ?? 0) > 0 && (
+                    <span
+                      className="min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center"
+                      style={{ backgroundColor: accentText, color: theme.accentColor }}
+                    >
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+              </>
             ) : current === "book" ? (
               <span
                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"

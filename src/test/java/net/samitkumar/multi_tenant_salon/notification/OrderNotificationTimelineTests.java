@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.notification;
 
 import com.jayway.jsonpath.JsonPath;
+import net.samitkumar.multi_tenant_salon.MultiTenantSalonApplication;
 import net.samitkumar.multi_tenant_salon.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ import static org.awaitility.Awaitility.await;
  * {@code notification} modules plus their listeners. Mailjet is unconfigured in tests, so the
  * recorded status is {@code LOGGED}, not {@code SENT}.
  */
-@SpringBootTest
+@SpringBootTest(classes = MultiTenantSalonApplication.class)
 @Import(TestcontainersConfiguration.class)
 class OrderNotificationTimelineTests {
 
@@ -74,6 +75,7 @@ class OrderNotificationTimelineTests {
                         {
                           "customerName": "Alex Doe",
                           "customerEmail": "alex@example.com",
+                          "communicationPreference": "ALL",
                           "items": [ { "variantId": %d, "quantity": 1 } ]
                         }
                         """.formatted(variantId))

@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronLeft, ChevronRight, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, X,
+  ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, User, X,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
 import { formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import { contrastText, fontStack, isLightColor } from "./theme";
+import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
 import { useCart } from "./shopCart";
 import PhoneInput from "./PhoneInput";
 import type { CartLine, Country, Salon, ShopBrand, ShopCategory, ShopOrder, ShopProduct, ShopShippingAddress, ShopVariant, WebsiteTheme } from "./types";
@@ -46,6 +46,8 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
   const [brands, setBrands] = useState<ShopBrand[]>([]);
   const [categories, setCategories] = useState<ShopCategory[]>([]);
 
+  useEffect(() => { loadGoogleFont(theme.fontFamily); }, [theme.fontFamily]);
+
   useEffect(() => {
     apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`).then(setCountries).catch(() => {});
     apiFetch<ShopBrand[]>(`${API_BASE}/api/salon/${salon.id}/shop/brands`).then(setBrands).catch(() => {});
@@ -54,6 +56,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
 
   const [picked, setPicked] = useState<Record<number, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<ShopProduct | null>(null);
   const [step, setStep] = useState<Step>("browse");
   const [placed, setPlaced] = useState<ShopOrder | null>(null);
@@ -129,6 +132,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         onNavigate={(page) => onNavigate?.(page)}
         cartCount={cart.count}
         onCartOpen={() => setCartOpen(true)}
+        onAvatarOpen={() => setAvatarOpen(true)}
       />
       <main className="flex-1">{body}</main>
       <SiteFooter salon={salon} theme={theme} current="shop" onBack={goHome} getPagePath={getPagePath} />
@@ -368,6 +372,12 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           setCartOpen(false);
           setStep("checkout");
         }}
+      />
+
+      <UserAccountPanel
+        open={avatarOpen}
+        onClose={() => setAvatarOpen(false)}
+        theme={theme}
       />
 
       {detailProduct && (
@@ -950,6 +960,7 @@ function CheckoutForm({
     line1: "", line2: "", city: "", state: "",
     country: salon.location?.country ?? "",
     zipCode: "",
+    communicationPreference: "IMPORTANT_ONLY" as "ALL" | "IMPORTANT_ONLY",
   });
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -1009,6 +1020,7 @@ function CheckoutForm({
           customerPhone: f.customerPhone.trim() || undefined,
           shippingAddress: address,
           items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
+          communicationPreference: f.communicationPreference,
         }),
       });
       onPlaced(order);
@@ -1128,6 +1140,49 @@ function CheckoutForm({
               </label>
             </div>
           </div>
+
+          {/* Communication preference */}
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>
+              Order notifications
+            </p>
+            <div className="flex flex-col gap-2">
+              {(["IMPORTANT_ONLY", "ALL"] as const).map((opt) => {
+                const selected = f.communicationPreference === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setF((p) => ({ ...p, communicationPreference: opt }))}
+                    className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all cursor-pointer"
+                    style={{
+                      backgroundColor: selected ? `${theme.accentColor}18` : cardBg,
+                      border: `1.5px solid ${selected ? theme.accentColor : cardBorder}`,
+                    }}
+                  >
+                    <span
+                      className="mt-0.5 w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
+                      style={{ border: `2px solid ${selected ? theme.accentColor : cardBorder}` }}
+                    >
+                      {selected && (
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                      )}
+                    </span>
+                    <span>
+                      <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>
+                        {opt === "IMPORTANT_ONLY" ? "Important only" : "All updates"}
+                      </span>
+                      <span className="text-[11px]" style={{ color: sub }}>
+                        {opt === "IMPORTANT_ONLY"
+                          ? "Shipping, invoice, refund & credit notifications"
+                          : "Every status change and activity on your order"}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         <div
@@ -1172,6 +1227,124 @@ function CheckoutForm({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── User account panel ────────────────────────────────────────────────────────
+
+function UserAccountPanel({
+  open, onClose, theme,
+}: {
+  open: boolean;
+  onClose: () => void;
+  theme: WebsiteTheme;
+}) {
+  const heroLight = isLightColor(theme.heroBg);
+  const sub = heroLight ? "#475569" : "#94A3B8";
+  const panelBg = heroLight ? "#FFFFFF" : "#0F172A";
+  const border = heroLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.12)";
+  const inputBg = heroLight ? "#F8FAFC" : "rgba(255,255,255,0.06)";
+  const inputBorder = heroLight ? "rgba(15,23,42,0.15)" : "rgba(255,255,255,0.18)";
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      style={{ fontFamily: fontStack(theme.fontFamily) }}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Slide-in panel */}
+      <aside
+        className="relative w-full max-w-xs h-full flex flex-col shadow-2xl"
+        style={{ backgroundColor: panelBg }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 h-14 border-b" style={{ borderColor: border }}>
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4" style={{ color: theme.accentColor }} />
+            <span className="text-sm font-bold" style={{ color: heroLight ? "#0F172A" : "#F8FAFC" }}>
+              My Account
+            </span>
+          </div>
+          <button onClick={onClose} className="cursor-pointer" style={{ color: sub }}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 flex flex-col px-5 py-6 gap-5">
+          {/* Coming soon banner */}
+          <div
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs"
+            style={{
+              backgroundColor: `${theme.accentColor}12`,
+              border: `1px solid ${theme.accentColor}30`,
+              color: theme.accentColor,
+            }}
+          >
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-semibold">Customer accounts — coming soon</span>
+          </div>
+
+          <p className="text-xs leading-relaxed" style={{ color: sub }}>
+            Sign in with your email or mobile number to track orders, manage returns, and save your details for faster checkout.
+          </p>
+
+          {/* Email input */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: sub }}>
+              Email
+            </label>
+            <input
+              type="email"
+              disabled
+              placeholder="your@email.com"
+              className="w-full text-sm rounded-lg px-3 py-2.5 outline-none cursor-not-allowed opacity-50"
+              style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, color: heroLight ? "#0F172A" : "#F8FAFC" }}
+            />
+          </div>
+
+          <div className="flex items-center gap-2" style={{ color: sub }}>
+            <div className="flex-1 h-px" style={{ backgroundColor: border }} />
+            <span className="text-[10px] font-medium">or</span>
+            <div className="flex-1 h-px" style={{ backgroundColor: border }} />
+          </div>
+
+          {/* Mobile input */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: sub }}>
+              Mobile number
+            </label>
+            <input
+              type="tel"
+              disabled
+              placeholder="+1 (555) 000-0000"
+              className="w-full text-sm rounded-lg px-3 py-2.5 outline-none cursor-not-allowed opacity-50"
+              style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, color: heroLight ? "#0F172A" : "#F8FAFC" }}
+            />
+          </div>
+
+          {/* Disabled continue button */}
+          <button
+            disabled
+            className="w-full text-sm font-semibold px-4 py-3 rounded-xl opacity-40 cursor-not-allowed"
+            style={{ backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) }}
+          >
+            Continue
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }

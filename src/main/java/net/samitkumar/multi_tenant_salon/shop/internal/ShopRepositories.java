@@ -5,10 +5,8 @@ import net.samitkumar.multi_tenant_salon.shop.Category;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivity;
 import net.samitkumar.multi_tenant_salon.shop.Product;
 import net.samitkumar.multi_tenant_salon.shop.ProductVariant;
-import net.samitkumar.multi_tenant_salon.shop.ShopCreditNote;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
-import net.samitkumar.multi_tenant_salon.shop.ShopRefund;
 import org.springframework.data.repository.ListCrudRepository;
 
 import java.util.Collection;
@@ -47,16 +45,6 @@ interface ShopOrderRepository extends ListCrudRepository<ShopOrder, Long> {
 
 interface OrderLineActivityRepository extends ListCrudRepository<OrderLineActivity, Long> {
     List<OrderLineActivity> findByOrderLineIdInOrderByCreatedAtAsc(Collection<Long> orderLineIds);
-}
-
-interface ShopRefundRepository extends ListCrudRepository<ShopRefund, Long> {
-    List<ShopRefund> findBySalonIdOrderByCreatedAtDesc(UUID salonId);
-    List<ShopRefund> findByOrderIdAndSalonIdOrderByCreatedAtDesc(Long orderId, UUID salonId);
-}
-
-interface ShopCreditNoteRepository extends ListCrudRepository<ShopCreditNote, Long> {
-    List<ShopCreditNote> findBySalonIdOrderByCreatedAtDesc(UUID salonId);
-    List<ShopCreditNote> findByOrderIdAndSalonIdOrderByCreatedAtDesc(Long orderId, UUID salonId);
 }
 
 interface ShopOrderActivityRepository extends ListCrudRepository<ShopOrderActivity, Long> {

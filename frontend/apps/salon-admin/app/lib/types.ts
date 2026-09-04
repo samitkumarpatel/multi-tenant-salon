@@ -4,8 +4,9 @@ export type {
   AvailableSlot, StaffAvailability, StaffAvailabilityOverride, SalonClosure, SalonHoliday,
   ShopBrand, ShopCategory, ShopVariant, ShopProduct, ShopInventoryRow,
   ShopShippingAddress, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
-  OrderLineActivity, OrderLineActivityType, ShopRefund, ShopCreditNote, ShopRefundStatus,
+  OrderLineActivity, OrderLineActivityType, ShopRefundStatus, ShopReturnStatus, ShopCreditNoteStatus,
   ShopOrderActivity, ShopOrderActivityType,
+  CommunicationPreference,
 } from "@salon/ui-website";
 
 import type { Salon, WebsiteMode } from "@salon/ui-website";

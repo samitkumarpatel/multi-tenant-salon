@@ -4,39 +4,38 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   ArrowLeft, Banknote, Bell, Check, CheckCheck, FileText, Mail,
   MapPin, Package, Phone, Receipt, RefreshCcw, Send, Truck, X,
+  RotateCcw,
 } from "lucide-react";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
-import { ORDER_STATUS_LABEL, ORDER_STATUS_STYLE, relativeTime } from "~/lib/shopOrders";
+import {
+  ORDER_STATUS_LABEL, ORDER_STATUS_STYLE, relativeTime,
+  RETURN_STATUS_LABEL, RETURN_STATUS_STYLE,
+} from "~/lib/shopOrders";
 import { Toast, useToast } from "@salon/ui-shared";
-import type {
-  ShopCreditNote, ShopOrder, ShopOrderActivity, ShopOrderActivityType,
-  ShopOrderStatus, ShopRefund,
-} from "~/lib/types";
+import type { ShopOrder, ShopOrderActivity, ShopOrderActivityType, ShopOrderStatus } from "~/lib/types";
 import type { ShopOutletContext } from "./shop";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const [order, refunds, creditNotes] = await Promise.all([
-    apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`),
-    apiFetch<ShopRefund[]>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}/refunds`),
-    apiFetch<ShopCreditNote[]>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}/credit-notes`),
-  ]);
-  return { sid, order, refunds, creditNotes };
+  const order = await apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`);
+  return { sid, order };
 }
 
-const ACTIVITY_META: Record<ShopOrderActivityType, { label: string; dot: string; color?: string }> = {
-  ORDER_PLACED:        { label: "Order placed",        dot: "bg-blue-500" },
-  INVOICE_SENT:        { label: "Invoice sent",         dot: "bg-indigo-500" },
-  STATUS_CHANGED:      { label: "Status updated",       dot: "bg-amber-500" },
-  REFUND_INITIATED:    { label: "Refund initiated",     dot: "bg-orange-500", color: "text-orange-600" },
-  REFUND_ACCEPTED:     { label: "Refund accepted",      dot: "bg-green-500",  color: "text-green-600" },
-  REFUND_REJECTED:     { label: "Refund rejected",      dot: "bg-red-500",    color: "text-red-600" },
-  CREDIT_NOTE_CREATED: { label: "Credit note created",  dot: "bg-purple-500", color: "text-purple-600" },
-  CREDIT_PAID:         { label: "Credit paid back",     dot: "bg-green-600",  color: "text-green-700" },
-  SHIPMENT_CREATED:    { label: "Shipment dispatched",  dot: "bg-teal-500",   color: "text-teal-600" },
-  CUSTOMER_NOTIFIED:   { label: "Customer notified",    dot: "bg-blue-400" },
-  WORK_NOTE:           { label: "Internal note",        dot: "bg-slate-300" },
+const ACTIVITY_META: Partial<Record<ShopOrderActivityType | string, { label: string; dot: string; color?: string }>> = {
+  ORDER_PLACED:        { label: "Order placed",         dot: "bg-blue-500" },
+  INVOICE_SENT:        { label: "Invoice sent",          dot: "bg-indigo-500" },
+  STATUS_CHANGED:      { label: "Status updated",        dot: "bg-amber-500" },
+  REFUND_INITIATED:    { label: "Refund initiated",      dot: "bg-orange-500", color: "text-orange-600" },
+  REFUND_APPROVED:     { label: "Refund approved",       dot: "bg-sky-500",    color: "text-sky-600" },
+  REFUND_ACCEPTED:     { label: "Refund accepted",       dot: "bg-green-500",  color: "text-green-600" },
+  REFUND_REJECTED:     { label: "Refund rejected",       dot: "bg-red-500",    color: "text-red-600" },
+  CREDIT_PAID:         { label: "Credit paid back",      dot: "bg-green-600",  color: "text-green-700" },
+  SHIPMENT_CREATED:    { label: "Shipment dispatched",   dot: "bg-teal-500",   color: "text-teal-600" },
+  RETURN_REQUESTED:    { label: "Return requested",      dot: "bg-orange-400", color: "text-orange-600" },
+  RETURN_UPDATED:      { label: "Return updated",        dot: "bg-orange-500", color: "text-orange-700" },
+  CUSTOMER_NOTIFIED:   { label: "Customer notified",     dot: "bg-blue-400" },
+  WORK_NOTE:           { label: "Internal note",         dot: "bg-slate-300" },
 };
 
 const CARRIERS = ["DHL", "UPS", "FedEx", "TNT", "PostNL", "Royal Mail", "USPS", "DPD", "GLS", "Hermes", "Other"];
@@ -44,15 +43,9 @@ const CARRIERS = ["DHL", "UPS", "FedEx", "TNT", "PostNL", "Royal Mail", "USPS", 
 const inputCls =
   "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-slate-900";
 
-type ModalKind =
-  | { kind: "notify" }
-  | { kind: "notify-line"; lineId: number; productName: string }
-  | { kind: "shipping" }
-  | { kind: "refunds" }
-  | { kind: "credit-notes" };
-
 const REFUND_STATUS_STYLE: Record<string, string> = {
   PENDING:  "bg-amber-50 text-amber-700 border-amber-200",
+  APPROVED: "bg-sky-50 text-sky-700 border-sky-200",
   ACCEPTED: "bg-green-50 text-green-700 border-green-200",
   REJECTED: "bg-red-50 text-red-600 border-red-200",
 };
@@ -61,37 +54,29 @@ const CN_STATUS_STYLE: Record<string, string> = {
   PAID:    "bg-green-50 text-green-700 border-green-200",
 };
 
+type ModalKind =
+  | { kind: "notify" }
+  | { kind: "notify-line"; lineId: number; productName: string }
+  | { kind: "shipping" }
+  | { kind: "refunds" }
+  | { kind: "credit-notes" }
+  | { kind: "create-return" };
+
 export default function ShopOrderDetail() {
   useOutletContext<ShopOutletContext>();
-  const { sid, order: init, refunds: initRefunds, creditNotes: initCreditNotes } = useLoaderData<typeof clientLoader>();
+  const { sid, order: init } = useLoaderData<typeof clientLoader>();
   const [order, setOrder] = useState<ShopOrder>(init);
-  const [refunds, setRefunds] = useState<ShopRefund[]>(initRefunds);
-  const [creditNotes, setCreditNotes] = useState<ShopCreditNote[]>(initCreditNotes);
   const [busy, setBusy] = useState(false);
   const { toast, notify } = useToast();
 
   const [modal, setModal] = useState<ModalKind | null>(null);
-
-  // Notify
   const [notifyMsg, setNotifyMsg] = useState("");
-
-  // Shipping
   const [trackingCarrier, setTrackingCarrier] = useState(order.trackingCarrier ?? "");
   const [trackingNumber, setTrackingNumber] = useState(order.trackingNumber ?? "");
-
-  // New refund form (inside refunds modal)
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
-
-  // New credit note form (inside credit-notes modal)
-  const [cnAmount, setCnAmount] = useState("");
-  const [cnReason, setCnReason] = useState("");
-  const [cnRef, setCnRef] = useState("");
-
-  // Inline note
   const [noteText, setNoteText] = useState("");
-
-  // Which timeline entry's sent email is expanded
+  const [returnReason, setReturnReason] = useState("");
   const [openEmail, setOpenEmail] = useState<number | null>(null);
 
   function closeModal() { setModal(null); }
@@ -113,11 +98,6 @@ export default function ShopOrderDetail() {
     setTrackingCarrier(o.trackingCarrier ?? "");
     setTrackingNumber(o.trackingNumber ?? "");
   };
-
-  async function loadOrder() {
-    try { updateOrder(await apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}`)); }
-    catch { /* silent */ }
-  }
 
   async function setStatus(status: ShopOrderStatus) {
     await apiAction(
@@ -171,54 +151,39 @@ export default function ShopOrderDetail() {
     const amount = parseFloat(refundAmount);
     if (!amount || amount <= 0) return;
     await apiAction(
-      () => apiFetch<ShopRefund>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds`, {
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds`, {
         method: "POST", body: JSON.stringify({ amount, reason: refundReason }),
       }),
-      (r) => { setRefunds((p) => [r, ...p]); loadOrder(); },
-      "Refund initiated — customer notified",
+      updateOrder, "Refund initiated — customer notified",
     );
     setRefundAmount(""); setRefundReason("");
   }
 
-  async function acceptRefund(refund: ShopRefund) {
+  async function approveRefund() {
     await apiAction(
-      () => apiFetch<ShopRefund>(`${ADMIN_API}/${sid}/shop/refunds/${refund.id}/accept`, { method: "POST" }),
-      (r) => {
-        setRefunds((p) => p.map((x) => (x.id === r.id ? r : x)));
-        apiFetch<ShopCreditNote[]>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/credit-notes`)
-          .then(setCreditNotes).catch(() => {});
-        loadOrder();
-      },
-      "Refund accepted — credit note created",
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds/approve`, { method: "POST" }),
+      updateOrder, "Refund approved — awaiting item return",
     );
   }
 
-  async function rejectRefund(refund: ShopRefund) {
+  async function acceptRefund() {
     await apiAction(
-      () => apiFetch<ShopRefund>(`${ADMIN_API}/${sid}/shop/refunds/${refund.id}/reject`, { method: "POST" }),
-      (r) => { setRefunds((p) => p.map((x) => (x.id === r.id ? r : x))); loadOrder(); },
-      "Refund rejected — customer notified",
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds/accept`, { method: "POST" }),
+      updateOrder, "Refund accepted — credit note created",
     );
   }
 
-  async function submitCreditNote() {
-    const amount = parseFloat(cnAmount);
-    if (!amount || amount <= 0) return;
+  async function rejectRefund() {
     await apiAction(
-      () => apiFetch<ShopCreditNote>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/credit-notes`, {
-        method: "POST", body: JSON.stringify({ amount, reason: cnReason, reference: cnRef }),
-      }),
-      (r) => { setCreditNotes((p) => [r, ...p]); loadOrder(); },
-      "Credit note created",
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds/reject`, { method: "POST" }),
+      updateOrder, "Refund rejected — customer notified",
     );
-    setCnAmount(""); setCnReason(""); setCnRef("");
   }
 
-  async function payCreditNote(cn: ShopCreditNote) {
+  async function payCreditNote() {
     await apiAction(
-      () => apiFetch<ShopCreditNote>(`${ADMIN_API}/${sid}/shop/credit-notes/${cn.id}/pay`, { method: "POST" }),
-      (updated) => { setCreditNotes((p) => p.map((x) => (x.id === updated.id ? updated : x))); loadOrder(); },
-      "Credit note paid back to customer",
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/credit-note/pay`, { method: "POST" }),
+      updateOrder, "Credit note paid back to customer",
     );
   }
 
@@ -234,13 +199,27 @@ export default function ShopOrderDetail() {
     setNoteText("");
   }
 
+  async function submitReturn() {
+    await apiAction(
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/returns`, {
+        method: "POST", body: JSON.stringify({ reason: returnReason }),
+      }),
+      (o) => { updateOrder(o); closeModal(); },
+      "Return requested",
+    );
+    setReturnReason("");
+  }
+
   const addr = order.shippingAddress;
   const hasAddr = addr && (addr.line1 || addr.city || addr.country || addr.zipCode);
   const activities: ShopOrderActivity[] = order.activities ?? [];
-  const isClosed = order.status === "FULFILLED" || order.status === "CANCELLED";
-  const pendingRefundCount = refunds.filter((r) => r.status === "PENDING").length;
-  const pendingCnCount = creditNotes.filter((cn) => !cn.status || cn.status === "PENDING").length;
+  const isClosed = order.status === "FULFILLED" || order.status === "CANCELLED" || order.status === "FAILED";
+  const isDelivered = order.status === "DELIVERED" || order.status === "FULFILLED";
+  const isShippedOrLater = ["SHIPPED", "DELIVERED", "FULFILLED"].includes(order.status);
   const hasTracking = !!(order.trackingCarrier || order.trackingNumber);
+  const hasRefund = !!order.refundStatus;
+  const pendingRefundCount = order.refundStatus === "PENDING" ? 1 : 0;
+  const pendingCnCount = order.creditNoteStatus === "PENDING" ? 1 : 0;
 
   return (
     <>
@@ -358,23 +337,51 @@ export default function ShopOrderDetail() {
           <SectionHeader>Actions</SectionHeader>
           <div className="flex flex-col gap-4">
 
-            {/* Fulfillment */}
+            {/* Order lifecycle */}
             {!isClosed && (
-              <ActionGroup label="Fulfillment">
+              <ActionGroup label="Order Status">
                 {order.status === "NEW" && (
+                  <ActionBtn icon={<Check className="w-3.5 h-3.5" />} label="Confirm" disabled={busy} onClick={() => setStatus("CONFIRMED")} variant="success" />
+                )}
+                {(order.status === "NEW" || order.status === "CONFIRMED") && (
                   <ActionBtn icon={<RefreshCcw className="w-3.5 h-3.5" />} label="Mark Processing" disabled={busy} onClick={() => setStatus("PROCESSING")} />
                 )}
-                {(order.status === "NEW" || order.status === "PROCESSING") && (
+                {order.status === "PROCESSING" && (
+                  <ActionBtn icon={<Package className="w-3.5 h-3.5" />} label="Ready to Ship" disabled={busy} onClick={() => setStatus("READY_TO_SHIP")} />
+                )}
+                {(order.status === "PROCESSING" || order.status === "READY_TO_SHIP") && (
                   <ActionBtn icon={<Truck className="w-3.5 h-3.5" />} label="Mark Shipped" disabled={busy} onClick={() => setStatus("SHIPPED")} />
                 )}
                 {order.status === "SHIPPED" && (
+                  <ActionBtn icon={<Check className="w-3.5 h-3.5" />} label="Mark Delivered" disabled={busy} onClick={() => setStatus("DELIVERED")} variant="success" />
+                )}
+                {order.status === "DELIVERED" && (
                   <ActionBtn icon={<CheckCheck className="w-3.5 h-3.5" />} label="Mark Fulfilled" disabled={busy} onClick={() => setStatus("FULFILLED")} variant="success" />
                 )}
-                {order.status !== "FULFILLED" && (
-                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label="Cancel Order" disabled={busy} onClick={() => setStatus("CANCELLED")} variant="danger" />
+                {order.status === "NEW" && (
+                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label="Put on Hold" disabled={busy} onClick={() => setStatus("ON_HOLD")} variant="warning" />
+                )}
+                {!isShippedOrLater && order.status !== "FULFILLED" && (
+                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label="Cancel" disabled={busy} onClick={() => setStatus("CANCELLED")} variant="danger" />
                 )}
               </ActionGroup>
             )}
+
+            {/* Fulfillment operations */}
+            <ActionGroup label="Fulfillment">
+              <ActionBtn
+                icon={<Truck className="w-3.5 h-3.5" />}
+                label={hasTracking
+                  ? `Shipping: ${order.trackingCarrier ?? ""}${order.trackingCarrier && order.trackingNumber ? " · " : ""}${order.trackingNumber ?? ""}`
+                  : "Update Shipping"}
+                disabled={busy}
+                onClick={() => setModal({ kind: "shipping" })}
+              />
+              {isDelivered && !order.returnStatus && (
+                <ActionBtn icon={<RotateCcw className="w-3.5 h-3.5" />} label="Request Return" disabled={busy}
+                  onClick={() => setModal({ kind: "create-return" })} variant="warning" />
+              )}
+            </ActionGroup>
 
             {/* Communication */}
             <ActionGroup label="Communication">
@@ -386,21 +393,9 @@ export default function ShopOrderDetail() {
               />
               <ActionBtn
                 icon={<FileText className="w-3.5 h-3.5" />}
-                label="Send Invoice"
+                label="Issue Invoice"
                 disabled={busy}
                 onClick={sendInvoice}
-              />
-            </ActionGroup>
-
-            {/* Logistics */}
-            <ActionGroup label="Logistics">
-              <ActionBtn
-                icon={<Truck className="w-3.5 h-3.5" />}
-                label={hasTracking
-                  ? `Shipping: ${order.trackingCarrier ?? ""}${order.trackingCarrier && order.trackingNumber ? " · " : ""}${order.trackingNumber ?? ""}`
-                  : "Update Shipping"}
-                disabled={busy}
-                onClick={() => setModal({ kind: "shipping" })}
               />
             </ActionGroup>
 
@@ -414,17 +409,38 @@ export default function ShopOrderDetail() {
                 onClick={() => setModal({ kind: "refunds" })}
                 variant="warning"
               />
-              <ActionBtn
-                icon={<Receipt className="w-3.5 h-3.5" />}
-                label="Credit Notes"
-                badge={pendingCnCount}
-                disabled={busy}
-                onClick={() => setModal({ kind: "credit-notes" })}
-              />
+              {order.creditNoteRef && (
+                <ActionBtn
+                  icon={<Receipt className="w-3.5 h-3.5" />}
+                  label={`Credit Note ${order.creditNoteRef}`}
+                  badge={pendingCnCount}
+                  disabled={busy}
+                  onClick={() => setModal({ kind: "credit-notes" })}
+                />
+              )}
             </ActionGroup>
 
           </div>
         </Card>
+
+        {/* ── Return card ─────────────────────────────────────────────────────── */}
+        {order.returnStatus && (
+          <Card>
+            <SectionHeader className="flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Return</SectionHeader>
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+              <div>
+                <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${RETURN_STATUS_STYLE[order.returnStatus] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                  {RETURN_STATUS_LABEL[order.returnStatus] ?? order.returnStatus}
+                </span>
+                {order.returnReason && <span className="text-xs text-slate-500 ml-2">{order.returnReason}</span>}
+                {order.returnNotes && <p className="text-xs text-slate-400 mt-1">{order.returnNotes}</p>}
+              </div>
+              {order.returnUpdatedAt && (
+                <span className="text-[11px] text-slate-400 shrink-0">{relativeTime(order.returnUpdatedAt)}</span>
+              )}
+            </div>
+          </Card>
+        )}
 
         {/* ── Activity timeline ─────────────────────────────────────────────── */}
         <Card>
@@ -568,129 +584,118 @@ export default function ShopOrderDetail() {
 
       {/* Refunds */}
       {modal?.kind === "refunds" && (
-        <Modal title="Refunds" icon={<RefreshCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal} wide>
-          {/* Existing refunds */}
-          {refunds.length > 0 && (
+        <Modal title="Refund" icon={<RefreshCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal} wide>
+          {/* Existing refund */}
+          {hasRefund && (
             <div className="mb-5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">History</p>
-              <div className="flex flex-col gap-2">
-                {refunds.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold text-slate-800">{formatPrice(r.amount, order.currency)}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${REFUND_STATUS_STYLE[r.status] ?? ""}`}>
-                          {r.status.charAt(0) + r.status.slice(1).toLowerCase()}
-                        </span>
-                        <span className="text-[10px] text-slate-400">{relativeTime(r.createdAt)}</span>
-                      </div>
-                      {r.reason && <p className="text-[11px] text-slate-500 mt-0.5 truncate">{r.reason}</p>}
-                    </div>
-                    {r.status === "PENDING" && (
-                      <div className="flex gap-1.5 shrink-0">
-                        <button disabled={busy} onClick={() => acceptRefund(r)}
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Current refund</p>
+              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-slate-800">
+                      {order.refundAmount != null ? formatPrice(order.refundAmount, order.currency) : ""}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${REFUND_STATUS_STYLE[order.refundStatus!] ?? ""}`}>
+                      {order.refundStatus}
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    {order.refundStatus === "PENDING" && (
+                      <>
+                        <button disabled={busy} onClick={approveRefund}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-green-200 text-[11px] font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40">
-                          <Check className="w-3 h-3" /> Accept
+                          <Check className="w-3 h-3" /> Approve
                         </button>
-                        <button disabled={busy} onClick={() => rejectRefund(r)}
+                        <button disabled={busy} onClick={rejectRefund}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-200 text-[11px] font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40">
                           <X className="w-3 h-3" /> Reject
                         </button>
-                      </div>
+                      </>
+                    )}
+                    {order.refundStatus === "APPROVED" && (
+                      <button disabled={busy} onClick={acceptRefund}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-blue-200 text-[11px] font-medium text-blue-700 bg-white hover:bg-blue-50 cursor-pointer disabled:opacity-40">
+                        <Check className="w-3 h-3" /> Accept
+                      </button>
                     )}
                   </div>
-                ))}
+                </div>
+                {order.refundReason && <p className="text-[11px] text-slate-500 mt-1">{order.refundReason}</p>}
               </div>
             </div>
           )}
 
           {/* Issue new refund */}
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Issue new refund</p>
-            <p className="text-xs text-slate-500 mb-3">
-              Customer will be notified at <span className="font-medium text-slate-700">{order.customerEmail}</span>.
-            </p>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Amount *</label>
-                <input type="number" min="0.01" step="0.01" max={order.subtotal}
-                  className={inputCls} placeholder={`Max ${formatPrice(order.subtotal, order.currency)}`}
-                  value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
+          {!hasRefund && (
+            <div className={hasRefund ? "border-t border-slate-100 pt-4" : ""}>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Issue refund</p>
+              <p className="text-xs text-slate-500 mb-3">
+                Customer will be notified at <span className="font-medium text-slate-700">{order.customerEmail}</span>.
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Amount *</label>
+                  <input type="number" min="0.01" step="0.01" max={order.subtotal}
+                    className={inputCls} placeholder={`Max ${formatPrice(order.subtotal, order.currency)}`}
+                    value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Reason</label>
+                  <input className={inputCls} placeholder="e.g. Item damaged"
+                    value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Reason</label>
-                <input className={inputCls} placeholder="e.g. Item damaged"
-                  value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
+              <div className="flex justify-end">
+                <ModalSave label="Issue refund" icon={<RefreshCcw className="w-3.5 h-3.5" />}
+                  disabled={busy || !refundAmount || parseFloat(refundAmount) <= 0}
+                  onClick={submitRefund} />
               </div>
             </div>
-            <div className="flex justify-end">
-              <ModalSave label="Issue refund" icon={<RefreshCcw className="w-3.5 h-3.5" />}
-                disabled={busy || !refundAmount || parseFloat(refundAmount) <= 0}
-                onClick={submitRefund} />
-            </div>
-          </div>
+          )}
         </Modal>
       )}
 
       {/* Credit Notes */}
-      {modal?.kind === "credit-notes" && (
-        <Modal title="Credit Notes" icon={<Receipt className="w-4 h-4 text-purple-600" />} onClose={closeModal} wide>
-          {/* Existing credit notes */}
-          {creditNotes.length > 0 && (
-            <div className="mb-5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">History</p>
-              <div className="flex flex-col gap-2">
-                {creditNotes.map((cn) => (
-                  <div key={cn.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold text-slate-800">{formatPrice(cn.amount, order.currency)}</span>
-                        {cn.reference && <span className="font-mono text-[10px] text-slate-400">{cn.reference}</span>}
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${CN_STATUS_STYLE[cn.status ?? "PENDING"] ?? ""}`}>
-                          {cn.status ?? "Pending"}
-                        </span>
-                        <span className="text-[10px] text-slate-400">{relativeTime(cn.createdAt)}</span>
-                      </div>
-                      {cn.reason && <p className="text-[11px] text-slate-500 mt-0.5 truncate">{cn.reason}</p>}
-                    </div>
-                    {(cn.status === "PENDING" || !cn.status) && (
-                      <button disabled={busy} onClick={() => payCreditNote(cn)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-purple-200 text-[11px] font-medium text-purple-700 bg-white hover:bg-purple-50 cursor-pointer disabled:opacity-40 shrink-0">
-                        <Banknote className="w-3 h-3" /> Pay back
-                      </button>
-                    )}
-                  </div>
-                ))}
+      {modal?.kind === "credit-notes" && order.creditNoteRef && (
+        <Modal title="Credit Note" icon={<Receipt className="w-4 h-4 text-purple-600" />} onClose={closeModal}>
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {order.refundAmount != null && (
+                  <span className="text-xs font-semibold text-slate-800">{formatPrice(order.refundAmount, order.currency)}</span>
+                )}
+                <span className="font-mono text-[10px] text-slate-400">{order.creditNoteRef}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${CN_STATUS_STYLE[order.creditNoteStatus ?? "PENDING"] ?? ""}`}>
+                  {order.creditNoteStatus ?? "Pending"}
+                </span>
               </div>
+              {order.creditNoteStatus === "PENDING" && (
+                <button disabled={busy} onClick={() => { payCreditNote(); closeModal(); }}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-purple-200 text-[11px] font-medium text-purple-700 bg-white hover:bg-purple-50 cursor-pointer disabled:opacity-40 shrink-0">
+                  <Banknote className="w-3 h-3" /> Pay back
+                </button>
+              )}
             </div>
-          )}
-
-          {/* Issue new credit note */}
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Issue new credit note</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Amount *</label>
-                <input type="number" min="0.01" step="0.01" className={inputCls}
-                  placeholder="0.00" value={cnAmount} onChange={(e) => setCnAmount(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Reference</label>
-                <input className={inputCls} placeholder="e.g. CN-001"
-                  value={cnRef} onChange={(e) => setCnRef(e.target.value)} />
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="block text-xs text-slate-500 mb-1">Reason</label>
-              <input className={inputCls} placeholder="e.g. Goodwill credit"
-                value={cnReason} onChange={(e) => setCnReason(e.target.value)} />
-            </div>
-            <div className="flex justify-end">
-              <ModalSave label="Create credit note" icon={<Receipt className="w-3.5 h-3.5" />}
-                disabled={busy || !cnAmount || parseFloat(cnAmount) <= 0}
-                onClick={submitCreditNote} />
-            </div>
+            {order.refundReason && <p className="text-[11px] text-slate-500 mt-1">{order.refundReason}</p>}
           </div>
+        </Modal>
+      )}
+
+      {/* Create Return */}
+      {modal?.kind === "create-return" && (
+        <Modal title="Request Return" icon={<RotateCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal}>
+          <p className="text-xs text-slate-500 mb-3">Describe why the customer is returning items.</p>
+          <div className="mb-4">
+            <label className="block text-xs text-slate-500 mb-1">Reason</label>
+            <input autoFocus className={inputCls} placeholder="e.g. Item damaged in transit"
+              value={returnReason} onChange={(e) => setReturnReason(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitReturn()} />
+          </div>
+          <ModalFooter>
+            <ModalCancel onClick={closeModal} />
+            <ModalSave label="Create return" icon={<RotateCcw className="w-3.5 h-3.5" />}
+              disabled={busy} onClick={submitReturn} />
+          </ModalFooter>
         </Modal>
       )}
 

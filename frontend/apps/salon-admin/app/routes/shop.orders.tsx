@@ -26,7 +26,7 @@ export async function clientLoader({ request, params }: ClientLoaderFunctionArgs
   return { page };
 }
 
-const ALL_STATUSES: ShopOrderStatus[] = ["NEW", "PROCESSING", "SHIPPED", "FULFILLED", "CANCELLED"];
+const ALL_STATUSES: ShopOrderStatus[] = ["NEW", "CONFIRMED", "PROCESSING", "READY_TO_SHIP", "SHIPPED", "DELIVERED", "FULFILLED", "CANCELLED", "FAILED", "ON_HOLD"];
 const STATUS_FILTERS: (ShopOrderStatus | "ALL")[] = ["ALL", ...ALL_STATUSES];
 
 /** Per-status row tint + text shades tuned for contrast on that tint. */
@@ -34,11 +34,16 @@ const ORDER_ROW_STYLE: Record<
   ShopOrderStatus,
   { row: string; strong: string; muted: string; faint: string; link: string }
 > = {
-  NEW:        { row: "bg-slate-50 hover:bg-slate-100/80",   strong: "text-slate-800", muted: "text-slate-500", faint: "text-slate-400",     link: "text-slate-700" },
-  PROCESSING: { row: "bg-amber-50/70 hover:bg-amber-100/70", strong: "text-amber-900", muted: "text-amber-700", faint: "text-amber-600/70",  link: "text-amber-800" },
-  SHIPPED:    { row: "bg-blue-50/70 hover:bg-blue-100/70",   strong: "text-blue-900",  muted: "text-blue-700",  faint: "text-blue-500/80",   link: "text-blue-800" },
-  FULFILLED:  { row: "bg-green-50/70 hover:bg-green-100/70",  strong: "text-green-900", muted: "text-green-700", faint: "text-green-600/70",  link: "text-green-800" },
-  CANCELLED:  { row: "bg-red-50/60 hover:bg-red-100/60",     strong: "text-red-800",   muted: "text-red-600",   faint: "text-red-500/70",    link: "text-red-700" },
+  NEW:          { row: "bg-slate-50 hover:bg-slate-100/80",     strong: "text-slate-800",  muted: "text-slate-500",  faint: "text-slate-400",    link: "text-slate-700" },
+  CONFIRMED:    { row: "bg-sky-50/70 hover:bg-sky-100/70",      strong: "text-sky-900",    muted: "text-sky-700",    faint: "text-sky-500/80",   link: "text-sky-800" },
+  PROCESSING:   { row: "bg-amber-50/70 hover:bg-amber-100/70",  strong: "text-amber-900",  muted: "text-amber-700",  faint: "text-amber-600/70", link: "text-amber-800" },
+  READY_TO_SHIP:{ row: "bg-violet-50/70 hover:bg-violet-100/70",strong: "text-violet-900", muted: "text-violet-700", faint: "text-violet-500/80",link: "text-violet-800" },
+  SHIPPED:      { row: "bg-blue-50/70 hover:bg-blue-100/70",    strong: "text-blue-900",   muted: "text-blue-700",   faint: "text-blue-500/80",  link: "text-blue-800" },
+  DELIVERED:    { row: "bg-teal-50/70 hover:bg-teal-100/70",    strong: "text-teal-900",   muted: "text-teal-700",   faint: "text-teal-500/80",  link: "text-teal-800" },
+  FULFILLED:    { row: "bg-green-50/70 hover:bg-green-100/70",  strong: "text-green-900",  muted: "text-green-700",  faint: "text-green-600/70", link: "text-green-800" },
+  CANCELLED:    { row: "bg-red-50/60 hover:bg-red-100/60",      strong: "text-red-800",    muted: "text-red-600",    faint: "text-red-500/70",   link: "text-red-700" },
+  FAILED:       { row: "bg-rose-50/60 hover:bg-rose-100/60",    strong: "text-rose-800",   muted: "text-rose-600",   faint: "text-rose-500/70",  link: "text-rose-700" },
+  ON_HOLD:      { row: "bg-orange-50/60 hover:bg-orange-100/60",strong: "text-orange-800", muted: "text-orange-600", faint: "text-orange-500/70",link: "text-orange-700" },
 };
 
 const controlCls =
@@ -156,7 +161,7 @@ export default function ShopOrders() {
           <option value="oldest">Oldest first</option>
         </select>
 
-        <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+        <div className="inline-flex items-center gap-1.5 text-xs text-slate-400">
           From
           <input
             type="date"
@@ -165,8 +170,6 @@ export default function ShopOrders() {
             onChange={(e) => update({ from: e.target.value || null })}
             className={`${controlCls} cursor-pointer`}
           />
-        </label>
-        <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
           To
           <input
             type="date"
@@ -175,7 +178,7 @@ export default function ShopOrders() {
             onChange={(e) => update({ to: e.target.value || null })}
             className={`${controlCls} cursor-pointer`}
           />
-        </label>
+        </div>
 
         {filtersActive && (
           <button

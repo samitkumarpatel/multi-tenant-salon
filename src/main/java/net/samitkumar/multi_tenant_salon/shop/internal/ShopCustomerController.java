@@ -4,6 +4,7 @@ import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.shop.Brand;
 import net.samitkumar.multi_tenant_salon.shop.Category;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
+import net.samitkumar.multi_tenant_salon.shop.CommunicationPreference;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopManager.CheckoutItem;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopManager.CheckoutRequest;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderView;
@@ -32,7 +33,8 @@ class ShopCustomerController {
     }
 
     record CheckoutBody(String customerName, String customerEmail, String customerPhone,
-                        ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items) {}
+                        ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
+                        CommunicationPreference communicationPreference) {}
 
     @GetMapping("/brands")
     List<Brand> listBrands(@PathVariable String salonId) {
@@ -62,7 +64,7 @@ class ShopCustomerController {
     ResponseEntity<OrderView> checkout(@PathVariable String salonId, @RequestBody CheckoutBody body) {
         var order = shop.placeOrder(salonApi.resolveId(salonId), new CheckoutRequest(
                 body.customerName(), body.customerEmail(), body.customerPhone(),
-                body.shippingAddress(), body.items()));
+                body.shippingAddress(), body.items(), body.communicationPreference()));
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(order.id()).toUri();
         return ResponseEntity.created(location).body(order);
     }

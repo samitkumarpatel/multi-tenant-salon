@@ -460,10 +460,15 @@ class NotificationService {
     void notifyOrderStatusChanged(OrderStatusChangedEvent event) {
         var message = switch (event.newStatus()) {
             case NEW -> "Your order has been placed and is awaiting processing.";
+            case CONFIRMED -> "Your order has been confirmed.";
             case PROCESSING -> "Your order is now being prepared.";
+            case READY_TO_SHIP -> "Your order is ready to ship.";
             case SHIPPED -> "Your order has been shipped!";
+            case DELIVERED -> "Your order has been delivered.";
             case FULFILLED -> "Your order has been fulfilled. Thank you for shopping with us!";
             case CANCELLED -> "Your order has been cancelled. Please contact the salon if this is unexpected.";
+            case FAILED -> "There was a problem with your order. Please contact us.";
+            case ON_HOLD -> "Your order is currently on hold. We will update you shortly.";
         };
         var subject = salonSubject(event.salonName(), "Order update — " + event.orderNumber());
         var text = """

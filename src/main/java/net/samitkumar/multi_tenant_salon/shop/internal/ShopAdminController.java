@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -181,12 +182,6 @@ class ShopAdminController {
 
     // ── orders ───────────────────────────────────────────────────────────────
 
-    /**
-     * Paginated, searchable orders list. {@code q} matches the order number, customer
-     * name/email/phone, payment reference, tracking number, or any line's product name.
-     * {@code from}/{@code to} are {@code yyyy-MM-dd} bounds on the order date (the {@code to} day
-     * is included). {@code sort} is {@code newest} (default) or {@code oldest}.
-     */
     @GetMapping("/orders")
     OrderPage listOrders(@PathVariable String salonId,
                          @RequestParam(required = false) String q,
@@ -267,66 +262,69 @@ class ShopAdminController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    // ── refunds ───────────────────────────────────────────────────────────────
+    // ── refunds (inline on order) ─────────────────────────────────────────────
 
-    record RefundRequest(java.math.BigDecimal amount, String reason) {}
+    record RefundRequest(BigDecimal amount, String reason) {}
 
     @GetMapping("/refunds")
-    List<net.samitkumar.multi_tenant_salon.shop.ShopRefund> listRefunds(@PathVariable String salonId) {
+    List<OrderView> listRefunds(@PathVariable String salonId) {
         return shop.listRefunds(salonApi.resolveId(salonId));
     }
 
-    @GetMapping("/orders/{orderId}/refunds")
-    List<net.samitkumar.multi_tenant_salon.shop.ShopRefund> listRefundsForOrder(
-            @PathVariable String salonId, @PathVariable Long orderId) {
-        return shop.listRefundsForOrder(salonApi.resolveId(salonId), orderId);
-    }
-
     @PostMapping("/orders/{orderId}/refunds")
-    ResponseEntity<net.samitkumar.multi_tenant_salon.shop.ShopRefund> createRefund(
-            @PathVariable String salonId, @PathVariable Long orderId, @RequestBody RefundRequest req) {
-        var refund = shop.createRefund(salonApi.resolveId(salonId), orderId, req.amount(), req.reason());
-        return created(refund, refund.id());
+    OrderView createRefund(@PathVariable String salonId, @PathVariable Long orderId,
+                           @RequestBody RefundRequest req) {
+        return shop.createRefund(salonApi.resolveId(salonId), orderId, req.amount(), req.reason());
     }
 
-    @PostMapping("/refunds/{refundId}/accept")
-    net.samitkumar.multi_tenant_salon.shop.ShopRefund acceptRefund(
-            @PathVariable String salonId, @PathVariable Long refundId) {
-        return shop.acceptRefund(salonApi.resolveId(salonId), refundId);
+    @PostMapping("/orders/{orderId}/refunds/approve")
+    OrderView approveRefund(@PathVariable String salonId, @PathVariable Long orderId) {
+        return shop.approveRefund(salonApi.resolveId(salonId), orderId);
     }
 
-    @PostMapping("/refunds/{refundId}/reject")
-    net.samitkumar.multi_tenant_salon.shop.ShopRefund rejectRefund(
-            @PathVariable String salonId, @PathVariable Long refundId) {
-        return shop.rejectRefund(salonApi.resolveId(salonId), refundId);
+    @PostMapping("/orders/{orderId}/refunds/accept")
+    OrderView acceptRefund(@PathVariable String salonId, @PathVariable Long orderId) {
+        return shop.acceptRefund(salonApi.resolveId(salonId), orderId);
     }
 
-    // ── credit notes ─────────────────────────────────────────────────────────
+    @PostMapping("/orders/{orderId}/refunds/reject")
+    OrderView rejectRefund(@PathVariable String salonId, @PathVariable Long orderId) {
+        return shop.rejectRefund(salonApi.resolveId(salonId), orderId);
+    }
 
-    record CreditNoteRequest(java.math.BigDecimal amount, String reason, String reference) {}
+    // ── credit note (inline on order) ─────────────────────────────────────────
 
     @GetMapping("/credit-notes")
-    List<net.samitkumar.multi_tenant_salon.shop.ShopCreditNote> listCreditNotes(@PathVariable String salonId) {
-        return shop.listCreditNotes(salonApi.resolveId(salonId));
+    List<OrderView> listCreditNoteOrders(@PathVariable String salonId) {
+        return shop.listCreditNoteOrders(salonApi.resolveId(salonId));
     }
 
-    @GetMapping("/orders/{orderId}/credit-notes")
-    List<net.samitkumar.multi_tenant_salon.shop.ShopCreditNote> listCreditNotesForOrder(
-            @PathVariable String salonId, @PathVariable Long orderId) {
-        return shop.listCreditNotesForOrder(salonApi.resolveId(salonId), orderId);
+    @PostMapping("/orders/{orderId}/credit-note/pay")
+    OrderView payCreditNote(@PathVariable String salonId, @PathVariable Long orderId) {
+        return shop.payCreditNote(salonApi.resolveId(salonId), orderId);
     }
 
-    @PostMapping("/orders/{orderId}/credit-notes")
-    ResponseEntity<net.samitkumar.multi_tenant_salon.shop.ShopCreditNote> createCreditNote(
-            @PathVariable String salonId, @PathVariable Long orderId, @RequestBody CreditNoteRequest req) {
-        var cn = shop.createCreditNote(salonApi.resolveId(salonId), orderId, req.amount(), req.reason(), req.reference());
-        return created(cn, cn.id());
+    // ── returns (inline on order) ─────────────────────────────────────────────
+
+    record ReturnRequest(String reason) {}
+
+    record ReturnStatusRequest(String status, String notes) {}
+
+    @GetMapping("/returns")
+    List<OrderView> listReturns(@PathVariable String salonId) {
+        return shop.listReturns(salonApi.resolveId(salonId));
     }
 
-    @PostMapping("/credit-notes/{creditNoteId}/pay")
-    net.samitkumar.multi_tenant_salon.shop.ShopCreditNote payCreditNote(
-            @PathVariable String salonId, @PathVariable Long creditNoteId) {
-        return shop.payCreditNote(salonApi.resolveId(salonId), creditNoteId);
+    @PostMapping("/orders/{orderId}/returns")
+    OrderView createReturn(@PathVariable String salonId, @PathVariable Long orderId,
+                           @RequestBody ReturnRequest req) {
+        return shop.createReturn(salonApi.resolveId(salonId), orderId, req.reason());
+    }
+
+    @PostMapping("/orders/{orderId}/returns/status")
+    OrderView updateReturnStatus(@PathVariable String salonId, @PathVariable Long orderId,
+                                 @RequestBody ReturnStatusRequest req) {
+        return shop.updateReturnStatus(salonApi.resolveId(salonId), orderId, req.status(), req.notes());
     }
 
     // ── helper ───────────────────────────────────────────────────────────────

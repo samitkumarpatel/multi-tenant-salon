@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { Boxes, ClipboardList, Layers, Package, Tag } from "lucide-react";
+import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw } from "lucide-react";
 import { InfoBar } from "@salon/ui-shared";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import type { LayoutContext, Salon, ShopOrder } from "~/lib/types";
@@ -38,6 +38,7 @@ export default function Shop() {
     { to: "categories", label: "Categories", icon: Layers, end: false, badge: 0 },
     { to: "inventory", label: "Inventory", icon: Boxes, end: false, badge: 0 },
     { to: "orders", label: "Orders", icon: ClipboardList, end: false, badge: pendingCount },
+    { to: "refunds", label: "Refunds", icon: RefreshCcw, end: false, badge: 0 },
   ];
 
   return (

@@ -199,11 +199,14 @@ export interface SalonHoliday {
 
 // ── Shop / web-shop ─────────────────────────────────────────────────────────
 
+export type CommunicationPreference = "ALL" | "IMPORTANT_ONLY";
+
 export type ShopOrderActivityType =
   | "ORDER_PLACED" | "INVOICE_SENT" | "STATUS_CHANGED"
-  | "REFUND_INITIATED" | "REFUND_ACCEPTED" | "REFUND_REJECTED"
+  | "REFUND_INITIATED" | "REFUND_APPROVED" | "REFUND_ACCEPTED" | "REFUND_REJECTED"
   | "CREDIT_NOTE_CREATED" | "CREDIT_PAID"
-  | "WORK_NOTE" | "SHIPMENT_CREATED" | "CUSTOMER_NOTIFIED";
+  | "WORK_NOTE" | "SHIPMENT_CREATED" | "CUSTOMER_NOTIFIED"
+  | "RETURN_REQUESTED" | "RETURN_UPDATED";
 
 export interface ShopOrderActivity {
   id: number;
@@ -221,31 +224,15 @@ export interface ShopOrderActivity {
   createdAt: string;
 }
 
-export type ShopRefundStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+export type ShopRefundStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACCEPTED";
 
-export interface ShopRefund {
-  id: number;
-  salonId?: string;
-  orderId: number;
-  amount: number;
-  reason?: string | null;
-  status: ShopRefundStatus;
-  createdAt: string;
-}
-
-export interface ShopCreditNote {
-  id: number;
-  salonId?: string;
-  orderId: number;
-  amount: number;
-  reason?: string | null;
-  reference?: string | null;
-  status?: string | null;
-  createdAt: string;
-}
-
-export type ShopOrderStatus = "NEW" | "PROCESSING" | "SHIPPED" | "FULFILLED" | "CANCELLED";
-export type ShopPaymentStatus = "PENDING" | "PAID";
+export type ShopOrderStatus =
+  | "NEW" | "CONFIRMED" | "PROCESSING" | "READY_TO_SHIP"
+  | "SHIPPED" | "DELIVERED" | "FULFILLED"
+  | "CANCELLED" | "FAILED" | "ON_HOLD";
+export type ShopPaymentStatus = "PENDING" | "AUTHORIZED" | "CAPTURED" | "PAID" | "SETTLED" | "FAILED" | "VOIDED";
+export type ShopReturnStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "ITEM_SHIPPED" | "RECEIVED" | "INSPECTING" | "ACCEPTED" | "CLOSED";
+export type ShopCreditNoteStatus = "PENDING" | "PAID";
 export type OrderLineActivityType = "LINE_CREATED" | "STATUS_CHANGED" | "USER_NOTIFIED" | "NOTE_ADDED";
 
 export interface ShopBrand {
@@ -359,6 +346,20 @@ export interface ShopOrder {
   createdAt: string;
   trackingCarrier?: string | null;
   trackingNumber?: string | null;
+  communicationPreference: CommunicationPreference;
+  /** Inline refund lifecycle */
+  refundAmount?: number | null;
+  refundReason?: string | null;
+  refundStatus?: ShopRefundStatus | null;
+  /** Inline return lifecycle */
+  returnStatus?: ShopReturnStatus | null;
+  returnReason?: string | null;
+  returnNotes?: string | null;
+  returnUpdatedAt?: string | null;
+  /** Inline credit note */
+  creditNoteRef?: string | null;
+  creditNoteStatus?: ShopCreditNoteStatus | null;
+  creditNoteAt?: string | null;
   lines: ShopOrderLine[];
   activities?: ShopOrderActivity[];
 }

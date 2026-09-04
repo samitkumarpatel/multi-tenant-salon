@@ -1,6 +1,7 @@
 -- Shop module: per-salon product catalogue (brands, categories, products, variants),
--- inventory (stock counts live on the variant), and customer orders with a per-line
--- activity timeline.
+-- inventory (stock counts live on the variant), customer orders with a per-line
+-- activity timeline, and the financial lifecycle (refund, return, credit note) stored
+-- inline on the order for small-scale maintainability.
 
 CREATE TABLE IF NOT EXISTS shop_brand (
   id          BIGSERIAL    PRIMARY KEY,
@@ -37,8 +38,7 @@ CREATE TABLE IF NOT EXISTS product (
 CREATE INDEX IF NOT EXISTS idx_product_salon_id ON product(salon_id);
 
 -- Ordered image gallery for a product. `product.image_url` stays as the cover image
--- (always mirrors images[0]); this child table holds the full list, same shape as
--- staff_member_photo, with the *_key column preserving list order.
+-- (always mirrors images[0]); this child table holds the full list.
 CREATE TABLE IF NOT EXISTS product_image (
   product_id  BIGINT        NOT NULL REFERENCES product(id) ON DELETE CASCADE,
   product_key INTEGER,
@@ -63,28 +63,44 @@ CREATE INDEX IF NOT EXISTS idx_product_variant_product_id ON product_variant(pro
 CREATE INDEX IF NOT EXISTS idx_product_variant_salon_id ON product_variant(salon_id);
 
 CREATE TABLE IF NOT EXISTS shop_order (
-  id                BIGSERIAL      PRIMARY KEY,
-  salon_id          UUID           NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
-  order_number      VARCHAR(40)    NOT NULL,
-  customer_name     VARCHAR(255)   NOT NULL,
-  customer_email    VARCHAR(255)   NOT NULL,
-  customer_phone    VARCHAR(50),
-  ship_line1        VARCHAR(500),
-  ship_line2        VARCHAR(500),
-  ship_city         VARCHAR(120),
-  ship_state        VARCHAR(120),
-  ship_country      VARCHAR(120),
-  ship_zip_code     VARCHAR(20),
-  status            VARCHAR(20)    NOT NULL DEFAULT 'NEW',
-  payment_status    VARCHAR(20)    NOT NULL DEFAULT 'PENDING',
-  payment_reference VARCHAR(80),
-  subtotal          NUMERIC(12, 2) NOT NULL DEFAULT 0,
-  currency          VARCHAR(3)     NOT NULL DEFAULT 'USD',
-  created_at        TIMESTAMPTZ    NOT NULL,
-  tracking_carrier  VARCHAR(80),
-  tracking_number   VARCHAR(255)
+  id                       BIGSERIAL      PRIMARY KEY,
+  salon_id                 UUID           NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
+  order_number             VARCHAR(40)    NOT NULL,
+  customer_name            VARCHAR(255)   NOT NULL,
+  customer_email           VARCHAR(255)   NOT NULL,
+  customer_phone           VARCHAR(50),
+  ship_line1               VARCHAR(500),
+  ship_line2               VARCHAR(500),
+  ship_city                VARCHAR(120),
+  ship_state               VARCHAR(120),
+  ship_country             VARCHAR(120),
+  ship_zip_code            VARCHAR(20),
+  status                   VARCHAR(20)    NOT NULL DEFAULT 'NEW',
+  payment_status           VARCHAR(20)    NOT NULL DEFAULT 'PENDING',
+  payment_reference        VARCHAR(80),
+  subtotal                 NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  currency                 VARCHAR(3)     NOT NULL DEFAULT 'USD',
+  created_at               TIMESTAMPTZ    NOT NULL,
+  tracking_carrier         VARCHAR(80),
+  tracking_number          VARCHAR(255),
+  communication_preference VARCHAR(20)    NOT NULL DEFAULT 'IMPORTANT_ONLY',
+  -- Refund lifecycle (one refund per order; admin initiates, approves/rejects, then accepts)
+  refund_amount            NUMERIC(12, 2),
+  refund_reason            TEXT,
+  refund_status            VARCHAR(20),
+  -- Return lifecycle (one return per order)
+  return_status            VARCHAR(30),
+  return_reason            TEXT,
+  return_notes             TEXT,
+  return_updated_at        TIMESTAMPTZ,
+  -- Credit note (generated when refund is accepted, after item is received back)
+  credit_note_ref          VARCHAR(80),
+  credit_note_status       VARCHAR(20),
+  credit_note_at           TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_shop_order_salon_id ON shop_order(salon_id);
+-- Backs the paginated / sortable admin orders list.
+CREATE INDEX IF NOT EXISTS idx_shop_order_salon_created_at ON shop_order (salon_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS shop_order_line (
   id            BIGSERIAL      PRIMARY KEY,
@@ -111,34 +127,8 @@ CREATE TABLE IF NOT EXISTS shop_order_line_activity (
 );
 CREATE INDEX IF NOT EXISTS idx_shop_order_line_activity_line_id ON shop_order_line_activity(order_line_id);
 
-CREATE TABLE IF NOT EXISTS shop_refund (
-  id         BIGSERIAL      PRIMARY KEY,
-  salon_id   UUID           NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
-  order_id   BIGINT         NOT NULL REFERENCES shop_order(id) ON DELETE CASCADE,
-  amount     NUMERIC(12, 2) NOT NULL,
-  reason     TEXT,
-  status     VARCHAR(20)    NOT NULL DEFAULT 'PENDING',
-  created_at TIMESTAMPTZ    NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_shop_refund_salon_id ON shop_refund(salon_id);
-CREATE INDEX IF NOT EXISTS idx_shop_refund_order_id ON shop_refund(order_id);
-
-CREATE TABLE IF NOT EXISTS shop_credit_note (
-  id         BIGSERIAL      PRIMARY KEY,
-  salon_id   UUID           NOT NULL REFERENCES salon(id) ON DELETE CASCADE,
-  order_id   BIGINT         NOT NULL REFERENCES shop_order(id) ON DELETE CASCADE,
-  amount     NUMERIC(12, 2) NOT NULL,
-  reason     TEXT,
-  reference  VARCHAR(80),
-  status     VARCHAR(20)    NOT NULL DEFAULT 'PENDING',
-  created_at TIMESTAMPTZ    NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_shop_credit_note_salon_id ON shop_credit_note(salon_id);
-CREATE INDEX IF NOT EXISTS idx_shop_credit_note_order_id ON shop_credit_note(order_id);
-
 -- Order-level activity timeline. CUSTOMER_NOTIFIED rows also carry the actual email the
--- customer received (subject/body/channel/status) — appended by the shop module when the
--- notification module acknowledges a send via OrderCustomerNotifiedEvent.
+-- customer received (subject/body/channel/status).
 CREATE TABLE IF NOT EXISTS shop_order_activity (
   id         BIGSERIAL    PRIMARY KEY,
   order_id   BIGINT       NOT NULL REFERENCES shop_order(id) ON DELETE CASCADE,

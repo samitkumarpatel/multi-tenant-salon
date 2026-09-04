@@ -12,5 +12,6 @@ public record OrderStatusChangedEvent(
         String customerEmail,
         String salonName,
         String salonPhone,
-        String salonEmail
+        String salonEmail,
+        CommunicationPreference communicationPreference
 ) {}
