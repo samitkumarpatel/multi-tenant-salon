@@ -32,6 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -647,7 +648,9 @@ class ShopManager {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only APPROVED refunds can be accepted");
         }
         var ref = "CN-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
-        var now = Instant.now();
+        // OffsetDateTime, not Instant: pgjdbc can't infer a SQL type for java.time.Instant
+        // on a raw JdbcClient param (Spring Data JDBC entity saves handle it via converters).
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
         jdbcClient.sql("""
                 UPDATE shop_order SET refund_status = 'ACCEPTED',
                     credit_note_ref = :ref, credit_note_status = 'PENDING', credit_note_at = :at
@@ -721,7 +724,7 @@ class ShopManager {
         if (order.returnStatus() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A return already exists for this order");
         }
-        var now = Instant.now();
+        var now = OffsetDateTime.now(ZoneOffset.UTC);   // raw JdbcClient param — see acceptRefund note
         jdbcClient.sql("UPDATE shop_order SET return_status = 'REQUESTED', return_reason = :r, return_updated_at = :at WHERE id = :id AND salon_id = :salon")
                 .param("r", trimToNull(reason))
                 .param("at", now)
@@ -742,7 +745,7 @@ class ShopManager {
         if (order.returnStatus() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "No return on this order");
         }
-        var now = Instant.now();
+        var now = OffsetDateTime.now(ZoneOffset.UTC);   // raw JdbcClient param — see acceptRefund note
         jdbcClient.sql("UPDATE shop_order SET return_status = :s, return_notes = :n, return_updated_at = :at WHERE id = :id AND salon_id = :salon")
                 .param("s", status)
                 .param("n", trimToNull(notes))

@@ -78,26 +78,26 @@ export default function Manage() {
 
       {/* Page header */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-slate-900">Overview</h1>
+        <h1 className="text-xl font-bold text-slate-900">Overview</h1>
+
+        {/* Tabs + Edit salon on one row */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+            <button className={tabCls(tab === "details")} onClick={() => setTab("details")}>
+              Details
+            </button>
+            <button className={tabCls(tab === "links")} onClick={() => setTab("links")}>
+              <span className="flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5" /> Links
+              </span>
+            </button>
+          </div>
           <Link
             to="edit"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-matcha-400 hover:text-matcha-700 no-underline transition-colors"
+            className="inline-flex h-11 items-center gap-1.5 px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:border-matcha-400 hover:text-matcha-700 no-underline transition-colors"
           >
-            <Pencil className="w-3.5 h-3.5" /> Edit salon
+            <Pencil className="w-4 h-4" /> Edit salon
           </Link>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
-          <button className={tabCls(tab === "details")} onClick={() => setTab("details")}>
-            Details
-          </button>
-          <button className={tabCls(tab === "links")} onClick={() => setTab("links")}>
-            <span className="flex items-center gap-1.5">
-              <ExternalLink className="w-3.5 h-3.5" /> Links
-            </span>
-          </button>
         </div>
 
         {tab === "details" && (

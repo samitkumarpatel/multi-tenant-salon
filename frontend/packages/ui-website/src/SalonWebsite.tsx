@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  MapPin, Phone, Mail, Globe, Clock, Timer,
-  ChevronRight, ChevronLeft, CalendarCheck, ArrowUp,
+  MapPin, Phone, Mail, Globe, Clock, Timer, Check,
+  ChevronRight, ChevronLeft, ChevronDown, CalendarCheck, ArrowUp,
   Play, Film, Images, Quote, Sparkles, X, Menu,
 } from "lucide-react";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice } from "./constants";
@@ -93,6 +93,21 @@ function useInView(threshold = 0.12) {
     return () => obs.disconnect();
   }, [threshold]);
   return { ref, visible };
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && "matchMedia" in window && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !("matchMedia" in window)) return;
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
 }
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -231,6 +246,222 @@ function ScrollProgress({ color }: { color: string }) {
   );
 }
 
+// ── Service category filter (dropdown next to the "Services & pricing" heading) ──
+function CategoryFilter({
+  categories, selected, onSelect, accentColor,
+}: {
+  categories: string[];
+  selected: string | null;
+  onSelect: (cat: string | null) => void;
+  accentColor: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const label = selected ? (CATEGORY_LABEL[selected] ?? selected) : "All services";
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <div
+        className={`inline-flex items-center gap-1 rounded-full border bg-white pl-3.5 pr-2 py-1 text-xs font-semibold transition-colors ${
+          selected ? "border-slate-300 text-slate-800" : "border-slate-200 text-slate-600"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="inline-flex items-center gap-1.5 hover:text-slate-900 transition-colors cursor-pointer"
+        >
+          {selected && <CategoryIcon category={selected} className="w-3.5 h-3.5 shrink-0" />}
+          {label}
+        </button>
+        {selected ? (
+          <button
+            type="button"
+            onClick={() => { onSelect(null); setOpen(false); }}
+            aria-label="Clear category filter"
+            className="ml-0.5 rounded-full p-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        )}
+      </div>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute left-0 top-full mt-2 z-30 min-w-[180px] max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          {[null, ...categories].map((cat) => {
+            const isSel = cat === selected;
+            return (
+              <li key={cat ?? "__all"}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isSel}
+                  onClick={() => { onSelect(cat); setOpen(false); }}
+                  className="w-full text-left px-3.5 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-slate-50 transition-colors"
+                  style={{ color: isSel ? accentColor : "#475569" }}
+                >
+                  {cat ? <CategoryIcon category={cat} className="w-3.5 h-3.5 shrink-0" /> : <span className="w-3.5 shrink-0" />}
+                  <span className="flex-1 truncate">{cat ? (CATEGORY_LABEL[cat] ?? cat) : "All services"}</span>
+                  {isSel && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: accentColor }} />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── Service spotlight (tap a service card → details + the stylists who offer it) ──
+function ServiceSpotlight({
+  service, staff, theme, accentText, hasBooking, onBook, onViewStaff, onClose,
+}: {
+  service: ServiceItem;
+  staff: StaffMember[];
+  theme: WebsiteTheme;
+  accentText: string;
+  hasBooking?: boolean;
+  onBook?: (service: ServiceItem) => void;
+  onViewStaff: (m: StaffMember) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", onKey); };
+  }, [onClose]);
+
+  const explicit = !!service.assignedStaffIds && service.assignedStaffIds.length > 0;
+  const stylists = explicit
+    ? staff.filter((m) => service.assignedStaffIds!.includes(String(m.id)))
+    : staff;
+  const catLabel = CATEGORY_LABEL[service.category] ?? service.category;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm sm:items-center sm:p-6"
+      style={{ animation: "sw-fade .18s ease" }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes sw-fade { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes sw-sheet { from { opacity: 0; transform: translateY(28px) } to { opacity: 1; transform: translateY(0) } }
+      `}</style>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${service.name} — details`}
+        className="flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
+        style={{ maxHeight: "90vh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start gap-3.5 border-b border-slate-100 px-5 pb-3.5 pt-5">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+            <CategoryIcon category={service.category} className="h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-bold leading-tight text-slate-900">{service.name}</p>
+            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{catLabel}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
+                <Timer className="h-3 w-3" /> {service.durationMinutes ?? 30} min
+              </span>
+              <span className="text-sm font-bold text-slate-900 tabular-nums">{formatPrice(service.price, service.currency)}</span>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="-m-1 shrink-0 p-1 text-slate-400 transition-colors hover:text-slate-700 cursor-pointer">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          {service.description && (
+            <div className="relative pl-4">
+              <span className="absolute bottom-0 left-0 top-1 w-1 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
+                About this service
+              </p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{service.description}</p>
+            </div>
+          )}
+
+          {stylists.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                {explicit ? "Performed by" : "Available with any of our team"}
+              </p>
+              <div className="flex flex-col divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                {stylists.map((m) => {
+                  const avatar = staffAvatar(m);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => onViewStaff(m)}
+                      className="flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 cursor-pointer"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: cardColor(m.name) }}>
+                        {avatar ? (
+                          <img src={avatar} alt={m.name} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                        ) : (
+                          <span className="text-xs font-black text-white">{initials(m.name)}</span>
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">{m.name}</span>
+                        <span className="block text-[10px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold" style={{ color: theme.accentColor }}>
+                        View <ChevronRight className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer CTA */}
+        {hasBooking && onBook && (
+          <div className="border-t border-slate-100 px-5 py-3.5">
+            <button
+              type="button"
+              onClick={() => onBook(service)}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 cursor-pointer"
+              style={{ backgroundColor: theme.accentColor, color: accentText }}
+            >
+              <CalendarCheck className="h-4 w-4" /> Book this service
+            </button>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ── Error page ────────────────────────────────────────────────────────────────
 
 export function SalonErrorPage({ is404 }: { is404: boolean }) {
@@ -318,6 +549,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const [selectedCat, setSelectedCat]     = useState<string | null>(null);
   const [showAllServices, setShowAllServices] = useState(false);
   const [spotlightStaffId, setSpotlightStaffId] = useState<number | null>(null);
+  const [spotlightServiceId, setSpotlightServiceId] = useState<number | null>(null);
   const [hoursExpanded, setHoursExpanded] = useState(false);
   const [heroVisible, setHeroVisible]     = useState(true);
   const [bookServiceId, setBookServiceId] = useState<number | null>(null);
@@ -326,6 +558,18 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const [holidays, setHolidays]           = useState<SalonHoliday[]>([]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
+
+  // Mobile "Meet our team" carousel — track which edge(s) can still scroll so the
+  // hint flips direction once you reach the end.
+  const teamScrollRef = useRef<HTMLDivElement>(null);
+  const [teamEdge, setTeamEdge] = useState<"start" | "middle" | "end">("start");
+  const updateTeamEdge = () => {
+    const el = teamScrollRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    if (max <= 4) { setTeamEdge("start"); return; }
+    setTeamEdge(el.scrollLeft <= 4 ? "start" : el.scrollLeft >= max - 4 ? "end" : "middle");
+  };
 
   useEffect(() => {
     apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salon.id}/holidays`)
@@ -359,10 +603,23 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const visibleServices = selectedCat ? activeServices.filter((s) => s.category === selectedCat) : activeServices;
   const manyServices = visibleServices.length > 5;
   const manyStaff = activeStaff.length > 5;
-  const SERVICE_MOBILE_PREVIEW = 4;
-  const hasHiddenServicesOnMobile = visibleServices.length > SERVICE_MOBILE_PREVIEW;
+  // Collapse the list to a preview + a "Show all" toggle. Shorter preview on phones.
+  const isNarrow = useMediaQuery("(max-width: 639.98px)");
+  const SERVICE_PREVIEW = isNarrow ? 6 : 10;
+  const canCollapseServices = visibleServices.length > SERVICE_PREVIEW;
+  const shownServices = canCollapseServices && !showAllServices
+    ? visibleServices.slice(0, SERVICE_PREVIEW)
+    : visibleServices;
   const openHours = salon.operatingHours?.filter((h) => !h.closed) ?? [];
   const hasBooking = salon.features?.includes("BOOKING");
+
+  // Re-measure the team carousel edges after it renders and on viewport resize.
+  useEffect(() => {
+    updateTeamEdge();
+    window.addEventListener("resize", updateTeamEdge);
+    return () => window.removeEventListener("resize", updateTeamEdge);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStaff.length]);
 
   const todayDate = new Date();
   const todayHoliday = holidays.find((h) =>
@@ -428,6 +685,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   };
 
   const spotlightStaff = activeStaff.find((m) => m.id === spotlightStaffId) ?? null;
+  const spotlightService = activeServices.find((s) => s.id === spotlightServiceId) ?? null;
 
   function openStaff(m: StaffMember) {
     setSpotlightStaffId(m.id!);
@@ -719,59 +977,67 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
             {activeServices.length > 0 && (
               <div>
-                <FadeIn>
+                <FadeIn className="relative z-20">
                   <div className="mb-6">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>What we offer</p>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Services &amp; pricing</h2>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Services &amp; pricing</h2>
+                      {grouped.length > 1 && (
+                        <CategoryFilter
+                          categories={grouped.map(([cat]) => cat)}
+                          selected={selectedCat}
+                          onSelect={(cat) => { setSelectedCat(cat); setShowAllServices(false); }}
+                          accentColor={theme.accentColor}
+                        />
+                      )}
+                    </div>
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
+                      Tap a service to know more &amp; who offers it
+                    </p>
                   </div>
                 </FadeIn>
-                {grouped.length > 1 && (
-                  <FadeIn delay={60}>
-                    <div className="flex flex-wrap gap-2 mb-5">
-                      <button onClick={() => { setSelectedCat(null); setShowAllServices(false); }}
-                        className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
-                        style={selectedCat === null ? { backgroundColor: theme.accentColor, color: accentText } : { backgroundColor: "#f1f5f9", color: "#64748b" }}>
-                        All
-                      </button>
-                      {grouped.map(([cat]) => (
-                        <button key={cat} onClick={() => { setSelectedCat(cat === selectedCat ? null : cat); setShowAllServices(false); }}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
-                          style={selectedCat === cat ? { backgroundColor: theme.accentColor, color: accentText } : { backgroundColor: "#f1f5f9", color: "#64748b" }}>
-                          <CategoryIcon category={cat} className="w-3.5 h-3.5" />
-                          {CATEGORY_LABEL[cat] ?? cat}
-                        </button>
-                      ))}
-                    </div>
-                  </FadeIn>
-                )}
                 <FadeIn delay={80}>
                   <div className="relative">
-                    <div className={`${manyServices
-                      ? "grid grid-cols-2 gap-2.5 sm:gap-3"
-                      : "bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100"} ${
-                      hasHiddenServicesOnMobile && !showAllServices ? "max-h-[380px] overflow-hidden sm:max-h-none sm:overflow-visible" : ""}`}>
-                      {visibleServices.map((s) => (
-                        <div key={s.id} className={manyServices
-                          ? "min-w-0 group/svc flex flex-col gap-2 sm:gap-2.5 p-3 sm:p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
-                          : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"}>
+                    <div className={manyServices
+                      ? "grid grid-cols-2 items-start gap-2.5 sm:gap-3"
+                      : "bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100"}>
+                      {shownServices.map((s) => (
+                        <div key={s.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSpotlightServiceId(s.id)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSpotlightServiceId(s.id); } }}
+                          className={`${manyServices
+                            ? "min-w-0 group/svc flex flex-col gap-2 sm:gap-2.5 p-3 sm:p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
+                            : "group/svc flex flex-col gap-2.5 p-4 hover:bg-slate-50/60 transition-colors"} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset`}>
                           <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                             <span className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
                               <CategoryIcon category={s.category} className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
                             </span>
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900 leading-tight">{s.name}</p>
-                              {s.description && <p className="hidden sm:block text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>}
+                              {manyServices ? (
+                                /* Always reserve 2 lines so every card is the same height; the full text lives in the tap-to-open modal. */
+                                <p className="hidden sm:block text-xs text-slate-400 mt-0.5 leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                                  {s.description || "—"}
+                                </p>
+                              ) : (
+                                s.description && <p className="hidden sm:block text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full shrink-0">
+                          <div className={`flex items-center gap-1.5 sm:gap-2 ${manyServices ? "flex-nowrap min-w-0" : "flex-wrap"}`}>
+                            <span className={`inline-flex items-center gap-1 text-slate-400 bg-slate-100 rounded-full shrink-0 ${manyServices ? "text-[11px] px-2 py-0.5" : "text-xs px-2 py-1"}`}>
                               <Timer className="w-3 h-3 shrink-0" /> {s.durationMinutes ?? 30} min
                             </span>
-                            <span className="hidden sm:inline text-xs text-slate-400">-</span>
-                            <span className="text-xs font-semibold text-slate-900 tabular-nums">{formatPrice(s.price, s.currency)}</span>
+                            <span className={`text-xs text-slate-400 ${manyServices ? "hidden" : "hidden sm:inline"}`}>-</span>
+                            <span className={`font-semibold text-slate-900 tabular-nums shrink-0 ${manyServices ? "text-[11px]" : "text-xs"}`}>{formatPrice(s.price, s.currency)}</span>
                             {hasBooking && (
-                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); setBookServiceId(s.id); onNavigate?.("book"); }}
-                                className="w-full sm:w-auto sm:ml-auto inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg no-underline opacity-100 sm:opacity-0 sm:group-hover/svc:opacity-100 sm:group-focus-within/svc:opacity-100 transition-opacity shrink-0"
+                              <a href={bookUrl} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBookServiceId(s.id); onNavigate?.("book"); }}
+                                className={`shrink-0 ml-auto items-center justify-center gap-1 font-semibold rounded-lg no-underline transition-opacity ${manyServices
+                                  ? "hidden sm:group-hover/svc:inline-flex sm:group-focus-within/svc:inline-flex text-[11px] px-2.5 py-1"
+                                  : "w-full sm:w-auto inline-flex text-xs px-3 py-1.5 opacity-100 sm:opacity-0 sm:group-hover/svc:opacity-100 sm:group-focus-within/svc:opacity-100"}`}
                                 style={{ backgroundColor: theme.accentColor, color: accentText }}>
                                 Book <ChevronRight className="w-3 h-3" />
                               </a>
@@ -780,13 +1046,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         </div>
                       ))}
                     </div>
-                    {hasHiddenServicesOnMobile && !showAllServices && (
-                      <div className="sm:hidden absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none rounded-b-2xl" />
+                    {canCollapseServices && !showAllServices && (
+                      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none rounded-b-2xl" />
                     )}
                   </div>
-                  {hasHiddenServicesOnMobile && (
+                  {canCollapseServices && (
                     <button onClick={() => setShowAllServices((v) => !v)}
-                      className="sm:hidden mt-3 w-full text-center text-xs font-semibold py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+                      className="mt-3 w-full text-center text-xs font-semibold py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
                       {showAllServices ? "Show less" : `Show all ${visibleServices.length} services`}
                     </button>
                   )}
@@ -815,8 +1081,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
                   {/* Mobile — swipeable cards (2+ staff only); tap to open the stylist spotlight */}
                   {activeStaff.length > 1 && (
-                  <div className="sm:hidden -mx-4 px-4">
-                    <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
+                  <div className="sm:hidden">
+                  <div className="relative -mx-4">
+                    <div ref={teamScrollRef} onScroll={updateTeamEdge}
+                      className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {activeStaff.map((m) => {
                         const avatar = staffAvatar(m);
                         const { photos, videos } = mediaCounts(m.workMedia);
@@ -842,7 +1110,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                               </span>
                             ) : detail ? (
                               <span className="text-[10px] font-medium" style={{ color: theme.accentColor }}>View profile</span>
-                            ) : null}
+                            ) : (
+                              <span className="text-[10px] font-medium text-slate-300" aria-hidden="true">-</span>
+                            )}
                             {hasBooking && (
                               <button type="button" onClick={(e) => { e.stopPropagation(); bookWithStaff(m); }}
                                 className="mt-1 w-full inline-flex items-center justify-center text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer"
@@ -854,6 +1124,35 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         );
                       })}
                     </div>
+                    {/* edge fade + chevron so it's clear the row scrolls; flips once you hit the end */}
+                    {activeStaff.length > 2 && teamEdge !== "start" && (
+                      <>
+                        <div className="pointer-events-none absolute left-0 top-0 bottom-1 w-10 bg-gradient-to-r from-white to-transparent" />
+                        <span className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full shadow-sm"
+                          style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </span>
+                      </>
+                    )}
+                    {activeStaff.length > 2 && teamEdge !== "end" && (
+                      <>
+                        <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-10 bg-gradient-to-l from-white to-transparent" />
+                        <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full shadow-sm"
+                          style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {activeStaff.length > 2 && (
+                    <p className="mt-2 flex items-center gap-1 text-[11px] font-medium" style={{ color: theme.accentColor }}>
+                      {teamEdge === "end" ? (
+                        <><ChevronLeft className="h-3 w-3" /> Swipe back to the start</>
+                      ) : (
+                        <>Swipe to see all {activeStaff.length} <ChevronRight className="h-3 w-3" /></>
+                      )}
+                    </p>
+                  )}
                   </div>
                   )}
 
@@ -930,6 +1229,19 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
             )}
           </div>
         </section>
+      )}
+
+      {spotlightService && (
+        <ServiceSpotlight
+          service={spotlightService}
+          staff={activeStaff}
+          theme={theme}
+          accentText={accentText}
+          hasBooking={hasBooking}
+          onBook={(svc) => { setSpotlightServiceId(null); setBookServiceId(svc.id); onNavigate?.("book"); }}
+          onViewStaff={(m) => { setSpotlightServiceId(null); openStaff(m); }}
+          onClose={() => setSpotlightServiceId(null)}
+        />
       )}
 
       {/* ── Floating actions ─────────────────────────────────────────────── */}

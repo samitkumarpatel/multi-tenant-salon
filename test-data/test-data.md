@@ -2,8 +2,15 @@
 
 Dummy data for local development against `http://localhost:8080`.
 
-> **Quickstart:** run `./others/seed.sh` to create all 3 salons with staff, services, and
-> availability in one go (requires `curl` and `jq`).
+> **Quickstart:** run [`./test-data/seed-salon-shop.sh`](./seed-salon-shop.sh) to build **one
+> fully-populated salon** — website theme, 7 staff (avatars + work galleries + schedules),
+> 9 services, a web-shop (4 brands, 5 categories, 15 multi-image / multi-variant products with
+> low / out-of-stock / inactive states), 8 orders taken through the fulfilment lifecycle, ~12
+> bookings, plus closures and a holiday — in one go. Start the backend first
+> (`./mvnw spring-boot:test-run`), then run the script. Requires `bash`, `curl`, `jq`.
+> Override the target/name with `BASE_URL=…` / `SALON_NAME=…`.
+>
+> The manual `curl` / HTTPie recipes below build the same kinds of data step by step.
 
 Staff and service commands use `<SALON_ID>` — replace it with the UUID returned by the salon
 creation call (`salonId` field in the JSON response; the response also includes `salonHandler`,

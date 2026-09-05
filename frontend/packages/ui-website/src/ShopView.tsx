@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, User, X,
+  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, User, X,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
@@ -205,95 +205,67 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
 
   // ── browse ────────────────────────────────────────────────────────────────
 
-  const selectStyle: React.CSSProperties = {
-    backgroundColor: cardBg,
-    border: `1px solid ${cardBorder}`,
-    color: theme.heroTextColor,
-  };
+  const menuBg = heroLight ? "#FFFFFF" : "#0F172A";
+  const menuHover = heroLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.08)";
 
   return shell(
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-      {/* Filter bar */}
+      {/* Filter bar — stacked full-width fields on mobile, one inline segmented row on sm+.
+          Uses an in-DOM custom dropdown (FilterSelect), not a native <select>: a native
+          popup ignores a phone's / DevTools' viewport and anchors to the window origin. */}
       <div
-        className="flex flex-wrap items-center gap-0 rounded-xl mb-7 overflow-hidden"
-        style={{ border: `1px solid ${cardBorder}`, backgroundColor: cardBg }}
+        className="mb-7 rounded-xl border flex flex-col sm:flex-row sm:flex-wrap sm:items-center"
+        style={{ borderColor: cardBorder, backgroundColor: cardBg }}
       >
-        {/* Count */}
-        <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderRight: `1px solid ${cardBorder}` }}>
-          <Search className="w-3.5 h-3.5 shrink-0" style={{ color: sub }} />
-          <span className="text-xs font-medium whitespace-nowrap" style={{ color: sub }}>
-            {filterLoading ? "…" : `${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""}`}
-          </span>
-        </div>
-
-        {/* Search */}
-        <div className="relative flex-1 min-w-[140px]">
+        {/* Count + search — the top row on mobile; two inline segments on sm+ */}
+        <div className="flex items-center border-b sm:border-b-0 sm:contents" style={{ borderColor: cardBorder }}>
+          <div className="flex items-center gap-2 px-4 py-3 shrink-0 border-r" style={{ borderColor: cardBorder }}>
+            <Search className="w-3.5 h-3.5 shrink-0" style={{ color: sub }} />
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: sub }}>
+              {filterLoading ? "…" : `${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""}`}
+            </span>
+          </div>
           <input
             type="search"
             placeholder="Search products…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-4 py-3 text-sm outline-none bg-transparent"
+            className="flex-1 min-w-0 sm:min-w-[140px] px-4 py-3 text-base sm:text-sm outline-none bg-transparent"
             style={{ color: theme.heroTextColor }}
           />
         </div>
 
-        {/* Brand filter (API-driven) */}
-        {brands.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderLeft: `1px solid ${cardBorder}` }}>
-            <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline" style={{ color: sub }}>
-              Brand
-            </span>
-            <select
-              className="text-xs font-medium outline-none bg-transparent cursor-pointer py-0.5 pr-1"
-              style={{ color: theme.heroTextColor }}
-              value={activeBrandId ?? ""}
-              onChange={(e) => setActiveBrandId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">All</option>
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Brand / Category / Sort — stacked on mobile, inline segments on sm+ */}
+        <div className="flex flex-col sm:contents">
+          {brands.length > 0 && (
+            <FilterSelect
+              label="Brand" value={activeBrandId != null ? String(activeBrandId) : ""}
+              sub={sub} border={cardBorder} text={theme.heroTextColor} menuBg={menuBg} menuHover={menuHover}
+              options={[{ value: "", label: "All" }, ...brands.map((b) => ({ value: String(b.id), label: b.name }))]}
+              onChange={(v) => setActiveBrandId(v ? Number(v) : null)}
+            />
+          )}
 
-        {/* Category filter (API-driven) */}
-        {categories.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderLeft: `1px solid ${cardBorder}` }}>
-            <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline" style={{ color: sub }}>
-              Category
-            </span>
-            <select
-              className="text-xs font-medium outline-none bg-transparent cursor-pointer py-0.5 pr-1"
-              style={{ color: theme.heroTextColor }}
-              value={activeCategoryId ?? ""}
-              onChange={(e) => setActiveCategoryId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">All</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+          {categories.length > 0 && (
+            <FilterSelect
+              label="Category" value={activeCategoryId != null ? String(activeCategoryId) : ""}
+              sub={sub} border={cardBorder} text={theme.heroTextColor} menuBg={menuBg} menuHover={menuHover}
+              options={[{ value: "", label: "All" }, ...categories.map((c) => ({ value: String(c.id), label: c.name }))]}
+              onChange={(v) => setActiveCategoryId(v ? Number(v) : null)}
+            />
+          )}
 
-        {/* Sort */}
-        <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderLeft: `1px solid ${cardBorder}` }}>
-          <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline" style={{ color: sub }}>
-            Sort
-          </span>
-          <select
-            className="text-xs font-medium outline-none bg-transparent cursor-pointer py-0.5 pr-1"
-            style={{ color: theme.heroTextColor }}
-            value={sort}
-            onChange={(e) => setSort(e.target.value as typeof sort)}
-          >
-            <option value="default">Default</option>
-            <option value="price-asc">Price: Low → High</option>
-            <option value="price-desc">Price: High → Low</option>
-            <option value="name-asc">Name A–Z</option>
-          </select>
+          <FilterSelect
+            label="Sort" value={sort}
+            sub={sub} border={cardBorder} text={theme.heroTextColor} menuBg={menuBg} menuHover={menuHover}
+            options={[
+              { value: "default", label: "Default" },
+              { value: "price-asc", label: "Price: Low → High" },
+              { value: "price-desc", label: "Price: High → Low" },
+              { value: "name-asc", label: "Name A–Z" },
+            ]}
+            onChange={(v) => setSort(v as typeof sort)}
+          />
         </div>
       </div>
 
@@ -405,6 +377,99 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         />
       )}
     </div>,
+  );
+}
+
+// ── Filter select ───────────────────────────────────────────────────────────
+// An in-DOM custom dropdown — a full-width field on mobile, an inline segment
+// (via the parent's `sm:contents`) on sm+. Deliberately NOT a native <select>:
+// the native popup ignores a phone's / DevTools' emulated viewport and anchors
+// to the window origin, so it opens off-screen. This menu is a positioned <ul>,
+// so it always lands under the control.
+function FilterSelect({
+  label, value, options, onChange, sub, border, text, menuBg, menuHover,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  sub: string;
+  border: string;
+  text: string;
+  menuBg: string;
+  menuHover: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find((o) => o.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={ref}
+      className="relative flex items-center gap-2 px-4 py-2.5 sm:py-3 border-t first:border-t-0 sm:border-t-0 sm:border-l min-w-0 sm:shrink-0"
+      style={{ borderColor: border }}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-widest shrink-0 w-16 sm:w-auto" style={{ color: sub }}>
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex-1 min-w-0 flex items-center justify-between gap-2 bg-transparent outline-none cursor-pointer text-base sm:text-xs font-medium"
+        style={{ color: text }}
+      >
+        <span className="truncate">{current?.label}</span>
+        <ChevronDown
+          className="w-3.5 h-3.5 shrink-0 transition-transform"
+          style={{ color: sub, transform: open ? "rotate(180deg)" : undefined }}
+        />
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute left-3 right-3 sm:left-auto sm:right-0 top-full mt-1 z-40 max-h-64 overflow-y-auto rounded-xl py-1 shadow-xl sm:min-w-[200px]"
+          style={{ backgroundColor: menuBg, border: `1px solid ${border}` }}
+        >
+          {options.map((o) => {
+            const selected = o.value === value;
+            return (
+              <li key={o.value}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => { onChange(o.value); setOpen(false); }}
+                  className="w-full text-left px-3.5 py-2 text-sm flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                  style={{ color: text, backgroundColor: selected ? menuHover : "transparent" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = menuHover; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = selected ? menuHover : "transparent"; }}
+                >
+                  <span className="truncate">{o.label}</span>
+                  {selected && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: sub }} />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
