@@ -1222,7 +1222,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   accentText={accentText}
                   hasBooking={hasBooking}
                   onBook={bookWithStaff}
-                  onClose={() => setSpotlightStaffId(null)}
+                  onClose={() => { setSpotlightStaffId(null); setBookServiceId(null); }}
                 />
               )}
               </>
@@ -1239,7 +1239,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
           accentText={accentText}
           hasBooking={hasBooking}
           onBook={(svc) => { setSpotlightServiceId(null); setBookServiceId(svc.id); onNavigate?.("book"); }}
-          onViewStaff={(m) => { setSpotlightServiceId(null); openStaff(m); }}
+          onViewStaff={(m) => {
+            // Carry the service the visitor came from so a later "Book" in the stylist
+            // sheet lands straight on the date step instead of re-asking for the service.
+            setBookServiceId(spotlightService.id);
+            setSpotlightServiceId(null);
+            openStaff(m);
+          }}
           onClose={() => setSpotlightServiceId(null)}
         />
       )}
