@@ -8,6 +8,15 @@ export const FEATURES = [
   "STATIC_WEBSITE", "BOOKING", "MEMBERSHIP", "WEBSHOP", "ANALYTICS", "LOYALTY_PROGRAM",
 ] as const;
 
+export const FEATURE_DESCRIPTION: Record<string, string> = {
+  STATIC_WEBSITE: "Your public-facing site — a fast static website or an AI-generated (Gen UI) one.",
+  BOOKING: "Let clients book appointments online and choose their preferred stylist.",
+  MEMBERSHIP: "Offer paid membership plans with recurring perks for your regulars.",
+  WEBSHOP: "Sell products online with your own catalogue, cart and checkout.",
+  ANALYTICS: "Track how visitors use your website and which services get the most interest.",
+  LOYALTY_PROGRAM: "Reward repeat clients with points they earn on visits and purchases.",
+};
+
 export const DAYS = [
   "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY",
 ] as const;

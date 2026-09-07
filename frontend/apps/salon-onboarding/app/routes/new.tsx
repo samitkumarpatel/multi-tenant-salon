@@ -5,7 +5,7 @@ import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl } from "~/lib/config";
 import { SiteFooter } from "~/components/SiteFooter";
-import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
+import { DAY_SHORT, FEATURES, FEATURE_LABEL, FEATURE_DESCRIPTION, defaultHours } from "~/lib/constants";
 import { TERMS_TEXT, PRIVACY_TEXT } from "~/lib/legal";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
 import { HoursTable, TileGrid, CountrySelect, PhoneInput, Toast, useToast } from "@salon/ui-shared";
@@ -812,6 +812,7 @@ export default function NewSalon() {
           <TileGrid
             options={FEATURES}
             labels={FEATURE_LABEL}
+            descriptions={FEATURE_DESCRIPTION}
             selected={form.features}
             onChange={(features) => setForm((f) => ({ ...f, features }))}
           />

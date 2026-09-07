@@ -11,6 +11,7 @@ export { SiteHeader, SiteFooter, FEATURE_NAV } from "./SiteChrome";
 export { SocialLinksRow, SOCIAL_PLATFORMS } from "./SocialIcons";
 export type { SocialPlatform, SocialPlatformKey } from "./SocialIcons";
 export { CategoryIcon, CATEGORY_ICON } from "./CategoryIcon";
+export { useIsScrollable } from "./useIsScrollable";
 
 export { DEFAULT_THEME, FONTS, loadGoogleFont, fontStack, isLightColor, contrastText, relLuminance } from "./theme";
 // The full Google Fonts list is a large data module — imported directly from

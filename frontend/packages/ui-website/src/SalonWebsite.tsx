@@ -13,6 +13,7 @@ import { ShopView } from "./ShopView";
 import { FEATURE_NAV } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
 import { CategoryIcon } from "./CategoryIcon";
+import { useIsScrollable } from "./useIsScrollable";
 import { apiFetch, API_BASE } from "./api";
 import { staffAvatar, MediaThumb, Lightbox, StaffSpotlight } from "./StaffMedia";
 import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, SalonHoliday } from "./types";
@@ -557,6 +558,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
   const [mounted, setMounted]             = useState(false);
   const [holidays, setHolidays]           = useState<SalonHoliday[]>([]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isScrollable = useIsScrollable();
   const heroRef = useRef<HTMLElement>(null);
 
   // Mobile "Meet our team" carousel — track which edge(s) can still scroll so the
@@ -1252,7 +1254,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
       {/* ── Floating actions ─────────────────────────────────────────────── */}
       {/* sm+ only — the footer's own "Back to top" link covers this on mobile, and the
-          floating button collides with it once the (shorter, stacked) mobile footer scrolls into view */}
+          floating button collides with it once the (shorter, stacked) mobile footer scrolls into view.
+          Hidden entirely when the page fits on screen and there is nothing to scroll back from. */}
+      {isScrollable && (
       <div className="hidden sm:block fixed bottom-6 right-6 z-[100]" style={{
         opacity: heroVisible ? 0 : 1, transform: heroVisible ? "translateY(12px) scale(0.95)" : "translateY(0) scale(1)",
         pointerEvents: heroVisible ? "none" : "auto", transition: "opacity 0.3s ease, transform 0.3s ease",
@@ -1263,6 +1267,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
           <ArrowUp className="w-4 h-4" />
         </button>
       </div>
+      )}
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer id="contact" className="mt-auto scroll-mt-16" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
@@ -1376,9 +1381,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
             <div>
               <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {salon.name} · All rights reserved.</p>
             </div>
-            <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
-              Back to top <ArrowUp className="w-3 h-3" />
-            </button>
+            {isScrollable && (
+              <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
+                Back to top <ArrowUp className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
       </footer>

@@ -5,6 +5,7 @@ import {
 import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
 import { SocialLinksRow } from "./SocialIcons";
+import { useIsScrollable } from "./useIsScrollable";
 import type { OperatingHours, Salon, WebsiteTheme } from "./types";
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -229,6 +230,7 @@ export function SiteFooter({
   standalone?: boolean;
 }) {
   const accentText = contrastText(theme.accentColor);
+  const isScrollable = useIsScrollable();
   const hasBooking = salon.features?.includes("BOOKING");
   const todayName  = DAY_ORDER[new Date().getDay()];
   const openHours  = salon.operatingHours?.filter((h) => !h.closed) ?? [];
@@ -376,9 +378,11 @@ export function SiteFooter({
           <p className="text-[11px]" style={{ color: footerDim }}>
             © {new Date().getFullYear()} {salon.name} · All rights reserved.
           </p>
-          <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
-            Back to top <ArrowUp className="w-3 h-3" />
-          </button>
+          {isScrollable && (
+            <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
+              Back to top <ArrowUp className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
     </footer>
