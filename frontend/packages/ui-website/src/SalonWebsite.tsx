@@ -1020,12 +1020,21 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900 leading-tight">{s.name}</p>
                               {manyServices ? (
-                                /* Always reserve 2 lines so every card is the same height; the full text lives in the tap-to-open modal. */
-                                <p className="hidden sm:block text-xs text-slate-400 mt-0.5 leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                                /* `sm:line-clamp-2` (not a separate `sm:block` + unprefixed `line-clamp-2`) — line-clamp
+                                   needs `display:-webkit-box`, and a plain `sm:block` on the same element fights it for
+                                   the `display` property and wins, silently undoing the clamp above the sm breakpoint.
+                                   Always reserve 2 lines so every card is the same height; the full text lives in the
+                                   tap-to-open modal. */
+                                <p className="hidden sm:line-clamp-2 text-xs text-slate-400 mt-0.5 leading-relaxed min-h-[2.5rem]">
                                   {s.description || "—"}
                                 </p>
                               ) : (
-                                s.description && <p className="hidden sm:block text-xs text-slate-400 mt-0.5 leading-relaxed">{s.description}</p>
+                                /* Clamped to 2 lines here too — the full text still lives in the tap-to-open modal. */
+                                s.description && (
+                                  <p className="hidden sm:line-clamp-2 text-xs text-slate-400 mt-0.5 leading-relaxed">
+                                    {s.description}
+                                  </p>
+                                )
                               )}
                             </div>
                           </div>

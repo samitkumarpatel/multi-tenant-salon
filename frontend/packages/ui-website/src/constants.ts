@@ -29,6 +29,10 @@ export const formatPrice = (price: number | null | undefined, currency: string |
   return new Intl.NumberFormat("en-US", { style: "currency", currency: currency ?? "USD" }).format(price);
 };
 
+/** Placeholder shown wherever a product has no photo uploaded by the salon admin — the
+ * native "shopping bags" emoji renders as a full-color illustration on every platform. */
+export const DEFAULT_PRODUCT_EMOJI = "🛍️";
+
 export const formatDate = (ts?: string) =>
   ts ? new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
 

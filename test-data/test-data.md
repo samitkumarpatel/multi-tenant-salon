@@ -4,7 +4,7 @@ Dummy data for local development against `http://localhost:8080`.
 
 > **Quickstart:** run [`./test-data/seed-salon-shop.sh`](./seed-salon-shop.sh) to build **one
 > fully-populated salon** — website theme, 7 staff (avatars + work galleries + schedules),
-> 9 services, a web-shop (4 brands, 5 categories, 15 multi-image / multi-variant products with
+> 9 services, a web-shop (6 brands, 7 categories, 21 multi-image / multi-variant products with
 > low / out-of-stock / inactive states), 8 orders taken through the fulfilment lifecycle, ~12
 > bookings, plus closures and a holiday — in one go. Start the backend first
 > (`./mvnw spring-boot:test-run`), then run the script. Requires `bash`, `curl`, `jq`.

@@ -10,8 +10,8 @@
 #     specializations and a weekly availability schedule
 #   • 9 bookable services across categories, several pinned to specific staff
 #   • a web-shop:
-#       - 4 brands, 5 categories
-#       - 15 products, most with MULTIPLE IMAGES (2–4 each) and 1–3 variants,
+#       - 6 brands, 7 categories
+#       - 21 products, most with MULTIPLE IMAGES (2–4 each) and 1–3 variants,
 #         including sale prices, low stock, out-of-stock and one inactive product
 #       - a couple of inventory restocks
 #   • 8 customer orders taken through the fulfilment lifecycle
@@ -71,8 +71,16 @@ must() { # must METHOD PATH BODY LABEL
   ok || die "$4 failed (HTTP $(code)): ${_RESP}"
 }
 
-# GNU date (Linux). +N days from today, yyyy-mm-dd
-day() { date -d "+$1 days" +%F; }
+# Portable date arithmetic: GNU `date -d` (Linux) vs BSD `date -v` (macOS's built-in /bin/bash
+# and `date` — the ones this script actually runs under out of the box, since macOS's stock bash
+# is too old for `declare -A`/`mapfile`, which is also why those are avoided below).
+if date -d "+1 day" +%F >/dev/null 2>&1; then
+  day() { date -d "+$1 days" +%F; }                 # +N days from today, yyyy-mm-dd
+  weekday() { date -d "$1" +%u; }                    # ISO weekday (1=Mon..7=Sun) of a yyyy-mm-dd
+else
+  day() { date -v+"$1"d +%F; }
+  weekday() { date -jf %F "$1" +%u; }
+fi
 
 # ── preflight ───────────────────────────────────────────────────────────────────
 command -v curl >/dev/null || die "curl not found"
@@ -214,30 +222,40 @@ for row in "${SERVICE_ROWS[@]}"; do
 done
 
 # ── 4. shop — brands & categories ──────────────────────────────────────────────
+# Parallel name/id arrays instead of `declare -A` — macOS's built-in bash (3.2, what
+# `#!/usr/bin/env bash` actually resolves to there) has no associative arrays.
 echo "▶ Creating shop brands & categories…"
-declare -A BRAND=() CAT=()
+BRAND_NAMES=(); BRAND_IDS=()
+CAT_NAMES=(); CAT_IDS=()
 add_brand() {
   local resp; resp=$(req POST "/api/salon-admin/${SALON_ID}/shop/brands" \
     "$(jq -nc --arg n "$1" --arg d "$2" --arg l "$3" \
       '{name:$n,description:$d,logoUrl:(if $l=="" then null else $l end)}')")
   ok || { warn "brand '$1' failed (HTTP $(code)): $resp"; return; }
-  BRAND["$1"]=$(jq -r '.id' <<<"$resp"); echo "  brand + $1"
+  BRAND_NAMES+=("$1"); BRAND_IDS+=("$(jq -r '.id' <<<"$resp")"); echo "  brand + $1"
 }
 add_cat() {
   local resp; resp=$(req POST "/api/salon-admin/${SALON_ID}/shop/categories" \
     "$(jq -nc --arg n "$1" --arg d "$2" '{name:$n,description:$d,active:true}')")
   ok || { warn "category '$1' failed (HTTP $(code)): $resp"; return; }
-  CAT["$1"]=$(jq -r '.id' <<<"$resp"); echo "  category + $1"
+  CAT_NAMES+=("$1"); CAT_IDS+=("$(jq -r '.id' <<<"$resp")"); echo "  category + $1"
 }
+brand_id() { local i; for i in "${!BRAND_NAMES[@]}"; do [[ "${BRAND_NAMES[$i]}" == "$1" ]] && { printf '%s' "${BRAND_IDS[$i]}"; return; }; done; }
+cat_id()   { local i; for i in "${!CAT_NAMES[@]}";   do [[ "${CAT_NAMES[$i]}"   == "$1" ]] && { printf '%s' "${CAT_IDS[$i]}";   return; }; done; }
+
 add_brand "Kōkua Botanicals" "Plant-based haircare, made in small batches"  "$(PIC brand-kokua 300 300)"
 add_brand "Aveline Studio"   "Salon-professional colour care and styling"    "$(PIC brand-aveline 300 300)"
 add_brand "Noble & Vine"     "Grooming — beard, shave and skin"              ""
 add_brand "Lume Cosmetics"   "Clean colour cosmetics for face, lips and eyes" ""
+add_brand "Petal & Stone"    "Botanical skincare for face and body"           "$(PIC brand-petalstone 300 300)"
+add_brand "Vernis Nail Co."  "Long-wear gel polish and nail care"             ""
 add_cat "Shampoo & Conditioner" "Wash-day essentials"
 add_cat "Styling"               "Creams, sprays, oils and finishing"
 add_cat "Treatments"            "Masks, bonders and scalp care"
 add_cat "Grooming"              "Beard and shave"
 add_cat "Makeup"                "Face, lips and eyes"
+add_cat "Skin Care"             "Cleansers, serums and moisturisers"
+add_cat "Nail Care"             "Polish, treatments and tools"
 
 # ── 5. shop — products (multi-image, multi-variant) ────────────────────────────
 echo "▶ Creating products…"
@@ -246,9 +264,9 @@ mkprod() { # mkprod  <name> <desc> <brandKey|-> <catKey|-> <imgSeedBase> <nImgs>
   local name="$1" desc="$2" bkey="$3" ckey="$4" seed="$5" n="$6" variants="$7"
   local imgs="[]" i
   for ((i=1;i<=n;i++)); do imgs=$(jq -c --arg u "$(PIC "${seed}-${i}")" '. + [$u]' <<<"$imgs"); done
-  local bid="null" cid="null"
-  [[ "$bkey" != "-" && -n "${BRAND[$bkey]:-}" ]] && bid="${BRAND[$bkey]}"
-  [[ "$ckey" != "-" && -n "${CAT[$ckey]:-}"   ]] && cid="${CAT[$ckey]}"
+  local bid="null" cid="null" v
+  if [[ "$bkey" != "-" ]]; then v=$(brand_id "$bkey"); [[ -n "$v" ]] && bid="$v"; fi
+  if [[ "$ckey" != "-" ]]; then v=$(cat_id "$ckey");   [[ -n "$v" ]] && cid="$v"; fi
   local body
   body=$(jq -nc --arg name "$name" --arg desc "$desc" --argjson bid "$bid" --argjson cid "$cid" \
                 --argjson imgs "$imgs" --argjson variants "$variants" \
@@ -259,10 +277,12 @@ mkprod() { # mkprod  <name> <desc> <brandKey|-> <catKey|-> <imgSeedBase> <nImgs>
   echo "  + ${name}  (${n} images, $(jq '.variants|length' <<<"$resp") variants)"
 }
 V() { # V <sku> <label> <price> <compareAt|-> <qty> <reorder>  -> one variant object
-  jq -nc --arg sku "$1" --arg label "$2" --argjson price "$3" \
+  # `--arg lbl` (not `label`) on purpose: jq 1.6's lexer treats `$label` as the `label $out|...`
+  # keyword rather than a variable reference, so `--arg label` + `$label` fails to compile.
+  jq -nc --arg sku "$1" --arg lbl "$2" --argjson price "$3" \
          --arg cmp "$4" --argjson qty "$5" --argjson ro "$6" \
     '{id:null,sku:$sku,
-      label:(if $label=="" then null else $label end),
+      label:(if $lbl=="" then null else $lbl end),
       price:$price,
       compareAtPrice:(if $cmp=="-" then null else ($cmp|tonumber) end),
       currency:"USD",quantityOnHand:$qty,reorderLevel:$ro,active:true}'
@@ -328,9 +348,34 @@ mkprod "Cream Blush Stick" "Blendable cream blush for cheeks and lips" \
   "Lume Cosmetics" "Makeup" "prod-cream-blush" 4 \
   "$(jq -sc '.' <(V LM-BLSH-PEACH "Peach" 23 - 20 5) <(V LM-BLSH-PLUM "Plum" 23 - 16 5))"
 
+mkprod "Rosewater Facial Toner" "Alcohol-free toner that soothes and refreshes" \
+  "Petal & Stone" "Skin Care" "prod-rosewater-toner" 2 \
+  "$(jq -sc '.' <(V PS-TNR-150 "150 ml" 28 - 34 8) <(V PS-TNR-300 "300 ml" 46 - 12 5))"
+
+mkprod "Vitamin C Brightening Serum" "Lightweight serum that evens tone and adds glow" \
+  "Petal & Stone" "Skin Care" "prod-vitc-serum" 3 \
+  "$(jq -sc '.' <(V PS-SER-30 "30 ml" 44 54 21 6))"
+
+mkprod "Daily Moisturizer SPF 30" "Non-greasy day cream with broad-spectrum SPF" \
+  "Petal & Stone" "Skin Care" "prod-day-moisturizer" 3 \
+  "$(jq -sc '.' <(V PS-MST-50 "50 ml" 36 - 27 6) <(V PS-MST-100 "100 ml" 58 - 8 4))"
+
+mkprod "Clay Purifying Mask" "Kaolin clay mask for oily and combination skin" \
+  "Petal & Stone" "Skin Care" "prod-clay-mask" 2 \
+  "$(jq -sc '.' <(V PS-MSK-75 "75 ml" 32 - 0 6))"          # out of stock
+
+mkprod "Gel Polish Duo Kit" "Base and colour coat with a long-wear gel finish" \
+  "Vernis Nail Co." "Nail Care" "prod-gel-polish" 3 \
+  "$(jq -sc '.' <(V VN-GEL-CORAL "Coral Reef" 21 - 25 6) <(V VN-GEL-BERRY "Berry Wine" 21 - 19 6) <(V VN-GEL-NUDE "Bare Nude" 21 - 5 6))"
+
+mkprod "Cuticle Oil Pen" "Click-pen applicator with jojoba and vitamin E" \
+  "Vernis Nail Co." "Nail Care" "prod-cuticle-oil" 2 \
+  "$(jq -sc '.' <(V VN-CUT-10 "10 ml" 14 - 3 6))"          # low stock
+
 # one inactive product — hidden from the storefront, still in admin
+_lume_bid="$(brand_id "Lume Cosmetics")"
 req POST "/api/salon-admin/${SALON_ID}/shop/products" "$(jq -nc \
-  --argjson bid "${BRAND[Lume Cosmetics]:-null}" --arg img "$(PIC prod-discontinued-1)" \
+  --argjson bid "${_lume_bid:-null}" --arg img "$(PIC prod-discontinued-1)" \
   '{brandId:$bid,categoryId:null,name:"Glitter Gel (discontinued)",description:"End of line — not for sale",
     images:[$img],active:false,
     variants:[{id:null,sku:"LM-GLT-10",label:"10 ml",price:12,currency:"USD",quantityOnHand:0,reorderLevel:0,active:false}]}')" \
@@ -356,7 +401,10 @@ fi
 echo "▶ Placing customer orders…"
 inv=$(req GET "/api/salon-admin/${SALON_ID}/shop/inventory")
 # sellable = active variant on an active product with stock to spare
-mapfile -t SELLABLE < <(jq -r '.[] | select(.active and .productActive and .quantityOnHand > 3) | .variantId' <<<"$inv")
+SELLABLE=()
+while IFS= read -r vid; do [[ -n "$vid" ]] && SELLABLE+=("$vid"); done < <(
+  jq -r '.[] | select(.active and .productActive and .quantityOnHand > 3) | .variantId' <<<"$inv"
+)
 [[ ${#SELLABLE[@]} -ge 4 ]] || warn "few sellable variants (${#SELLABLE[@]}) — orders will be small"
 
 CUSTOMERS=(
@@ -373,6 +421,7 @@ ORDER_IDS=()
 n_sell=${#SELLABLE[@]}
 oi=0
 for row in "${CUSTOMERS[@]}"; do
+  [[ $n_sell -gt 0 ]] || { warn "no sellable variants — skipping orders"; break; }
   IFS='|' read -r cname cemail cphone <<<"$row"
   # 1–3 lines, cycling through the sellable pool
   nlines=$(( (oi % 3) + 1 ))
@@ -455,7 +504,7 @@ for row in "${BOOK_CUSTOMERS[@]}"; do
   # spread across days 1..14, skip Sundays (salon closed) by nudging forward
   d=$(( (bi % 12) + 2 ))
   date=$(day "$d")
-  [[ "$(date -d "$date" +%u)" == "7" ]] && date=$(day $((d+1)))
+  [[ "$(weekday "$date")" == "7" ]] && date=$(day $((d+1)))
   slots=$(req GET "/api/salon/${SALON_ID}/booking/slots?serviceId=${svc}&date=${date}")
   if ! ok; then warn "slots lookup failed for ${date} (HTTP $(code))"; bi=$((bi+1)); continue; fi
   # pick a free slot — prefer one a few rows in so the day isn't all back-to-back
@@ -512,8 +561,8 @@ cat <<SUMMARY
 
   Staff .............. ${#STAFF_IDS[@]} (each with avatar + gallery + schedule)
   Services .......... ${#SERVICE_IDS[@]}
-  Brands ............ ${#BRAND[@]}
-  Categories ........ ${#CAT[@]}
+  Brands ............ ${#BRAND_NAMES[@]}
+  Categories ........ ${#CAT_NAMES[@]}
   Products .......... ${#PRODUCT_IDS[@]} (+ 1 inactive)
   Orders ............ ${#ORDER_IDS[@]}
   Bookings .......... ${#BOOKING_IDS[@]}
