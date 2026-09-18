@@ -32,6 +32,7 @@ curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/brands \
 ### Categories
 
 ```bash
+SALON_ID=luxe-hair-studio-g
 curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/categories \
   -H 'Content-Type: application/json' -d '{"name":"Skincare","description":"Cleansers, serums & moisturisers"}'
 
@@ -52,6 +53,7 @@ curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/categories \
 > becomes the cover — `imageUrl` mirrors it automatically.
 
 ```bash
+SALON_ID=luxe-hair-studio-g
 # Forest Essentials — Kashmiri Saffron Facial Cleanser (Skincare), 2 sizes
 curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/products \
   -H 'Content-Type: application/json' \

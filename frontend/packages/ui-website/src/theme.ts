@@ -80,3 +80,19 @@ export function relLuminance(hex: string): number {
 export const isLightColor = (hex: string) => relLuminance(hex) > 0.45;
 
 export const contrastText = (bg: string) => (isLightColor(bg) ? "#0F172A" : "#FFFFFF");
+
+/**
+ * Mixes a hex color toward white (positive `pct`) or black (negative `pct`) by `|pct|` percent.
+ * Used to derive a surface (e.g. a card) that's guaranteed visibly different from an arbitrary,
+ * admin-chosen page background — a hardcoded "#FFFFFF" card can land on an already-white page.
+ */
+export function shade(hex: string, pct: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex?.trim() ?? "");
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const target = pct > 0 ? 255 : 0;
+  const p = Math.min(1, Math.abs(pct) / 100);
+  const mix = (c: number) => Math.round(c + (target - c) * p);
+  return `#${[mix(r), mix(g), mix(b)].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}

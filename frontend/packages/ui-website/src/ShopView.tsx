@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, User, X,
+  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Loader2, Minus, Plus, Search, ShoppingBag, SlidersHorizontal, Trash2, User, X,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
-import { formatPrice } from "./constants";
+import { DEFAULT_PRODUCT_EMOJI, formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
+import { contrastText, fontStack, isLightColor, loadGoogleFont, shade } from "./theme";
 import { useCart } from "./shopCart";
+import { useWishlist } from "./shopWishlist";
 import PhoneInput from "./PhoneInput";
 import type { CartLine, Country, Salon, ShopBrand, ShopCategory, ShopOrder, ShopProduct, ShopShippingAddress, ShopVariant, WebsiteTheme } from "./types";
 
@@ -22,10 +23,6 @@ export interface ShopViewProps {
 
 type Step = "browse" | "checkout" | "done";
 
-function initials(name: string) {
-  return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-}
-
 export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: ShopViewProps) {
   const theme = themeProp;
   const fontStackCss = fontStack(theme.fontFamily);
@@ -37,6 +34,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
 
   const salonKey = String(salon.id);
   const cart = useCart(salonKey);
+  const wishlist = useWishlist(salonKey);
 
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,17 +63,68 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const [sort, setSort] = useState<"default" | "price-asc" | "price-desc" | "name-asc">("default");
 
+  // Card size is the shopper's browsing preference, not salon data — one setting shared
+  // across every storefront, same as a device-wide theme choice.
+  const [density, setDensity] = useState<"comfortable" | "compact">(() => {
+    if (typeof window === "undefined") return "comfortable";
+    return window.localStorage.getItem("shop-card-density") === "compact" ? "compact" : "comfortable";
+  });
+  useEffect(() => {
+    window.localStorage.setItem("shop-card-density", density);
+  }, [density]);
+
+  // Advanced filters (price range, availability) live behind the sliders toggle, collapsed by
+  // default — they see far less use than search/brand/category, which stay always visible.
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [minPrice, setMinPrice] = useState<number | "">("");
+  const [maxPrice, setMaxPrice] = useState<number | "">("");
+  const [inStockOnly, setInStockOnly] = useState(false);
+
+  const isOutOfStock = (p: ShopProduct) => p.variants.length > 0 && p.variants.every((v) => v.quantityOnHand <= 0);
+  const priceOf = (p: ShopProduct) => p.variants[0]?.price ?? 0;
+
+  const priceBounds = useMemo(() => {
+    const prices = products.map(priceOf).filter((n) => n > 0);
+    if (!prices.length) return null;
+    return { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) };
+  }, [products]);
+
+  // The two thumbs read/write the same minPrice/maxPrice the filter logic uses, defaulting to
+  // the catalogue's actual bounds while unset, and clamping so neither thumb can cross the other.
+  const sliderBounds = priceBounds ?? { min: 0, max: 1000 };
+  const sliderMin = minPrice === "" ? sliderBounds.min : minPrice;
+  const sliderMax = maxPrice === "" ? sliderBounds.max : maxPrice;
+
+  const activeFilterCount = [
+    search.trim() !== "", activeBrandId != null, activeCategoryId != null,
+    minPrice !== "", maxPrice !== "", inStockOnly,
+  ].filter(Boolean).length;
+
+  function resetFilters() {
+    setSearch("");
+    setActiveBrandId(null);
+    setActiveCategoryId(null);
+    setSort("default");
+    setMinPrice("");
+    setMaxPrice("");
+    setInStockOnly(false);
+  }
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = products.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q) && !(p.brandName ?? "").toLowerCase().includes(q)) return false;
+      const price = priceOf(p);
+      if (minPrice !== "" && price < minPrice) return false;
+      if (maxPrice !== "" && price > maxPrice) return false;
+      if (inStockOnly && isOutOfStock(p)) return false;
       return true;
     });
-    if (sort === "price-asc") list = [...list].sort((a, b) => (a.variants[0]?.price ?? 0) - (b.variants[0]?.price ?? 0));
-    if (sort === "price-desc") list = [...list].sort((a, b) => (b.variants[0]?.price ?? 0) - (a.variants[0]?.price ?? 0));
+    if (sort === "price-asc") list = [...list].sort((a, b) => priceOf(a) - priceOf(b));
+    if (sort === "price-desc") list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
     if (sort === "name-asc") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [products, search, sort]);
+  }, [products, search, sort, minPrice, maxPrice, inStockOnly]);
 
   // Re-fetch products from API whenever brand or category filter changes
   useEffect(() => {
@@ -217,14 +266,30 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         className="mb-7 rounded-xl border flex flex-col sm:flex-row sm:flex-wrap sm:items-center"
         style={{ borderColor: cardBorder, backgroundColor: cardBg }}
       >
-        {/* Count + search — the top row on mobile; two inline segments on sm+ */}
+        {/* Count/filter-toggle + search — the top row on mobile; two inline segments on sm+ */}
         <div className="flex items-center border-b sm:border-b-0 sm:contents" style={{ borderColor: cardBorder }}>
-          <div className="flex items-center gap-2 px-4 py-3 shrink-0 border-r" style={{ borderColor: cardBorder }}>
-            <Search className="w-3.5 h-3.5 shrink-0" style={{ color: sub }} />
+          <button
+            type="button"
+            onClick={() => setFiltersExpanded((v) => !v)}
+            aria-expanded={filtersExpanded}
+            aria-controls="shop-filter-expand"
+            className="flex items-center gap-2 px-4 py-3 shrink-0 border-r cursor-pointer"
+            style={{ borderColor: cardBorder }}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" style={{ color: sub }} />
             <span className="text-xs font-medium whitespace-nowrap" style={{ color: sub }}>
               {filterLoading ? "…" : `${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""}`}
             </span>
-          </div>
+            {activeFilterCount > 0 && (
+              <span
+                className="text-[10px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center"
+                style={{ backgroundColor: theme.accentColor, color: accentText }}
+              >
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className="w-3 h-3 shrink-0 transition-transform" style={{ color: sub, transform: filtersExpanded ? "rotate(180deg)" : undefined }} />
+          </button>
           <input
             type="search"
             placeholder="Search products…"
@@ -267,7 +332,85 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
             onChange={(v) => setSort(v as typeof sort)}
           />
         </div>
+
+        {/* Advanced filters — price range + availability. A full-width row of its own
+            (rather than another inline segment), toggled by the sliders button above. */}
+        {filtersExpanded && (
+          <div
+            id="shop-filter-expand"
+            className="w-full basis-full border-t px-4 py-4 flex flex-col sm:flex-row sm:items-end gap-4"
+            style={{ borderColor: cardBorder }}
+          >
+            <div className="flex-1 min-w-[220px]">
+              <div className="flex items-center justify-between text-xs font-medium mb-2.5">
+                <span style={{ color: sub }}>Price range</span>
+                <span style={{ color: theme.heroTextColor }}>{formatPrice(sliderMin)} – {formatPrice(sliderMax)}</span>
+              </div>
+              <PriceRangeSlider
+                bounds={sliderBounds}
+                min={sliderMin}
+                max={sliderMax}
+                accent={theme.accentColor}
+                track={cardBorder}
+                onChangeMin={(v) => setMinPrice(Math.min(v, sliderMax))}
+                onChangeMax={(v) => setMaxPrice(Math.max(v, sliderMin))}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-xs font-medium cursor-pointer shrink-0 pb-1.5" style={{ color: theme.heroTextColor }}>
+              <input
+                type="checkbox"
+                checked={inStockOnly}
+                onChange={(e) => setInStockOnly(e.target.checked)}
+                className="w-3.5 h-3.5 cursor-pointer"
+                style={{ accentColor: theme.accentColor }}
+              />
+              Only available
+            </label>
+
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-xs font-semibold shrink-0 cursor-pointer pb-1.5 self-start sm:self-auto"
+                style={{ color: theme.accentColor }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Card size — only worth offering once there's more than one card to compare.
+          Sits below the filter bar so it reads as "how to view the results", not another filter. */}
+      {!loading && !loadError && filteredProducts.length > 1 && (
+        <div className="flex justify-end mb-5 -mt-3">
+          <div
+            role="group"
+            aria-label="Card size"
+            className="inline-flex rounded-lg border overflow-hidden"
+            style={{ borderColor: cardBorder }}
+          >
+            {(["comfortable", "compact"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setDensity(option)}
+                aria-pressed={density === option}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${option === "compact" ? "border-l" : ""}`}
+                style={{
+                  borderColor: cardBorder,
+                  backgroundColor: density === option ? theme.accentColor : "transparent",
+                  color: density === option ? accentText : sub,
+                }}
+              >
+                {option === "comfortable" ? "Large" : "Compact"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center py-20" style={{ color: sub }}>
@@ -307,15 +450,22 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
       )}
 
       {!loading && !loadError && filteredProducts.length > 0 && (
-        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ${filterLoading ? "opacity-50 pointer-events-none" : ""}`}>
+        <div
+          className={`grid transition-opacity duration-200 ${
+            density === "compact" ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+          } ${filterLoading ? "opacity-50 pointer-events-none" : ""}`}
+        >
           {filteredProducts.map((product) => (
             <ProductCard
               key={product.id}
               product={product}
               theme={theme}
+              compact={density === "compact"}
               selectedVariantId={picked[product.id]}
               onSelectVariant={(vid) => setPicked((p) => ({ ...p, [product.id]: vid }))}
               onExpand={() => setDetailProduct(product)}
+              wished={wishlist.has(product.id)}
+              onToggleWish={() => wishlist.toggle(product.id)}
               onAdd={(variant) => {
                 const line: Omit<CartLine, "quantity"> = {
                   variantId: variant.id,
@@ -377,6 +527,62 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         />
       )}
     </div>,
+  );
+}
+
+// ── Price range slider ────────────────────────────────────────────────────
+// Two native <input type="range"> stacked on top of each other, one per thumb.
+// Both are `pointer-events-none` with only their `::-webkit-slider-thumb` /
+// `::-moz-range-thumb` set back to `pointer-events-auto` — so a click passes
+// straight through the empty track to whichever thumb is actually under the
+// cursor, and each thumb stays independently draggable however close they get.
+function PriceRangeSlider({
+  bounds, min, max, onChangeMin, onChangeMax, accent, track,
+}: {
+  bounds: { min: number; max: number };
+  min: number;
+  max: number;
+  onChangeMin: (value: number) => void;
+  onChangeMax: (value: number) => void;
+  accent: string;
+  track: string;
+}) {
+  const span = Math.max(1, bounds.max - bounds.min);
+  const minPct = ((min - bounds.min) / span) * 100;
+  const maxPct = ((max - bounds.min) / span) * 100;
+
+  const thumbClass = [
+    "absolute inset-0 w-full h-full m-0 appearance-none bg-transparent cursor-pointer pointer-events-none",
+    "[&::-webkit-slider-runnable-track]:bg-transparent [&::-moz-range-track]:bg-transparent",
+    "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:pointer-events-auto",
+    "[&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full",
+    "[&::-webkit-slider-thumb]:bg-[var(--thumb)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white",
+    "[&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer",
+    "[&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:border-0",
+    "[&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full",
+    "[&::-moz-range-thumb]:bg-[var(--thumb)] [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white",
+    "[&::-moz-range-thumb]:shadow [&::-moz-range-thumb]:cursor-pointer",
+  ].join(" ");
+  const thumbStyle = { ["--thumb" as string]: accent } as React.CSSProperties;
+
+  return (
+    <div className="relative h-4 flex items-center">
+      <div className="absolute inset-x-0 h-1 rounded-full" style={{ backgroundColor: track }} />
+      <div
+        className="absolute h-1 rounded-full"
+        style={{ backgroundColor: accent, left: `${minPct}%`, width: `${Math.max(0, maxPct - minPct)}%` }}
+      />
+      <input
+        type="range" min={bounds.min} max={bounds.max} value={min}
+        onChange={(e) => onChangeMin(Number(e.target.value))}
+        className={thumbClass} style={thumbStyle} aria-label="Minimum price"
+      />
+      <input
+        type="range" min={bounds.min} max={bounds.max} value={max}
+        onChange={(e) => onChangeMax(Number(e.target.value))}
+        className={thumbClass} style={thumbStyle} aria-label="Maximum price"
+      />
+    </div>
   );
 }
 
@@ -476,7 +682,7 @@ function FilterSelect({
 // ── Product card ─────────────────────────────────────────────────────────────
 
 function ProductCard({
-  product, theme, selectedVariantId, onSelectVariant, onExpand, onAdd,
+  product, theme, selectedVariantId, onSelectVariant, onExpand, onAdd, compact = false, wished = false, onToggleWish,
 }: {
   product: ShopProduct;
   theme: WebsiteTheme;
@@ -484,11 +690,16 @@ function ProductCard({
   onSelectVariant: (variantId: number) => void;
   onExpand: () => void;
   onAdd: (variant: ShopVariant) => void;
+  compact?: boolean;
+  wished?: boolean;
+  onToggleWish?: () => void;
 }) {
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
   const sub = heroLight ? "#6B7280" : "#94A3B8";
-  const cardBg = heroLight ? "#FFFFFF" : "rgba(255,255,255,0.07)";
+  // Shaded off the page background rather than a hardcoded white/near-white — a fixed "#FFFFFF"
+  // card disappears on a salon theme whose admin-chosen heroBg is already white.
+  const cardBg = shade(theme.heroBg, heroLight ? -6 : 10);
   const cardBorder = heroLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.10)";
   const imgBg = heroLight ? `${theme.accentColor}0d` : `${theme.accentColor}18`;
 
@@ -530,8 +741,12 @@ function ProductCard({
               style={{ filter: allSold ? "grayscale(1)" : undefined, opacity: allSold ? 0.65 : 1 }}
             />
           ) : (
-            <span className="text-4xl font-black select-none" style={{ color: `${theme.accentColor}55` }}>
-              {initials(product.name)}
+            <span
+              className={`select-none ${compact ? "text-4xl" : "text-6xl"}`}
+              style={{ opacity: allSold ? 0.5 : 1 }}
+              aria-hidden="true"
+            >
+              {DEFAULT_PRODUCT_EMOJI}
             </span>
           )}
         </button>
@@ -545,10 +760,30 @@ function ProductCard({
             Sold
           </div>
         )}
+
+        {/* Favourite — a sibling of the full-bleed "view details" button above, so it still
+            paints on top and stays independently clickable without needing a z-index bump. */}
+        {onToggleWish && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleWish(); }}
+            aria-pressed={wished}
+            aria-label={wished ? `Remove ${product.name} from favourites` : `Save ${product.name} to favourites`}
+            title={wished ? "Remove from favourites" : "Save to favourites"}
+            className={`absolute top-2.5 right-2.5 flex items-center justify-center rounded-full transition-colors cursor-pointer ${compact ? "w-7 h-7" : "w-8 h-8"}`}
+            style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.55)" }}
+          >
+            <Heart
+              className={compact ? "w-3.5 h-3.5" : "w-4 h-4"}
+              style={{ color: wished ? "#DC2626" : sub }}
+              fill={wished ? "#DC2626" : "none"}
+            />
+          </button>
+        )}
       </div>
 
       {/* Info — brand/name/category click opens detail; pills and add-to-cart stay interactive */}
-      <div className="p-4 flex flex-col gap-2 flex-1" style={{ backgroundColor: cardBg, opacity: allSold ? 0.55 : 1 }}>
+      <div className={`flex flex-col flex-1 ${compact ? "p-2.5 gap-1" : "p-4 gap-2"}`} style={{ backgroundColor: cardBg, opacity: allSold ? 0.55 : 1 }}>
         {/* Brand */}
         <button onClick={onExpand} className="text-left cursor-pointer">
           {product.brandName && (
@@ -558,12 +793,12 @@ function ProductCard({
           )}
 
           {/* Name */}
-          <h3 className="text-sm font-bold leading-snug line-clamp-2 mt-0.5" style={{ color: theme.heroTextColor }}>
+          <h3 className={`font-bold leading-snug mt-0.5 ${compact ? "text-xs line-clamp-1" : "text-sm line-clamp-2"}`} style={{ color: theme.heroTextColor }}>
             {product.name}
           </h3>
 
           {/* Category */}
-          {product.categoryName && (
+          {product.categoryName && !compact && (
             <span className="inline-flex items-center gap-1 text-[11px] mt-1" style={{ color: sub }}>
               <svg className="w-3 h-3 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 4h1.5L8 1l4.5 3H14v9H2V4Z" />
@@ -575,7 +810,7 @@ function ProductCard({
         </button>
 
         {/* Variant pills */}
-        {product.variants.length > 1 && (
+        {product.variants.length > 1 && !compact && (
           <div className="flex flex-wrap gap-1 mt-1">
             {product.variants.map((v) => {
               const isSelected = v.id === (variant?.id);
@@ -603,15 +838,15 @@ function ProductCard({
         )}
 
         {/* Price + add-to-cart */}
-        <div className="mt-auto pt-3 flex items-center justify-between gap-2 border-t" style={{ borderColor: cardBorder }}>
+        <div className={`mt-auto flex items-center justify-between gap-2 border-t ${compact ? "pt-2" : "pt-3"}`} style={{ borderColor: cardBorder }}>
           <div className="flex flex-col">
-            {hasCompareAt && (
+            {hasCompareAt && !compact && (
               <span className="text-[11px] line-through" style={{ color: sub }}>
                 {formatPrice(variant!.compareAtPrice!, variant!.currency)}
               </span>
             )}
             <span
-              className="text-base font-extrabold tracking-tight"
+              className={`font-extrabold tracking-tight ${compact ? "text-sm" : "text-base"}`}
               style={{ color: outOfStock ? sub : hasCompareAt ? "#DC2626" : theme.accentColor }}
             >
               {variant ? formatPrice(variant.price, variant.currency) : "—"}
@@ -620,11 +855,11 @@ function ProductCard({
           <button
             disabled={outOfStock}
             onClick={() => variant && onAdd(variant)}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 shrink-0"
+            className={`rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 shrink-0 ${compact ? "w-7 h-7" : "w-9 h-9"}`}
             style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor, border: `1.5px solid ${theme.accentColor}44` }}
             title={outOfStock ? "Out of stock" : "Add to cart"}
           >
-            <ShoppingBag className="w-4 h-4" />
+            <ShoppingBag className={compact ? "w-3.5 h-3.5" : "w-4 h-4"} />
           </button>
         </div>
       </div>
@@ -713,9 +948,7 @@ function ProductDetailModal({
               {activeImg ? (
                 <img src={activeImg} alt={product.name} className="w-full h-full object-contain p-6" />
               ) : (
-                <span className="text-6xl font-black select-none" style={{ color: `${theme.accentColor}44` }}>
-                  {initials(product.name)}
-                </span>
+                <span className="text-8xl select-none" aria-hidden="true">{DEFAULT_PRODUCT_EMOJI}</span>
               )}
               {allSold && (
                 <div
@@ -938,7 +1171,7 @@ function CartDrawer({
                 {l.imageUrl ? (
                   <img src={l.imageUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <ShoppingBag className="w-5 h-5" style={{ color: `${theme.accentColor}99` }} />
+                  <span className="text-2xl select-none" aria-hidden="true">{DEFAULT_PRODUCT_EMOJI}</span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
