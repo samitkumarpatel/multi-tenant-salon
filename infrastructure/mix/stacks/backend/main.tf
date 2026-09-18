@@ -29,6 +29,22 @@ locals {
     SPRING_DATASOURCE_PASSWORD = random_password.db[0].result
   } : {}
 
+  # Second logical database (see azurerm_postgresql_flexible_server_database.authz_sessions
+  # below) — the authz service's Spring Session JDBC store. Same server + admin
+  # credentials as `database`, different database name. Hardcoded to the "auth"
+  # service key (unlike db_service_key, this isn't meant to be pointed at a
+  # different service - there's only ever one authz service).
+  authz_sessions_service_key = "auth"
+
+  authz_db_env = local.db_enabled ? {
+    SPRING_DATASOURCE_URL      = "jdbc:postgresql://${module.postgres[0].fqdn}:5432/${azurerm_postgresql_flexible_server_database.authz_sessions[0].name}?sslmode=require"
+    SPRING_DATASOURCE_USERNAME = module.postgres[0].administrator_login
+  } : {}
+
+  authz_db_secret_env = local.db_enabled ? {
+    SPRING_DATASOURCE_PASSWORD = random_password.db[0].result
+  } : {}
+
   # ── Media storage wiring ──────────────────────────────────────────────────
   media_enabled      = var.media_storage != null
   media_service_keys = local.media_enabled ? var.media_storage.service_keys : []
@@ -46,7 +62,8 @@ locals {
   } : {}
 
   # var.services with db_env / db_secret_env merged into the one service that
-  # talks to Postgres, and media_env / media_secret_env merged into every
+  # talks to Postgres, authz_db_env / authz_db_secret_env merged into the authz
+  # service, and media_env / media_secret_env merged into every
   # media_service_keys entry.
   services_resolved = {
     for k, s in var.services : k => merge(s, {
@@ -54,12 +71,14 @@ locals {
         env = merge(
           try(s.container.env, {}),
           k == local.db_service_key ? local.db_env : {},
+          k == local.authz_sessions_service_key ? local.authz_db_env : {},
           contains(local.media_service_keys, k) ? local.media_env : {},
         )
       })
       secret_env = merge(
         s.secret_env,
         k == local.db_service_key ? local.db_secret_env : {},
+        k == local.authz_sessions_service_key ? local.authz_db_secret_env : {},
         contains(local.media_service_keys, k) ? local.media_secret_env : {},
       )
     })
@@ -119,6 +138,27 @@ module "postgres" {
   firewall_rules               = var.database.firewall_rules
 
   tags = local.common_tags
+}
+
+# Second logical database on the same server, for the authz service's Spring
+# Session JDBC store. No new compute/storage - a Postgres Flexible Server bills
+# per server, not per database. Wired into the "auth" Container App's env via
+# authz_db_env / authz_db_secret_env above. Reuses the same admin login/password
+# as `database` (database_password output) - only the database name in the
+# JDBC URL differs.
+#
+# multi-tenant-salon-authz's helm/auth chart (AKS "salon" namespace, Helm
+# deploy) also has its own SPRING_DATASOURCE_* pointed at this same database -
+# that's the older/parallel deployment path predating this Container Apps
+# stack. If that Helm deployment is retired, its values.yaml wiring is dead
+# weight and can be dropped.
+resource "azurerm_postgresql_flexible_server_database" "authz_sessions" {
+  count = local.db_enabled ? 1 : 0
+
+  name      = var.authz_sessions_database_name
+  server_id = module.postgres[0].id
+  collation = "en_US.utf8"
+  charset   = "UTF8"
 }
 
 # ── Container Apps Environment (Consumption plan, scale-to-zero) ──────────────

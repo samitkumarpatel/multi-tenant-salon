@@ -93,6 +93,13 @@ variable "database" {
   default = null
 }
 
+# Second logical database on the same server (see `database`), for the authz
+# service's Spring Session JDBC store. Only created when `database` is set.
+variable "authz_sessions_database_name" {
+  type    = string
+  default = "authz"
+}
+
 # ── Media storage (Azure Blob) ─────────────────────────────────────────────
 # When set, a Storage account + blob container are created for staff profile
 # photos / work-gallery media. Every service in `service_keys` gets STORAGE_TYPE=

@@ -133,8 +133,13 @@ module "backend" {
   resource_group_name = azurerm_resource_group.shared.name
   location            = azurerm_resource_group.shared.location
 
-  key_vault_name             = "salon-saas-mix-kv"
-  key_vault_admin_object_ids = var.key_vault_admin_object_ids
+  key_vault_name = "salon-saas-mix-kv"
+  # Hardcoded rather than sourced from a TF_VAR - a list(string) value sourced
+  # through `. ./.env` needs its JSON quotes single-quote-wrapped at the shell
+  # level to survive, which is an easy trap to hit. The repo owner
+  # (samitkumarpatel@live.com guest) is the only admin today; add more object
+  # IDs here directly if that changes.
+  key_vault_admin_object_ids = ["f889f64b-60db-45be-ab84-dbc0d6489d3f"]
   # GHCR PAT (read:packages) attached to both Container Apps as a registry
   # credential. The images are currently public so anonymous pull also works,
   # but this keeps pulls working if a package goes private. NOTE: if this PAT
@@ -248,10 +253,15 @@ module "backend" {
           # arrived on the public host or the internal one. api validates against
           # exactly this string.
           SPRING_SECURITY_OAUTH2_AUTHORIZATIONSERVER_ISSUER = "https://${local.auth_host}"
+          # SPRING_DATASOURCE_URL / _USERNAME are set by the backend stack from
+          # module.postgres (authz_sessions database) — Spring Session JDBC store,
+          # so sessions (CSRF token, SecurityContext, pending /oauth2/authorize
+          # request) survive across replicas/restarts instead of living in an
+          # in-memory map on whichever pod happened to serve the request.
         }
       }
-      # auth is stateless (no datasource) — it only needs the Mailjet pair, same
-      # as the chart's shared mailjet-secret envFrom.
+      # SPRING_DATASOURCE_PASSWORD is added by the backend stack (authz_sessions
+      # database, same admin credentials as api's).
       secret_env = {
         MAILJET_API_KEY    = var.mailjet_api_key
         MAILJET_API_SECRET = var.mailjet_api_secret

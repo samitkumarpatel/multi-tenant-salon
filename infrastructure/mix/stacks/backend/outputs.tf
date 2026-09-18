@@ -52,3 +52,14 @@ output "database_password" {
   value       = local.db_enabled ? random_password.db[0].result : null
   sensitive   = true
 }
+
+output "authz_sessions_database" {
+  description = "Connection info for the authz service's Spring Session store - same server and admin credentials as `database` (database_password output), different database name. Already wired into the auth Container App's env by this stack; this output is for manual psql access / reference."
+  value = local.db_enabled ? {
+    server_name = module.postgres[0].server_name
+    fqdn        = module.postgres[0].fqdn
+    database    = azurerm_postgresql_flexible_server_database.authz_sessions[0].name
+    username    = module.postgres[0].administrator_login
+    jdbc_url    = "jdbc:postgresql://${module.postgres[0].fqdn}:5432/${azurerm_postgresql_flexible_server_database.authz_sessions[0].name}?sslmode=require"
+  } : null
+}

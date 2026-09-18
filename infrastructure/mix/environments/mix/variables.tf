@@ -45,12 +45,6 @@ variable "bind_custom_domains" {
   description = "Phase toggle. Leave false for the first apply (creates apps + DNS records); set true on a later apply, once the asuid/CNAME records resolve publicly, to bind api.salonsaas.org / auth.salonsaas.org with Azure-managed TLS certs."
 }
 
-variable "key_vault_admin_object_ids" {
-  description = "AAD object IDs granted full secret access on salon-saas-mix-kv, on top of the Terraform service principal. Default is the repo owner (samitkumarpatel@live.com guest)."
-  type        = list(string)
-  default     = ["f889f64b-60db-45be-ab84-dbc0d6489d3f"]
-}
-
 variable "postgres_client_ips" {
   type        = map(string)
   default     = {}
