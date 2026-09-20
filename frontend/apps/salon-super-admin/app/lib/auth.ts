@@ -82,7 +82,6 @@ export function setSession(session: SuperAdminSession) {
 
 export function clearSession() {
   sessionStorage.removeItem(SESSION_KEY);
-  sessionStorage.removeItem(VERIFIER_KEY);
   localStorage.removeItem(TOKEN_KEY);
 }
 
@@ -143,11 +142,57 @@ async function generatePKCE() {
   return { verifier, challenge };
 }
 
+// ── PKCE verifier storage ────────────────────────────────────────────────
+// Kept in localStorage, keyed by the OAuth `state`, rather than in sessionStorage: a magic-link
+// email opens in a new tab whose sessionStorage is empty, so the callback couldn't find the
+// verifier and showed "Sign-in expired". Keying by `state` also stops concurrent flows (e.g.
+// another tab's silent renew) from overwriting each other. Entries are single-use with a short TTL.
+
+const PKCE_TTL_MS = 10 * 60 * 1000;
+const PKCE_KEY_PREFIX = `${VERIFIER_KEY}:`;
+
+function prunePkceVerifiers() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(PKCE_KEY_PREFIX)) continue;
+      let createdAt = 0;
+      try {
+        createdAt = JSON.parse(localStorage.getItem(key) ?? "{}").createdAt ?? 0;
+      } catch {}
+      if (Date.now() - createdAt > PKCE_TTL_MS) localStorage.removeItem(key);
+    }
+  } catch {}
+}
+
+/** Stores the verifier and returns the `state` to send on the authorize request. */
+function savePkceVerifier(verifier: string): string {
+  prunePkceVerifiers();
+  const state = crypto.randomUUID();
+  localStorage.setItem(PKCE_KEY_PREFIX + state, JSON.stringify({ verifier, createdAt: Date.now() }));
+  return state;
+}
+
+/** Returns and deletes the verifier saved for this `state`, or null if it is unknown or expired. */
+function takePkceVerifier(state: string | null): string | null {
+  if (!state) return null;
+  const key = PKCE_KEY_PREFIX + state;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    localStorage.removeItem(key);
+    const { verifier, createdAt } = JSON.parse(raw) as { verifier: string; createdAt: number };
+    return Date.now() - createdAt <= PKCE_TTL_MS ? verifier : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── OAuth2 login/logout ──────────────────────────────────────────────────
 
 export async function startOAuth2Login() {
   const { verifier, challenge } = await generatePKCE();
-  sessionStorage.setItem(VERIFIER_KEY, verifier);
+  const state = savePkceVerifier(verifier);
 
   const params = new URLSearchParams({
     response_type: "code",
@@ -156,6 +201,7 @@ export async function startOAuth2Login() {
     scope: SCOPE,
     code_challenge: challenge,
     code_challenge_method: "S256",
+    state,
   });
   window.location.href = `${AUTH_SERVER}/oauth2/authorize?${params}`;
 }
@@ -183,7 +229,7 @@ async function exchangeCodeForToken(code: string, verifier: string): Promise<Tok
  *  single platform super-admin account, so any other email is rejected —
  *  same gate the mock flow enforces on the email step. */
 export async function completeOAuth2Login(code: string): Promise<SuperAdminSession> {
-  const verifier = sessionStorage.getItem(VERIFIER_KEY);
+  const verifier = takePkceVerifier(new URLSearchParams(window.location.search).get("state"));
   if (!verifier) throw new Error("Sign-in expired — please try again.");
 
   const token = await exchangeCodeForToken(code, verifier);
@@ -202,7 +248,6 @@ export async function completeOAuth2Login(code: string): Promise<SuperAdminSessi
   }
 
   persistToken(token);
-  sessionStorage.removeItem(VERIFIER_KEY);
   const session: SuperAdminSession = { email };
   setSession(session);
   return session;
@@ -220,12 +265,11 @@ export async function handleSilentRenewCallback(): Promise<void> {
     if (!code) {
       throw new Error(params.get("error_description") ?? params.get("error") ?? "No code returned");
     }
-    const verifier = sessionStorage.getItem(VERIFIER_KEY);
+    const verifier = takePkceVerifier(params.get("state"));
     if (!verifier) throw new Error("Missing PKCE verifier");
 
     const token = await exchangeCodeForToken(code, verifier);
     persistToken(token);
-    sessionStorage.removeItem(VERIFIER_KEY);
     window.parent.postMessage({ type: SILENT_RENEW_MESSAGE, ok: true }, window.location.origin);
   } catch {
     window.parent.postMessage({ type: SILENT_RENEW_MESSAGE, ok: false }, window.location.origin);
@@ -249,7 +293,7 @@ export function isSilentRenewFrame(): boolean {
  *  prompt=none/login_required, so a timeout is the only way to detect that. */
 export async function silentRenew(): Promise<boolean> {
   const { verifier, challenge } = await generatePKCE();
-  sessionStorage.setItem(VERIFIER_KEY, verifier);
+  const state = savePkceVerifier(verifier);
 
   const params = new URLSearchParams({
     response_type: "code",
@@ -258,6 +302,7 @@ export async function silentRenew(): Promise<boolean> {
     scope: SCOPE,
     code_challenge: challenge,
     code_challenge_method: "S256",
+    state,
     prompt: "none",
   });
 
@@ -270,6 +315,7 @@ export async function silentRenew(): Promise<boolean> {
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
+      takePkceVerifier(state); // no-op if the iframe already consumed it; drops it on timeout/failure
       window.removeEventListener("message", onMessage);
       clearTimeout(timer);
       iframe.remove();
