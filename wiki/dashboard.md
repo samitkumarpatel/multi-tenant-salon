@@ -19,6 +19,11 @@ Use `VITE_DASHBOARD_APP_URL` to override the Dashboard URL. Production authentic
 public PKCE client named `salon-dashboard` with `https://dashboard.<domain>/login` registered as a
 redirect and post-logout URL.
 
+Sign-in matches the other portals: `react-router dev` uses the email + dummy OTP (`123456`) mock
+flow, while any build uses OAuth2 Authorization Code + PKCE with hidden-iframe silent renew (the
+header `SessionBadge` shows the countdown) and signs out through the auth server's `/connect/logout`.
+`/login?salon=<id>` carries the intended salon through the sign-in round-trip.
+
 ## Delivered MVP
 
 - Optional `DASHBOARD` salon feature across admin and super-admin feature controls.

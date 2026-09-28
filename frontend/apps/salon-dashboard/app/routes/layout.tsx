@@ -1,11 +1,12 @@
-import { useEffect } from "react";
-import { Link, Outlet, useLoaderData, useLocation, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigate } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { CalendarDays, ChevronDown, LogOut, ShoppingCart } from "lucide-react";
+import { SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { DEFAULT_THEME, API_BASE, contrastText } from "@salon/ui-website";
 import type { Salon, WebsiteTheme } from "@salon/ui-website";
 import { ADMIN_API, apiFetch } from "~/lib/api";
-import { getDashboardSession, logout } from "~/lib/auth";
+import { getAccessTokenExpiry, getDashboardSession, logout, startOAuth2Login, startSilentRenewLoop } from "~/lib/auth";
 
 function initials(name: string) {
   return name.split(" ").map((word) => word[0]).slice(0, 2).join("").toUpperCase();
@@ -18,8 +19,9 @@ function buildFaviconHref(name: string, bgColor: string): string {
 }
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
-  const session = getDashboardSession();
-  if (!session) return null;
+  if (!getDashboardSession()) {
+    throw redirect(`/login?salon=${encodeURIComponent(params.salonId ?? "")}`);
+  }
   const [salon, theme] = await Promise.all([
     apiFetch<Salon>(`${ADMIN_API}/${params.salonId}`),
     apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${params.salonId}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
@@ -34,6 +36,32 @@ export default function DashboardLayout() {
   const data = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
   const location = useLocation();
+  const session = getDashboardSession();
+  const { toast, notify } = useToast();
+  // A silent renew rewrites localStorage but not React state, so the badge's
+  // expiry is only ever updated by the renew loop below.
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
+  const [renewing, setRenewing] = useState(false);
+
+  // Keep the access token alive via hidden-iframe silent renew for as long as
+  // the AS session cookie stays valid; once it has expired, fall back to a
+  // full, visible re-authentication instead of letting API calls 401.
+  useEffect(() => {
+    return startSilentRenewLoop(
+      (expiresAt) => {
+        setRenewing(false);
+        setTokenExpiry(expiresAt);
+        notify("Session renewed");
+      },
+      () => {
+        setRenewing(false);
+        notify("Your session expired — signing you in again…", "error");
+        setTimeout(() => startOAuth2Login(data?.salon.id != null ? String(data.salon.id) : undefined), 1200);
+      },
+      () => setRenewing(true)
+    );
+  }, []);
+
   useEffect(() => {
     if (!data) return;
     document.title = data.salon.name;
@@ -45,7 +73,6 @@ export default function DashboardLayout() {
     }
     link.href = buildFaviconHref(data.salon.name, data.theme.logoBgColor);
   }, [data]);
-  if (!data) return <Outlet />;
   const { salon, settings, theme } = data;
   const requestedView = new URLSearchParams(location.search).get("view");
   const search = new URLSearchParams(location.search);
@@ -65,7 +92,10 @@ export default function DashboardLayout() {
           <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
         </div>
         <div className="ml-5 border-l border-slate-200 pl-5"><p className="text-xs font-semibold text-slate-800">{salon.name}</p><p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Salon desk</p></div>
-        <div className="ml-auto"><button onClick={() => { logout(); navigate("/login"); }} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Sign out"><LogOut className="h-4 w-4" /></button></div>
+        <div className="ml-auto flex items-center gap-2">
+          {session && <div className="hidden md:flex"><SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} /></div>}
+          <button onClick={() => logout(navigate)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
+        </div>
       </div>
     </header>
     <div className="mx-auto flex max-w-7xl">
@@ -93,5 +123,6 @@ export default function DashboardLayout() {
         <main className="px-4 py-6 sm:px-7"><div className="mx-auto w-full max-w-5xl"><Outlet /></div></main>
       </div>
     </div>
+    <Toast toast={toast} />
   </div>;
 }

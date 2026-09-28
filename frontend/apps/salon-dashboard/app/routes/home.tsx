@@ -1,9 +1,9 @@
 import { redirect } from "react-router";
-import { getDashboardSession } from "~/lib/auth";
+import { getDashboardSession, pickDashboardSalon } from "~/lib/auth";
 
 export async function clientLoader() {
   const session = getDashboardSession();
-  const first = session?.salons.find((salon) => salon.features?.includes("DASHBOARD"));
+  const first = session ? pickDashboardSalon(session.salons) : undefined;
   throw redirect(first ? `/${first.id}` : "/login");
 }
 
