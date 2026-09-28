@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { useLoaderData, useOutletContext } from "react-router";
+import { useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
-  CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Settings, Filter, List,
+  CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Filter, List,
   Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Search,
 } from "lucide-react";
 import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSalonUUID } from "~/lib/api";
@@ -1791,7 +1791,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
       setShowAdd(false);
       setForm({ startDate: "", endDate: "", reason: "" });
       setFormErr("");
-      notify("Dates blocked.");
+      notify("Closure added.");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
     finally { setSaving(false); }
   }
@@ -1800,7 +1800,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
     try {
       await apiFetch(`${ADMIN_API}/${salonId}/closures/${id}`, { method: "DELETE" });
       setClosures((p) => p.filter((c) => c.id !== id));
-      notify("Blocked dates removed.");
+      notify("Closure removed.");
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
   }
 
@@ -1823,15 +1823,15 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Blocked Dates</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Salon closures</h3>
             <p className="text-xs text-slate-400 mt-0.5">
               Mark days or date ranges when the salon won't accept any bookings — public holidays, vacation, emergencies, or special occasions.
             </p>
           </div>
-          <Tooltip content="Block a day or date range so no bookings can be made" side="left">
+          <Tooltip content="Add a day or date range when no bookings can be made" side="left">
             <button onClick={() => { setShowAdd(true); setFormErr(""); }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-              <Plus className="w-3 h-3" /> Block Dates
+              <Plus className="w-3 h-3" /> Add closure
             </button>
           </Tooltip>
         </div>
@@ -1843,7 +1843,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
           </div>
         ) : upcoming.length === 0 && past.length === 0 ? (
           <p className="text-xs text-slate-400 px-5 py-6 text-center">
-            No blocked dates yet. Add one to mark public holidays, vacation, or any day the salon won't accept bookings.
+            No closures yet. Add one for vacations, emergencies, or any period when the salon cannot accept bookings.
           </p>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -1875,13 +1875,13 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                       </div>
                     </div>
                     {c.holidayId ? (
-                      <Tooltip content="Managed via the Holidays page — delete the holiday to remove this blocked date" side="left">
+                      <Tooltip content="Managed via the Holidays page — delete the holiday to remove this closure" side="left">
                         <span className="text-slate-200 ml-4 cursor-not-allowed">
                           <Trash2 className="w-4 h-4" />
                         </span>
                       </Tooltip>
                     ) : (
-                      <Tooltip content="Remove this blocked period" side="left">
+                      <Tooltip content="Remove this closure" side="left">
                         <button onClick={() => removeClosure(c.id)}
                           className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
                           <Trash2 className="w-4 h-4" />
@@ -1924,7 +1924,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                         <Trash2 className="w-4 h-4" />
                       </span>
                     ) : (
-                      <Tooltip content="Remove this blocked period" side="left">
+                      <Tooltip content="Remove this closure" side="left">
                         <button onClick={() => removeClosure(c.id)}
                           className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer ml-4">
                           <Trash2 className="w-4 h-4" />
@@ -1948,7 +1948,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                 <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
                   <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
                 </div>
-                <span className="text-base font-bold text-slate-900">Block Dates</span>
+                <span className="text-base font-bold text-slate-900">Add closure</span>
               </div>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setShowAdd(false)}>
                 <X className="w-5 h-5" />
@@ -1991,7 +1991,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
               <button onClick={addClosure} disabled={saving}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 cursor-pointer disabled:opacity-50">
                 <CalendarOff className="w-3.5 h-3.5" />
-                {saving ? "Saving…" : "Block Dates"}
+                {saving ? "Saving…" : "Add closure"}
               </button>
             </div>
           </div>
@@ -2011,6 +2011,27 @@ const ADVANCE_OPTIONS = [
   { days: 90,  label: "3 months", desc: "Seasonal planning" },
   { days: 180, label: "6 months", desc: "Long-term advance" },
 ] as const;
+
+type BookingSection = "appointments" | "availability" | "blocked-dates" | "settings";
+
+const BOOKING_SECTION_META: Record<BookingSection, { label: string; description: string }> = {
+  appointments: {
+    label: "Appointments",
+    description: "View, confirm, reschedule, cancel, or complete customer appointments.",
+  },
+  availability: {
+    label: "Staff availability",
+    description: "Set weekly working hours and one-off availability overrides for each staff member.",
+  },
+  "blocked-dates": {
+    label: "Closures",
+    description: "Manage days or date ranges when the salon cannot accept bookings.",
+  },
+  settings: {
+    label: "Settings",
+    description: "Control booking confirmation and how far in advance customers can book.",
+  },
+};
 
 function BookingSettingsPanel({
   salon, onSaved, onError,
@@ -2114,9 +2135,15 @@ export default function BookingPage() {
   const { salon, setSalon } = useOutletContext<LayoutContext>();
   const { bookings: init, staff, services } = useLoaderData<typeof clientLoader>();
   const [bookings, setBookings] = useState<Booking[]>(init);
-  const [tab, setTab] = useState<"bookings" | "availability" | "closures" | "settings">("bookings");
+  const [searchParams] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const { toast, notify } = useToast();
+
+  const sectionParam = searchParams.get("section");
+  const section: BookingSection = sectionParam === "availability" || sectionParam === "blocked-dates" || sectionParam === "settings"
+    ? sectionParam
+    : "appointments";
+  const sectionMeta = BOOKING_SECTION_META[section];
 
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null);
   const [rsForm, setRsForm] = useState({ appointmentDate: "", startTime: "", staffId: 0, notes: "" });
@@ -2201,42 +2228,17 @@ export default function BookingPage() {
     } catch (e) { notify(e instanceof Error ? e.message : "Failed to refresh bookings", "error"); }
   }
 
-  const tabCls = (active: boolean) =>
-    `px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors ${active ? "bg-matcha-600 text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`;
-
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Booking Calendar</h1>
-        <InfoBar id="booking-calendar">
-          Manage customer appointments and staff availability. Use <strong>Appointments</strong> to view, confirm, reschedule, or cancel appointments. Use <strong>Staff Availability</strong> to set each person's working hours and add date overrides. Use <strong>Blocked Dates</strong> to mark date ranges when the salon won't accept bookings — vacation, emergencies. Use <strong>Settings</strong> to control how far in advance customers can book.
+        <h1 className="text-xl font-bold text-slate-900">Bookings</h1>
+        <p className="text-sm text-slate-500">{sectionMeta.label}</p>
+        <InfoBar id={`booking-${section}`}>
+          {sectionMeta.description}
         </InfoBar>
       </div>
 
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 w-fit flex-wrap">
-        <Tooltip content="View, confirm, reschedule, cancel, or complete customer appointments." side="bottom">
-          <button className={tabCls(tab === "bookings")} onClick={() => setTab("bookings")}>
-            <span className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Appointments</span>
-          </button>
-        </Tooltip>
-        <Tooltip content="Set each staff member's weekly working hours and add one-off date overrides." side="bottom">
-          <button className={tabCls(tab === "availability")} onClick={() => setTab("availability")}>
-            <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Staff Availability</span>
-          </button>
-        </Tooltip>
-        <Tooltip content="Mark days or date ranges when the salon won't accept any bookings — holidays, vacation, emergencies." side="bottom">
-          <button className={tabCls(tab === "closures")} onClick={() => setTab("closures")}>
-            <span className="flex items-center gap-2"><CalendarOff className="w-4 h-4" /> Blocked Dates</span>
-          </button>
-        </Tooltip>
-        <Tooltip content="Control how far ahead customers can book appointments." side="bottom">
-          <button className={tabCls(tab === "settings")} onClick={() => setTab("settings")}>
-            <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> Settings</span>
-          </button>
-        </Tooltip>
-      </div>
-
-      {tab === "bookings" && (
+      {section === "appointments" && (
         <BookingsPanel
           bookings={bookings} staffMap={staffMap} serviceMap={serviceMap}
           staff={staff} operatingHours={salon.operatingHours}
@@ -2245,15 +2247,15 @@ export default function BookingPage() {
         />
       )}
 
-      {tab === "availability" && (
+      {section === "availability" && (
         <AvailabilityPanel salonId={String(sid)} staff={staff} operatingHours={salon.operatingHours} />
       )}
 
-      {tab === "closures" && (
+      {section === "blocked-dates" && (
         <ClosuresPanel salonId={String(sid)} />
       )}
 
-      {tab === "settings" && (
+      {section === "settings" && (
         <BookingSettingsPanel
           salon={{ id: String(sid), bookingAdvanceDays: salon.bookingAdvanceDays, bookingRequiresConfirmation: salon.bookingRequiresConfirmation }}
           onSaved={(days, requiresConfirmation) => setSalon({ ...salon, bookingAdvanceDays: days, bookingRequiresConfirmation: requiresConfirmation })}

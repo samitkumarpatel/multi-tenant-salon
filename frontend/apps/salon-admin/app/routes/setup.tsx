@@ -47,7 +47,7 @@ export default function Setup() {
       description: "Create the menu of services customers can book — haircut, colour, treatment, etc.",
       done: serviceCount > 1,
       href: "services",
-      cta: "Go to Salon Services",
+      cta: "Go to Services",
     },
     hasBooking && {
       key: "staff",

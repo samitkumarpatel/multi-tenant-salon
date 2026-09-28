@@ -2,7 +2,7 @@
 #
 # seed-salon-shop.sh — build one fully-populated salon + web-shop for local testing.
 #
-# Creates a single salon (STATIC_WEBSITE + BOOKING + WEBSHOP) and fills it with a
+# Creates a single salon (STATIC_WEBSITE + BOOKING + DASHBOARD + WEBSHOP) and fills it with a
 # realistic amount of data so every admin / public / staff screen has something to show.
 # It only ADDS data — the website theme is left at the app default, never touched.
 #
@@ -18,6 +18,7 @@
 #     (processing → shipped w/ tracking → fulfilled, plus a cancellation),
 #     with work notes, an invoice and a refund
 #   • ~12 bookings over the next two weeks, some confirmed / completed / cancelled
+#   • Dashboard settings plus several in-salon cashier sales mixing services and products
 #   • 2 salon closures and 1 recurring holiday
 #
 # Usage:
@@ -110,7 +111,7 @@ salon_json=$(cat <<JSON
     { "day": "SATURDAY",  "openTime": "10:00", "closeTime": "17:00", "closed": false },
     { "day": "SUNDAY",    "openTime": "00:00", "closeTime": "00:00", "closed": true  }
   ],
-  "features": ["STATIC_WEBSITE", "BOOKING", "WEBSHOP", "ANALYTICS"],
+  "features": ["STATIC_WEBSITE", "BOOKING", "DASHBOARD", "WEBSHOP", "ANALYTICS"],
   "businessRegistrationId": "CA-2026-${STAMP}",
   "showBusinessId": false,
   "termsAccepted": true
@@ -123,6 +124,16 @@ HANDLER=$(jq -r '.salonHandler'  <<<"$_RESP")
 OWNER_EMAIL=$(jq -r '.emailId'   <<<"$_RESP")
 echo "  salonId = ${SALON_ID}"
 echo "  handler = ${HANDLER}"
+
+echo "▶ Configuring Operations Dashboard…"
+dashboard_settings=$(jq -nc --arg salon "$SALON_NAME" '{
+  bookingManagementEnabled:true,
+  cashierEnabled:true,
+  notificationsEnabled:true,
+  defaultNotification:("We have an update about your appointment at " + $salon + ". Reply to this email or call the salon if you have any questions.")
+}')
+must PUT "/api/salon-admin/${SALON_ID}/dashboard/settings" "$dashboard_settings" "Dashboard settings"
+echo "  appointment management, cashier and customer notifications enabled"
 
 # NOTE: the website theme is intentionally left untouched — the salon keeps the
 # application default. This script only adds staff / services / shop / bookings data.
@@ -538,7 +549,61 @@ if [[ ${#BOOKING_IDS[@]} -ge 6 ]]; then
   echo "  confirmed ×3, completed ×1, cancelled ×1, no-show ×1"
 fi
 
-# ── 8. closures + holiday ────────────────────────────────────────────────────
+# ── 8. Dashboard cashier sales ───────────────────────────────────────────────
+echo "▶ Recording Dashboard cashier sales…"
+POS_SALE_IDS=()
+record_sale() { # record_sale CUSTOMER PAYMENT ITEMS_JSON
+  local customer="$1" payment="$2" items="$3" resp
+  resp=$(req POST "/api/salon-admin/${SALON_ID}/dashboard/sales" \
+    "$(jq -nc --arg customer "$customer" --arg payment "$payment" --argjson items "$items" \
+      '{customerName:$customer,paymentMethod:$payment,items:$items}')")
+  if ok; then
+    POS_SALE_IDS+=("$(jq -r '.id' <<<"$resp")")
+    echo "  + $(jq -r '.saleNumber' <<<"$resp") — ${customer} · ${payment} · $(jq -r '.currency + " " + (.total|tostring)' <<<"$resp")"
+  else
+    warn "cashier sale for ${customer} failed (HTTP $(code)): $resp"
+  fi
+}
+
+if [[ ${#SERVICE_IDS[@]} -gt 0 ]]; then
+  # Service-only walk-in paid with cash.
+  sale_items=$(jq -nc --argjson service "${SERVICE_IDS[0]}" \
+    '[{sourceType:"SERVICE",sourceId:$service,quantity:1}]')
+  record_sale "Walk-in customer" CASH "$sale_items"
+
+  # A second service sale gives the recent-sales list another payment method.
+  service_index=$(( ${#SERVICE_IDS[@]} > 4 ? 4 : 0 ))
+  sale_items=$(jq -nc --argjson service "${SERVICE_IDS[$service_index]}" \
+    '[{sourceType:"SERVICE",sourceId:$service,quantity:1}]')
+  record_sale "Maya Thompson" CARD "$sale_items"
+fi
+
+POS_PRODUCT_IDS=()
+cashier_items=$(req GET "/api/salon-admin/${SALON_ID}/dashboard/cashier/items")
+if ok; then
+  while IFS= read -r vid; do [[ -n "$vid" ]] && POS_PRODUCT_IDS+=("$vid"); done < <(
+    jq -r '.[] | select(.sourceType=="PRODUCT" and .availableQuantity >= 3) | .sourceId' <<<"$cashier_items"
+  )
+else
+  warn "Dashboard cashier catalogue failed (HTTP $(code)): $cashier_items"
+fi
+
+if [[ ${#POS_PRODUCT_IDS[@]} -gt 0 ]]; then
+  # Product-only counter purchase. Stock is decremented by the Dashboard API.
+  sale_items=$(jq -nc --argjson product "${POS_PRODUCT_IDS[0]}" \
+    '[{sourceType:"PRODUCT",sourceId:$product,quantity:1}]')
+  record_sale "Ethan Cole" CARD "$sale_items"
+
+  # Mixed service + retail sale mirrors a typical appointment checkout.
+  if [[ ${#SERVICE_IDS[@]} -gt 1 ]]; then
+    product_index=$(( ${#POS_PRODUCT_IDS[@]} > 2 ? 2 : 0 ))
+    sale_items=$(jq -nc --argjson service "${SERVICE_IDS[1]}" --argjson product "${POS_PRODUCT_IDS[$product_index]}" \
+      '[{sourceType:"SERVICE",sourceId:$service,quantity:1},{sourceType:"PRODUCT",sourceId:$product,quantity:2}]')
+    record_sale "Olivia Chen" OTHER "$sale_items"
+  fi
+fi
+
+# ── 9. closures + holiday ────────────────────────────────────────────────────
 echo "▶ Adding closures & a holiday…"
 req POST "/api/salon-admin/${SALON_ID}/closures" \
   "$(jq -nc --arg s "$(day 20)" --arg e "$(day 22)" '{startDate:$s,endDate:$e,reason:"Team offsite"}')" >/dev/null
@@ -566,10 +631,12 @@ cat <<SUMMARY
   Products .......... ${#PRODUCT_IDS[@]} (+ 1 inactive)
   Orders ............ ${#ORDER_IDS[@]}
   Bookings .......... ${#BOOKING_IDS[@]}
+  Cashier sales ..... ${#POS_SALE_IDS[@]}
 
   Public website ..... http://localhost:5174/?slug=${HANDLER}
   Shop ............... http://localhost:5174/shop?slug=${HANDLER}
   Admin panel ....... http://localhost:5173/${SALON_ID}
+  Dashboard ......... http://localhost:5179/${SALON_ID}
   API ............... ${BASE_URL}/api/salon/${SALON_ID}
 ────────────────────────────────────────────────────────────────────
 SUMMARY

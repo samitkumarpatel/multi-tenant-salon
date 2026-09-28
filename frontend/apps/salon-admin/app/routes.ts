@@ -13,6 +13,7 @@ export default [
     route("staff", "routes/staff.tsx"),
     route("website", "routes/website.tsx"),
     route("booking", "routes/booking.tsx"),
+    route("dashboard-settings", "routes/dashboard-settings.tsx"),
     route("shop", "routes/shop.tsx", [
       index("routes/shop.products.tsx"),
       route("brands", "routes/shop.brands.tsx"),

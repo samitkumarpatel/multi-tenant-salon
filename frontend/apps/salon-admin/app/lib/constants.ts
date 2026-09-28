@@ -5,7 +5,7 @@ export {
 } from "@salon/ui-website";
 
 export const FEATURES = [
-  "STATIC_WEBSITE", "BOOKING", "MEMBERSHIP", "WEBSHOP", "ANALYTICS", "LOYALTY_PROGRAM",
+  "STATIC_WEBSITE", "BOOKING", "DASHBOARD", "MEMBERSHIP", "WEBSHOP", "ANALYTICS", "LOYALTY_PROGRAM",
 ] as const;
 
 export const DAYS = [

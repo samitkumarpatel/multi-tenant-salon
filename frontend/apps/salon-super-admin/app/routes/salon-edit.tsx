@@ -11,9 +11,9 @@ export async function clientLoader(_: ClientLoaderFunctionArgs) {
   return { countries };
 }
 
-const ALL_FEATURES: SalonFeature[] = ["STATIC_WEBSITE", "BOOKING", "MEMBERSHIP", "WEBSHOP", "ANALYTICS", "LOYALTY_PROGRAM"];
+const ALL_FEATURES: SalonFeature[] = ["STATIC_WEBSITE", "BOOKING", "DASHBOARD", "MEMBERSHIP", "WEBSHOP", "ANALYTICS", "LOYALTY_PROGRAM"];
 const FEATURE_LABEL: Record<string, string> = {
-  STATIC_WEBSITE: "Website", BOOKING: "Booking", MEMBERSHIP: "Membership",
+  STATIC_WEBSITE: "Website", BOOKING: "Booking", DASHBOARD: "Dashboard", MEMBERSHIP: "Membership",
   WEBSHOP: "Web Shop", ANALYTICS: "Analytics", LOYALTY_PROGRAM: "Loyalty Program",
 };
 const DAYS = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"];

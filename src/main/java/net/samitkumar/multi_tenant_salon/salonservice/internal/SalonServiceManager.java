@@ -22,8 +22,13 @@ public class SalonServiceManager implements SalonServiceApi {
         this.repository = repository;
     }
 
-    List<ServiceItem> findBySalonId(UUID salonId) {
+    @Override
+    public List<ServiceItem> findAllBySalonId(UUID salonId) {
         return repository.findBySalonId(salonId);
+    }
+
+    List<ServiceItem> findBySalonId(UUID salonId) {
+        return findAllBySalonId(salonId);
     }
 
     @Override

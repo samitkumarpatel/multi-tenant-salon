@@ -1,15 +1,29 @@
-import { useOutletContext, Link } from "react-router";
-import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink, Share2 } from "lucide-react";
+import { useOutletContext, useLoaderData, Link, useSearchParams } from "react-router";
+import type { ClientLoaderFunctionArgs } from "react-router";
+import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink, Share2, Gauge } from "lucide-react";
 import React, { useState } from "react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { SocialLinksForm } from "~/components/SocialLinksForm";
 import type { LayoutContext } from "~/lib/types";
 import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
 import { InfoBar } from "@salon/ui-shared";
-import { ADMIN_APP_URL, STAFF_APP_URL, bookingUrl, websiteUrl } from "~/lib/config";
+import { ADMIN_APP_URL, STAFF_APP_URL, bookingUrl, dashboardUrl, websiteUrl } from "~/lib/config";
+import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
+
+interface DashboardSettings {
+  bookingManagementEnabled: boolean;
+  cashierEnabled: boolean;
+}
+
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const salonId = await resolveSalonUUID(params.salonId!);
+  return apiFetch<DashboardSettings>(`${ADMIN_API}/${salonId}/dashboard/settings`)
+    .catch((): DashboardSettings => ({ bookingManagementEnabled: false, cashierEnabled: false }));
+}
 
 const FEATURE_HINTS: Record<string, string> = {
   BOOKING:         "Let customers book appointments online, anytime.",
+  DASHBOARD:       "Run daily appointments, checkout, and customer communication from one workspace.",
   WEBSHOP:         "Sell products, gift cards, and top-ups from your website.",
   MEMBERSHIP:      "Offer subscription plans and recurring revenue from loyal customers.",
   ANALYTICS:       "See visit trends, revenue reports, and busiest time slots.",
@@ -17,13 +31,29 @@ const FEATURE_HINTS: Record<string, string> = {
   STATIC_WEBSITE:  "Get a public website your customers can browse and share.",
 };
 
-type LinkKey = "admin" | "staff" | "booking" | "website";
+type LinkKey = "admin" | "staff" | "booking" | "dashboard" | "website";
+type SalonLink = {
+  key: LinkKey;
+  label: string;
+  desc: string;
+  url: string;
+  icon: React.ElementType;
+};
 
 export default function Manage() {
   const { salon, setSalon } = useOutletContext<LayoutContext>();
+  const dashboardSettings = useLoaderData<typeof clientLoader>();
   const [copied, setCopied] = useState<string | null>(null);
-  const [tab, setTab]       = useState<"details" | "links">("details");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [editSocial, setEditSocial] = useState(false);
+
+  const tab = searchParams.get("tab") === "links" ? "links" : "details";
+
+  function setTab(nextTab: "details" | "links") {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", nextTab);
+    setSearchParams(nextParams);
+  }
 
   const openHours      = salon.operatingHours?.filter((h) => !h.closed) ?? [];
   const enabledKeys    = new Set(salon.features ?? []);
@@ -31,28 +61,32 @@ export default function Manage() {
 
   const handler    = salon.handler ?? String(salon.id);
   const hasBooking = enabledKeys.has("BOOKING");
+  const hasDashboard = enabledKeys.has("DASHBOARD");
+  const dashboardAvailable = dashboardSettings.bookingManagementEnabled || dashboardSettings.cashierEnabled;
   const hasWebsite = enabledKeys.has("STATIC_WEBSITE");
 
-  const salonLinks: { key: LinkKey; label: string; desc: string; hint: string; url: string; icon: React.ElementType }[] = [
+  const salonLinks: SalonLink[] = [
     {
       key: "admin", label: "Admin Panel", icon: LayoutDashboard, url: ADMIN_APP_URL,
       desc: "Your salon management portal",
-      hint: "Log in to manage staff, services, bookings, and settings.",
     },
     {
       key: "staff", label: "Staff Portal", icon: Users, url: STAFF_APP_URL,
       desc: "Team member access",
-      hint: "Share with your stylists and staff so they can view their schedule.",
     },
     ...(hasBooking ? [{
       key: "booking" as LinkKey, label: "Booking Link", icon: CalendarCheck, url: bookingUrl(handler),
       desc: "Customer-facing appointment page",
-      hint: "Share this link with customers so they can book appointments online.",
+    }] : []),
+    ...(hasDashboard && dashboardAvailable ? [{
+      key: "dashboard" as LinkKey, label: "Salon Dashboard", icon: Gauge, url: dashboardUrl(String(salon.id)),
+      desc: dashboardSettings.bookingManagementEnabled && dashboardSettings.cashierEnabled
+        ? "Appointments and in-salon checkout"
+        : dashboardSettings.bookingManagementEnabled ? "Appointment management" : "In-salon checkout",
     }] : []),
     ...(hasWebsite ? [{
       key: "website" as LinkKey, label: "Public Website", icon: Globe, url: websiteUrl(handler),
       desc: "Your public salon page",
-      hint: "Share this with customers — it shows your services, hours, and contact info.",
     }] : []),
   ];
 
@@ -63,34 +97,17 @@ export default function Manage() {
     });
   }
 
-  // The links salon owners most need at hand: their customer-facing pages if those
-  // features are on, otherwise the Staff Portal to hand to their team. Surfaced as a
-  // hero card on the Details tab so the full Links tab isn't the only way to find them.
-  const shareLinks = salonLinks.filter((l) =>
-    hasBooking || hasWebsite ? l.key === "booking" || l.key === "website" : l.key === "staff",
-  );
-
-  const tabCls = (active: boolean) =>
-    `px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors ${active ? "bg-matcha-600 text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`;
-
   return (
     <div className="space-y-6">
 
       {/* Page header */}
       <div className="space-y-4">
-        <h1 className="text-xl font-bold text-slate-900">Overview</h1>
-
-        {/* Tabs + Edit salon on one row */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
-            <button className={tabCls(tab === "details")} onClick={() => setTab("details")}>
-              Details
-            </button>
-            <button className={tabCls(tab === "links")} onClick={() => setTab("links")}>
-              <span className="flex items-center gap-1.5">
-                <ExternalLink className="w-3.5 h-3.5" /> Links
-              </span>
-            </button>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Overview</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {tab === "details" ? "Salon details" : "Share links"}
+            </p>
           </div>
           <Link
             to="edit"
@@ -103,56 +120,7 @@ export default function Manage() {
         {tab === "details" && (
           <InfoBar id="manage-details">A read-only snapshot of your salon's current setup. Use <span className="font-medium">Edit salon</span> (or the Edit link on any card) to change it; use the sidebar to manage staff and services.</InfoBar>
         )}
-        {tab === "links" && (
-          <InfoBar id="manage-links">All the URLs associated with your salon. Copy and share them with your team and customers.</InfoBar>
-        )}
       </div>
-
-      {/* ── Share card — pulls the key Links-tab URLs into view on Details ─ */}
-      {tab === "details" && (
-        <div className="rounded-xl border border-matcha-200 bg-matcha-50/60 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Share2 className="w-4 h-4 text-matcha-600 shrink-0" />
-            <p className="text-sm font-semibold text-slate-800">
-              {hasBooking || hasWebsite ? "Share your salon" : "Share with your team"}
-            </p>
-            <button
-              type="button"
-              onClick={() => setTab("links")}
-              className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-matcha-700 hover:text-matcha-800 cursor-pointer"
-            >
-              All links <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {shareLinks.map(({ key, label, url, icon: Icon }) => (
-              <div key={key} className="flex items-center gap-2.5 bg-white border border-matcha-200 rounded-lg px-3 py-2">
-                <Icon className="w-4 h-4 text-matcha-600 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-700">{label}</p>
-                  <p className="text-[11px] font-mono text-slate-400 truncate">{url}</p>
-                </div>
-                <button
-                  onClick={() => copyLink(url, key)}
-                  className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                  title={`Copy ${label} URL`}
-                >
-                  {copied === key ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
-                  title={`Open ${label}`}
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Details tab ─────────────────────────────────────────────────── */}
       {tab === "details" && (
@@ -376,6 +344,32 @@ export default function Manage() {
             )}
           </div>
 
+          {/* Keep sharing discoverable without duplicating the links list. */}
+          <div className="max-w-2xl rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-matcha-50">
+                <Share2 className="h-4 w-4 text-matcha-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800">
+                  {hasBooking || hasWebsite ? "Share your salon" : "Share with your team"}
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                  {hasBooking || hasWebsite
+                    ? "Access your booking, website, and other salon links in one place."
+                    : "Access the portal links your team needs in one place."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab("links")}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-matcha-300 hover:bg-matcha-50 hover:text-matcha-700 cursor-pointer"
+              >
+                View share links <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
           {/* Unlock more features callout */}
           {lockedFeatures.length > 0 && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
@@ -411,51 +405,66 @@ export default function Manage() {
               </Link>
             </div>
           )}
+
         </>
       )}
 
       {/* ── Links tab ───────────────────────────────────────────────────── */}
       {tab === "links" && (
-        <div className="max-w-lg space-y-3">
-          {salonLinks.map(({ key, label, desc, hint, url, icon: Icon }) => (
-            <div key={key} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Icon className="w-4 h-4 text-slate-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800">{label}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{desc}</p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                <span className="text-xs font-mono text-slate-600 flex-1 truncate">{url}</span>
-                <button
-                  onClick={() => copyLink(url, key)}
-                  className="shrink-0 p-1 rounded hover:bg-slate-200 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                  title={`Copy ${label} URL`}
-                >
-                  {copied === key ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 p-1 rounded hover:bg-slate-200 transition-colors text-slate-400 hover:text-slate-600"
-                  title={`Open ${label}`}
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-
-              <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">{hint}</p>
-            </div>
-          ))}
+        <div className="max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <CompactLinkList links={salonLinks} copied={copied} onCopy={copyLink} />
         </div>
       )}
 
     </div>
+  );
+}
+
+function CompactLinkList({
+  links,
+  copied,
+  onCopy,
+}: {
+  links: SalonLink[];
+  copied: string | null;
+  onCopy: (url: string, key: string) => void;
+}) {
+  return (
+    <ul className="divide-y divide-slate-100">
+      {links.map(({ key, label, desc, url, icon: Icon }) => (
+        <li key={key} className="flex items-center gap-3 px-3 py-3 sm:px-4">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+            <Icon className="h-4 w-4 text-slate-500" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <p className="shrink-0 text-sm font-semibold text-slate-800">{label}</p>
+              <p className="hidden truncate text-[11px] text-slate-400 sm:block">{desc}</p>
+            </div>
+            <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{url}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onCopy(url, key)}
+            className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+            title={`Copy ${label} URL`}
+            aria-label={`Copy ${label} URL`}
+          >
+            {copied === key ? <Check className="h-4 w-4 text-matcha-600" /> : <Copy className="h-4 w-4" />}
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            title={`Open ${label}`}
+            aria-label={`Open ${label} in a new tab`}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -13,12 +13,14 @@
     "dev:super-admin": "npm run dev --workspace=apps/salon-super-admin",
     "dev:booking": "npm run dev --workspace=apps/salon-booking",
     "dev:staff": "npm run dev --workspace=apps/salon-staff",
+    "dev:dashboard": "npm run dev --workspace=apps/salon-dashboard",
     "build:admin": "npm run build --workspace=apps/salon-admin",
     "build:public": "npm run build --workspace=apps/salon-public-website",
     "build:onboarding": "npm run build --workspace=apps/salon-onboarding",
     "build:super-admin": "npm run build --workspace=apps/salon-super-admin",
     "build:booking": "npm run build --workspace=apps/salon-booking",
     "build:staff": "npm run build --workspace=apps/salon-staff",
+    "build:dashboard": "npm run build --workspace=apps/salon-dashboard",
     "build:all": "npm run build --workspaces --if-present",
     "typecheck:all": "npm run typecheck --workspaces --if-present"
   }

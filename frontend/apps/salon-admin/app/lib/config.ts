@@ -31,3 +31,11 @@ const BOOKING_BASE_URL: string =
 export function bookingUrl(handler: string): string {
   return `${BOOKING_BASE_URL}/${handler}`;
 }
+
+const DASHBOARD_BASE_URL: string =
+  import.meta.env.VITE_DASHBOARD_APP_URL ??
+  (import.meta.env.DEV ? "http://localhost:5179" : `https://dashboard.${SALON_DOMAIN}`);
+
+export function dashboardUrl(salonId: string): string {
+  return `${DASHBOARD_BASE_URL}/${salonId}`;
+}

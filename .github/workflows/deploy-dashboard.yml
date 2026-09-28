@@ -1,0 +1,70 @@
+name: Deploy salon-dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/apps/salon-dashboard/**"
+      - "frontend/packages/ui-shared/**"
+      - "frontend/packages/ui-website/**"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - ".github/workflows/deploy-dashboard.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build salon-dashboard
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://api.salonsaas.org' }}
+          VITE_AUTH_SERVER_URL: ${{ vars.VITE_AUTH_SERVER_URL || 'https://auth.salonsaas.org' }}
+          VITE_AUTH_CLIENT_ID: salon-dashboard
+          VITE_AUTH_MODE: oauth2
+          VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN || 'salonsaas.org' }}
+          VITE_DASHBOARD_APP_URL: ${{ vars.VITE_DASHBOARD_APP_URL || 'https://dashboard.salonsaas.org' }}
+        run: npm run build:dashboard
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: salon-dashboard
+          path: frontend/apps/salon-dashboard/build/client
+          retention-days: 7
+
+  cloudflare-deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-dashboard
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=salonsaas-dashboard --branch=main

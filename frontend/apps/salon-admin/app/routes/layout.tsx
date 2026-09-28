@@ -5,7 +5,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle } from "lucide-react";
+import { Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle, Gauge } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -80,12 +80,20 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
 
 const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.ElementType; route?: string }[] = [
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
-  { key: "BOOKING",         label: "Booking Calendar", hint: "Online appointment scheduling",           icon: CalendarCheck,  route: "booking" },
+  { key: "BOOKING",         label: "Bookings",         hint: "Appointments, availability, and booking rules", icon: CalendarCheck, route: "booking" },
+  { key: "DASHBOARD",       label: "Dashboard",        hint: "Configure and open your operations dashboard", icon: Gauge, route: "dashboard-settings" },
   { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: "coming-soon" },
-  { key: "WEBSHOP",         label: "Web Shop",        hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "shop" },
+  { key: "WEBSHOP",         label: "Shop",            hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "shop" },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: "analytics" },
   { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "coming-soon" },
 ];
+
+const BOOKING_SECTIONS = [
+  { key: "appointments", label: "Appointments" },
+  { key: "availability", label: "Staff availability" },
+  { key: "blocked-dates", label: "Closures" },
+  { key: "settings", label: "Settings" },
+] as const;
 
 // ── Salon switcher ───────────────────────────────────────────────────────────
 
@@ -292,6 +300,7 @@ export function ErrorBoundary() {
 export default function Layout() {
   const { salon: loaderSalon, salonId, pendingServices, pendingStaff, pendingWebsite } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
+  const location = useLocation();
   const session = getAdminSession();
   const [salon, setSalon]             = useState<Salon>(loaderSalon as Salon);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -352,10 +361,33 @@ export default function Layout() {
 
   const ctx: LayoutContext = { salon, setSalon: (s) => setSalon(s), websiteMode, setWebsiteMode, pendingServices, pendingStaff, pendingWebsite };
   const isPreview = Boolean(useMatch("/:salonId/website-preview"));
+  const isOverview = Boolean(useMatch("/:salonId"));
+  const isBookings = Boolean(useMatch("/:salonId/booking"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [overviewExpanded, setOverviewExpanded] = useState(isOverview);
+  const [bookingsExpanded, setBookingsExpanded] = useState(isBookings);
   const [websiteCoachSeen, setWebsiteCoachSeen] = useState(
     () => Boolean(salon && localStorage.getItem(`website-style-hint-seen:${salon.id}`))
   );
+
+  const overviewTab = new URLSearchParams(location.search).get("tab") === "links" ? "links" : "details";
+  const bookingSectionParam = new URLSearchParams(location.search).get("section");
+  const bookingSection = bookingSectionParam === "availability" || bookingSectionParam === "blocked-dates" || bookingSectionParam === "settings"
+    ? bookingSectionParam
+    : "appointments";
+
+  useEffect(() => {
+    if (isOverview) {
+      setOverviewExpanded(true);
+      setBookingsExpanded(false);
+    } else if (isBookings) {
+      setBookingsExpanded(true);
+      setOverviewExpanded(false);
+    } else {
+      setOverviewExpanded(false);
+      setBookingsExpanded(false);
+    }
+  }, [isOverview, isBookings]);
 
   function markWebsiteCoachSeen() {
     if (salon) localStorage.setItem(`website-style-hint-seen:${salon.id}`, "1");
@@ -508,15 +540,74 @@ export default function Layout() {
               </Tooltip>
             )}
 
-            <Tooltip content="View your salon's identity, location, hours, and active features — and edit any of it.">
-              <NavLink to="" end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <LayoutDashboard className="w-4 h-4 shrink-0" /> Overview
-              </NavLink>
-            </Tooltip>
+            <div>
+              <Tooltip content="View your salon details and all links associated with it.">
+                <button
+                  type="button"
+                  aria-expanded={overviewExpanded}
+                  aria-controls="overview-navigation"
+                  onClick={() => {
+                    if (!isOverview) {
+                      navigate(`/${salonId}?tab=details`);
+                      setOverviewExpanded(true);
+                      return;
+                    }
+                    setOverviewExpanded((expanded) => !expanded);
+                  }}
+                  className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                    isOverview
+                      ? overviewExpanded
+                        ? "text-matcha-700 hover:bg-slate-50"
+                        : "bg-matcha-50 text-matcha-700"
+                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  }`}
+                >
+                  <LayoutDashboard className="w-4 h-4 shrink-0" />
+                  <span>Overview</span>
+                  <ChevronDown
+                    className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ${overviewExpanded ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </Tooltip>
+
+              {overviewExpanded && (
+                <div
+                  id="overview-navigation"
+                  className="relative ml-5 mt-1 mb-1 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200"
+                >
+                  <NavLink
+                    to={`/${salonId}?tab=details`}
+                    end
+                    aria-current={isOverview && overviewTab === "details" ? "page" : undefined}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      isOverview && overviewTab === "details"
+                        ? "bg-matcha-50 text-matcha-700"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    }`}
+                  >
+                    Salon details
+                  </NavLink>
+                  <NavLink
+                    to={`/${salonId}?tab=links`}
+                    end
+                    aria-current={isOverview && overviewTab === "links" ? "page" : undefined}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      isOverview && overviewTab === "links"
+                        ? "bg-matcha-50 text-matcha-700"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    }`}
+                  >
+                    Share links
+                  </NavLink>
+                </div>
+              )}
+            </div>
 
             <Tooltip content="Build your booking menu — add treatments, set pricing, duration, and assign staff.">
               <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <Briefcase className="w-4 h-4 shrink-0" /> Salon Services
+                <Briefcase className="w-4 h-4 shrink-0" /> Services
                 {pendingServices && (
                   <span className="ml-auto relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
@@ -552,7 +643,65 @@ export default function Layout() {
                   Features
                 </p>
                 {FEATURE_NAV.filter((f) => salon.features?.includes(f.key)).map((f) =>
-                  f.route ? (
+                  f.key === "BOOKING" ? (
+                    <div key={f.key}>
+                      <Tooltip content={f.hint}>
+                        <button
+                          type="button"
+                          aria-expanded={bookingsExpanded}
+                          aria-controls="booking-navigation"
+                          onClick={() => {
+                            if (!isBookings) {
+                              navigate(`/${salonId}/booking?section=appointments`);
+                              setBookingsExpanded(true);
+                              return;
+                            }
+                            setBookingsExpanded((expanded) => !expanded);
+                          }}
+                          className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                            isBookings
+                              ? bookingsExpanded
+                                ? "text-matcha-700 hover:bg-slate-50"
+                                : "bg-matcha-50 text-matcha-700"
+                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                          }`}
+                        >
+                          <f.icon className="w-4 h-4 shrink-0" />
+                          <span>{f.label}</span>
+                          <ChevronDown
+                            className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ${bookingsExpanded ? "rotate-180" : ""}`}
+                          />
+                        </button>
+                      </Tooltip>
+
+                      {bookingsExpanded && (
+                        <div
+                          id="booking-navigation"
+                          className="relative ml-5 mt-1 mb-1 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200"
+                        >
+                          {BOOKING_SECTIONS.map((section) => {
+                            const active = isBookings && bookingSection === section.key;
+                            return (
+                              <NavLink
+                                key={section.key}
+                                to={`/${salonId}/booking?section=${section.key}`}
+                                end
+                                aria-current={active ? "page" : undefined}
+                                onClick={() => setSidebarOpen(false)}
+                                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  active
+                                    ? "bg-matcha-50 text-matcha-700"
+                                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                }`}
+                              >
+                                {section.label}
+                              </NavLink>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : f.route ? (
                     <React.Fragment key={f.key}>
                       <Tooltip content={f.hint}>
                         <NavLink

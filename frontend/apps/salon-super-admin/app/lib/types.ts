@@ -30,6 +30,7 @@ export type SalonStatus = "ACTIVE" | "DISABLED";
 export type SalonFeature =
   | "STATIC_WEBSITE"
   | "BOOKING"
+  | "DASHBOARD"
   | "MEMBERSHIP"
   | "WEBSHOP"
   | "ANALYTICS"
@@ -134,6 +135,7 @@ export const DUMMY_OTP = "123456";
 export const ALL_FEATURES: SalonFeature[] = [
   "STATIC_WEBSITE",
   "BOOKING",
+  "DASHBOARD",
   "MEMBERSHIP",
   "WEBSHOP",
   "ANALYTICS",
@@ -143,6 +145,7 @@ export const ALL_FEATURES: SalonFeature[] = [
 export const FEATURE_LABEL: Record<SalonFeature, string> = {
   STATIC_WEBSITE: "Website",
   BOOKING: "Booking",
+  DASHBOARD: "Dashboard",
   MEMBERSHIP: "Membership",
   WEBSHOP: "Web Shop",
   ANALYTICS: "Analytics",

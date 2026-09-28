@@ -44,7 +44,7 @@ export default function Shop() {
   return (
     <div>
       <div className="mb-5 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Web Shop</h1>
+        <h1 className="text-xl font-bold text-slate-900">Shop</h1>
         <InfoBar id="shop">
           Manage your product catalogue, keep stock up to date, and work through customer orders.
           Shoppers see active products on your public website's Shop page.

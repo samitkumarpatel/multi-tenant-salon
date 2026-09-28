@@ -162,7 +162,7 @@ export default function WebsiteManagement() {
     <div className="max-w-2xl">
       <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Customer Website</h1>
+          <h1 className="text-xl font-bold text-slate-900">Website</h1>
           <p className="text-sm text-slate-500 mt-1">
             Choose how to present <span className="font-medium text-slate-700">{salon.name}</span> to visitors online.
           </p>

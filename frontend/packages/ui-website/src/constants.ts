@@ -1,7 +1,7 @@
 import type { OperatingHours } from "./types";
 
 export const FEATURE_LABEL: Record<string, string> = {
-  STATIC_WEBSITE: "Website", BOOKING: "Booking", MEMBERSHIP: "Membership",
+  STATIC_WEBSITE: "Website", BOOKING: "Booking", DASHBOARD: "Dashboard", MEMBERSHIP: "Membership",
   WEBSHOP: "Shop", ANALYTICS: "Analytics", LOYALTY_PROGRAM: "Loyalty",
 };
 

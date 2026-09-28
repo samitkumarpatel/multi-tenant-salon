@@ -509,7 +509,8 @@ class BookingService implements BookingApi {
         return bookingRepo.findBySalonId(salonId);
     }
 
-    Optional<Booking> findById(UUID salonId, Long bookingId) {
+    @Override
+    public Optional<Booking> findById(UUID salonId, Long bookingId) {
         return bookingRepo.findBySalonIdAndId(salonId, bookingId);
     }
 

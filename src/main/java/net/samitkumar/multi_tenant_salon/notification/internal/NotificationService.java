@@ -9,6 +9,7 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedE
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.dashboard.DashboardNotificationRequestedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
@@ -21,6 +22,7 @@ import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -130,6 +132,7 @@ class NotificationService {
         return switch (feature) {
             case STATIC_WEBSITE -> new FeatureBlurb("Public Website", "Live at " + websiteUrl(handler));
             case BOOKING -> new FeatureBlurb("Online Booking", "Live at " + bookingUrl(handler));
+            case DASHBOARD -> new FeatureBlurb("Operations Dashboard", "Manage appointments, checkout, and customer communication");
             case MEMBERSHIP -> new FeatureBlurb("Memberships", "Sell membership plans to your regulars");
             case LOYALTY_PROGRAM -> new FeatureBlurb("Loyalty Program", "Reward repeat customers with points");
             case ANALYTICS -> new FeatureBlurb("Analytics", "Track visits, bookings, and revenue");
@@ -276,6 +279,15 @@ class NotificationService {
                 teamSignatureHtml(event.salonName()));
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+    }
+
+    void notifyDashboardCustomer(DashboardNotificationRequestedEvent event) {
+        var text = "Hi " + event.customerName() + ",\n\n" + event.message()
+                + "\n\n— " + event.salonName();
+        var html = "<p>Hi " + HtmlUtils.htmlEscape(event.customerName()) + ",</p><p>"
+                + HtmlUtils.htmlEscape(event.message()).replace("\n", "<br>") + "</p><p>— "
+                + HtmlUtils.htmlEscape(event.salonName()) + "</p>";
+        sendEmail(event.customerEmail(), event.customerName(), event.subject(), text, html);
     }
 
     // ── Bookings — staff-facing ──────────────────────────────────────────────

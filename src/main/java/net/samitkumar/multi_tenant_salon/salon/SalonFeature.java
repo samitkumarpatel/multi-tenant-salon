@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.salon;
 public enum SalonFeature {
     STATIC_WEBSITE,
     BOOKING,
+    DASHBOARD,
     MEMBERSHIP,
     WEBSHOP,
     ANALYTICS,

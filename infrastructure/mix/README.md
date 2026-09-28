@@ -56,6 +56,7 @@ destroy touches nothing of mix's.
 | salon-public-website | `*.salonsaas.org` (tenants) | yes | `<project>.pages.dev` |
 | salon-super-admin | `super-admin.salonsaas.org` | yes | `<project>.pages.dev` |
 | salon-booking | `book.salonsaas.org` | yes | `<project>.pages.dev` |
+| salon-dashboard | `dashboard.salonsaas.org` | yes | `<project>.pages.dev` |
 | salon-staff | `staff.salonsaas.org` | yes | `<project>.pages.dev` |
 | backend `api` | `api.salonsaas.org` | **no** | Container App FQDN (+ `asuid.api` TXT) |
 | backend `auth` | `auth.salonsaas.org` | **no** | Container App FQDN (+ `asuid.auth` TXT) |
@@ -336,6 +337,17 @@ VITE_BOOKING_BASE_URL=https://book.salonsaas.org \
   npm --prefix frontend run build:admin
 npx wrangler pages deploy frontend/apps/salon-admin/build/client \
   --project-name=salonsaas-admin --branch=main
+
+# Salon Dashboard (production OAuth client / redirect URL)
+VITE_API_BASE_URL=https://api.salonsaas.org \
+VITE_AUTH_SERVER_URL=https://auth.salonsaas.org \
+VITE_AUTH_CLIENT_ID=salon-dashboard \
+VITE_AUTH_MODE=oauth2 \
+VITE_SALON_DOMAIN=salonsaas.org \
+VITE_DASHBOARD_APP_URL=https://dashboard.salonsaas.org \
+  npm --prefix frontend run build:dashboard
+npx wrangler pages deploy frontend/apps/salon-dashboard/build/client \
+  --project-name=salonsaas-dashboard --branch=main
 ```
 
 Backend:

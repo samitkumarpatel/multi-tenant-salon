@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
-import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown } from "lucide-react";
+import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown, Gauge } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl } from "~/lib/config";
+import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl, dashboardUrl } from "~/lib/config";
 import { SiteFooter } from "~/components/SiteFooter";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, FEATURE_DESCRIPTION, defaultHours } from "~/lib/constants";
 import { TERMS_TEXT, PRIVACY_TEXT } from "~/lib/legal";
@@ -230,7 +230,7 @@ const PROCESSING_STEPS = [
 
 const STEP_DURATION = 900; // ms per step
 
-type CopyKey = "admin" | "staff" | "website" | "booking";
+type CopyKey = "admin" | "staff" | "website" | "booking" | "dashboard";
 
 function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: { salonId: string; salonHandler: string; emailId: string; salonName: string; features: string[] }) {
   const [completedSteps, setCompletedSteps] = useState(0);
@@ -280,8 +280,10 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
 
   const hasWebsite      = features.includes("STATIC_WEBSITE");
   const hasBooking      = features.includes("BOOKING");
+  const hasDashboard    = features.includes("DASHBOARD");
   const salonWebsiteUrl = websiteUrl(salonHandler);
   const salonBookingUrl = bookingUrl(salonHandler);
+  const salonDashboardUrl = dashboardUrl(salonId);
   const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
 
   // ── Processing phase ────────────────────────────────────────────────────────
@@ -403,6 +405,18 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
                 hint="Share with customers to accept appointments"
                 url={salonBookingUrl}
                 copyKey="booking"
+                copied={copied}
+                onCopy={copy}
+              />
+            )}
+
+            {hasDashboard && (
+              <LinkRow
+                icon={<Gauge className="w-3.5 h-3.5 text-stone-400" />}
+                label="Operations Dashboard"
+                hint="Appointments and in-salon checkout"
+                url={salonDashboardUrl}
+                copyKey="dashboard"
                 copied={copied}
                 onCopy={copy}
               />

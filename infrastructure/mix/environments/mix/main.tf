@@ -24,6 +24,7 @@ locals {
     public-web      = "public.${local.domain}" # label only — see note above
     super-admin-web = "super-admin.${local.domain}"
     booking-web     = "book.${local.domain}"
+    dashboard-web   = "dashboard.${local.domain}"
     staff-web       = "staff.${local.domain}"
   }
 
@@ -299,6 +300,7 @@ module "dns_record_updatation" {
     # by module "tenant_wildcard", not here.
     fe_super_admin = { type = "CNAME", name = local.frontend_hostnames["super-admin-web"], content = module.frontend.pages_hostnames["super-admin-web"], proxied = true }
     fe_booking     = { type = "CNAME", name = local.frontend_hostnames["booking-web"], content = module.frontend.pages_hostnames["booking-web"], proxied = true }
+    fe_dashboard   = { type = "CNAME", name = local.frontend_hostnames["dashboard-web"], content = module.frontend.pages_hostnames["dashboard-web"], proxied = true }
     fe_staff       = { type = "CNAME", name = local.frontend_hostnames["staff-web"], content = module.frontend.pages_hostnames["staff-web"], proxied = true }
 
     # ── Backend — Azure Container Apps (DNS-only) ──
