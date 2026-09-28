@@ -40,6 +40,7 @@ jobs:
           VITE_AUTH_MODE: oauth2
           VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN || 'salonsaas.org' }}
           VITE_DASHBOARD_APP_URL: ${{ vars.VITE_DASHBOARD_APP_URL || 'https://dashboard.salonsaas.org' }}
+          VITE_ADMIN_APP_URL: ${{ vars.VITE_ADMIN_APP_URL || 'https://admin.salonsaas.org' }}
         run: npm run build:dashboard
 
       - name: Upload build artifact
@@ -49,6 +50,12 @@ jobs:
           path: frontend/apps/salon-dashboard/build/client
           retention-days: 7
 
+  # ── Deploy · Cloudflare Pages ────────────────────────────────────────────
+  # Project `salonsaas-dashboard` (custom domain dashboard.salonsaas.org) is
+  # provisioned by infrastructure/mix — `module.frontend.module.pages["dashboard-web"]`.
+  # Uses the same repo secrets as the other frontend deploys:
+  #   CLOUDFLARE_API_TOKEN  — token with "Cloudflare Pages: Edit" on the account
+  #   CLOUDFLARE_ACCOUNT_ID — account owning the salonsaas.org zone
   cloudflare-deploy:
     runs-on: ubuntu-latest
     needs: build
