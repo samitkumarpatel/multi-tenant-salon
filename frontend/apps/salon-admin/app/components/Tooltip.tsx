@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 interface TooltipProps {
@@ -16,6 +16,7 @@ export function Tooltip({ content, children, side = "right", delay = 350, classN
   const wrapRef  = useRef<HTMLDivElement>(null);
 
   const show = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     if (!wrapRef.current) return;
     const r = wrapRef.current.getBoundingClientRect();
     if (side === "right")  setCoords({ top: r.top + r.height / 2, left: r.right + 10 });
@@ -30,6 +31,10 @@ export function Tooltip({ content, children, side = "right", delay = 350, classN
     setVisible(false);
   }, []);
 
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
   const style =
     side === "right"  ? { top: coords.top, left: coords.left, transform: "translateY(-50%)" } :
     side === "left"   ? { top: coords.top, left: coords.left, transform: "translate(-100%, -50%)" } :
@@ -38,7 +43,7 @@ export function Tooltip({ content, children, side = "right", delay = 350, classN
 
   return (
     <>
-      <div ref={wrapRef} onMouseEnter={show} onMouseLeave={hide} className={className ?? "block"}>
+      <div ref={wrapRef} onMouseEnter={show} onMouseLeave={hide} onClickCapture={hide} className={className ?? "block"}>
         {children}
       </div>
 

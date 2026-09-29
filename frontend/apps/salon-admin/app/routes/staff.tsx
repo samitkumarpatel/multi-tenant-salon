@@ -1,3 +1,4 @@
+import { FixWithAi } from "~/components/FixWithAi";
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
@@ -616,13 +617,15 @@ function AddStaffFlow({
           </div>
           <div>
             <label className={fieldLabel}>About me</label>
-            <textarea
-              className={`${inputCls} resize-none`}
-              rows={3}
-              value={f.bio}
-              onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
-              placeholder="A short introduction shown on the salon website…"
-            />
+            <FixWithAi value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={3}
+                value={f.bio}
+                onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
+                placeholder="A short introduction shown on the salon website…"
+              />
+            </FixWithAi>
           </div>
           <WorkGalleryEditor
             urls={f.workUrls}
@@ -723,13 +726,15 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
 
       <div className="mt-4 mb-4">
         <label className={fieldLabel}>About me</label>
-        <textarea
-          className={`${inputCls} resize-none`}
-          rows={3}
-          value={f.bio}
-          onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
-          placeholder="A short introduction shown on the salon website…"
-        />
+        <FixWithAi value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
+          <textarea
+            className={`${inputCls} resize-none`}
+            rows={3}
+            value={f.bio}
+            onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
+            placeholder="A short introduction shown on the salon website…"
+          />
+        </FixWithAi>
       </div>
       <WorkGalleryEditor
         urls={f.workUrls}

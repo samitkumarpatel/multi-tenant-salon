@@ -6,6 +6,8 @@ export type { GenerativeUIBookingProps } from "./GenerativeUIBooking";
 export type { SalonWebsiteProps } from "./SalonWebsite";
 
 export { BookingWizard } from "./BookingWizard";
+export { CustomerDetailsFields } from "./CustomerDetailsFields";
+export type { CustomerBookingForm, ContactMethod } from "./CustomerDetailsFields";
 export { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 export { SiteHeader, SiteFooter, FEATURE_NAV } from "./SiteChrome";
 export { SocialLinksRow, SOCIAL_PLATFORMS } from "./SocialIcons";

@@ -1,3 +1,4 @@
+import { FixWithAi } from "~/components/FixWithAi";
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -248,13 +249,15 @@ function AddServiceFlow({
         <div className="mb-4 space-y-3">
           <div>
             <label className={fieldLabel}>Description</label>
-            <textarea
-              className={`${inputCls} resize-none`}
-              rows={2}
-              placeholder="Brief description shown to customers"
-              value={f.description}
-              onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
-            />
+            <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={2}
+                placeholder="Brief description shown to customers"
+                value={f.description}
+                onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
+              />
+            </FixWithAi>
           </div>
           <StaffToggle
             staff={staff}
@@ -297,13 +300,15 @@ function ServiceForm({ f, setF, staff, currencies }: {
       </div>
       <div className="mb-4">
         <label className={fieldLabel}>Description</label>
-        <textarea
-          className={`${inputCls} resize-none`}
-          rows={3}
-          placeholder="Brief description shown to customers"
-          value={f.description}
-          onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
-        />
+        <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
+          <textarea
+            className={`${inputCls} resize-none`}
+            rows={3}
+            placeholder="Brief description shown to customers"
+            value={f.description}
+            onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
+          />
+        </FixWithAi>
       </div>
       <div className="mb-4">
         <label className={fieldLabel}>Category</label>

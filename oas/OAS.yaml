@@ -545,6 +545,115 @@ paths:
 
   # ─── Customer — Chat ──────────────────────────────────────────────────────────
 
+  /api/salon-admin/{salonId}/ai/polish:
+    parameters:
+      - name: salonId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Salon UUID matching the owner's active salon claim; super-admins may access any salon.
+    post:
+      tags: [SalonAdmin]
+      summary: Polish a biography or description with AI (admin)
+      operationId: polishAdminText
+      security:
+        - BearerAuth: []
+      description: |
+        Requires an active OWNER claim for the salon UUID, or ROLE_SUPER_ADMIN.
+        Authentication is bypassed in the backend's local/mock security mode.
+        Returns polished, friendly and concise versions in one model call without reading or saving salon data.
+        Uses the configured AI model without chat history or tools. The model is instructed
+        to preserve language, meaning and facts while improving spelling, grammar and tone.
+        Review the suggestion before applying it, then save through the normal resource endpoint.
+        Does not require a Generative UI website or emit GenUiInteractionEvent analytics.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TextPolishRequest"
+      responses:
+        "200":
+          description: Three plain-text suggestions; nothing has been persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextPolishResponse"
+        "400":
+          description: Missing, null, blank or over-5000-character text, or malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          description: Missing or invalid bearer token (OAuth2 mode)
+        "403":
+          description: Caller lacks the required role or active ownership of this salon (OAuth2 mode)
+        "502":
+          description: AI returned malformed output or a missing, blank or over-5000-character version
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "503":
+          description: AI request failed; editing is temporarily unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
+  /api/salon-staff/ai/polish:
+    post:
+      tags: [StaffPortal]
+      summary: Polish a biography or description with AI (staff)
+      operationId: polishStaffText
+      security:
+        - BearerAuth: []
+      description: |
+        Requires ROLE_STAFF or ROLE_OWNER. No staffId or salonId is needed.
+        Authentication is bypassed in the backend's local/mock security mode.
+        Returns polished, friendly and concise versions in one model call without reading or saving salon data.
+        Uses the configured AI model without chat history or tools. The model is instructed
+        to preserve language, meaning and facts while improving spelling, grammar and tone.
+        Review the suggestion before applying it, then save through the normal resource endpoint.
+        Does not require a Generative UI website or emit GenUiInteractionEvent analytics.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TextPolishRequest"
+      responses:
+        "200":
+          description: Three plain-text suggestions; nothing has been persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextPolishResponse"
+        "400":
+          description: Missing, null, blank or over-5000-character text, or malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          description: Missing or invalid bearer token (OAuth2 mode)
+        "403":
+          description: Caller lacks the required role (OAuth2 mode)
+        "502":
+          description: AI returned malformed output or a missing, blank or over-5000-character version
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "503":
+          description: AI request failed; editing is temporarily unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
   /api/salon/{salonId}/chat:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -2566,8 +2675,8 @@ components:
       bearerFormat: JWT
       description: |
         JWT issued by the identity provider after the admin authenticates.
-        **Not yet enforced** — authentication/authorisation is a planned future addition.
-        Currently the `salonId` path parameter is the only enforcement in place.
+        Enforced in OAuth2 mode by the backend's path-specific role and ownership rules.
+        Authentication is bypassed in local/mock security mode.
 
   parameters:
     SalonId:
@@ -2660,6 +2769,48 @@ components:
             $ref: "#/components/schemas/ProblemDetail"
 
   schemas:
+
+    TextPolishRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: Existing biography or description to polish. Must contain non-whitespace text; the backend applies Java NotBlank and Size validation.
+          examples: ["i specialise in hair colour and love helping clients find their style"]
+
+    TextPolishResponse:
+      type: object
+      required: [text, suggestions]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: Default polished version, retained for compatibility; identical to suggestions.polished.
+          examples: ["I specialise in hair colour and love helping clients find their personal style."]
+        suggestions:
+          type: object
+          required: [polished, friendly, concise]
+          description: Three versions generated together. Each is nonblank, stripped of surrounding whitespace, and must be reviewed before saving.
+          properties:
+            polished:
+              type: string
+              minLength: 1
+              maxLength: 5000
+              description: Professional and natural wording.
+            friendly:
+              type: string
+              minLength: 1
+              maxLength: 5000
+              description: Warm and approachable wording.
+            concise:
+              type: string
+              minLength: 1
+              maxLength: 5000
+              description: Shorter, direct wording preserving the supplied facts.
 
     # ── Errors ───────────────────────────────────────────────────────────────
 

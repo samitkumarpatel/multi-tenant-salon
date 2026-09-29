@@ -1,4 +1,6 @@
+import type { AiPolishResponse } from "@salon/ui-shared";
 import { useState } from "react";
+import { AiPolishButton } from "@salon/ui-shared";
 import { useOutletContext, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Plus, Pencil, Trash2, X, Check, Crown, ChevronDown } from "lucide-react";
@@ -218,7 +220,12 @@ export default function SalonStaff() {
               </div>
               <div>
                 <label className={lbl}>Bio</label>
-                <textarea rows={2} className={`${inp} resize-none`} value={form.bio} onChange={(e) => patch({ bio: e.target.value })} placeholder="Brief bio…" />
+                <AiPolishButton value={form.bio} onApply={(text) => patch({ bio: text })}
+                  polish={(text) => apiFetch<AiPolishResponse>(`${ADMIN_API}/${salon.id}/ai/polish`, {
+                    method: "POST", body: JSON.stringify({ text }),
+                  })}>
+                  <textarea rows={2} className={`${inp} resize-none`} value={form.bio} onChange={(e) => patch({ bio: e.target.value })} placeholder="Brief bio…" />
+                </AiPolishButton>
               </div>
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <button type="button" onClick={() => patch({ availableForBooking: !form.availableForBooking })}

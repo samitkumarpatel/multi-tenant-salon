@@ -1,3 +1,4 @@
+import { FixWithAi } from "~/components/FixWithAi";
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -173,11 +174,13 @@ export default function ShopCategories() {
           </div>
           <div className="mb-4">
             <label className={fieldLabel}>Description</label>
-            <input
-              className={inputCls}
-              value={f.description}
-              onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
-            />
+            <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
+              <input
+                className={inputCls}
+                value={f.description}
+                onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
+              />
+            </FixWithAi>
           </div>
           {modal.kind === "edit" && (
             <label className="flex items-center gap-2.5 mb-4 cursor-pointer select-none">

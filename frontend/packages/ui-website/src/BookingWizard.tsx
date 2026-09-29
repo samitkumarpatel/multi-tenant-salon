@@ -4,9 +4,9 @@
  *
  * Steps:
  *  1 – Pick a service   (skipped when initialServiceId is valid)
- *  2 – Pick a date (+ optional staff member). Three views:
+ *  2 – Pick a date (+ optional staff member). Four views:
  *      "Pick a date" (date input → step 3), "Week view" (Teams-style week grid),
- *      or "By stylist" (date + time-per-stylist grid). Grid views pick date + time
+ *      "Soonest" (earliest openings), or "By stylist" (stylist cards + weekly times). Grid views pick date + time
  *      in one go and skip step 3.
  *  3 – Pick an available time slot
  *  4 – Enter contact details
@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, Info,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ContactRound, MoveHorizontal,
 } from "lucide-react";
 import { StaffSpotlight } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
@@ -23,7 +23,7 @@ import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { CategoryIcon } from "./CategoryIcon";
 import { fontStack, loadGoogleFont, contrastText } from "./theme";
-import PhoneInput from "./PhoneInput";
+import { CustomerDetailsFields, type ContactMethod } from "./CustomerDetailsFields";
 import { type ClosureRange, isClosedByRange, resolveHolidayRanges } from "./bookingDates";
 import type {
   Salon, ServiceItem, StaffMember, AvailableSlot, Booking, WebsiteTheme, OperatingHours, Country, SalonHoliday,
@@ -608,162 +608,218 @@ function MonthCalendar({
   );
 }
 
-// ── Designer/day grid (X axis = time, Y axis = designer) ─────────────────────
+// ── Stylist-first weekly availability ──────────────────────────────────────
 
 function DesignerGrid({
-  salonId, serviceId, staff, date, selectedSlot, accent, closedDays, closedDateRanges, onPick,
+  salonId, serviceId, staff, staffId, setStaffId, date, setDate, selectedSlot, accent,
+  closedDays, closedDateRanges, maxDate, onPick, onViewProfile,
 }: {
   salonId: string;
   serviceId: number;
   staff: StaffMember[];
+  staffId: number | null;
+  setStaffId: (id: number | null) => void;
   date: string;
+  setDate: (date: string) => void;
   selectedSlot: AvailableSlot | null;
   accent: Accent;
   closedDays: Set<string>;
   closedDateRanges: ClosureRange[];
+  maxDate: Date;
   onPick: (date: string, slot: AvailableSlot) => void;
+  onViewProfile: (member: StaffMember) => void;
 }) {
-  const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const isClosed = date
-    ? closedDays.has(JS_DAY_NAME[new Date(`${date}T00:00:00`).getDay()]) || isClosedByRange(date, closedDateRanges)
-    : false;
+  const today = toISODate(new Date());
+  const limit = toISODate(maxDate);
+  const [weekStart, setWeekStart] = useState(() => date && date >= today && date <= limit ? date : today);
+  const [retry, setRetry] = useState(0);
+  const [result, setResult] = useState<{ key: string; slots: Record<string, AvailableSlot[]>; error?: string } | null>(null);
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(`${weekStart}T00:00:00`);
+    day.setDate(day.getDate() + index);
+    return { day, iso: toISODate(day) };
+  });
+  // Stable keys also invalidate pending requests when closures arrive asynchronously.
+  const closuresKey = JSON.stringify(closedDateRanges);
+  const closedDaysKey = [...closedDays].sort().join(",");
+  const requestKey = JSON.stringify([salonId, serviceId, weekStart, today, limit, closuresKey, closedDaysKey, retry]);
+  const loading = result?.key !== requestKey;
+  const error = !loading ? result?.error : undefined;
+  const slotsByDate = !loading && !error ? result?.slots ?? {} : {};
+  const selectedStaff = staff.find((member) => member.id === staffId);
+  const stylistRailRef = useRef<HTMLDivElement>(null);
+  const [railState, setRailState] = useState({ canScroll: false, atStart: true, atEnd: true });
+  const updateRailState = () => {
+    const rail = stylistRailRef.current;
+    if (!rail) return;
+    setRailState({
+      canScroll: rail.scrollWidth > rail.clientWidth + 2,
+      atStart: rail.scrollLeft <= 2,
+      atEnd: rail.scrollLeft >= rail.scrollWidth - rail.clientWidth - 2,
+    });
+  };
+  const scrollStylists = (direction: -1 | 1) => {
+    const rail = stylistRailRef.current;
+    rail?.scrollBy({ left: direction * rail.clientWidth * 0.75, behavior: "smooth" });
+  };
 
   useEffect(() => {
-    if (!date || isClosed) { setSlots(null); return; }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({ serviceId: String(serviceId), date });
-    apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/booking/slots?${params}`)
-      .then((s) => { if (!cancelled) setSlots(futureSlots(date, s)); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load availability"); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [salonId, serviceId, date, isClosed]);
+    const rail = stylistRailRef.current;
+    if (!rail) return;
+    updateRailState();
+    const observer = new ResizeObserver(updateRailState);
+    observer.observe(rail);
+    window.addEventListener("resize", updateRailState);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateRailState);
+    };
+  }, [staff.length]);
 
-  // X axis: sorted union of start times; Y axis: designers
-  const times = slots ? [...new Set(slots.map((s) => s.startTime))].sort() : [];
-  const byStaff = new Map<number, Map<string, AvailableSlot>>();
-  for (const s of slots ?? []) {
-    if (!byStaff.has(s.staffId)) byStaff.set(s.staffId, new Map());
-    byStaff.get(s.staffId)!.set(s.startTime, s);
+  useEffect(() => {
+    let cancelled = false;
+    const ranges: ClosureRange[] = JSON.parse(closuresKey);
+    const closed = new Set(closedDaysKey.split(","));
+    const dates = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(`${weekStart}T00:00:00`);
+      day.setDate(day.getDate() + index);
+      return { day, iso: toISODate(day) };
+    }).filter(({ day, iso }) => iso >= today && iso <= limit
+      && !closed.has(JS_DAY_NAME[day.getDay()]) && !isClosedByRange(iso, ranges));
+    Promise.all(dates.map(async ({ iso }) => {
+      const params = new URLSearchParams({ serviceId: String(serviceId), date: iso });
+      const slots = await apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${salonId}/booking/slots?${params}`);
+      return [iso, futureSlots(iso, slots)] as const;
+    })).then((entries) => {
+      if (!cancelled) setResult({ key: requestKey, slots: Object.fromEntries(entries) });
+    }).catch(() => {
+      if (!cancelled) setResult({ key: requestKey, slots: {}, error: "Could not load availability. Please try again." });
+    });
+    return () => { cancelled = true; };
+  }, [requestKey, salonId, serviceId, weekStart, today, limit, closuresKey, closedDaysKey]);
+
+  function moveWeek(direction: number) {
+    const next = new Date(`${weekStart}T00:00:00`);
+    next.setDate(next.getDate() + direction * 7);
+    const iso = toISODate(next);
+    const start = iso < today ? today : iso;
+    setWeekStart(start);
+    setDate(start);
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-3">
-      {!date && <p className="text-xs text-slate-400 text-center py-6">Pick a date to see each stylist's availability.</p>}
-        {date && isClosed && <p className="text-xs text-slate-400 text-center py-6">The salon is closed on {fmtDate(date)} — try another date.</p>}
-
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-6 h-6 border-2 rounded-full animate-spin"
-              style={{ borderColor: accent.tint, borderTopColor: accent.color }} />
-          </div>
-        )}
-        {error && <p className="text-xs text-red-500 text-center py-6">{error}</p>}
-
-        {!loading && !error && date && !isClosed && slots !== null && (
-          times.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-6">No available times on {fmtDate(date)} — try another date.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <div style={{ minWidth: `calc(3.25rem + ${staff.length} * 5rem)` }}>
-              {/* Header: time gutter + one column per designer, stretching full width */}
-              <div
-                className="grid bg-slate-50/70 border-b border-slate-200"
-                style={{ gridTemplateColumns: `3.25rem repeat(${staff.length}, minmax(0, 1fr))` }}
-              >
-                <div />
-                {staff.map((m) => (
-                  <div key={m.id} className="flex flex-col items-center gap-1 py-2.5 px-1 border-l border-slate-200 min-w-0">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden"
-                      style={{ backgroundColor: accent.tint, color: accent.color }}
-                    >
-                      {staffAvatar(m) ? (
-                        <img src={staffAvatar(m)} alt={m.name}
-                          className="w-full h-full object-cover" loading="lazy"
-                          onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                      ) : (
-                        initials(m.name)
-                      )}
-                    </div>
-                    <p className="text-xs font-semibold text-slate-800 truncate max-w-full">{m.name}</p>
-                    <p className="text-[9px] text-slate-400 truncate max-w-full -mt-1">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Time rows */}
-              {times.map((t, ri) => (
-                <div
-                  key={t}
-                  className={`grid ${ri > 0 ? "border-t border-slate-100" : ""}`}
-                  style={{ gridTemplateColumns: `3.25rem repeat(${staff.length}, minmax(0, 1fr))` }}
-                >
-                  <div className="flex items-center justify-end pr-2">
-                    <span className="text-[10px] font-semibold text-slate-400 tabular-nums">{t.slice(0, 5)}</span>
-                  </div>
-                  {staff.map((m) => {
-                    const slot = byStaff.get(m.id)?.get(t);
-                    if (!slot) {
-                      return (
-                        <div key={m.id} className="h-10 border-l border-slate-100 p-0.5">
-                          <button
-                            type="button"
-                            disabled
-                            aria-disabled="true"
-                            className="w-full h-full rounded-md text-[10px] font-semibold cursor-not-allowed flex items-center justify-center bg-slate-100 text-slate-300"
-                            title={`${m.name} · ${t.slice(0, 5)} unavailable`}
-                          >
-                            Unavailable
-                          </button>
-                        </div>
-                      );
-                    }
-                    if (slot.booked) {
-                      return (
-                        <div key={m.id} className="h-10 border-l border-slate-100 p-0.5">
-                          <button
-                            type="button"
-                            disabled
-                            aria-disabled="true"
-                            className="w-full h-full rounded-md text-[10px] font-semibold cursor-not-allowed flex items-center justify-center bg-slate-50 text-slate-400 line-through"
-                            title={`${m.name} · ${fmt12(slot.startTime)} – Booked`}
-                          >
-                            Booked
-                          </button>
-                        </div>
-                      );
-                    }
-                    const isSel = selectedSlot?.staffId === slot.staffId && selectedSlot?.startTime === slot.startTime;
-                    return (
-                      <div key={m.id} className="h-10 border-l border-slate-100 p-0.5">
-                        <button
-                          type="button"
-                          onClick={() => onPick(date, slot)}
-                          className="w-full h-full rounded-md text-[10px] font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1"
-                          style={
-                            isSel
-                              ? { backgroundColor: accent.color, color: accent.text }
-                              : { backgroundColor: accent.tint, color: accent.color, boxShadow: `inset 2px 0 0 ${accent.color}` }
-                          }
-                          title={`${m.name} · ${fmt12(slot.startTime)} – ${fmt12(slot.endTime)}`}
-                        >
-                          {isSel ? <><Check className="w-3 h-3" /> Selected</> : "Available"}
-                        </button>
-                      </div>
-                    );
-                  })}
+    <div className="space-y-5 min-w-0">
+      {staff.length === 0 ? (
+        <p className="py-6 text-center text-sm text-slate-500">No stylists are available for this service.</p>
+      ) : (
+        <div className="relative">
+        <div ref={stylistRailRef} onScroll={updateRailState} tabIndex={0} aria-label="Choose a stylist; scroll horizontally to see everyone"
+          className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          style={{ scrollbarWidth: "thin", scrollbarColor: `${accent.color} #f1f5f9` }}>
+          {staff.map((member) => {
+            const selected = member.id === staffId;
+            const next = days.flatMap(({ iso }) => (slotsByDate[iso] ?? [])
+              .filter((slot) => slot.staffId === member.id && !slot.booked)
+              .map((slot) => ({ iso, slot })))
+              .sort((a, b) => a.iso.localeCompare(b.iso) || a.slot.startTime.localeCompare(b.slot.startTime))[0];
+            return (
+              <div key={member.id} className="relative flex w-36 shrink-0 snap-start flex-col rounded-2xl border transition-colors sm:w-40"
+                style={{ borderColor: selected ? accent.color : "#e2e8f0", backgroundColor: selected ? accent.tint : "#fff" }}>
+              <button type="button" aria-pressed={selected} aria-label={`Choose ${member.name}`}
+                onClick={() => setStaffId(member.id)}
+                className="relative flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 pb-3 pt-3 text-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset">
+                {selected && <Check className="absolute left-2 top-2 h-3.5 w-3.5" style={{ color: accent.color }} aria-label="Selected stylist" />}
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-bold"
+                  style={{ backgroundColor: accent.tint, color: accent.color }}>
+                  {initials(member.name)}
+                  {staffAvatar(member) && <img src={staffAvatar(member)} alt="" loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }} />}
                 </div>
-              ))}
-            </div>
-            </div>
-          )
-        )}
+                <span className="w-full truncate text-xs font-semibold text-slate-800" title={member.name}>{member.name}</span>
+                <span className="w-full truncate text-[10px] text-slate-500">{STAFF_ROLE_LABEL[member.role] ?? member.role}</span>
+                <span className="max-w-full truncate rounded-full px-2 py-1 text-[9px] font-semibold"
+                  style={{ backgroundColor: next ? accent.tint : "#f1f5f9", color: next ? accent.color : "#64748b" }}>
+                  {loading ? "Checking times…" : error ? "Times unavailable" : next
+                    ? `Next: ${next.iso === today ? "Today" : fmtDate(next.iso)} · ${fmt12(next.slot.startTime)}`
+                    : "No times this week"}
+                </span>
+              </button>
+              <button type="button" onClick={() => onViewProfile(member)} aria-label={`View ${member.name}'s profile`}
+                title={`View ${member.name}'s profile`}
+                className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all duration-150 hover:scale-110 hover:border-slate-300 hover:text-slate-800 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                style={{ color: accent.color }}>
+                <ContactRound className="h-4 w-4" aria-hidden="true" />
+              </button>
+              </div>
+            );
+          })}
+        </div>
+        {railState.canScroll && <>
+          {!railState.atStart && <button type="button" onClick={() => scrollStylists(-1)} aria-label="Show previous stylists"
+            className="absolute left-1 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-50">
+            <ArrowLeft className="h-4 w-4" />
+          </button>}
+          {!railState.atEnd && <button type="button" onClick={() => scrollStylists(1)} aria-label="Show more stylists"
+            className="absolute right-1 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-50">
+            <ArrowRight className="h-4 w-4" />
+          </button>}
+          <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-400"><MoveHorizontal className="h-3 w-3" aria-hidden="true" /> Scroll to see all stylists</p>
+        </>}
+        </div>
+      )}
+
+      {staff.length > 0 && <>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => moveWeek(-1)} disabled={weekStart <= today} aria-label="Previous week"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">{fmtDate(weekStart)} – {fmtDate(days[6].iso)}</span>
+            <button type="button" onClick={() => moveWeek(1)} disabled={days[6].iso >= limit} aria-label="Next week"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed">
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+          {selectedStaff && <span className="text-xs text-slate-500">Times with {selectedStaff.name}</span>}
+        </div>
+        {error && <div role="alert" className="flex items-center justify-center gap-2 py-4 text-sm text-red-600">
+          {error}<button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">Retry</button>
+        </div>}
+        {!selectedStaff && <p className="py-6 text-center text-sm text-slate-500">Choose a stylist to see their available times.</p>}
+        {selectedStaff && <div className="overflow-x-auto pb-2" aria-busy={loading}>
+          <div className="grid min-w-[640px] grid-cols-7 gap-2">
+            {days.map(({ day, iso }) => {
+              const closed = closedDays.has(JS_DAY_NAME[day.getDay()]) || isClosedByRange(iso, closedDateRanges);
+              const beyond = iso > limit;
+              const slots = (slotsByDate[iso] ?? []).filter((slot) => slot.staffId === selectedStaff.id && !slot.booked)
+                .sort((a, b) => a.startTime.localeCompare(b.startTime));
+              return <div key={iso} className="min-w-0">
+                <button type="button" disabled={closed || beyond} onClick={() => setDate(iso)} aria-pressed={date === iso}
+                  className="mb-2 flex w-full flex-col items-center gap-1 rounded-xl border px-2 py-3 disabled:opacity-50"
+                  style={{ borderColor: date === iso ? accent.color : "#e2e8f0", backgroundColor: date === iso ? accent.tint : "#f8fafc" }}>
+                  <span className="text-[10px] font-semibold uppercase text-slate-500">{day.toLocaleDateString(undefined, { weekday: "short" })}</span>
+                  <span className="text-lg font-semibold text-slate-800">{day.getDate()}</span>
+                  <span className="text-[10px] font-medium" style={{ color: accent.color }}>
+                    {beyond ? "Not open yet" : closed ? "Closed" : loading ? "Loading…" : error ? "—" : `${slots.length} free`}
+                  </span>
+                </button>
+                {!loading && !error && !closed && !beyond && (slots.length ? slots.map((slot) => (
+                  <button key={slot.startTime} type="button" onClick={() => onPick(iso, slot)}
+                    aria-label={`${selectedStaff.name}, ${fmtDate(iso)}, ${fmt12(slot.startTime)}`}
+                    className="mb-1.5 min-h-10 w-full rounded-lg border px-1 py-2 text-xs font-semibold transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2"
+                    style={date === iso && selectedSlot?.staffId === slot.staffId && selectedSlot?.startTime === slot.startTime
+                      ? { backgroundColor: accent.color, color: accent.text, borderColor: accent.color }
+                      : { borderColor: accent.border, color: accent.color }}>
+                    {fmt12(slot.startTime)}
+                  </button>
+                )) : <p className="py-3 text-center text-xs text-slate-400">No times</p>)}
+              </div>;
+            })}
+          </div>
+        </div>}
+      </>}
     </div>
   );
 }
@@ -880,8 +936,72 @@ function DaySlots({
 
 // ── Step 2: Date + staff selection ────────────────────────────────────────────
 
+function SoonestSlots({ salonId, serviceId, staffId, staff, maxDate, accent, onPick }: {
+  salonId: string;
+  serviceId: number;
+  staffId: number | null;
+  staff: StaffMember[];
+  maxDate: Date;
+  accent: Accent;
+  onPick: (date: string, slot: AvailableSlot) => void;
+}) {
+  type Opening = { date: string; slot: AvailableSlot };
+  const [retry, setRetry] = useState(0);
+  const [result, setResult] = useState<{ key: string; openings: Opening[]; error?: string } | null>(null);
+  const today = toISODate(new Date());
+  const until = toISODate(maxDate);
+  const key = JSON.stringify([salonId, serviceId, staffId, today, until, retry]);
+  const loading = result?.key !== key;
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      let from = today;
+      while (from <= until && !cancelled) {
+        const end = new Date(`${from}T00:00:00`);
+        end.setDate(end.getDate() + 91);
+        const to = toISODate(end) < until ? toISODate(end) : until;
+        const params = new URLSearchParams({ serviceId: String(serviceId), from, to, granularity: "SLOT", limit: "3" });
+        if (staffId !== null) params.set("staffId", String(staffId));
+        const response = await apiFetch<{ days: { date: string; slots: AvailableSlot[] | null }[] }>(`${CUSTOMER_API}/${salonId}/availability?${params}`);
+        const openings = response.days.flatMap((day) => futureSlots(day.date, day.slots ?? [])
+          .filter((slot) => !slot.booked).map((slot) => ({ date: day.date, slot })))
+          .sort((a, b) => a.date.localeCompare(b.date) || a.slot.startTime.localeCompare(b.slot.startTime))
+          .slice(0, 12);
+        if (cancelled) return;
+        if (openings.length || to === until) {
+          setResult({ key, openings });
+          return;
+        }
+        // A limited response may contain only today's already elapsed times.
+        // Continue after the last returned day rather than skipping the rest of the range.
+        const lastReturned = response.days.at(-1)?.date ?? to;
+        const next = new Date(`${lastReturned}T00:00:00`);
+        next.setDate(next.getDate() + 1);
+        from = toISODate(next);
+      }
+    }
+    load().catch(() => {
+      if (!cancelled) setResult({ key, openings: [], error: "Could not load the earliest times. Please try again." });
+    });
+    return () => { cancelled = true; };
+  }, [key, salonId, serviceId, staffId, today, until]);
+
+  if (loading) return <p role="status" className="py-8 text-center text-sm text-slate-500">Finding the earliest available times…</p>;
+  if (result?.error) return <p role="alert" className="py-6 text-center text-sm text-red-600">{result.error} <button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">Retry</button></p>;
+  if (!result?.openings.length) return <p className="py-8 text-center text-sm text-slate-500">No available times within the booking window. Try another stylist or service.</p>;
+  return <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+    {result.openings.map(({ date, slot }, index) => <button type="button" key={`${date}-${slot.staffId}-${slot.startTime}`}
+      onClick={() => onPick(date, slot)} className="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors hover:bg-slate-50"
+      style={{ borderColor: index === 0 ? accent.color : accent.border }}>
+      <span className="text-[10px] font-semibold" style={{ color: accent.color }}>{index === 0 ? "Earliest · " : ""}{date === today ? "Today" : fmtDate(date)}</span>
+      <span className="text-base font-bold text-slate-800">{fmt12(slot.startTime)}</span>
+      <span className="text-xs text-slate-500">{staff.find((member) => member.id === slot.staffId)?.name ?? "Available stylist"}</span>
+    </button>)}
+  </div>;
+}
+
 function StepDate({
-  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, theme, accentText, closedDays, closedDateRanges, maxDate, defaultMode = "designer", onBack, onNext, onPickSlot,
+  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, theme, accentText, closedDays, closedDateRanges, maxDate, onBack, onNext, onPickSlot,
 }: {
   salonId: string;
   serviceId: number;
@@ -897,26 +1017,34 @@ function StepDate({
   closedDays: Set<string>;
   closedDateRanges: ClosureRange[];
   maxDate: Date;
-  /** Initial view — "week" when a stylist was preselected via "Book with me" */
-  defaultMode?: "input" | "week" | "designer";
   onBack: () => void;
   onNext: () => void;
   /** Week view: picking a slot selects date + time in one go */
   onPickSlot: (date: string, slot: AvailableSlot) => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
-  // The designer (by-stylist) grid is a comparison table that doesn't suit a first
-  // view on either breakpoint — mobile defaults to Week view, desktop to Pick a date.
-  const [dateMode, setDateMode] = useState<"input" | "week" | "designer">(() => {
-    if (defaultMode !== "designer") return defaultMode;
-    if (typeof window === "undefined") return "input";
-    return window.innerWidth < 640 ? "week" : "input";
-  });
-  const MODE_LABEL = { input: "Pick a date", week: "Week view", designer: "By stylist" } as const;
+  // Soonest is the default booking view, including when a stylist was preselected.
+  const [dateMode, setDateMode] = useState<"soonest" | "input" | "week" | "designer">("soonest");
+  const modeRailRef = useRef<HTMLDivElement>(null);
+  const [modeRailScrollable, setModeRailScrollable] = useState(false);
+  useEffect(() => {
+    const rail = modeRailRef.current;
+    if (!rail) return;
+    const update = () => setModeRailScrollable(rail.scrollWidth > rail.clientWidth + 2);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(rail);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  const MODE_LABEL = { soonest: "Soonest", input: "Pick a date", week: "Week view", designer: "By stylist" } as const;
   const selStyle = { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` };
   const unselStyle = { borderColor: "#e2e8f0" };
 
-  // "Know more" — profile modal (bio + work media) for a stylist in the picker
+  // Profile modal (bio + work media), opened separately from stylist selection.
   const [profileStaff, setProfileStaff] = useState<StaffMember | null>(null);
 
   // Preferred-staff carousel: snap-scroll + arrow nav instead of a bare scrollbar
@@ -969,11 +1097,13 @@ function StepDate({
           </button>
 
           {staff.map((s) => (
+            <div key={s.id} className="relative flex flex-1 min-w-[6rem] snap-start flex-col rounded-xl border bg-white transition-colors"
+              style={staffId === s.id ? selStyle : unselStyle}>
             <button
-              key={s.id}
+              type="button"
+              aria-pressed={staffId === s.id}
               onClick={() => setStaffId(s.id)}
-              className="relative flex flex-1 min-w-[4.5rem] snap-start flex-col items-center gap-1 p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-sm bg-white"
-              style={staffId === s.id ? selStyle : unselStyle}
+              className="relative flex flex-1 flex-col items-center gap-1 p-2.5 rounded-t-xl transition-colors cursor-pointer hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
             >
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden shrink-0"
@@ -1000,18 +1130,14 @@ function StepDate({
                 </span>
               )}
 
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => { e.stopPropagation(); setProfileStaff(s); }}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setProfileStaff(s); } }}
-                aria-label={`Know more about ${s.name}`}
-                title="Know more"
-                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-colors cursor-pointer"
-              >
-                <Info className="w-3 h-3" />
-              </span>
             </button>
+            <button type="button" onClick={() => setProfileStaff(s)} aria-label={`View ${s.name}'s profile`}
+              title={`View ${s.name}'s profile`}
+              className="mb-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center self-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+              style={{ color: accent.color }}>
+              <ContactRound className="h-4 w-4" aria-hidden="true" />
+            </button>
+            </div>
           ))}
         </div>
 
@@ -1048,34 +1174,35 @@ function StepDate({
   return (
     <div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-0.5">
-        <h2 className="text-lg font-bold text-slate-900">Pick a date</h2>
-        <div className="grid grid-cols-3 sm:flex sm:items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 sm:shrink-0">
-          {(["designer", "week", "input"] as const).map((m) => (
+        <h2 className="text-lg font-bold text-slate-900">Choose a time</h2>
+        <div className="min-w-0 max-w-full sm:shrink-0">
+        <div ref={modeRailRef} className="flex w-full flex-nowrap items-center gap-0.5 overflow-x-auto rounded-lg bg-slate-100 p-0.5"
+          style={{ scrollbarWidth: "thin", scrollbarColor: `${accent.color} #f1f5f9` }} aria-label="Appointment time view">
+          {(["soonest", "input", "designer", "week"] as const).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setDateMode(m)}
-              className="relative px-2 sm:px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+              aria-pressed={dateMode === m}
+              className="relative shrink-0 px-2 sm:px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
               style={dateMode === m
                 ? { backgroundColor: "#ffffff", color: accent.color, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }
                 : { color: "#64748b" }}
             >
-              {dateMode !== m && (
-                <span
-                  className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full animate-pulse"
-                  style={{ backgroundColor: accent.color }}
-                />
-              )}
               {MODE_LABEL[m]}
             </button>
           ))}
         </div>
+        {modeRailScrollable && <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-400"><MoveHorizontal className="h-3 w-3" aria-hidden="true" /> Swipe to see all options</p>}
+        </div>
       </div>
       <p className="text-sm text-slate-500 mb-3">
-        {dateMode === "week"
+        {dateMode === "soonest"
+          ? "Find the earliest available appointment for your service."
+          : dateMode === "week"
           ? "Pick an available time straight from the week overview."
           : dateMode === "designer"
-          ? "Pick a date, then choose a time with the stylist you prefer."
+          ? "Choose your stylist, then pick an available time from their week."
           : "Choose when you'd like your appointment."}
       </p>
 
@@ -1087,7 +1214,9 @@ function StepDate({
           <div className="mb-1.5">
             <label className="block text-sm font-medium text-slate-700">Date &amp; time <span className="text-red-500">*</span></label>
           </div>
-          {dateMode === "week" ? (
+          {dateMode === "soonest" ? (
+            <SoonestSlots salonId={salonId} serviceId={serviceId} staffId={staffId} staff={staff} maxDate={maxDate} accent={accent} onPick={onPickSlot} />
+          ) : dateMode === "week" ? (
             <WeekGrid
               salonId={salonId}
               serviceId={serviceId}
@@ -1102,27 +1231,22 @@ function StepDate({
               onPick={onPickSlot}
             />
           ) : dateMode === "designer" ? (
-            <div className="grid lg:grid-cols-[17rem_1fr] gap-3 items-start">
-              <MonthCalendar
-                date={date}
-                setDate={setDate}
-                accent={accent}
-                closedDays={closedDays}
-                closedDateRanges={closedDateRanges}
-                maxDate={maxDate}
-              />
               <DesignerGrid
+                onViewProfile={setProfileStaff}
                 salonId={salonId}
                 serviceId={serviceId}
                 staff={staff}
+                staffId={staffId}
+                setStaffId={setStaffId}
                 date={date}
+                setDate={setDate}
                 selectedSlot={selectedSlot}
                 accent={accent}
                 closedDays={closedDays}
                 closedDateRanges={closedDateRanges}
+                maxDate={maxDate}
                 onPick={onPickSlot}
               />
-            </div>
           ) : (
             <div className="space-y-3">
               <MonthCalendar
@@ -1309,14 +1433,7 @@ function StepDetails({
   onSubmit: () => void;
   busy: boolean;
 }) {
-  const [contactTab, setContactTab] = useState<"email" | "phone">("email");
-  const ringStyle = { ["--tw-ring-color" as string]: `${accent.color}33` };
-
-  function switchTab(tab: "email" | "phone") {
-    setContactTab(tab);
-    if (tab === "email") setForm({ ...form, phone: "" });
-    else setForm({ ...form, email: "" });
-  }
+  const [contactTab, setContactTab] = useState<ContactMethod>("email");
 
   const contactValid = contactTab === "email"
     ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
@@ -1328,39 +1445,9 @@ function StepDetails({
       <h2 className="text-lg font-bold text-slate-900 mb-1">Your details</h2>
       <p className="text-sm text-slate-500 mb-5">We'll use this to confirm your appointment.</p>
 
-      <div className="space-y-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Full name <span className="text-red-500">*</span></label>
-          <input className={inputCls} style={ringStyle} placeholder="Jane Smith" value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        </div>
-
-        <div>
-          <div className="flex rounded-xl bg-slate-100 p-1 mb-3 gap-1">
-            {(["email", "phone"] as const).map((tab) => (
-              <button key={tab} type="button" onClick={() => switchTab(tab)}
-                className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all ${contactTab === tab ? "bg-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                style={contactTab === tab ? { color: accent.color } : {}}>
-                {tab === "email" ? "Email" : "Phone"}
-              </button>
-            ))}
-          </div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            {contactTab === "email" ? "Email address" : "Phone number"} <span className="text-red-500">*</span>
-          </label>
-          {contactTab === "email" ? (
-            <input type="email" className={inputCls} style={ringStyle} placeholder="jane@example.com" value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          ) : (
-            <PhoneInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} countries={countries} defaultCountry={salonCountry} />
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
-          <textarea className={`${inputCls} resize-none`} style={ringStyle} rows={2} placeholder="Anything we should know?" value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        </div>
+      <div className="mb-6">
+        <CustomerDetailsFields form={form} onChange={setForm} contactMethod={contactTab} onContactMethodChange={setContactTab}
+          countries={countries} defaultCountry={salonCountry} accentColor={accent.color} />
       </div>
 
       <div className="flex gap-3">
@@ -1670,7 +1757,6 @@ export function BookingWizard({
               closedDays={closedDays}
               closedDateRanges={allClosedRanges}
               maxDate={maxDate}
-              defaultMode={preStaff ? "week" : "designer"}
               onBack={goBack}
               onNext={() => { setViaWeek(false); setStep(3); }}
               onPickSlot={(d, s) => { setDate(d); setSlot(s); setViaWeek(true); setStep(4); }}

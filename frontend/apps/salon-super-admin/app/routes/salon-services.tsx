@@ -1,4 +1,6 @@
+import type { AiPolishResponse } from "@salon/ui-shared";
 import { useState } from "react";
+import { AiPolishButton } from "@salon/ui-shared";
 import { useOutletContext, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Plus, Pencil, Trash2, X, Check, ChevronDown, Clock, Tag } from "lucide-react";
@@ -267,6 +269,7 @@ function ServiceForm({ form, patchForm, currencies, staff, toggleStaff, err }: {
 }) {
   const inp = "w-full px-3 py-2 border border-stone-200 rounded-lg text-sm bg-stone-100 text-stone-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-stone-400";
   const lbl = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide";
+  const { salon } = useOutletContext<SalonManageContext>();
   return (
     <>
       {err && <p className="text-red-600 text-xs px-3 py-2 bg-red-50 border border-red-200 rounded-lg">{err}</p>}
@@ -276,7 +279,12 @@ function ServiceForm({ form, patchForm, currencies, staff, toggleStaff, err }: {
       </div>
       <div>
         <label className={lbl}>Description</label>
-        <textarea rows={2} className={`${inp} resize-none`} value={form.description} onChange={(e) => patchForm({ description: e.target.value })} placeholder="Brief description…" />
+        <AiPolishButton value={form.description} onApply={(text) => patchForm({ description: text })}
+          polish={(text) => apiFetch<AiPolishResponse>(`${ADMIN_API}/${salon.id}/ai/polish`, {
+            method: "POST", body: JSON.stringify({ text }),
+          })}>
+          <textarea rows={2} className={`${inp} resize-none`} value={form.description} onChange={(e) => patchForm({ description: e.target.value })} placeholder="Brief description…" />
+        </AiPolishButton>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

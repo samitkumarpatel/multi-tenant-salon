@@ -1,4 +1,6 @@
 export { AppLogo } from "./AppLogo";
+export { AiPolishButton } from "./AiPolishButton";
+export type { AiPolishButtonProps, AiPolishResponse } from "./AiPolishButton";
 export { CountrySelect } from "./CountrySelect";
 export { PhoneInput } from "./PhoneInput";
 export { HoursTable } from "./HoursTable";

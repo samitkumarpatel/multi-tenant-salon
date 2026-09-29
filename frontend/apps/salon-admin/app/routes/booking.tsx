@@ -6,24 +6,26 @@ import {
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Filter, List,
   Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Search,
 } from "lucide-react";
-import { ADMIN_API, CUSTOMER_API, apiFetch, resolveSalonUUID } from "~/lib/api";
+import { ADMIN_API, CUSTOMER_API, COUNTRIES_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import type {
   LayoutContext, StaffMember, ServiceItem, Booking, BookingStatus,
-  StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours, SalonClosure,
+  StaffAvailability, StaffAvailabilityOverride, AvailableSlot, OperatingHours, SalonClosure, Country,
 } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
 import { Tooltip } from "~/components/Tooltip";
 import { Toast, useToast } from "@salon/ui-shared";
+import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const [bookings, staff, services] = await Promise.all([
+  const [bookings, staff, services, countries] = await Promise.all([
     apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`),
     apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`),
     apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`),
+    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
-  return { bookings, staff, services };
+  return { bookings, staff, services, countries };
 }
 
 // ── shared styles ─────────────────────────────────────────────────────────────
@@ -356,9 +358,10 @@ function BookingRow({
 // ── Timeline grid (shared between normal and full-page view) ─────────────────
 
 function TimelineGrid({
-  activeStaff, dayBookings, calStart, calEnd, calHours,
-  showNow, nowY, serviceMap, gridRef, maxHeight, onSelect, dayOh,
+  date, activeStaff, dayBookings, calStart, calEnd, calHours,
+  showNow, nowY, serviceMap, gridRef, maxHeight, onSelect, onCreate, dayOh,
 }: {
+  date: string;
   activeStaff: StaffMember[];
   dayBookings: Booking[];
   calStart: number;
@@ -370,9 +373,25 @@ function TimelineGrid({
   gridRef: React.RefObject<HTMLDivElement | null>;
   maxHeight: number | undefined;
   onSelect: (b: Booking) => void;
+  onCreate: (date: string, time: string, staffId: number) => void;
   dayOh: OperatingHours | null;
 }) {
   const totalH = (calEnd - calStart) * HOUR_H;
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const update = () => {
+      setCanScrollLeft(grid.scrollLeft > 1);
+      setCanScrollRight(grid.scrollLeft + grid.clientWidth < grid.scrollWidth - 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(grid);
+    grid.addEventListener("scroll", update, { passive: true });
+    return () => { observer.disconnect(); grid.removeEventListener("scroll", update); };
+  }, [activeStaff.length, gridRef]);
   const openY  = dayOh && !dayOh.closed
     ? Math.max(0, timeToY(dayOh.openTime, calStart))
     : null;
@@ -381,9 +400,10 @@ function TimelineGrid({
     : null;
 
   return (
-    <>
-      <div className="flex border-b border-slate-200 bg-white z-10 sticky top-0">
-        <div className="w-14 shrink-0 border-r border-slate-100 py-2" />
+    <div className="relative">
+    <div ref={gridRef} className="relative overflow-auto" style={maxHeight !== undefined ? { maxHeight } : { height: "100%" }}>
+      <div className="sticky top-0 z-30 flex border-b border-slate-200 bg-white">
+        <div className="sticky left-0 z-40 w-14 shrink-0 border-r border-slate-100 bg-white py-2" />
         {activeStaff.map((s) => {
           const count = dayBookings.filter((b) => b.staffId === s.id).length;
           const paused = s.availableForBooking === false;
@@ -416,13 +436,8 @@ function TimelineGrid({
           );
         })}
       </div>
-      <div
-        ref={gridRef}
-        className="overflow-y-auto overflow-x-auto"
-        style={maxHeight !== undefined ? { maxHeight } : { height: "100%" }}
-      >
-        <div className="flex" style={{ height: (calEnd - calStart) * HOUR_H }}>
-          <div className="w-14 shrink-0 border-r border-slate-100 relative select-none">
+      <div className="flex" style={{ height: (calEnd - calStart) * HOUR_H }}>
+          <div className="sticky left-0 z-20 w-14 shrink-0 border-r border-slate-100 bg-white relative select-none">
             {calHours.map((h) => (
               <div key={h} style={{ height: HOUR_H }} className="border-b border-slate-100" />
             ))}
@@ -439,6 +454,17 @@ function TimelineGrid({
                 {calHours.map((h) => (
                   <div key={h} style={{ height: HOUR_H }} className="border-b border-slate-100" />
                 ))}
+                {calHours.flatMap((hour) => [0, 30].map((minute) => {
+                  const totalMinutes = hour * 60 + minute;
+                  const time = `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+                  return <button key={time} type="button" aria-label={`Create appointment with ${s.name} at ${fmt12(time)}`}
+                    title={`Book ${s.name} at ${fmt12(time)}`}
+                    onClick={() => onCreate(date, time, s.id)}
+                    className="group absolute inset-x-0 cursor-pointer bg-transparent hover:bg-matcha-500/10 focus-visible:bg-matcha-500/15 focus-visible:outline-none"
+                    style={{ top: (totalMinutes - calStart * 60) / 60 * HOUR_H, height: HOUR_H / 2 }}>
+                    <span className="pointer-events-none absolute right-2 top-1 hidden rounded bg-matcha-600 px-1.5 py-0.5 text-[9px] font-semibold text-white group-hover:block group-focus-visible:block">Book</span>
+                  </button>;
+                }))}
                 {/* Closed-day overlay */}
                 {dayOh?.closed && (
                   <div className="absolute inset-0 pointer-events-none"
@@ -483,9 +509,11 @@ function TimelineGrid({
               </div>
             );
           })}
-        </div>
       </div>
-    </>
+    </div>
+    {canScrollLeft && <button type="button" onClick={() => gridRef.current?.scrollBy({ left: -Math.max(280, gridRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to previous stylists" title="Scroll to previous stylists" className="absolute left-2 top-1/2 z-40 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
+    {canScrollRight && <button type="button" onClick={() => gridRef.current?.scrollBy({ left: Math.max(280, gridRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to more stylists" title="Scroll to more stylists" className="absolute right-2 top-1/2 z-40 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
+    </div>
   );
 }
 
@@ -926,7 +954,7 @@ function MonthGrid({
 // ── Bookings panel (day / week / month / list views with stats + filters) ──────
 
 function BookingsPanel({
-  bookings: allBookings, staffMap, serviceMap, staff, operatingHours, onAction, onReschedule, onDelete, onRefresh,
+  bookings: allBookings, staffMap, serviceMap, staff, operatingHours, onAction, onReschedule, onDelete, onRefresh, onCreate,
 }: {
   bookings: Booking[];
   staffMap: Map<number, StaffMember>;
@@ -937,6 +965,7 @@ function BookingsPanel({
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
   onRefresh: () => Promise<void>;
+  onCreate: (date: string, time: string, staffId: number) => void;
 }) {
   const todayStr = new Date().toISOString().split("T")[0];
   const [viewDate, setViewDate]         = useState(todayStr);
@@ -1162,10 +1191,12 @@ function BookingsPanel({
         <>
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <TimelineGrid
+              date={viewDate}
               activeStaff={activeStaff} dayBookings={dayBookings}
               calStart={calStart} calEnd={calEnd} calHours={calHours}
               showNow={showNow} nowY={nowY} serviceMap={serviceMap}
               gridRef={gridRef} maxHeight={mh} onSelect={setSelected}
+              onCreate={onCreate}
               dayOh={dayOh}
             />
           </div>
@@ -2014,6 +2045,90 @@ const ADVANCE_OPTIONS = [
 
 type BookingSection = "appointments" | "availability" | "blocked-dates" | "settings";
 
+type CreateBookingDraft = { date: string; time: string; staffId: number };
+
+function CreateBookingModal({
+  draft, staff, services, countries, defaultCountry, onClose, onSave,
+}: {
+  draft: CreateBookingDraft;
+  staff: StaffMember[];
+  services: ServiceItem[];
+  countries: Country[];
+  defaultCountry?: string;
+  onClose: () => void;
+  onSave: (booking: {
+    serviceId: number; staffId: number; customerName: string; customerEmail: string;
+    customerPhone: string; appointmentDate: string; startTime: string; notes: string;
+  }) => Promise<void>;
+}) {
+  const [serviceId, setServiceId] = useState(services[0]?.id ?? 0);
+  const [staffId, setStaffId] = useState(draft.staffId);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [notes, setNotes] = useState("");
+  const [contactMethod, setContactMethod] = useState<ContactMethod>("email");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({ serviceId, staffId, customerName, customerEmail, customerPhone, appointmentDate: draft.date, startTime: draft.time, notes });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create appointment.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const customerForm = { name: customerName, email: customerEmail, phone: customerPhone, notes };
+  const contactValid = contactMethod === "email"
+    ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())
+    : customerPhone.trim().length > 4;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <form onSubmit={submit} className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div>
+            <h2 className="font-bold text-slate-900">New appointment</h2>
+            <p className="mt-1 text-sm text-slate-500">{draft.date} at {fmt12(draft.time)}</p>
+          </div>
+          <button type="button" aria-label="Close" onClick={onClose} className="cursor-pointer text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={fieldLabel}>Service</label>
+            <select className={inputCls} required value={serviceId} onChange={(e) => setServiceId(Number(e.target.value))}>
+              {services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.durationMinutes} min</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={fieldLabel}>Stylist</label>
+            <select className={inputCls} required value={staffId} onChange={(e) => setStaffId(Number(e.target.value))}>
+              {staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <CustomerDetailsFields
+          form={customerForm}
+          onChange={(form) => { setCustomerName(form.name); setCustomerEmail(form.email); setCustomerPhone(form.phone); setNotes(form.notes); }}
+          contactMethod={contactMethod} onContactMethodChange={setContactMethod}
+          countries={countries} defaultCountry={defaultCountry}
+        />
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button type="submit" disabled={saving || !services.length || !staff.length || !customerName.trim() || !contactValid} className="rounded-md bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Creating…" : "Create appointment"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 const BOOKING_SECTION_META: Record<BookingSection, { label: string; description: string }> = {
   appointments: {
     label: "Appointments",
@@ -2133,10 +2248,11 @@ function BookingSettingsPanel({
 
 export default function BookingPage() {
   const { salon, setSalon } = useOutletContext<LayoutContext>();
-  const { bookings: init, staff, services } = useLoaderData<typeof clientLoader>();
+  const { bookings: init, staff, services, countries } = useLoaderData<typeof clientLoader>();
   const [bookings, setBookings] = useState<Booking[]>(init);
   const [searchParams] = useSearchParams();
   const [busy, setBusy] = useState(false);
+  const [createDraft, setCreateDraft] = useState<CreateBookingDraft | null>(null);
   const { toast, notify } = useToast();
 
   const sectionParam = searchParams.get("section");
@@ -2228,6 +2344,19 @@ export default function BookingPage() {
     } catch (e) { notify(e instanceof Error ? e.message : "Failed to refresh bookings", "error"); }
   }
 
+  async function submitCreateBooking(payload: {
+    serviceId: number; staffId: number; customerName: string; customerEmail: string;
+    customerPhone: string; appointmentDate: string; startTime: string; notes: string;
+  }) {
+    const created = await apiFetch<Booking>(`${ADMIN_API}/${sid}/booking`, {
+      method: "POST",
+      body: JSON.stringify({ ...payload, customerEmail: payload.customerEmail || null, customerPhone: payload.customerPhone || null, notes: payload.notes || null }),
+    });
+    setBookings((current) => [...current, created]);
+    setCreateDraft(null);
+    notify("Appointment created.");
+  }
+
   return (
     <>
       <div className="mb-6 space-y-2">
@@ -2244,6 +2373,7 @@ export default function BookingPage() {
           staff={staff} operatingHours={salon.operatingHours}
           onAction={handleAction} onReschedule={openReschedule} onDelete={setDeleteTarget}
           onRefresh={handleRefresh}
+          onCreate={(date, time, staffId) => setCreateDraft({ date, time, staffId })}
         />
       )}
 
@@ -2260,6 +2390,18 @@ export default function BookingPage() {
           salon={{ id: String(sid), bookingAdvanceDays: salon.bookingAdvanceDays, bookingRequiresConfirmation: salon.bookingRequiresConfirmation }}
           onSaved={(days, requiresConfirmation) => setSalon({ ...salon, bookingAdvanceDays: days, bookingRequiresConfirmation: requiresConfirmation })}
           onError={(msg) => notify(msg, "error")}
+        />
+      )}
+
+      {createDraft && (
+        <CreateBookingModal
+          draft={createDraft}
+          staff={staff.filter((member) => member.status === "ACTIVE")}
+          services={services}
+          countries={countries}
+          defaultCountry={salon.location?.country}
+          onClose={() => setCreateDraft(null)}
+          onSave={submitCreateBooking}
         />
       )}
 

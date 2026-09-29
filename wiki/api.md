@@ -12,7 +12,8 @@ form is tried first; if the value isn't a valid UUID it falls back to a handler 
 (`salon/SalonApi.java`, backed by `SalonService.resolveId` → the existing `findByIdOrHandler`
 lookup), and every controller that takes a salon-scoping path variable calls it first. Response
 bodies always return the real UUID in their `salonId`/`id` fields, regardless of which form was
-used in the request.
+used in the request. The stateless AI text-polishing admin route is an exception: it does
+not resolve or look up a salon. Use the salon UUID for its ownership check in OAuth2 mode.
 
 ---
 
@@ -344,6 +345,23 @@ document.
 ---
 
 ## Customer — Booking
+
+The shared booking wizard (booking app, public website and admin booking wrapper) offers
+four ways to choose an appointment time:
+
+- **Soonest** shows up to 12 earliest available appointments from the first three open
+  days, optionally filtered by stylist. It uses the range availability endpoint with
+  `granularity=SLOT`, filters out booked and elapsed times, and searches within the salon's
+  booking window in bounded date ranges.
+- **Pick a date** provides a month calendar and the selected day's times.
+- **By stylist** shows stylist cards with their next opening in the displayed week.
+  Selecting a stylist reveals seven daily columns of available times, with previous/next
+  week navigation. The week grid scrolls horizontally on narrow screens. Closures and
+  dates beyond the booking window are disabled; loading failures offer a retry. Open a
+  stylist's profile by clicking their card; use **Choose [name]** to select them.
+- **Week view** provides the existing weekly date strip and selected-day times.
+
+Choosing a time preserves its date and staff assignment and continues to contact details.
 
 ### Get booking slots
 
@@ -771,6 +789,76 @@ Scoped to what the assistant can answer (services/pricing, staff, hours, locatio
 holidays — plus booking only when the salon has the `BOOKING` feature). `followups` is `[]` when
 the model is unconfigured or the call/parse fails — the frontend then shows its static suggestion
 chips instead. Each string is sent to `POST .../chat` verbatim when tapped.
+
+---
+
+## AI Text Polishing — Admin and Staff
+
+Powers **Fix with AI** on service, product, brand and category descriptions and staff bios
+in salon-admin, the **About me** field in salon-staff, and matching service/bio fields in
+salon-super-admin.
+
+| Method and path | Access in OAuth2 mode |
+|---|---|
+| `POST /api/salon-admin/{salonId}/ai/polish` | Active `OWNER` claim for the salon UUID, or `ROLE_SUPER_ADMIN` |
+| `POST /api/salon-staff/ai/polish` | `ROLE_STAFF` or `ROLE_OWNER`; no staff ID or salon ID required |
+
+Send `Authorization: Bearer {token}`. As with other protected routes, the backend's
+local/mock security mode bypasses authentication.
+
+Both routes accept the same `application/json` request:
+
+```json
+{ "text": "i specialise in hair colour and love helping clients find their style" }
+```
+
+`text` is required, must be nonblank, and is limited to 5,000 Java string characters
+(`@NotBlank` and `@Size(max = 5000)`). Missing, null, blank or oversized text is rejected
+before calling the model.
+
+Example `200 OK` response (wording varies):
+
+```json
+{
+  "text": "I specialise in hair colour and love helping clients find their personal style.",
+  "suggestions": {
+    "polished": "I specialise in hair colour and love helping clients find their personal style.",
+    "friendly": "I love helping you find your personal style through my speciality: hair colour.",
+    "concise": "Hair colour specialist who loves helping clients find their style."
+  }
+}
+```
+
+One model call generates three versions: **Polished**, **Friendly**, and **Concise**.
+The model is instructed to preserve the original language, facts, meaning and point of
+view while varying wording and tone. Each version contains plain text; the backend strips
+surrounding whitespace and rejects the response if any version is missing, blank or over
+5,000 characters, or the model output is malformed. The top-level `text` remains an alias
+for `suggestions.polished` for existing clients. Users should review the result before saving.
+
+| Status | Meaning |
+|---|---|
+| `400` | Invalid request or missing, null, blank or oversized text |
+| `401` | Missing or invalid bearer token in OAuth2 mode |
+| `403` | Required role or salon ownership check failed in OAuth2 mode |
+| `502` | Model returned malformed output or a missing, blank or oversized version |
+| `503` | Model request failed; AI editing is temporarily unavailable |
+
+Validation and AI errors use `application/problem+json`. Authentication failures are
+handled by Spring Security before reaching the controller.
+
+The shared editor places **Fix with AI** inside the field's lower-right toolbar and shows
+three style selectors directly below it within the same border. Switching styles previews
+that version; **Use this text** applies the selected version, while **Dismiss** closes all suggestions.
+Applying a suggestion
+updates only the local form draft; the user must still save through the existing resource
+endpoint. Editing the source text invalidates pending suggestions. Blank and oversized
+inputs disable the button, and request failures leave the draft intact.
+
+Implemented by `chat/internal/TextPolishController`, using the existing configured Spring
+AI model. No additional model configuration is needed. Calls are stateless, have no chat
+memory or booking tools, read no salon records, and persist nothing. They do not require
+Generative UI website mode and do not emit `GenUiInteractionEvent` analytics.
 
 ---
 
@@ -2356,7 +2444,9 @@ Each social platform is opted into the public website footer icon row per-platfo
 
 Self-service portal for authenticated staff members. Authentication is via OAuth2 (or, in local/mock mode, an email lookup + mock OTP, code `123456` in dev).
 
-> All endpoints are scoped to the staff member by `staffId` (a `Long`). The `salonId` is derived server-side from the staff record.
+> Profile, appointment and holiday endpoints are scoped by `staffId` (a `Long`), with
+> `salonId` derived server-side. `/me` resolves the caller's records; the stateless
+> [`/ai/polish`](#ai-text-polishing--admin-and-staff) endpoint only edits supplied text.
 
 ### Look up the caller's own staff record(s) (login step 1)
 

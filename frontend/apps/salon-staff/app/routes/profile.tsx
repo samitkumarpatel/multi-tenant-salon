@@ -1,3 +1,4 @@
+import type { AiPolishResponse } from "@salon/ui-shared";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -6,7 +7,7 @@ import { Pencil, X, Crown, CalendarOff, UserCircle, Camera, RefreshCw, Images } 
 import { STAFF_PORTAL_API, COUNTRIES_API, apiFetch, uploadToPresignedUrl } from "~/lib/api";
 import { getStaffSession } from "~/lib/auth";
 import { WorkMedia } from "~/lib/media";
-import { InfoBar, PhoneInput, TileGrid, Toast, useToast } from "@salon/ui-shared";
+import { AiPolishButton, InfoBar, PhoneInput, TileGrid, Toast, useToast } from "@salon/ui-shared";
 import type { Country, PresignedUpload, StaffMember } from "~/lib/types";
 
 const inputCls =
@@ -523,13 +524,18 @@ export default function Profile() {
             </div>
             <div className="mb-4">
               <label className={fieldLabel}>About me</label>
-              <textarea
-                className={`${inputCls} resize-none`}
-                rows={3}
-                value={form.bio}
-                onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
-                placeholder="A short introduction shown on the salon website…"
-              />
+              <AiPolishButton value={form.bio} onApply={(text) => setForm((p) => ({ ...p, bio: text }))}
+                polish={(text) => apiFetch<AiPolishResponse>(`${STAFF_PORTAL_API}/ai/polish`, {
+                  method: "POST", body: JSON.stringify({ text }),
+                })}>
+                <textarea
+                  className={`${inputCls} resize-none`}
+                  rows={3}
+                  value={form.bio}
+                  onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
+                  placeholder="A short introduction shown on the salon website…"
+                />
+              </AiPolishButton>
               <p className="text-xs text-slate-400 mt-1.5">
                 Manage your work photos &amp; videos on the{" "}
                 <Link to="/portal/media" className="text-matcha-600 font-medium hover:underline">

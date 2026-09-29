@@ -97,6 +97,25 @@ const BOOKING_SECTIONS = [
 
 // ── Salon switcher ───────────────────────────────────────────────────────────
 
+function SidebarSubmenu({ id, expanded, children }: { id: string; expanded: boolean; children: React.ReactNode }) {
+  return (
+    <div
+      id={id}
+      inert={!expanded}
+      aria-hidden={!expanded}
+      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out motion-reduce:transition-none ${
+        expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+      }`}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="relative ml-5 my-1 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SalonSwitcher({ current, salonId, onSalonEnabled }: { current: Salon; salonId: string; onSalonEnabled: (s: Salon) => void }) {
   const navigate = useNavigate();
   const session  = getAdminSession();
@@ -503,7 +522,7 @@ export default function Layout() {
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
         <aside className={`
           absolute inset-y-0 left-0 z-50 w-52 bg-white border-r border-slate-200
-          flex flex-col shrink-0 overflow-y-auto transition-transform duration-200
+          flex flex-col shrink-0 overflow-y-auto [scrollbar-gutter:stable] transition-transform duration-200 ease-in-out motion-reduce:transition-none
           md:relative md:translate-x-0
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}>
@@ -550,6 +569,7 @@ export default function Layout() {
                     if (!isOverview) {
                       navigate(`/${salonId}?tab=details`);
                       setOverviewExpanded(true);
+                      setBookingsExpanded(false);
                       return;
                     }
                     setOverviewExpanded((expanded) => !expanded);
@@ -565,16 +585,12 @@ export default function Layout() {
                   <LayoutDashboard className="w-4 h-4 shrink-0" />
                   <span>Overview</span>
                   <ChevronDown
-                    className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ${overviewExpanded ? "rotate-180" : ""}`}
+                    className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ease-in-out motion-reduce:transition-none ${overviewExpanded ? "rotate-180" : ""}`}
                   />
                 </button>
               </Tooltip>
 
-              {overviewExpanded && (
-                <div
-                  id="overview-navigation"
-                  className="relative ml-5 mt-1 mb-1 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200"
-                >
+              <SidebarSubmenu id="overview-navigation" expanded={overviewExpanded}>
                   <NavLink
                     to={`/${salonId}?tab=details`}
                     end
@@ -601,8 +617,7 @@ export default function Layout() {
                   >
                     Share links
                   </NavLink>
-                </div>
-              )}
+              </SidebarSubmenu>
             </div>
 
             <Tooltip content="Build your booking menu — add treatments, set pricing, duration, and assign staff.">
@@ -654,6 +669,7 @@ export default function Layout() {
                             if (!isBookings) {
                               navigate(`/${salonId}/booking?section=appointments`);
                               setBookingsExpanded(true);
+                              setOverviewExpanded(false);
                               return;
                             }
                             setBookingsExpanded((expanded) => !expanded);
@@ -669,16 +685,12 @@ export default function Layout() {
                           <f.icon className="w-4 h-4 shrink-0" />
                           <span>{f.label}</span>
                           <ChevronDown
-                            className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ${bookingsExpanded ? "rotate-180" : ""}`}
+                            className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ease-in-out motion-reduce:transition-none ${bookingsExpanded ? "rotate-180" : ""}`}
                           />
                         </button>
                       </Tooltip>
 
-                      {bookingsExpanded && (
-                        <div
-                          id="booking-navigation"
-                          className="relative ml-5 mt-1 mb-1 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200"
-                        >
+                      <SidebarSubmenu id="booking-navigation" expanded={bookingsExpanded}>
                           {BOOKING_SECTIONS.map((section) => {
                             const active = isBookings && bookingSection === section.key;
                             return (
@@ -698,8 +710,7 @@ export default function Layout() {
                               </NavLink>
                             );
                           })}
-                        </div>
-                      )}
+                      </SidebarSubmenu>
                     </div>
                   ) : f.route ? (
                     <React.Fragment key={f.key}>

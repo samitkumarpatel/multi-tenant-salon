@@ -11,9 +11,10 @@ import { ADMIN_API, CUSTOMER_API, apiFetch } from "~/lib/api";
 import { getDashboardSession } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
 import type {
-  AvailableSlot, Booking, OperatingHours, Salon, SalonClosure, SalonHoliday, ServiceItem, StaffAvailability,
+  AvailableSlot, Booking, Country, OperatingHours, Salon, SalonClosure, SalonHoliday, ServiceItem, StaffAvailability,
   StaffAvailabilityOverride, StaffMember,
 } from "@salon/ui-website";
+import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
 type DashboardView = "appointments" | "cashier";
 
@@ -54,7 +55,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!salon.features?.includes("DASHBOARD")) throw new Response("Dashboard is not enabled for this salon", { status: 403 });
   const settings = await apiFetch<DashboardSettings>(`${ADMIN_API}/${sid}/dashboard/settings`);
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
-  const [bookings, staff, services, closures, holidays, cashierItems, sales] = await Promise.all([
+  const [bookings, staff, services, closures, holidays, cashierItems, sales, countries] = await Promise.all([
     bookingEnabled ? apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`).catch((): Booking[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`).catch((): StaffMember[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`).catch((): ServiceItem[] => []) : Promise.resolve([]),
@@ -64,6 +65,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
       ? apiFetch<CashierItem[]>(`${ADMIN_API}/${sid}/dashboard/cashier/items`).catch((): CashierItem[] => [])
       : Promise.resolve([] as CashierItem[]),
     settings.cashierEnabled ? apiFetch<PosSale[]>(`${ADMIN_API}/${sid}/dashboard/sales`).catch((): PosSale[] => []) : Promise.resolve([]),
+    bookingEnabled ? apiFetch<Country[]>(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/salon-utility/countries`).catch((): Country[] => []) : Promise.resolve([] as Country[]),
   ]);
   const schedules = bookingEnabled ? (await Promise.all(staff.map(async (member) => {
     const [availability, overrides] = await Promise.all([
@@ -72,7 +74,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     ]);
     return { staffId: member.id, availability, overrides };
   }))) : [];
-  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales };
+  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, countries };
 }
 
 const inputCls = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
@@ -100,8 +102,8 @@ export default function DashboardPage() {
   const [paymentMethod, setPaymentMethod] = useState<PosSale["paymentMethod"]>("CASH");
   const [customerName, setCustomerName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [newDefaults, setNewDefaults] = useState<{ date: string; time?: string; serviceId?: number } | null>(null);
-  const [servicePickerTime, setServicePickerTime] = useState<{ date: string; time: string } | null>(null);
+  const [newDefaults, setNewDefaults] = useState<{ date: string; time?: string; serviceId?: number; staffId?: number } | null>(null);
+  const [servicePickerTime, setServicePickerTime] = useState<{ date: string; time: string; staffId?: number } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editTarget, setEditTarget] = useState<Booking | null>(null);
   const [notifyTarget, setNotifyTarget] = useState<Booking | null>(null);
@@ -197,9 +199,10 @@ export default function DashboardPage() {
       {view === "appointments" && appointmentsView === "new" && settings.bookingManagementEnabled && (
         <AppointmentsCalendar bookings={bookings} staff={initial.staff} services={initial.services}
           operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays}
+          schedules={initial.schedules}
           bookingAdvanceDays={salon.bookingAdvanceDays}
           searchParams={params} setSearchParams={setParams}
-          onNew={(date, time) => setServicePickerTime({ date, time: time ?? "09:00" })} onSelect={setSelectedBooking} />
+          onNew={(date, time, staffId) => setServicePickerTime({ date, time: time ?? "09:00", staffId })} onSelect={setSelectedBooking} />
       )}
 
       {view === "cashier" && settings.cashierEnabled && (
@@ -287,9 +290,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {servicePickerTime && <AvailableServicePicker sid={initial.sid} date={servicePickerTime.date} time={servicePickerTime.time} services={initial.services} staff={initial.staff}
+      {servicePickerTime && <AvailableServicePicker sid={initial.sid} date={servicePickerTime.date} time={servicePickerTime.time} staffId={servicePickerTime.staffId} services={initial.services} staff={initial.staff}
         onClose={() => setServicePickerTime(null)} onSelect={(serviceId) => { setNewDefaults({ ...servicePickerTime, serviceId }); setServicePickerTime(null); }} />}
-      {newDefaults && <AppointmentEditor sid={initial.sid} staff={initial.staff} services={initial.services} defaultDate={newDefaults.date} defaultTime={newDefaults.time} defaultServiceId={newDefaults.serviceId}
+      {newDefaults && <AppointmentEditor sid={initial.sid} staff={initial.staff} services={initial.services} countries={initial.countries} defaultCountry={salon.location?.country} defaultDate={newDefaults.date} defaultTime={newDefaults.time} defaultServiceId={newDefaults.serviceId} defaultStaffId={newDefaults.staffId}
         operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays} schedules={initial.schedules}
         bookingAdvanceDays={salon.bookingAdvanceDays}
         onClose={() => setNewDefaults(null)} onSaved={(booking) => { setBookings((current) => [...current, booking]); setNewDefaults(null); notify("Appointment created."); }} />}
@@ -297,7 +300,7 @@ export default function DashboardPage() {
         notificationsEnabled={settings.notificationsEnabled} onClose={() => setSelectedBooking(null)}
         onEdit={() => { setEditTarget(selectedBooking); setSelectedBooking(null); }}
         onNotify={() => { setNotifyTarget(selectedBooking); setSelectedBooking(null); }} onAction={updateBooking} />}
-      {editTarget && <AppointmentEditor sid={initial.sid} staff={initial.staff} services={initial.services} booking={editTarget}
+      {editTarget && <AppointmentEditor sid={initial.sid} staff={initial.staff} services={initial.services} countries={initial.countries} defaultCountry={salon.location?.country} booking={editTarget}
         operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays} schedules={initial.schedules}
         bookingAdvanceDays={salon.bookingAdvanceDays}
         onClose={() => setEditTarget(null)} onSaved={(booking) => { setBookings((current) => current.map((item) => item.id === booking.id ? booking : item)); setEditTarget(null); notify("Appointment updated."); }} />}
@@ -351,16 +354,69 @@ function restrictionFor(dateKey: string, hours: OperatingHours[] | undefined, cl
   return null;
 }
 
-function AppointmentsCalendar({ bookings, staff, services, operatingHours, closures, holidays, bookingAdvanceDays, searchParams, setSearchParams, onNew, onSelect }: {
+type StaffScheduleData = { staffId: number; availability: StaffAvailability[]; overrides: StaffAvailabilityOverride[] };
+
+function isSalonOpenAt(dateKey: string, time: string, hours?: OperatingHours[]) {
+  if (!hours?.length) return true;
+  const dayHours = hours.find((item) => item.day === JS_DAYS[parseDate(dateKey).getDay()]);
+  if (!dayHours || dayHours.closed) return false;
+  const minutes = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  const opening = Number(dayHours.openTime.slice(0, 2)) * 60 + Number(dayHours.openTime.slice(3, 5));
+  const closing = Number(dayHours.closeTime.slice(0, 2)) * 60 + Number(dayHours.closeTime.slice(3, 5));
+  return minutes >= opening && minutes < closing;
+}
+
+function staffWindowAt(member: StaffMember, dateKey: string, time: string, schedules: StaffScheduleData[]) {
+  if (member.status !== "ACTIVE" || member.availableForBooking === false) return null;
+  const schedule = schedules.find((item) => item.staffId === member.id);
+  if (!schedule) return null;
+  const toMinutes = (value?: string) => value ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)) : null;
+  const minutes = toMinutes(time)!;
+  const override = schedule.overrides.find((item) => item.overrideDate === dateKey);
+  if (override) {
+    const start = toMinutes(override.startTime);
+    const end = toMinutes(override.endTime);
+    return override.available && start !== null && end !== null && minutes >= start && minutes < end ? { start, end } : null;
+  }
+  const weekday = JS_DAYS[parseDate(dateKey).getDay()];
+  const workingWindows = schedule.availability.filter((item) => item.dayOfWeek === weekday && item.available);
+  for (const window of workingWindows) {
+    const start = toMinutes(window.startTime);
+    const end = toMinutes(window.endTime);
+    if (start !== null && end !== null && minutes >= start && minutes < end) return { start, end };
+  }
+  return null;
+}
+
+function hasBookableServiceAtTime(member: StaffMember, date: string, time: string, schedules: StaffScheduleData[], services: ServiceItem[], bookings: Booking[], hours?: OperatingHours[]) {
+  const window = staffWindowAt(member, date, time, schedules);
+  if (!window) return false;
+  const start = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  const dayHours = hours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
+  const salonClose = dayHours && !dayHours.closed
+    ? Number(dayHours.closeTime.slice(0, 2)) * 60 + Number(dayHours.closeTime.slice(3, 5))
+    : Number.POSITIVE_INFINITY;
+  return services.some((service) => {
+    const assignedIds = (service.assignedStaffIds ?? []).map(Number);
+    const end = start + service.durationMinutes;
+    if (!service.active || (assignedIds.length > 0 && !assignedIds.includes(member.id)) || end > window.end || end > salonClose) return false;
+    return !bookings.some((booking) => booking.staffId === member.id && booking.status !== "CANCELLED"
+      && start < Number(booking.endTime.slice(0, 2)) * 60 + Number(booking.endTime.slice(3, 5))
+      && end > Number(booking.startTime.slice(0, 2)) * 60 + Number(booking.startTime.slice(3, 5)));
+  });
+}
+
+function AppointmentsCalendar({ bookings, staff, services, operatingHours, closures, holidays, schedules, bookingAdvanceDays, searchParams, setSearchParams, onNew, onSelect }: {
   bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
-  closures: SalonClosure[]; holidays: SalonHoliday[]; bookingAdvanceDays?: number; searchParams: URLSearchParams;
-  setSearchParams: (next: URLSearchParams) => void; onNew: (date: string, time?: string) => void; onSelect: (booking: Booking) => void;
+  closures: SalonClosure[]; holidays: SalonHoliday[]; schedules: StaffScheduleData[]; bookingAdvanceDays?: number; searchParams: URLSearchParams;
+  setSearchParams: (next: URLSearchParams) => void; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [mode, setMode] = useState<"overall" | "stylist">("overall");
   const requestedDate = searchParams.get("date");
   const selectedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : localDateKey();
   const selectedDay = parseDate(selectedDate);
-  const staffMap = useMemo(() => new Map(staff.map((member) => [member.id, member.name])), [staff]);
+  const staffMap = useMemo(() => new Map(staff.map((member) => [member.id, member])), [staff]);
   const serviceMap = useMemo(() => new Map(services.map((service) => [service.id, service.name])), [services]);
   const dayBookings = useMemo(() => bookings.filter((booking) => booking.appointmentDate === selectedDate)
     .sort((a, b) => a.startTime.localeCompare(b.startTime)), [bookings, selectedDate]);
@@ -378,10 +434,16 @@ function AppointmentsCalendar({ bookings, staff, services, operatingHours, closu
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
         <div className="flex items-center gap-1"><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, -1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label="Previous day"><ChevronLeft className="h-4 w-4" /></button><button onClick={() => chooseDate(localDateKey())} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Today</button><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, 1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label="Next day"><ChevronRight className="h-4 w-4" /></button></div>
         <div className="min-w-[190px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDay, { weekday: "long", day: "numeric", month: "long" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? "appointment" : "appointments"}</p></div>
+        <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Booking calendar layout">
+          <button type="button" onClick={() => setMode("overall")} aria-pressed={mode === "overall"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "overall" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Overall</button>
+          <button type="button" onClick={() => setMode("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>By Stylist</button>
+        </div>
         <input type="date" value={selectedDate} onChange={(event) => chooseDate(event.target.value)} aria-label="Choose date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />
         <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? "Exit expanded calendar" : "Expand calendar"} title={expanded ? "Exit expanded calendar" : "Expand calendar"} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
       </div>
-      <div className={expanded ? "min-h-0 flex-1 overflow-y-auto" : ""}><TodayCalendar date={selectedDate} bookings={dayBookings} operatingHours={operatingHours} restriction={restriction} serviceMap={serviceMap} staffMap={staffMap} onNew={onNew} onSelect={onSelect} /></div>
+      <div className={expanded ? "min-h-0 flex-1 overflow-y-auto" : ""}>{mode === "stylist"
+        ? <BookByStylistCalendar date={selectedDate} bookings={dayBookings} staff={staff} schedules={schedules} operatingHours={operatingHours} restriction={restriction} services={services} serviceMap={serviceMap} onNew={onNew} onSelect={onSelect} />
+        : <TodayCalendar date={selectedDate} bookings={dayBookings} staff={staff} schedules={schedules} operatingHours={operatingHours} restriction={restriction} services={services} serviceMap={serviceMap} staffMap={staffMap} onNew={onNew} onSelect={onSelect} />}</div>
   </div>;
 }
 
@@ -393,7 +455,7 @@ function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, 
   const selectedDate = parseDate(date);
   const dayBookings = bookings.filter((booking) => booking.appointmentDate === date)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const staffMap = new Map(staff.map((member) => [member.id, member.name]));
+  const staffMap = new Map(staff.map((member) => [member.id, member]));
   const serviceMap = new Map(services.map((service) => [service.id, service.name]));
   const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[selectedDate.getDay()]);
   const grouped = staff.filter((member) => member.status === "ACTIVE").map((member) => ({
@@ -423,8 +485,42 @@ function ExpandIcon({ expanded }: { expanded: boolean }) {
   return expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />;
 }
 
+function StaffAvatar({ member, size = "sm" }: { member?: StaffMember; size?: "sm" | "md" }) {
+  const sizeClass = size === "md" ? "h-9 w-9 text-xs" : "h-6 w-6 text-[9px]";
+  return <span className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 font-semibold text-slate-500 ${sizeClass}`} title={member?.name ?? "Stylist"} aria-hidden="true">
+    <span>{member?.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "?"}</span>
+    {member?.avatarUrl && <img src={member.avatarUrl} alt="" className="absolute inset-0 h-full w-full rounded-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+  </span>;
+}
+
+function useFloatingScrollPosition(anchorRef: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  const [position, setPosition] = useState<{ top: number; left: number; right: number } | null>(null);
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor || !enabled) { setPosition(null); return; }
+    const update = () => {
+      const bounds = anchor.getBoundingClientRect();
+      const visibleTop = Math.max(12, bounds.top);
+      const visibleBottom = Math.min(window.innerHeight - 12, bounds.bottom);
+      if (visibleBottom <= visibleTop) { setPosition(null); return; }
+      const buttonSize = 48;
+      const top = Math.max(12, Math.min(window.innerHeight - buttonSize - 12, (visibleTop + visibleBottom - buttonSize) / 2));
+      const left = Math.max(12, Math.min(window.innerWidth - buttonSize - 12, bounds.left + 92));
+      const right = Math.max(12, Math.min(window.innerWidth - buttonSize - 12, bounds.right - buttonSize - 8));
+      setPosition((current) => current?.top === top && current.left === left && current.right === right ? current : { top, left, right });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    const observer = new ResizeObserver(update);
+    observer.observe(anchor);
+    return () => { window.removeEventListener("scroll", update, true); window.removeEventListener("resize", update); observer.disconnect(); };
+  }, [anchorRef, enabled]);
+  return position;
+}
+
 function ReadOnlyDayTimeline({ date, bookings, services, staff, operatingHours, closed }: {
-  date: string; bookings: Booking[]; services: Map<number, string>; staff: Map<number, string>;
+  date: string; bookings: Booking[]; services: Map<number, string>; staff: Map<number, StaffMember>;
   operatingHours?: OperatingHours[]; closed: boolean;
 }) {
   const hours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
@@ -442,7 +538,7 @@ function ReadOnlyDayTimeline({ date, bookings, services, staff, operatingHours, 
   const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
   return <div className="divide-y divide-slate-100">
     {closed && <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">Salon is marked closed today. Existing appointments are shown below.</p>}
-    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="w-20 shrink-0 border-r border-slate-100 px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => <div key={booking.id} className={`rounded-md border px-3 py-2 ${STATUS_STYLE[booking.status]}`}><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {staff.get(booking.staffId) ?? "Staff"}</p></div>)}</div></div>)}
+    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} className={`flex items-center gap-2 rounded-md border px-3 py-2 ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><StaffAvatar member={member} /></div>; })}</div></div>)}
   </div>;
 }
 
@@ -451,7 +547,11 @@ function StylistSchedule({ date, groups, operatingHours, services }: {
   operatingHours?: OperatingHours[]; services: Map<number, string>;
 }) {
   const columnsRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const floatingPosition = useFloatingScrollPosition(anchorRef, canScrollLeft || canScrollRight);
   const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
   const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
   const opening = dayHours && !dayHours.closed ? toMinutes(dayHours.openTime) : 8 * 60;
@@ -464,34 +564,44 @@ function StylistSchedule({ date, groups, operatingHours, services }: {
   useEffect(() => {
     const columns = columnsRef.current;
     if (!columns) return;
-    const updateOverflow = () => setHasOverflow(columns.scrollWidth > columns.clientWidth + 1);
+    const updateOverflow = () => {
+      const overflow = columns.scrollWidth > columns.clientWidth + 1;
+      setHasOverflow(overflow);
+      setCanScrollLeft(columns.scrollLeft > 1);
+      setCanScrollRight(columns.scrollLeft + columns.clientWidth < columns.scrollWidth - 1);
+    };
     updateOverflow();
     const observer = new ResizeObserver(updateOverflow);
     observer.observe(columns);
-    return () => observer.disconnect();
+    columns.addEventListener("scroll", updateOverflow, { passive: true });
+    return () => { observer.disconnect(); columns.removeEventListener("scroll", updateOverflow); };
   }, [groups.length]);
 
-  return <div>
-    {hasOverflow && <p className="flex items-center justify-end gap-1 px-4 pt-3 text-[11px] font-medium text-slate-400">Scroll to see all stylists<ChevronRight className="h-3.5 w-3.5" /></p>}
+  return <div ref={anchorRef}>
+    {hasOverflow && <p className="mx-4 mt-3 flex w-fit items-center rounded-full border border-matcha-200 bg-matcha-50 px-2.5 py-1.5 text-[11px] font-semibold text-matcha-800">Scroll to see all stylists</p>}
     {!groups.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">No active stylists are available.</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
-      <div className="w-16 shrink-0 border-r border-slate-200">
+      <div className="sticky left-0 z-20 w-16 shrink-0 border-r border-slate-200 bg-white">
         <div className="flex h-11 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">Time</div>
         {times.map((minutes) => <div key={minutes} className="h-16 border-b border-slate-100 pr-2 pt-1 text-right text-[10px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</div>)}
       </div>
-      <div ref={columnsRef} className="min-w-0 flex-1 overflow-x-auto">
+      <div className="relative min-w-0 flex-1">
+      <div ref={columnsRef} className="min-w-0 overflow-x-auto">
         <div className="grid auto-cols-[240px] grid-flow-col gap-3">
           {groups.map(({ member, appointments }) => <section key={member.id} className="overflow-hidden rounded-lg border border-slate-200">
-            <h3 className="flex h-11 items-center justify-between border-b border-slate-100 bg-slate-50 px-3 text-xs font-bold text-slate-700">{member.name}<span className="font-normal text-slate-400">{appointments.length}</span></h3>
+            <h3 className="flex h-11 items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 text-xs font-bold text-slate-700"><span className="flex min-w-0 items-center gap-2"><StaffAvatar member={member} /><span className="truncate">{member.name}</span></span><span className="shrink-0 font-normal text-slate-400">{appointments.length}</span></h3>
             {times.map((minutes) => {
               const rowBookings = appointments.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
               return <div key={minutes} className="h-16 overflow-hidden border-b border-slate-100 px-1 py-1">
-                {rowBookings.map((booking) => <div key={booking.id} className={`truncate rounded border px-2 py-1 text-[10px] ${STATUS_STYLE[booking.status]}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"}`}>
+                {rowBookings.map((booking) => { const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} className={`truncate rounded border px-2 py-1 text-[10px] ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"}`}>
                   <p className="truncate font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate opacity-75">{services.get(booking.serviceId) ?? "Service"}</p>
-                </div>)}
+                </div>; })}
               </div>;
             })}
           </section>)}
         </div>
+      </div>
+      {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to previous stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
+      {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to more stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
       </div>
     </div>}
   </div>;
@@ -505,7 +615,78 @@ function ReadOnlyAppointment({ booking, serviceName, staffName, compact = false 
   </div>;
 }
 
-function TodayCalendar({ date, bookings, operatingHours, restriction, serviceMap, staffMap, onNew, onSelect }: { date: string; bookings: Booking[]; operatingHours?: OperatingHours[]; restriction: string | null; serviceMap: Map<number, string>; staffMap: Map<number, string>; onNew: (date: string, time?: string) => void; onSelect: (booking: Booking) => void }) {
+function BookByStylistCalendar({ date, bookings, staff, schedules, operatingHours, restriction, services, serviceMap, onNew, onSelect }: {
+  date: string; bookings: Booking[]; staff: StaffMember[]; schedules: StaffScheduleData[]; operatingHours?: OperatingHours[]; restriction: string | null;
+  services: ServiceItem[]; serviceMap: Map<number, string>; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void;
+}) {
+  const columnsRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const floatingPosition = useFloatingScrollPosition(anchorRef, canScrollLeft || canScrollRight);
+  const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
+  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const opening = dayHours && !dayHours.closed ? toMinutes(dayHours.openTime) : 8 * 60;
+  const closing = dayHours && !dayHours.closed ? toMinutes(dayHours.closeTime) : 20 * 60;
+  const scheduled = bookings.map((booking) => toMinutes(booking.startTime));
+  const start = Math.min(Math.floor(opening / 30) * 30, ...scheduled.map((value) => Math.floor(value / 30) * 30));
+  const end = Math.max(Math.ceil(closing / 30) * 30, ...scheduled.map((value) => Math.floor(value / 30) * 30 + 30));
+  const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
+  const activeStaff = staff.filter((member) => member.status === "ACTIVE");
+
+  useEffect(() => {
+    const columns = columnsRef.current;
+    if (!columns) return;
+    const update = () => {
+      setCanScrollLeft(columns.scrollLeft > 1);
+      setCanScrollRight(columns.scrollLeft + columns.clientWidth < columns.scrollWidth - 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(columns);
+    columns.addEventListener("scroll", update, { passive: true });
+    return () => { observer.disconnect(); columns.removeEventListener("scroll", update); };
+  }, [activeStaff.length]);
+
+  return <div ref={anchorRef}>
+    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">Existing appointments are shown; new appointments cannot be added for this date.</p></div></div>}
+    {!activeStaff.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">No active stylists are available.</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
+      <div className="sticky left-0 z-20 w-20 shrink-0 border-r border-slate-200 bg-white">
+        <div className="flex h-12 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">Time</div>
+        {slots.map((minutes) => <div key={minutes} className="h-14 border-b border-slate-100 pr-2 pt-1 text-right text-[10px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? formatTime(minutes) : ""}</div>)}
+      </div>
+      <div className="relative min-w-0 flex-1">
+        <div ref={columnsRef} className="overflow-x-auto">
+          <div className="grid auto-cols-[220px] grid-flow-col gap-2">
+            {activeStaff.map((member) => <section key={member.id} className="overflow-hidden rounded-lg border border-slate-200">
+              <h3 className="flex h-12 items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700"><StaffAvatar member={member} size="md" /><span className="truncate">{member.name}</span></h3>
+              {slots.map((minutes) => {
+                const time = formatTime(minutes);
+                const slotBookings = bookings.filter((booking) => booking.staffId === member.id && Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
+                const passed = isTimeInPast(date, time);
+                const staffWorking = hasBookableServiceAtTime(member, date, time, schedules, services, bookings, operatingHours);
+                const salonOpen = isSalonOpenAt(date, time, operatingHours);
+                const bookable = !restriction && !passed && salonOpen && staffWorking;
+                return <div key={minutes} className="flex h-14 flex-col justify-center gap-0.5 overflow-hidden border-b border-slate-100 px-1 py-1">
+                  {slotBookings.map((booking) => {
+                    const bookingPassed = isTimeInPast(date, booking.startTime);
+                    return <button key={booking.id} type="button" disabled={bookingPassed} onClick={() => onSelect(booking)} className={`truncate rounded border px-2 py-1 text-left text-[10px] disabled:cursor-not-allowed ${bookingPassed ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><span className="font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</span><span className="ml-1 opacity-75">{serviceMap.get(booking.serviceId)}</span></button>;
+                  })}
+                  {!slotBookings.length && <button type="button" disabled={!bookable} onClick={() => onNew(date, time, member.id)} aria-label={`Book ${member.name} at ${time}`} title={!bookable ? restriction || (passed ? "This time has passed" : !salonOpen ? "Outside salon opening hours" : "Stylist is unavailable") : `Book ${member.name} at ${time}`} className={`h-full w-full rounded px-2 text-left text-[10px] font-medium transition-colors disabled:cursor-not-allowed ${bookable ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus-visible:bg-matcha-50 focus-visible:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>{bookable ? "+ Book" : "Unavailable"}</button>}
+                </div>;
+              })}
+            </section>)}
+          </div>
+        </div>
+        {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to previous stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
+        {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to more stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
+      </div>
+    </div>}
+  </div>;
+}
+
+function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restriction, services, serviceMap, staffMap, onNew, onSelect }: { date: string; bookings: Booking[]; staff: StaffMember[]; schedules: StaffScheduleData[]; operatingHours?: OperatingHours[]; restriction: string | null; services: ServiceItem[]; serviceMap: Map<number, string>; staffMap: Map<number, StaffMember>; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void }) {
   const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
   const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
   const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -521,19 +702,52 @@ function TodayCalendar({ date, bookings, operatingHours, restriction, serviceMap
       const time = formatTime(minutes);
       const inSlot = bookings.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
       const slotPassed = isTimeInPast(date, time);
-      return <div key={minutes} className={`group flex min-h-12 ${slotPassed && !inSlot.length ? "bg-slate-50" : ""}`}>
-        <span className={`w-20 shrink-0 border-r border-slate-100 px-3 py-3 text-right text-[11px] font-medium tabular-nums ${slotPassed ? "text-slate-300" : "text-slate-400"}`}>{minutes % 60 === 0 ? time : ""}</span>
-        <div className="min-w-0 flex-1 px-2 py-1">
-          {inSlot.length > 0 && <div className="flex flex-wrap gap-2">{inSlot.map((booking) => <button key={booking.id} onClick={() => onSelect(booking)} className={`min-h-10 min-w-56 flex-1 rounded-md border px-3 py-2 text-left ${STATUS_STYLE[booking.status]}`}>
+      const salonOpen = isSalonOpenAt(date, time, operatingHours);
+      const anyStaffWorking = staff.some((member) => hasBookableServiceAtTime(member, date, time, schedules, services, bookings, operatingHours));
+      const canBook = !restriction && !slotPassed && salonOpen && anyStaffWorking;
+      return <div key={minutes} className={`group flex min-h-12 ${!canBook && !inSlot.length ? "bg-slate-50" : ""}`}>
+        <span className={`sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums ${slotPassed ? "text-slate-300" : "text-slate-400"}`}>{minutes % 60 === 0 ? time : ""}</span>
+        <HorizontalScrollCue label="More appointments in this time slot">
+          {inSlot.map((booking) => {
+            const bookingPassed = isTimeInPast(date, booking.startTime);
+            return <button key={booking.id} type="button" disabled={bookingPassed} onClick={() => onSelect(booking)} className={`min-h-10 w-56 shrink-0 rounded-md border px-3 py-2 text-left disabled:cursor-not-allowed ${bookingPassed ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}>
             <span className="block truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</span>
-            <span className="mt-0.5 block truncate text-[10px] opacity-75">{serviceMap.get(booking.serviceId)} · {staffMap.get(booking.staffId)}</span>
-          </button>)}</div>}
-          {!slotPassed && <button type="button" disabled={!!restriction} onClick={() => onNew(date, time)} aria-label={`Book at ${time}`} className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-xs text-slate-300 transition-colors hover:bg-matcha-50 hover:text-matcha-700 focus:bg-matcha-50 focus:text-matcha-700 disabled:cursor-not-allowed disabled:opacity-40">
+            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] opacity-75"><StaffAvatar member={staffMap.get(booking.staffId)} /><span className="truncate">{serviceMap.get(booking.serviceId)} · {staffMap.get(booking.staffId)?.name ?? "Stylist"}</span></span>
+            </button>;
+          })}
+          {!slotPassed && <button type="button" disabled={!canBook} onClick={() => onNew(date, time)} aria-label={`Book at ${time}`} title={!canBook ? restriction || (!salonOpen ? "Outside salon opening hours" : !anyStaffWorking ? "No stylist is available at this time" : "This time has passed") : `Book at ${time}`} className={`flex min-h-9 w-36 shrink-0 items-center rounded-md px-3 text-left text-xs transition-colors disabled:cursor-not-allowed ${canBook ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus:bg-matcha-50 focus:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>
             <span className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">+ Book at {time}</span>
           </button>}
-        </div>
+        </HorizontalScrollCue>
       </div>;
     })}</div>
+  </div>;
+}
+
+function HorizontalScrollCue({ children, label }: { children: React.ReactNode; label: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const update = () => {
+      setCanScrollLeft(element.scrollLeft > 1);
+      setCanScrollRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    element.addEventListener("scroll", update, { passive: true });
+    return () => { observer.disconnect(); element.removeEventListener("scroll", update); };
+  }, [children]);
+  return <div className="relative min-w-0 flex-1">
+    <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden">
+      <div className="flex w-max min-w-full items-start gap-2 px-2 py-1">{children}</div>
+    </div>
+    {canScrollLeft && <button type="button" title={label} aria-label="Scroll to previous appointments" onClick={() => scrollRef.current?.scrollBy({ left: -Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-5 w-5" /></button>}
+    {canScrollRight && <button type="button" title={label} aria-label="Scroll to more appointments" onClick={() => scrollRef.current?.scrollBy({ left: Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-5 w-5" /></button>}
   </div>;
 }
 
@@ -545,8 +759,8 @@ function BookingActions({ booking, staff, services, notificationsEnabled, onClos
   return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />Edit / reschedule</button>{notificationsEnabled && <button onClick={onNotify} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Bell className="h-3.5 w-3.5" />Notify customer</button>}{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />Confirm</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />Complete</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName} as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Mark no-show</button></>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />Cancel booking</button>}</div></div></Dialog>;
 }
 
-function AvailableServicePicker({ sid, date, time, services, staff, onClose, onSelect }: {
-  sid: string; date: string; time: string; services: ServiceItem[]; staff: StaffMember[];
+function AvailableServicePicker({ sid, date, time, staffId, services, staff, onClose, onSelect }: {
+  sid: string; date: string; time: string; staffId?: number; services: ServiceItem[]; staff: StaffMember[];
   onClose: () => void; onSelect: (serviceId: number) => void;
 }) {
   const [available, setAvailable] = useState<{ service: ServiceItem; staffIds: number[] }[]>([]);
@@ -563,7 +777,7 @@ function AvailableServicePicker({ sid, date, time, services, staff, onClose, onS
       const params = new URLSearchParams({ serviceId: String(service.id), date });
       try {
         const slots = await apiFetch<AvailableSlot[]>(`${CUSTOMER_API}/${sid}/booking/slots?${params}`);
-        const staffIds = [...new Set(slots.filter((slot) => !slot.booked && slot.startTime.slice(0, 5) === time).map((slot) => slot.staffId))];
+        const staffIds = [...new Set(slots.filter((slot) => !slot.booked && slot.startTime.slice(0, 5) === time && (!staffId || slot.staffId === staffId)).map((slot) => slot.staffId))];
         return staffIds.length ? { service, staffIds } : null;
       } catch {
         if (!cancelled) setFailed(true);
@@ -573,11 +787,11 @@ function AvailableServicePicker({ sid, date, time, services, staff, onClose, onS
       if (!cancelled) setAvailable(results.filter((result): result is { service: ServiceItem; staffIds: number[] } => result !== null));
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [date, services, sid, time]);
+  }, [date, services, sid, time, staffId]);
 
   return <Dialog title="Choose a service" onClose={onClose}>
     <div className="space-y-3">
-      <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs font-semibold text-slate-700">{prettyDate(parseDate(date), { weekday: "long", day: "numeric", month: "long" })} at {time}</p><p className="text-[11px] text-slate-400">Only services available at this time are shown.</p></div>
+      <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs font-semibold text-slate-700">{prettyDate(parseDate(date), { weekday: "long", day: "numeric", month: "long" })} at {time}</p><p className="text-[11px] text-slate-400">{staffId ? `Services available with ${staff.find((member) => member.id === staffId)?.name ?? "this stylist"} are shown.` : "Only services available at this time are shown."}</p></div>
       {timeHasPassed ? <p className="py-8 text-center text-sm text-slate-400">This time has already passed. Choose another time.</p>
         : loading ? <p className="py-8 text-center text-sm text-slate-400">Checking available services…</p>
         : available.length ? <div className="max-h-[55vh] space-y-2 overflow-y-auto">{available.map(({ service, staffIds }) => {
@@ -593,14 +807,14 @@ function AvailableServicePicker({ sid, date, time, services, staff, onClose, onS
   </Dialog>;
 }
 
-function AppointmentEditor({ sid, staff, services, booking, defaultDate, defaultTime, defaultServiceId, operatingHours, closures, holidays, schedules, bookingAdvanceDays, onClose, onSaved }: {
-  sid: string; staff: StaffMember[]; services: ServiceItem[]; booking?: Booking; defaultDate?: string; defaultTime?: string; defaultServiceId?: number;
+function AppointmentEditor({ sid, staff, services, countries, defaultCountry, booking, defaultDate, defaultTime, defaultServiceId, defaultStaffId, operatingHours, closures, holidays, schedules, bookingAdvanceDays, onClose, onSaved }: {
+  sid: string; staff: StaffMember[]; services: ServiceItem[]; countries: Country[]; defaultCountry?: string; booking?: Booking; defaultDate?: string; defaultTime?: string; defaultServiceId?: number; defaultStaffId?: number;
   operatingHours?: OperatingHours[]; closures: SalonClosure[]; holidays: SalonHoliday[]; bookingAdvanceDays?: number;
   schedules: { staffId: number; availability: StaffAvailability[]; overrides: StaffAvailabilityOverride[] }[];
   onClose: () => void; onSaved: (booking: Booking) => void;
 }) {
-  const [form, setForm] = useState({ customerName: booking?.customerName ?? "", customerEmail: booking?.customerEmail ?? "", customerPhone: booking?.customerPhone ?? "", serviceId: booking?.serviceId ?? defaultServiceId ?? services[0]?.id ?? 0, staffId: booking?.staffId ?? (defaultServiceId ? 0 : staff[0]?.id ?? 0), appointmentDate: booking?.appointmentDate ?? defaultDate ?? localDateKey(), startTime: booking?.startTime?.slice(0, 5) ?? defaultTime ?? "09:00", notes: booking?.notes ?? "" });
-  const [contactMethod, setContactMethod] = useState<"email" | "phone">(booking?.customerPhone && !booking.customerEmail ? "phone" : "email");
+  const [form, setForm] = useState({ customerName: booking?.customerName ?? "", customerEmail: booking?.customerEmail ?? "", customerPhone: booking?.customerPhone ?? "", serviceId: booking?.serviceId ?? defaultServiceId ?? services[0]?.id ?? 0, staffId: booking?.staffId ?? defaultStaffId ?? (defaultServiceId ? 0 : staff[0]?.id ?? 0), appointmentDate: booking?.appointmentDate ?? defaultDate ?? localDateKey(), startTime: booking?.startTime?.slice(0, 5) ?? defaultTime ?? "09:00", notes: booking?.notes ?? "" });
+  const [contactMethod, setContactMethod] = useState<ContactMethod>(booking?.customerPhone && !booking.customerEmail ? "phone" : "email");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
@@ -635,7 +849,9 @@ function AppointmentEditor({ sid, staff, services, booking, defaultDate, default
   const staffSlots = slots.filter((slot) => slot.staffId === form.staffId);
   const timeOptions = [...staffSlots.map((slot) => slot.startTime.slice(0, 5)), ...(originalSlot ? [form.startTime] : [])].filter((value, index, all) => all.indexOf(value) === index).sort();
   const validSlot = originalSlot || (hasCalendarTime && !form.staffId ? staffAtSelectedTime.size > 0 : timeOptions.includes(form.startTime));
-  const hasContact = contactMethod === "email" ? !!form.customerEmail.trim() : !!form.customerPhone.trim();
+  const hasContact = contactMethod === "email"
+    ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.customerEmail.trim())
+    : form.customerPhone.trim().length > 4;
   async function save() {
     setSaving(true); setError("");
     try {
@@ -646,16 +862,12 @@ function AppointmentEditor({ sid, staff, services, booking, defaultDate, default
   }
   return <Dialog title={booking ? "Edit appointment" : "Book appointment"} onClose={onClose}>
     <div className="space-y-3">
-      {!booking && <><input className={inputCls} value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Customer name" /><div>
-        <div className="mb-2 flex items-center justify-between"><span className="text-xs font-medium text-slate-600">Customer contact <span className="text-red-500">*</span></span><span className="text-[11px] text-slate-400">Email or mobile — one is enough</span></div>
-        <div className="mb-2 inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Choose contact method">
-          <button type="button" aria-pressed={contactMethod === "email"} onClick={() => setContactMethod("email")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${contactMethod === "email" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Email</button>
-          <button type="button" aria-pressed={contactMethod === "phone"} onClick={() => setContactMethod("phone")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${contactMethod === "phone" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Mobile</button>
-        </div>
-        {contactMethod === "email"
-          ? <input type="email" required className={inputCls} value={form.customerEmail} onChange={(e) => setForm({ ...form, customerEmail: e.target.value })} placeholder="Customer email" autoComplete="email" />
-          : <input type="tel" required className={inputCls} value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} placeholder="Mobile number" autoComplete="tel" />}
-      </div><select className={inputCls} value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: Number(e.target.value), staffId: 0 })}>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
+      {!booking && <><CustomerDetailsFields
+        form={{ name: form.customerName, email: form.customerEmail, phone: form.customerPhone, notes: form.notes }}
+        onChange={(details) => setForm({ ...form, customerName: details.name, customerEmail: details.email, customerPhone: details.phone, notes: details.notes })}
+        contactMethod={contactMethod} onContactMethodChange={setContactMethod}
+        countries={countries} defaultCountry={defaultCountry}
+      /><select className={inputCls} value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: Number(e.target.value), staffId: 0 })}>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
       <input type="date" min={booking ? undefined : localDateKey()} className={inputCls} value={form.appointmentDate} onChange={(e) => setForm({ ...form, appointmentDate: e.target.value, startTime: "" })} />
       {salonRestriction && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{salonRestriction} — select another date.</p>}
       <div className="grid grid-cols-2 gap-3"><select className={inputCls} value={form.staffId || ""} onChange={(e) => { const staffId = Number(e.target.value); const originalTime = !!booking && staffId === booking.staffId && form.appointmentDate === booking.appointmentDate; const timeIsAvailable = slots.some((slot) => slot.staffId === staffId && slot.startTime.slice(0, 5) === form.startTime); setForm({ ...form, staffId, startTime: timeIsAvailable || originalTime || (hasCalendarTime && !staffId) ? form.startTime : "" }); }}><option value="">{loadingSlots ? "Loading stylists…" : hasCalendarTime ? "Any available stylist — auto-assign" : "Select stylist"}</option>{eligibleStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>{hasCalendarTime
@@ -664,7 +876,7 @@ function AppointmentEditor({ sid, staff, services, booking, defaultDate, default
       {selectedTimePassed && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">This time has already passed. Choose a later time.</p>}
       {staffRestriction && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{staffRestriction}.</p>}
       {!loadingSlots && !salonRestriction && slots.length === 0 && !originalSlot && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">No bookable slots remain for this service and date.</p>}
-      <textarea className={inputCls} rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" />
+      {booking && <textarea className={inputCls} rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" />}
       {error && <p className="text-xs font-medium text-red-600">{error}</p>}
       <div className="flex justify-end gap-2 pt-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">Cancel</button><button onClick={save} disabled={saving || loadingSlots || (!booking && !hasContact) || (!form.staffId && !hasCalendarTime) || !form.serviceId || !form.startTime || !validSlot || selectedTimePassed || (!!restriction && !originalSlot)} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer">{saving ? "Saving…" : "Save appointment"}</button></div>
     </div>

@@ -34,7 +34,7 @@ set -uo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 STAMP="$(date +%m%d-%H%M%S)"
-SALON_NAME="${SALON_NAME:-Willow & Wren Studio} ${STAMP}"
+SALON_NAME="${SALON_NAME:-WW Studio} ${STAMP}"
 
 # Image sources (real, reachable, deterministic by seed):
 #   products / galleries -> https://picsum.photos/seed/<seed>/<w>/<h>
