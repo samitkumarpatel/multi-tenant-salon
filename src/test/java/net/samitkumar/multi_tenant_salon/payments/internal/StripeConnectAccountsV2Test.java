@@ -54,11 +54,20 @@ class StripeConnectAccountsV2Test {
                 mock(JdbcTemplate.class), mock(ObjectProvider.class), "2026-08-26.dahlia");
     }
 
+    void expectNoExistingAccount() {
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=100"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"data":[{"id":"acct_other","metadata":{"salon_id":"someone-else"}}],"next_page_url":null}
+                        """, MediaType.APPLICATION_JSON));
+    }
+
     @Test void onboardingCreatesAccountsV2MerchantAndV2AccountLink() {
+        expectNoExistingAccount();
         server.expect(requestTo("https://api.stripe.com/v2/core/accounts"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("Stripe-Version", "2026-08-26.dahlia"))
-                .andExpect(header("Idempotency-Key", "salon-connect-v2-" + salonId))
+                .andExpect(header("Idempotency-Key", org.hamcrest.Matchers.startsWith("salon-connect-v2-" + salonId + "-")))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.identity.country").value("dk"))
                 .andExpect(jsonPath("$.contact_email").value("ann@glow.dk"))
@@ -88,7 +97,37 @@ class StripeConnectAccountsV2Test {
         server.verify();
     }
 
+    @Test void onboardingAdoptsAccountCreatedByAnEarlierUnsavedAttempt() {
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=100"))
+                .andRespond(withSuccess("""
+                        {"data":[{"id":"acct_other","metadata":{}}],"next_page_url":"/v2/core/accounts?limit=100&page=p2"}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=100&page=p2"))
+                .andRespond(withSuccess("""
+                        {"data":[{"id":"acct_orphan","metadata":{"salon_id":"%s"}}],"next_page_url":null}
+                        """.formatted(salonId), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts/acct_orphan?include[0]=configuration.merchant&include[1]=requirements"))
+                .andRespond(withSuccess("{\"id\":\"acct_orphan\",\"requirements\":{}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.stripe.com/v2/core/account_links"))
+                .andExpect(jsonPath("$.account").value("acct_orphan"))
+                .andRespond(withSuccess("{\"url\":\"https://accounts.stripe.com/r/acct_orphan\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(service.onboardingUrl(salonId)).isEqualTo("https://accounts.stripe.com/r/acct_orphan");
+        server.verify();
+    }
+
+    @Test void idempotencyKeyFollowsTheRequestBody() {
+        var body = StripeConnectService.accountRequest(salons.findById(salonId).orElseThrow(), "DK");
+        var key = StripeConnectService.accountIdempotencyKey(salonId, body);
+        assertThat(StripeConnectService.accountIdempotencyKey(salonId, StripeConnectService.accountRequest(salons.findById(salonId).orElseThrow(), "DK")))
+                .isEqualTo(key);
+        var renamed = new java.util.TreeMap<>(body);
+        renamed.put("display_name", "Glow Studio Copenhagen");
+        assertThat(StripeConnectService.accountIdempotencyKey(salonId, renamed)).isNotEqualTo(key);
+    }
+
     @Test void surfacesStripesErrorMessage() {
+        expectNoExistingAccount();
         server.expect(requestTo("https://api.stripe.com/v2/core/accounts"))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
                         .body("{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Platform must be activated to create connected accounts.\"}}"));

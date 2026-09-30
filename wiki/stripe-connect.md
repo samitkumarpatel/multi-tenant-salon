@@ -74,6 +74,12 @@ runs on `checkout.stripe.com`). POS always returns to the dashboard.
 
 ## Operational notes
 
+- Account creation is retry-safe. Before `POST /v2/core/accounts` the API lists connected accounts and
+  adopts one whose `metadata.salon_id` matches (covers an earlier attempt that created the account in
+  Stripe but failed before it was stored). The idempotency key is
+  `salon-connect-v2-<salonId>-<body hash>`, so an identical retry replays, while a changed request (e.g. the
+  salon was renamed) no longer fails with *"Idempotency keys can only be reused with the same parameters"*.
+
 - Webhooks settle payments; the success page alone never marks anything paid. If the API is scaled to
   zero or stopped by the night-time scheduler, Stripe retries delivery (up to 3 days in live mode) and
   items stay `PENDING` until it succeeds.

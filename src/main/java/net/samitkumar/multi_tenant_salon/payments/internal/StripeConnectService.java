@@ -312,8 +312,63 @@ public class StripeConnectService implements PaymentGateway {
         if (countryCode == null || countryCode.length() != 2) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Add a valid salon country before connecting Stripe");
         }
-        var response = postV2("/v2/core/accounts", accountRequest(salon, countryCode), "salon-connect-v2-" + salon.id());
+        var existing = findAccountBySalon(salon.id());
+        if (existing != null) return saveAccount(accountState(salon.id(), countryCode, existing));
+        var body = accountRequest(salon, countryCode);
+        var response = postV2("/v2/core/accounts", body, accountIdempotencyKey(salon.id(), body));
         return saveAccount(accountState(salon.id(), countryCode, response));
+    }
+
+    /**
+     * A previous attempt may have created the Stripe account but failed before storing it locally; adopt that
+     * account (matched by {@code metadata.salon_id}) instead of creating a duplicate. Closed accounts aren't listed.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> findAccountBySalon(UUID salonId) {
+        String page = "/v2/core/accounts?limit=100";
+        for (int i = 0; page != null && i < MAX_ACCOUNT_PAGES; i++) {
+            var response = getV2(page);
+            if (response.get("data") instanceof List<?> data) {
+                for (var item : data) {
+                    if (item instanceof Map<?, ?> account && account.get("metadata") instanceof Map<?, ?> metadata
+                            && salonId.toString().equals(metadata.get("salon_id"))) {
+                        return getV2("/v2/core/accounts/" + account.get("id")
+                                + "?include[0]=configuration.merchant&include[1]=requirements");
+                    }
+                }
+            }
+            page = response.get("next_page_url") instanceof String next && !next.isBlank() ? next : null;
+        }
+        return null;
+    }
+
+    private static final int MAX_ACCOUNT_PAGES = 20;
+
+    /**
+     * Idempotency keys only replay identical requests: a fixed per-salon key fails with "keys can only be reused
+     * with the same parameters" as soon as the salon's name/email (or the request shape) changes between attempts.
+     * Binding the key to the body keeps safe retries while letting a changed request through.
+     */
+    static String accountIdempotencyKey(UUID salonId, Map<String, Object> body) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256").digest(
+                    new tools.jackson.databind.ObjectMapper().writeValueAsBytes(body));
+            return "salon-connect-v2-" + salonId + "-" + java.util.HexFormat.of().formatHex(digest, 0, 8);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Deep copy with keys sorted so the JSON sent to Stripe (and the idempotency hash) is stable across JVMs. */
+    @SuppressWarnings("unchecked")
+    private static Object sorted(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            var copy = new java.util.TreeMap<String, Object>();
+            map.forEach((k, v) -> copy.put(String.valueOf(k), sorted(v)));
+            return copy;
+        }
+        if (value instanceof List<?> list) return list.stream().map(StripeConnectService::sorted).toList();
+        return value;
     }
 
     /**
@@ -322,6 +377,7 @@ public class StripeConnectService implements PaymentGateway {
      * liability ({@code dashboard: express} would force the platform to pay fees and cover losses).
      * Responsibilities can't be changed once the merchant configuration exists.
      */
+    @SuppressWarnings("unchecked")
     static Map<String, Object> accountRequest(Salon salon, String countryCode) {
         var body = new java.util.LinkedHashMap<String, Object>();
         if (salon.owner() != null && salon.owner().email() != null && !salon.owner().email().isBlank()) {
@@ -335,7 +391,7 @@ public class StripeConnectService implements PaymentGateway {
         body.put("defaults", Map.of("responsibilities", Map.of("fees_collector", "stripe", "losses_collector", "stripe")));
         body.put("metadata", Map.of("salon_id", salon.id().toString()));
         body.put("include", List.of("configuration.merchant", "requirements"));
-        return body;
+        return (Map<String, Object>) sorted(body);
     }
 
     /** Maps a v2 account (with configuration.merchant + requirements included) onto the stored v1-style flags. */
