@@ -56,6 +56,8 @@ spring:
       booking-app-url: ${PAYMENTS_BOOKING_APP_URL:https://book.salonsaas.org}
       website-app-url: ${PAYMENTS_WEBSITE_APP_URL:}
       salon-domain: ${SALON_DOMAIN:salonsaas.org}
+      # Stripe-Version sent on Accounts v2 (/v2/core/**) calls; v1 Checkout calls use the account default.
+      stripe-api-version: ${STRIPE_API_VERSION:2026-08-26.dahlia}
     chat:
       # Base URL the AI assistant's tools use to call this app's own public /api/salon/** API.
       internal-api-base-url: ${INTERNAL_API_BASE_URL:http://localhost:8080}
@@ -111,6 +113,7 @@ spring:
         - classpath:db/V10__additional_changes.sql
         - classpath:db/V11__website_domains.sql
         - classpath:db/V12__stripe_connect.sql
+        - classpath:db/V13__website_domain_zone.sql
   modulith:
     events:
       jdbc:

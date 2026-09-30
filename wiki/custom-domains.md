@@ -11,8 +11,10 @@ canonical links, without redirecting the included address.
 1. Enable the salon's website feature and enter a hostname such as `www.mysalon.dk`.
 2. Add the displayed TXT ownership record and CNAME at the existing DNS provider.
    The default target is `customers.salonsaas.org`. Use **DNS-only** mode, not a
-   proxied/flattened record. Some providers append the zone name automatically;
-   enter the relative record name in those providers.
+   proxied/flattened record. Most providers (Azure DNS, GoDaddy, Cloudflare…) append
+   the zone to the Name field, so the admin shows the zone-relative name to type
+   (`_salonsaas-verification.www`, `www`) with the full name underneath. Typing the full
+   name in such a provider creates `www.mysalon.dk.mysalon.dk` and the check never passes.
 3. Select **Check connection**, or wait for the automatic check. Keep both records.
 4. The connection becomes active only when the unique ownership TXT matches, the
    direct CNAME matches our configured target, and both Cloudflare hostname and
@@ -21,7 +23,11 @@ canonical links, without redirecting the included address.
 The first release supports direct CNAME hostnames. Bare/apex domains, flattened
 CNAMEs, customer-CDN proxying, domain purchase/transfer, multiple aliases, and
 automatic redirects are not supported. Recommend `www` and a redirect from the
-bare domain managed by the customer's existing provider.
+bare domain managed by the customer's existing provider. Connecting a bare domain is
+rejected up front: at connect time the API does an SOA lookup (DNS-over-HTTPS); an SOA
+answer for the exact name means it is a zone apex. The same lookup's authority section
+gives the zone, stored in `website_domain.dns_zone` (Flyway V13) for the relative names.
+If the lookup fails the domain still connects, with full names only.
 
 ## Platform setup (Cloudflare + mix)
 

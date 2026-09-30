@@ -2228,8 +2228,8 @@ returns `503`.
 
 | Method & path | Purpose |
 |---|---|
-| `GET /payments/stripe` | `{ stripe: { account, settings, configured } }` — refreshes the Express account's `detailsSubmitted` / `chargesEnabled` / `payoutsEnabled` from Stripe |
-| `POST /payments/stripe/onboarding-link` | Creates the Express account on first call (country from the salon location — `409` if missing) and returns `{ url }` (single-use Account Link). Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
+| `GET /payments/stripe` | `{ stripe: { account, settings, configured } }` — refreshes the Accounts v2 account's `detailsSubmitted` (nothing currently/past due) / `chargesEnabled` (`card_payments` active) / `payoutsEnabled` (`stripe_balance.payouts` active) from Stripe |
+| `POST /payments/stripe/onboarding-link` | Creates the salon's Accounts v2 merchant account on first call (`dashboard: full`, Stripe collects fees and carries losses; country from the salon location — `409` if missing) and returns `{ url }` (single-use v2 Account Link). Stripe errors come back as `502` with Stripe's message in the reason. Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
 | `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD) is off or onboarding is incomplete |
 | `POST /dashboard/sales/card-checkout` | Till / POS card sale — same body as `POST /dashboard/sales`; returns `{ sale, checkoutUrl }` with the sale `PENDING`. Returns to the dashboard cashier view |
 
@@ -2669,14 +2669,16 @@ DNS. All admin paths below inherit active salon owner / super-admin authorizatio
 | Method | Path | Result |
 |---|---|---|
 | GET | `/api/salon-admin/{salonId}/website/domains` | Availability, website eligibility, current domain and DNS instructions |
-| POST | `/api/salon-admin/{salonId}/website/domains` | Add `{ "hostname": "www.mysalon.dk" }`; requires enabled website; one domain per salon |
+| POST | `/api/salon-admin/{salonId}/website/domains` | Add `{ "hostname": "www.mysalon.dk" }`; requires enabled website; one domain per salon; `400` for a bare/root domain (zone apex) |
 | POST | `/api/salon-admin/{salonId}/website/domains/check` | Recheck DNS/TLS; 30-second cooldown; returns current settings |
 | DELETE | `/api/salon-admin/{salonId}/website/domains` | `202`; immediately disable serving and queue provider cleanup |
 | GET | `/api/salon/domain/resolve?hostname=www.mysalon.dk` | Public `{ "salonId": "uuid", "hostname": "www.mysalon.dk" }` for active mappings; otherwise `404`; no-store |
 | GET | `/api/salon/{salonId}/website/domain` | Public `{ "hostname": "www.mysalon.dk" }`, or `{ "hostname": null }`; no-store |
 
 Settings response: `{ available, websiteEnabled, domain }`. `domain` is null or
-`{ hostname, status, message, checkedAt, records: [{ type, name, value }] }`.
+`{ hostname, status, message, checkedAt, records: [{ type, name, value, host, zone }] }` — `name` is the
+fully qualified name, `host` the same name relative to `zone` (e.g. `_salonsaas-verification.www`) to type
+in providers that append the zone; `host`/`zone` are null when the zone couldn't be discovered.
 Statuses: `PENDING_DNS`, `PROVISIONING`, `ACTIVE`, `ERROR`, `DELETING`.
 Only admin responses contain the ownership TXT token. Hostnames are normalized to
 lowercase ASCII/IDNA. Invalid input is `400`; an existing hostname/salon connection

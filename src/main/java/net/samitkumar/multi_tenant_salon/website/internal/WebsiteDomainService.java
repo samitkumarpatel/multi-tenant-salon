@@ -22,7 +22,11 @@ import java.util.UUID;
 @Service
 @Slf4j
 class WebsiteDomainService implements WebsiteDomainApi {
-    record DnsRecord(String type, String name, String value) {}
+    /**
+     * {@code name} is the full hostname; {@code host} is the same name relative to {@code zone} (what to type in
+     * providers that append the zone automatically). {@code host}/{@code zone} are null when the zone is unknown.
+     */
+    record DnsRecord(String type, String name, String value, String host, String zone) {}
     record DomainView(String hostname, String status, String message, Instant checkedAt, List<DnsRecord> records) {}
     record Settings(boolean available, boolean websiteEnabled, DomainView domain) {}
     record Resolution(UUID salonId, String hostname) {}
@@ -56,7 +60,8 @@ class WebsiteDomainService implements WebsiteDomainApi {
         final String normalized;
         try { normalized = DomainHostname.customerHostname(hostname, properties.platformDomain()); }
         catch (IllegalArgumentException e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage()); }
-        try { repository.create(salonId, normalized); }
+        String zone = zoneFor(normalized);
+        try { repository.create(salonId, normalized, zone); }
         catch (DuplicateKeyException e) { throw new ResponseStatusException(HttpStatus.CONFLICT, "This domain or salon already has a domain connection. Disconnect the existing connection first."); }
         return settings(salonId);
     }
@@ -181,6 +186,34 @@ class WebsiteDomainService implements WebsiteDomainApi {
         repository.delete(d.id());
     }
 
+    /**
+     * Looks up the DNS zone that holds {@code hostname}. A hostname that is itself a zone apex (SOA answer for the
+     * exact name, e.g. {@code mysalon.dk}) cannot hold a CNAME next to its NS/SOA records, so it is rejected up front
+     * instead of waiting forever for DNS. Lookup failures never block connecting; the zone is then just unknown.
+     */
+    private String zoneFor(String hostname) {
+        final DomainDnsClient.Reply reply;
+        try { reply = dns.lookup(hostname, "SOA"); }
+        catch (RuntimeException e) { return null; }
+        if (reply == null || (reply.status() != 0 && reply.status() != 3)) return null;
+        boolean apex = reply.answers() != null && reply.answers().stream()
+                .anyMatch(a -> a.type() == 6 && hostname.equalsIgnoreCase(a.name().replaceFirst("\\.$", "")));
+        if (apex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, hostname + " is a root (bare) domain, which can't use a CNAME record."
+                    + " Connect www." + hostname + " instead and redirect " + hostname + " to it at your DNS or hosting provider.");
+        }
+        return reply.authority() == null ? null : reply.authority().stream()
+                .filter(a -> a.type() == 6 && a.name() != null)
+                .map(a -> a.name().replaceFirst("\\.$", "").toLowerCase(java.util.Locale.ROOT))
+                .filter(z -> hostname.endsWith("." + z))
+                .findFirst().orElse(null);
+    }
+
+    static DnsRecord record(String type, String name, String value, String zone) {
+        if (zone == null || !name.endsWith("." + zone)) return new DnsRecord(type, name, value, null, null);
+        return new DnsRecord(type, name, value, name.substring(0, name.length() - zone.length() - 1), zone);
+    }
+
     private boolean matches(String hostname, String type, int recordType, String expected) {
         var reply = dns.lookup(hostname, type);
         if (reply.status() != 0 && reply.status() != 3) throw new IllegalStateException("DNS temporarily unavailable");
@@ -204,8 +237,8 @@ class WebsiteDomainService implements WebsiteDomainApi {
     private DomainView view(WebsiteDomainRepository.Domain d) {
         boolean stale = "ACTIVE".equals(d.status()) && (d.activeUntil() == null || d.activeUntil().isBefore(Instant.now()));
         return new DomainView(d.hostname(), stale ? "ERROR" : d.status(), stale ? "Domain verification has expired. Check the connection again." : d.message(),
-                d.checkedAt(), List.of(new DnsRecord("TXT", "_salonsaas-verification." + d.hostname(), d.token()),
-                new DnsRecord("CNAME", d.hostname(), properties.cnameTarget())));
+                d.checkedAt(), List.of(record("TXT", "_salonsaas-verification." + d.hostname(), d.token(), d.dnsZone()),
+                record("CNAME", d.hostname(), properties.cnameTarget(), d.dnsZone())));
     }
     private void requireConfigured() {
         if (!properties.configured()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Custom domains are not configured yet. Please contact support.");

@@ -146,11 +146,36 @@ class WebsiteDomainIntegrationTest {
                 .body(Map.of("hostname", "second.mysalon.dk")).exchange().expectStatus().isEqualTo(409);
         UUID other = UUID.randomUUID();
         jdbc.update("INSERT INTO salon(id, name, handler, created_at) VALUES (?, 'Other', ?, now())", other, "other-" + other);
-        assertThatThrownBy(() -> repository.create(other, "www.mysalon.dk")).isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+        assertThatThrownBy(() -> repository.create(other, "www.mysalon.dk", null)).isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
         jdbc.update("UPDATE website_domain SET created_at = now() - interval '8 days'");
         service.check(salonId);
         assertThat(repository.forSalon(salonId)).isEmpty();
         verifyNoInteractions(cloudflare);
+    }
+
+    @Test void rejectsBareZoneApexDomainsBeforeCreatingAClaim() {
+        when(dns.lookup("mysalon.dk", "SOA")).thenReturn(new DomainDnsClient.Reply(0,
+                List.of(new DomainDnsClient.Answer("mysalon.dk.", 6, "ns1-05.azure-dns.com. azuredns-hostmaster.microsoft.com. 1 3600 300 2419200 300"))));
+        client.post().uri(path).header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("hostname", "mysalon.dk")).exchange().expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.detail").value(detail -> assertThat(detail.toString())
+                        .contains("root (bare) domain").contains("www.mysalon.dk"));
+        assertThat(repository.forSalon(salonId)).isEmpty();
+    }
+
+    @Test void showsZoneRelativeRecordNamesForProvidersThatAppendTheZone() {
+        when(dns.lookup("www.mysalon.dk", "SOA")).thenReturn(new DomainDnsClient.Reply(3, List.of(),
+                List.of(new DomainDnsClient.Answer("mysalon.dk.", 6, "ns1-05.azure-dns.com. hostmaster 1 3600 300 2419200 300"))));
+        client.post().uri(path).header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("hostname", "www.mysalon.dk")).exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.domain.records[0].name").isEqualTo("_salonsaas-verification.www.mysalon.dk")
+                .jsonPath("$.domain.records[0].host").isEqualTo("_salonsaas-verification.www")
+                .jsonPath("$.domain.records[0].zone").isEqualTo("mysalon.dk")
+                .jsonPath("$.domain.records[1].name").isEqualTo("www.mysalon.dk")
+                .jsonPath("$.domain.records[1].host").isEqualTo("www");
+        // Unknown zone (lookup failed) still connects, with full names only.
+        assertThat(WebsiteDomainService.record("TXT", "_salonsaas-verification.www.shop.dk", "t", null).host()).isNull();
     }
 
     @Test void recoversProviderCreationAndThrottlesRepeatedChecks() {

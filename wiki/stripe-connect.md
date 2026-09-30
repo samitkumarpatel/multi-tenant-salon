@@ -1,15 +1,29 @@
 # Stripe Connect payments
 
-Salons take online payments through their own **Stripe Express** connected account; the platform
-account creates Checkout Sessions *on* that account (`Stripe-Account` header), so funds settle to the
-salon. Payments are enabled per area — **Shop**, **Booking** (full or deposit %), **Till / POS** — under
+Salons take online payments through their own Stripe connected account, created with the
+**Accounts v2 API** (`POST /v2/core/accounts`, merchant configuration with `card_payments`). The platform
+creates Checkout Sessions *on* that account (direct charges, `Stripe-Account` header), so funds settle to
+the salon.
+
+Accounts are created with `dashboard: full` and `defaults.responsibilities` `fees_collector: stripe`,
+`losses_collector: stripe`: each salon gets the full Stripe Dashboard, pays Stripe's processing fees on
+its own charges and Stripe carries negative-balance liability. Express (`dashboard: express`) is not
+used because v2 then requires the platform to collect fees and cover losses — with no application fee
+the platform would pay every salon's processing fees. Responsibilities can't be changed after creation.
+Onboarding uses `POST /v2/core/account_links` (`account_onboarding`, configuration `merchant`); status
+is read with `GET /v2/core/accounts/{id}?include=configuration.merchant,requirements`:
+*charges enabled* = `card_payments` capability `active`, *payouts enabled* = `stripe_balance.payouts`
+`active`, *details submitted* = no requirement `currently_due`/`past_due`. v2 calls send
+`Stripe-Version` (`STRIPE_API_VERSION`, default `2026-08-26.dahlia`). Checkout Sessions and webhooks
+stay on v1 — v2 accounts are interoperable with them. Payments are enabled per area — **Shop**, **Booking** (full or deposit %), **Till / POS** — under
 **Admin → Payments**. Salons that never enable Stripe keep the previous behaviour (shop orders come back
 `PAID` via the dummy step, bookings need no payment).
 
 ## Platform setup (one-off, per Stripe mode)
 
-1. In the Stripe Dashboard enable **Connect** and complete the platform profile (Express accounts,
-   business type, branding/icon shown during onboarding).
+1. In the Stripe Dashboard enable **Connect** and complete the platform profile and questionnaire
+   (otherwise account creation fails with `connect_profile_not_submitted`). Accounts v1 support does
+   **not** need to be enabled.
 2. Create a secret key — or a restricted key with write access to Connect accounts, account links and
    Checkout Sessions, and read access to accounts.
 3. Add a **Connect** webhook endpoint (*"Events on connected accounts"*, not *"Your account"*):

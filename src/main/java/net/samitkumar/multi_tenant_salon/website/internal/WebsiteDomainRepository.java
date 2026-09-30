@@ -11,7 +11,8 @@ import java.util.UUID;
 @Repository
 class WebsiteDomainRepository {
     record Domain(UUID id, UUID salonId, String hostname, String token, String providerId, String status,
-                  String message, Instant verifiedAt, Instant checkedAt, Instant createdAt, Instant activeUntil) {}
+                  String message, Instant verifiedAt, Instant checkedAt, Instant createdAt, Instant activeUntil,
+                  String dnsZone) {}
     private final JdbcTemplate jdbc;
     WebsiteDomainRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     private static final RowMapper<Domain> ROW = (r, n) -> new Domain(r.getObject("id", UUID.class),
@@ -20,7 +21,8 @@ class WebsiteDomainRepository {
             r.getTimestamp("verified_at") == null ? null : r.getTimestamp("verified_at").toInstant(),
             r.getTimestamp("checked_at") == null ? null : r.getTimestamp("checked_at").toInstant(),
             r.getTimestamp("created_at").toInstant(),
-            r.getTimestamp("active_until") == null ? null : r.getTimestamp("active_until").toInstant());
+            r.getTimestamp("active_until") == null ? null : r.getTimestamp("active_until").toInstant(),
+            r.getString("dns_zone"));
 
     Optional<Domain> forSalon(UUID salonId) {
         return jdbc.query("SELECT * FROM website_domain WHERE salon_id = ?", ROW, salonId).stream().findFirst();
@@ -28,9 +30,9 @@ class WebsiteDomainRepository {
     Optional<Domain> lock(UUID id) {
         return jdbc.query("SELECT * FROM website_domain WHERE id = ? FOR UPDATE SKIP LOCKED", ROW, id).stream().findFirst();
     }
-    void create(UUID salonId, String hostname) {
-        jdbc.update("INSERT INTO website_domain(id, salon_id, hostname, verification_token) VALUES (?, ?, ?, ?)",
-                UUID.randomUUID(), salonId, hostname, UUID.randomUUID().toString().replace("-", ""));
+    void create(UUID salonId, String hostname, String dnsZone) {
+        jdbc.update("INSERT INTO website_domain(id, salon_id, hostname, verification_token, dns_zone) VALUES (?, ?, ?, ?, ?)",
+                UUID.randomUUID(), salonId, hostname, UUID.randomUUID().toString().replace("-", ""), dnsZone);
     }
     List<UUID> due() {
         return jdbc.queryForList("""

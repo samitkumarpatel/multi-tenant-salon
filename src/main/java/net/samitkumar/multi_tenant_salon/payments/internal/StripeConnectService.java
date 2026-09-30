@@ -14,7 +14,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -28,6 +30,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
@@ -53,6 +56,7 @@ public class StripeConnectService implements PaymentGateway {
     private final String salonDomain;
     private final JdbcClient jdbc;
     private final ObjectProvider<WebsiteDomainApi> domains;
+    private final String apiVersion;
 
     StripeConnectService(StripeConnectedAccountRepository accounts, SalonPaymentSettingsRepository settings,
                          SalonApi salons, CountryApi countries, RestClient.Builder clientBuilder,
@@ -64,12 +68,13 @@ public class StripeConnectService implements PaymentGateway {
                          @Value("${spring.application.payments.website-app-url:}") String websiteAppUrl,
                          @Value("${spring.application.payments.salon-domain:salonsaas.org}") String salonDomain,
                          ApplicationEventPublisher events, JdbcTemplate jdbcTemplate,
-                         ObjectProvider<WebsiteDomainApi> domains) {
+                         ObjectProvider<WebsiteDomainApi> domains,
+                         @Value("${spring.application.payments.stripe-api-version:2026-08-26.dahlia}") String apiVersion) {
         this.accounts = accounts;
         this.settings = settings;
         this.salons = salons;
         this.countries = countries;
-        this.stripe = clientBuilder.baseUrl("https://api.stripe.com/v1").build();
+        this.stripe = clientBuilder.baseUrl("https://api.stripe.com").build();
         this.secretKey = secretKey;
         this.adminAppUrl = adminAppUrl.replaceAll("/$", "");
         this.dashboardAppUrl = dashboardAppUrl.replaceAll("/$", "");
@@ -80,6 +85,7 @@ public class StripeConnectService implements PaymentGateway {
         this.salonDomain = salonDomain;
         this.jdbc = JdbcClient.create(jdbcTemplate);
         this.domains = domains;
+        this.apiVersion = apiVersion;
     }
 
     Status status(UUID salonId) {
@@ -93,13 +99,15 @@ public class StripeConnectService implements PaymentGateway {
         var salon = requireSalon(salonId);
         requireStripe();
         var account = accounts.findById(salonId).orElseGet(() -> createAccount(salon));
-        var returnUrl = adminAppUrl + "/" + salonId + "/payments?stripe=return";
-        var form = new LinkedMultiValueMap<String, String>();
-        form.add("account", account.stripeAccountId());
-        form.add("type", "account_onboarding");
-        form.add("return_url", returnUrl);
-        form.add("refresh_url", adminAppUrl + "/" + salonId + "/payments?stripe=refresh");
-        var response = post("/account_links", form, null);
+        var body = Map.<String, Object>of(
+                "account", account.stripeAccountId(),
+                "use_case", Map.of(
+                        "type", "account_onboarding",
+                        "account_onboarding", Map.of(
+                                "configurations", List.of("merchant"),
+                                "return_url", adminAppUrl + "/" + salonId + "/payments?stripe=return",
+                                "refresh_url", adminAppUrl + "/" + salonId + "/payments?stripe=refresh")));
+        var response = postV2("/v2/core/account_links", body, null);
         return (String) response.get("url");
     }
 
@@ -176,7 +184,7 @@ public class StripeConnectService implements PaymentGateway {
         form.add("metadata[salon_id]", salonId.toString());
         form.add("metadata[payment_area]", area);
         form.add("metadata[payment_reference]", reference);
-        var response = post("/checkout/sessions", form, "checkout-" + area.toLowerCase(Locale.ROOT) + "-" + reference,
+        var response = post("/v1/checkout/sessions", form, "checkout-" + area.toLowerCase(Locale.ROOT) + "-" + reference,
                 account.stripeAccountId());
         return (String) response.get("url");
     }
@@ -304,23 +312,58 @@ public class StripeConnectService implements PaymentGateway {
         if (countryCode == null || countryCode.length() != 2) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Add a valid salon country before connecting Stripe");
         }
-        var form = new LinkedMultiValueMap<String, String>();
-        form.add("type", "express");
-        form.add("country", countryCode);
-        if (salon.owner() != null && salon.owner().email() != null) form.add("email", salon.owner().email());
-        form.add("capabilities[card_payments][requested]", "true");
-        form.add("capabilities[transfers][requested]", "true");
-        var response = post("/accounts", form, "salon-connect-" + salon.id());
-        return saveAccount(new StripeConnectedAccount(salon.id(), (String) response.get("id"), countryCode,
-                false, false, false, Instant.now()));
+        var response = postV2("/v2/core/accounts", accountRequest(salon, countryCode), "salon-connect-v2-" + salon.id());
+        return saveAccount(accountState(salon.id(), countryCode, response));
+    }
+
+    /**
+     * Accounts v2 connected account for direct charges on the salon's own account: the salon gets the
+     * full Stripe Dashboard, Stripe collects its processing fees from the salon and carries negative-balance
+     * liability ({@code dashboard: express} would force the platform to pay fees and cover losses).
+     * Responsibilities can't be changed once the merchant configuration exists.
+     */
+    static Map<String, Object> accountRequest(Salon salon, String countryCode) {
+        var body = new java.util.LinkedHashMap<String, Object>();
+        if (salon.owner() != null && salon.owner().email() != null && !salon.owner().email().isBlank()) {
+            body.put("contact_email", salon.owner().email());
+        }
+        if (salon.name() != null && !salon.name().isBlank()) body.put("display_name", salon.name());
+        body.put("identity", Map.of("country", countryCode.toLowerCase(Locale.ROOT)));
+        body.put("dashboard", "full");
+        body.put("configuration", Map.of("merchant", Map.of("capabilities",
+                Map.of("card_payments", Map.of("requested", true)))));
+        body.put("defaults", Map.of("responsibilities", Map.of("fees_collector", "stripe", "losses_collector", "stripe")));
+        body.put("metadata", Map.of("salon_id", salon.id().toString()));
+        body.put("include", List.of("configuration.merchant", "requirements"));
+        return body;
+    }
+
+    /** Maps a v2 account (with configuration.merchant + requirements included) onto the stored v1-style flags. */
+    @SuppressWarnings("unchecked")
+    static StripeConnectedAccount accountState(UUID salonId, String country, Map<String, Object> account) {
+        var merchant = nested(account, "configuration", "merchant", "capabilities");
+        boolean charges = "active".equals(nested(merchant, "card_payments").get("status"));
+        boolean payouts = "active".equals(nested(merchant, "stripe_balance", "payouts").get("status"));
+        var deadline = nested(account, "requirements", "summary", "minimum_deadline").get("status");
+        // Onboarding is "submitted" once nothing is currently/past due; eventually_due items only apply at volume thresholds.
+        boolean submitted = account.get("requirements") != null
+                && !"currently_due".equals(deadline) && !"past_due".equals(deadline);
+        return new StripeConnectedAccount(salonId, (String) account.get("id"), country, submitted, charges, payouts, Instant.now());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> nested(Map<String, Object> map, String... keys) {
+        Map<String, Object> current = map == null ? Map.of() : map;
+        for (var key : keys) {
+            current = current.get(key) instanceof Map<?, ?> next ? (Map<String, Object>) next : Map.of();
+        }
+        return current;
     }
 
     private StripeConnectedAccount refresh(StripeConnectedAccount saved) {
-        var response = get("/accounts/" + saved.stripeAccountId());
-        var latest = new StripeConnectedAccount(saved.salonId(), saved.stripeAccountId(), saved.country(),
-                Boolean.TRUE.equals(response.get("details_submitted")), Boolean.TRUE.equals(response.get("charges_enabled")),
-                Boolean.TRUE.equals(response.get("payouts_enabled")), Instant.now());
-        return saveAccount(latest);
+        var response = getV2("/v2/core/accounts/" + saved.stripeAccountId()
+                + "?include[0]=configuration.merchant&include[1]=requirements");
+        return saveAccount(accountState(saved.salonId(), saved.country(), response));
     }
 
     private StripeConnectedAccount saveAccount(StripeConnectedAccount account) {
@@ -329,10 +372,6 @@ public class StripeConnectService implements PaymentGateway {
                 .param("details", account.detailsSubmitted()).param("charges", account.chargesEnabled())
                 .param("payouts", account.payoutsEnabled()).param("updated", account.updatedAt()).update();
         return account;
-    }
-
-    private Map<String, Object> post(String path, LinkedMultiValueMap<String, String> form, String idempotencyKey) {
-        return post(path, form, idempotencyKey, null);
     }
 
     private Map<String, Object> post(String path, LinkedMultiValueMap<String, String> form, String idempotencyKey, String connectedAccount) {
@@ -344,8 +383,46 @@ public class StripeConnectService implements PaymentGateway {
             if (connectedAccount != null) request.header("Stripe-Account", connectedAccount);
             return request.body(form).retrieve().body(Map.class);
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Stripe request failed", e);
+            throw stripeFailure("Stripe request failed", e);
         }
+    }
+
+    private Map<String, Object> postV2(String path, Map<String, Object> body, String idempotencyKey) {
+        requireStripe();
+        try {
+            var request = stripe.post().uri(path).header("Authorization", "Bearer " + secretKey)
+                    .header("Stripe-Version", apiVersion).contentType(MediaType.APPLICATION_JSON);
+            if (idempotencyKey != null) request.header("Idempotency-Key", idempotencyKey);
+            return request.body(body).retrieve().body(Map.class);
+        } catch (Exception e) {
+            throw stripeFailure("Stripe request failed", e);
+        }
+    }
+
+    private Map<String, Object> getV2(String pathAndQuery) {
+        try {
+            return stripe.get().uri(URI.create("https://api.stripe.com" + pathAndQuery))
+                    .header("Authorization", "Bearer " + secretKey).header("Stripe-Version", apiVersion)
+                    .retrieve().body(Map.class);
+        } catch (Exception e) {
+            throw stripeFailure("Could not retrieve Stripe account status", e);
+        }
+    }
+
+    /** Surfaces Stripe's own error message (never the key) so admins see why Stripe refused a request. */
+    private static ResponseStatusException stripeFailure(String summary, Exception e) {
+        if (e instanceof RestClientResponseException response) {
+            try {
+                @SuppressWarnings("unchecked") var error = (Map<String, Object>) new tools.jackson.databind.ObjectMapper()
+                        .readValue(response.getResponseBodyAsString(), Map.class).get("error");
+                if (error != null && error.get("message") instanceof String message && !message.isBlank()) {
+                    return new ResponseStatusException(HttpStatus.BAD_GATEWAY, summary + ": " + message, e);
+                }
+            } catch (RuntimeException ignored) {
+                // Fall through to the generic message when Stripe's body isn't the usual error envelope.
+            }
+        }
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, summary, e);
     }
 
     private int currencyExponent(String currency) {
@@ -353,14 +430,6 @@ public class StripeConnectService implements PaymentGateway {
         if (java.util.Set.of("BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF").contains(code)) return 0;
         if (java.util.Set.of("BHD", "JOD", "KWD", "OMR", "TND").contains(code)) return 3;
         return 2;
-    }
-
-    private Map<String, Object> get(String path) {
-        try {
-            return stripe.get().uri(path).header("Authorization", "Bearer " + secretKey).retrieve().body(Map.class);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not retrieve Stripe account status", e);
-        }
     }
 
     private SalonPaymentSettings defaults(Salon salon) {

@@ -10,7 +10,7 @@ export interface DomainSettings {
     status: "PENDING_DNS" | "PROVISIONING" | "ACTIVE" | "ERROR" | "DELETING";
     message: string | null;
     checkedAt: string | null;
-    records: { type: string; name: string; value: string }[];
+    records: { type: string; name: string; value: string; host?: string | null; zone?: string | null }[];
   };
 }
 
@@ -87,13 +87,24 @@ export function WebsiteDomains({ salonId, includedUrl, settings, onChange }: {
             <div className="overflow-x-auto rounded-lg border border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500"><tr><th className="p-3">Type</th><th className="p-3">Name / Host</th><th className="p-3">Value / Target</th></tr></thead>
-                <tbody>{domain.records.map((record) => <tr key={record.type} className="border-t border-slate-100">
-                  <td className="p-3 font-semibold">{record.type}</td>
-                  {[record.name, record.value].map((value, i) => <td key={i} className="p-3"><div className="flex items-start gap-2"><code className="break-all select-all">{value}</code><button type="button" className="shrink-0 p-1 text-slate-500 hover:text-matcha-700" aria-label={`Copy ${record.type} ${i === 0 ? "name" : "value"}`} onClick={() => copy(value)}>{copied === value ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div></td>)}
-                </tr>)}</tbody>
+                <tbody>{domain.records.map((record) => {
+                  // Providers such as Azure DNS or GoDaddy append the zone to the Name field, so show the
+                  // zone-relative host to type, with the full name below for providers that want it.
+                  const typed = record.host ?? record.name;
+                  return <tr key={record.type} className="border-t border-slate-100 align-top">
+                    <td className="p-3 font-semibold">{record.type}</td>
+                    {[typed, record.value].map((value, i) => <td key={i} className="p-3">
+                      <div className="flex items-start gap-2"><code className="break-all select-all">{value}</code><button type="button" className="shrink-0 p-1 text-slate-500 hover:text-matcha-700" aria-label={`Copy ${record.type} ${i === 0 ? "name" : "value"}`} onClick={() => copy(value)}>{copied === value ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div>
+                      {i === 0 && record.host && <p className="mt-1 text-[11px] text-slate-400 break-all">Full name: {record.name}</p>}
+                    </td>)}
+                  </tr>;
+                })}</tbody>
               </table>
             </div>
-            <p className="text-xs text-slate-500">Some providers append your domain automatically; enter only the relative name in that case. Use DNS-only mode for the CNAME. DNS changes can take time to appear. HTTPS is prepared automatically.</p>
+            <p className="text-xs text-slate-500">{domain.records.some((r) => r.zone)
+              ? <>Enter the Name exactly as shown — your DNS provider adds <code>.{domain.records.find((r) => r.zone)?.zone}</code> automatically (Azure DNS, GoDaddy, Cloudflare and most others do). Only if your provider asks for the fully qualified name, use the full name instead.</>
+              : <>Some providers append your domain automatically; enter only the part before your domain in that case.</>}
+              {" "}Use DNS-only mode for the CNAME. DNS changes can take time to appear. HTTPS is prepared automatically.</p>
           </>}
           <div className="flex flex-wrap gap-3 items-center">
             <button type="button" disabled={busy || !settings.available} onClick={() => act("POST", "/check")} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Checking…" : "Check connection"}</button>

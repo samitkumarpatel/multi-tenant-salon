@@ -13,7 +13,10 @@ interface DomainDnsClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Answer(String name, int type, String data) {}
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Reply(@JsonProperty("Status") int status, @JsonProperty("Answer") List<Answer> answers) {}
+    record Reply(@JsonProperty("Status") int status, @JsonProperty("Answer") List<Answer> answers,
+                 @JsonProperty("Authority") List<Answer> authority) {
+        Reply(int status, List<Answer> answers) { this(status, answers, null); }
+    }
     @GetExchange("/dns-query")
     Reply lookup(@RequestParam String name, @RequestParam String type);
 }

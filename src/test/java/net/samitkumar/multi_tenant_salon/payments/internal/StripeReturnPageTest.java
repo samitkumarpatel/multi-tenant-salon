@@ -33,7 +33,7 @@ class StripeReturnPageTest {
         service = new StripeConnectService(mock(StripeConnectedAccountRepository.class), mock(SalonPaymentSettingsRepository.class),
                 mock(SalonApi.class), mock(CountryApi.class), RestClient.builder(), "sk", "https://admin.salonsaas.org",
                 "https://dashboard.salonsaas.org", "whsec", "https://book.salonsaas.org/", "", "salonsaas.org",
-                mock(ApplicationEventPublisher.class), mock(JdbcTemplate.class), provider);
+                mock(ApplicationEventPublisher.class), mock(JdbcTemplate.class), provider, "2026-08-26.dahlia");
     }
 
     @Test void returnsToTheSalonsActiveCustomDomain() {

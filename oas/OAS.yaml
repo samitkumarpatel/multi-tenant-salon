@@ -58,7 +58,7 @@ servers:
 
 tags:
   - name: AdminPayments
-    description: Stripe Connect (Express) onboarding, per-area payment settings, POS card checkout and the Connect webhook.
+    description: Stripe Connect (Accounts v2) onboarding, per-area payment settings, POS card checkout and the Connect webhook.
   - name: SalonOnboarding
     description: |
       New salon tenant registration and platform-level salon listing.
@@ -2708,7 +2708,7 @@ paths:
           description: Requires active salon owner or super-admin
     post:
       summary: Connect one customer-managed CNAME hostname
-      description: Requires the website feature and configured provider. Customers retain their DNS provider. Unverified claims expire after seven days.
+      description: Requires the website feature and configured provider. Customers retain their DNS provider. Unverified claims expire after seven days. Returns 400 for a bare/root domain (the hostname is itself a DNS zone apex, detected by an SOA answer for the exact name), since a CNAME cannot be placed there — connect `www.` instead.
       security:
         - BearerAuth: []
       requestBody:
@@ -2851,10 +2851,12 @@ paths:
       - $ref: "#/components/parameters/SalonId"
     post:
       tags: [AdminPayments]
-      summary: Create a Stripe Express onboarding link
+      summary: Create a Stripe Connect onboarding link
       description: |
-        Creates the salon's Express connected account on first use (country from the salon
-        location), then returns a single-use Account Link. Stripe returns the owner to
+        Creates the salon's connected account on first use with Accounts v2 (`POST /v2/core/accounts`:
+        merchant `card_payments`, `dashboard: full`, `fees_collector`/`losses_collector: stripe`;
+        country from the salon location), then returns a single-use v2 Account Link
+        (`account_onboarding`, configuration `merchant`). Stripe returns the owner to
         `<PAYMENTS_ADMIN_APP_URL>/{salonId}/payments?stripe=return|refresh`.
       operationId: createStripeOnboardingLink
       security:
@@ -2872,7 +2874,7 @@ paths:
         "409":
           description: Salon has no valid country
         "502":
-          description: Stripe request failed
+          description: Stripe rejected the request; the reason carries Stripe's error message
         "503":
           description: Stripe secret key / webhook secret not configured on the server
 
@@ -3173,8 +3175,17 @@ components:
                 enum: [TXT, CNAME]
               name:
                 type: string
+                description: Fully qualified record name
               value:
                 type: string
+              host:
+                type: [string, 'null']
+                description: |
+                  `name` relative to `zone` (e.g. `_salonsaas-verification.www`, `www`) — what to type in DNS
+                  providers that append the zone (Azure DNS, GoDaddy, Cloudflare…). Null when the zone is unknown.
+              zone:
+                type: [string, 'null']
+                description: DNS zone holding the hostname, discovered from the SOA authority at connect time
 
 
     TextPolishRequest:

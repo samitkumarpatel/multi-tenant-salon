@@ -28,6 +28,22 @@ class DomainClientTest {
         server.verify();
     }
 
+    @Test void dnsClientReadsTheSoaAuthoritySectionForZoneDiscovery() {
+        var builder = RestClient.builder();
+        DomainClientConfiguration.configureDns(builder);
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://cloudflare-dns.com/dns-query?name=www.fullstack1o1.net&type=SOA"))
+                .andRespond(withSuccess("""
+                        {"Status":3,"TC":false,"RD":true,"Question":[{"name":"www.fullstack1o1.net","type":6}],
+                         "Authority":[{"name":"fullstack1o1.net","type":6,"TTL":300,"data":"ns1-05.azure-dns.com. azuredns-hostmaster.microsoft.com. 1 3600 300 2419200 300"}]}
+                        """, MediaType.valueOf("application/dns-json")));
+        var client = HttpServiceProxyFactory.builderFor(RestClientAdapter.create(builder.build())).build().createClient(DomainDnsClient.class);
+        var reply = client.lookup("www.fullstack1o1.net", "SOA");
+        assertThat(reply.answers()).isNull();
+        assertThat(reply.authority()).extracting(DomainDnsClient.Answer::name).containsExactly("fullstack1o1.net");
+        server.verify();
+    }
+
     @Test void providerClientExpandsZoneAndReadsHostnameAndCertificateStatuses() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
