@@ -2,7 +2,7 @@ name: mix env on/off scheduler
 
 run-name: >-
   mix env ${{
-    (github.event.schedule == '30 23 * * *' || github.event.inputs.mode == 'sleep')
+    (github.event.schedule == '30 21 * * *' || github.event.inputs.mode == 'sleep')
     && 'Sleep (night)' || 'Wake (day)'
   }}
 
