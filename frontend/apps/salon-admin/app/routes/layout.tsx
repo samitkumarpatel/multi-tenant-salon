@@ -88,6 +88,15 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
   { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "coming-soon" },
 ];
 
+const WEBSITE_SECTIONS = [
+  { key: "domain", label: "Domain" },
+  { key: "design", label: "Web & Design" },
+] as const;
+
+/** Expandable sidebar groups. Only one is open at a time (accordion), so moving between groups
+ *  animates a single collapse/expand instead of two competing ones. */
+type SidebarGroup = "overview" | "booking" | "website";
+
 const BOOKING_SECTIONS = [
   { key: "appointments", label: "Appointments" },
   { key: "availability", label: "Staff availability" },
@@ -103,16 +112,62 @@ function SidebarSubmenu({ id, expanded, children }: { id: string; expanded: bool
       id={id}
       inert={!expanded}
       aria-hidden={!expanded}
-      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out motion-reduce:transition-none ${
+      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
         expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
       }`}
     >
       <div className="min-h-0 overflow-hidden">
-        <div className="relative ml-5 my-1 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200">
-          {children}
+        <div className="py-1">
+          <div className="relative ml-5 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200">
+            {children}
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onClick, badge }: {
+  controls: string; icon: React.ElementType; label: string; active: boolean; expanded: boolean;
+  onClick: () => void; badge?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+        active
+          ? expanded
+            ? "text-matcha-700 hover:bg-slate-50"
+            : "bg-matcha-50 text-matcha-700"
+          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+      }`}
+    >
+      <Icon className="w-4 h-4 shrink-0" />
+      <span>{label}</span>
+      {badge}
+      <ChevronDown
+        className={`${badge ? "ml-2" : "ml-auto"} w-3.5 h-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+      />
+    </button>
+  );
+}
+
+function SidebarSubLink({ to, active, onClick, children }: { to: string; active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      end
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+        active ? "bg-matcha-50 text-matcha-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+      }`}
+    >
+      {children}
+    </NavLink>
   );
 }
 
@@ -382,9 +437,17 @@ export default function Layout() {
   const isPreview = Boolean(useMatch("/:salonId/website-preview"));
   const isOverview = Boolean(useMatch("/:salonId"));
   const isBookings = Boolean(useMatch("/:salonId/booking"));
+  const isWebsite = Boolean(useMatch("/:salonId/website"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [overviewExpanded, setOverviewExpanded] = useState(isOverview);
-  const [bookingsExpanded, setBookingsExpanded] = useState(isBookings);
+  const routeGroup: SidebarGroup | null = isOverview ? "overview" : isBookings ? "booking" : isWebsite ? "website" : null;
+  const [openGroup, setOpenGroup] = useState<SidebarGroup | null>(routeGroup);
+  // Follow the route *during render* (not in an effect) so a navigation never paints a frame with
+  // the previous group's open state and then corrects it — that one-frame flip made the menu jumpy.
+  const [lastRouteGroup, setLastRouteGroup] = useState(routeGroup);
+  if (routeGroup !== lastRouteGroup) {
+    setLastRouteGroup(routeGroup);
+    setOpenGroup(routeGroup);
+  }
   const [websiteCoachSeen, setWebsiteCoachSeen] = useState(
     () => Boolean(salon && localStorage.getItem(`website-style-hint-seen:${salon.id}`))
   );
@@ -395,18 +458,16 @@ export default function Layout() {
     ? bookingSectionParam
     : "appointments";
 
-  useEffect(() => {
-    if (isOverview) {
-      setOverviewExpanded(true);
-      setBookingsExpanded(false);
-    } else if (isBookings) {
-      setBookingsExpanded(true);
-      setOverviewExpanded(false);
-    } else {
-      setOverviewExpanded(false);
-      setBookingsExpanded(false);
+  const websiteSection = new URLSearchParams(location.search).get("section") === "domain" ? "domain" : "design";
+
+  /** On another page: go to the group's landing page (the route change opens it). On it: toggle. */
+  function toggleGroup(group: SidebarGroup, landing: string) {
+    if (routeGroup !== group) {
+      navigate(landing);
+      return;
     }
-  }, [isOverview, isBookings]);
+    setOpenGroup((open) => (open === group ? null : group));
+  }
 
   function markWebsiteCoachSeen() {
     if (salon) localStorage.setItem(`website-style-hint-seen:${salon.id}`, "1");
@@ -561,62 +622,23 @@ export default function Layout() {
 
             <div>
               <Tooltip content="View your salon details and all links associated with it.">
-                <button
-                  type="button"
-                  aria-expanded={overviewExpanded}
-                  aria-controls="overview-navigation"
-                  onClick={() => {
-                    if (!isOverview) {
-                      navigate(`/${salonId}?tab=details`);
-                      setOverviewExpanded(true);
-                      setBookingsExpanded(false);
-                      return;
-                    }
-                    setOverviewExpanded((expanded) => !expanded);
-                  }}
-                  className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-                    isOverview
-                      ? overviewExpanded
-                        ? "text-matcha-700 hover:bg-slate-50"
-                        : "bg-matcha-50 text-matcha-700"
-                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4 shrink-0" />
-                  <span>Overview</span>
-                  <ChevronDown
-                    className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ease-in-out motion-reduce:transition-none ${overviewExpanded ? "rotate-180" : ""}`}
-                  />
-                </button>
+                <SidebarGroupHeader
+                  controls="overview-navigation"
+                  icon={LayoutDashboard}
+                  label="Overview"
+                  active={isOverview}
+                  expanded={openGroup === "overview"}
+                  onClick={() => toggleGroup("overview", `/${salonId}?tab=details`)}
+                />
               </Tooltip>
 
-              <SidebarSubmenu id="overview-navigation" expanded={overviewExpanded}>
-                  <NavLink
-                    to={`/${salonId}?tab=details`}
-                    end
-                    aria-current={isOverview && overviewTab === "details" ? "page" : undefined}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      isOverview && overviewTab === "details"
-                        ? "bg-matcha-50 text-matcha-700"
-                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                    }`}
-                  >
-                    Salon details
-                  </NavLink>
-                  <NavLink
-                    to={`/${salonId}?tab=links`}
-                    end
-                    aria-current={isOverview && overviewTab === "links" ? "page" : undefined}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      isOverview && overviewTab === "links"
-                        ? "bg-matcha-50 text-matcha-700"
-                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                    }`}
-                  >
-                    Share links
-                  </NavLink>
+              <SidebarSubmenu id="overview-navigation" expanded={openGroup === "overview"}>
+                <SidebarSubLink to={`/${salonId}?tab=details`} active={isOverview && overviewTab === "details"} onClick={() => setSidebarOpen(false)}>
+                  Salon details
+                </SidebarSubLink>
+                <SidebarSubLink to={`/${salonId}?tab=links`} active={isOverview && overviewTab === "links"} onClick={() => setSidebarOpen(false)}>
+                  Share links
+                </SidebarSubLink>
               </SidebarSubmenu>
             </div>
 
@@ -667,82 +689,65 @@ export default function Layout() {
                   f.key === "BOOKING" ? (
                     <div key={f.key}>
                       <Tooltip content={f.hint}>
-                        <button
-                          type="button"
-                          aria-expanded={bookingsExpanded}
-                          aria-controls="booking-navigation"
-                          onClick={() => {
-                            if (!isBookings) {
-                              navigate(`/${salonId}/booking?section=appointments`);
-                              setBookingsExpanded(true);
-                              setOverviewExpanded(false);
-                              return;
-                            }
-                            setBookingsExpanded((expanded) => !expanded);
-                          }}
-                          className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-                            isBookings
-                              ? bookingsExpanded
-                                ? "text-matcha-700 hover:bg-slate-50"
-                                : "bg-matcha-50 text-matcha-700"
-                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                          }`}
-                        >
-                          <f.icon className="w-4 h-4 shrink-0" />
-                          <span>{f.label}</span>
-                          <ChevronDown
-                            className={`ml-auto w-3.5 h-3.5 transition-transform duration-200 ease-in-out motion-reduce:transition-none ${bookingsExpanded ? "rotate-180" : ""}`}
-                          />
-                        </button>
+                        <SidebarGroupHeader
+                          controls="booking-navigation"
+                          icon={f.icon}
+                          label={f.label}
+                          active={isBookings}
+                          expanded={openGroup === "booking"}
+                          onClick={() => toggleGroup("booking", `/${salonId}/booking?section=appointments`)}
+                        />
                       </Tooltip>
 
-                      <SidebarSubmenu id="booking-navigation" expanded={bookingsExpanded}>
-                          {BOOKING_SECTIONS.map((section) => {
-                            const active = isBookings && bookingSection === section.key;
-                            return (
-                              <NavLink
-                                key={section.key}
-                                to={`/${salonId}/booking?section=${section.key}`}
-                                end
-                                aria-current={active ? "page" : undefined}
-                                onClick={() => setSidebarOpen(false)}
-                                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                                  active
-                                    ? "bg-matcha-50 text-matcha-700"
-                                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                }`}
-                              >
-                                {section.label}
-                              </NavLink>
-                            );
-                          })}
+                      <SidebarSubmenu id="booking-navigation" expanded={openGroup === "booking"}>
+                        {BOOKING_SECTIONS.map((section) => (
+                          <SidebarSubLink
+                            key={section.key}
+                            to={`/${salonId}/booking?section=${section.key}`}
+                            active={isBookings && bookingSection === section.key}
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            {section.label}
+                          </SidebarSubLink>
+                        ))}
                       </SidebarSubmenu>
                     </div>
-                  ) : f.route ? (
-                    <React.Fragment key={f.key}>
+                  ) : f.key === "STATIC_WEBSITE" ? (
+                    <div key={f.key}>
                       <Tooltip content={f.hint}>
-                        <NavLink
-                          to={f.route}
-                          className={sideNavClass}
+                        <SidebarGroupHeader
+                          controls="website-navigation"
+                          icon={f.icon}
+                          label={f.label}
+                          active={isWebsite}
+                          expanded={openGroup === "website"}
                           onClick={() => {
-                            setSidebarOpen(false);
-                            if (f.key === "STATIC_WEBSITE") markWebsiteCoachSeen();
+                            markWebsiteCoachSeen();
+                            toggleGroup("website", `/${salonId}/website`);
                           }}
-                        >
-                          <f.icon className="w-4 h-4 shrink-0" />
-                          {f.label}
-                          {f.route === "coming-soon" && (
-                            <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1">Soon</span>
-                          )}
-                          {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
+                          badge={!websiteCoachSeen ? (
                             <span className="ml-auto relative flex h-2 w-2">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                             </span>
-                          )}
-                        </NavLink>
+                          ) : undefined}
+                        />
                       </Tooltip>
-                      {f.key === "STATIC_WEBSITE" && !websiteCoachSeen && (
+
+                      <SidebarSubmenu id="website-navigation" expanded={openGroup === "website"}>
+                        {WEBSITE_SECTIONS.map((section) => (
+                          <SidebarSubLink
+                            key={section.key}
+                            to={section.key === "design" ? `/${salonId}/website` : `/${salonId}/website?section=${section.key}`}
+                            active={isWebsite && websiteSection === section.key}
+                            onClick={() => { setSidebarOpen(false); markWebsiteCoachSeen(); }}
+                          >
+                            {section.label}
+                          </SidebarSubLink>
+                        ))}
+                      </SidebarSubmenu>
+
+                      {!websiteCoachSeen && (
                         <div className="mx-3 mt-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
@@ -761,7 +766,17 @@ export default function Layout() {
                           </p>
                         </div>
                       )}
-                    </React.Fragment>
+                    </div>
+                  ) : f.route ? (
+                    <Tooltip key={f.key} content={f.hint}>
+                      <NavLink to={f.route} className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                        <f.icon className="w-4 h-4 shrink-0" />
+                        {f.label}
+                        {f.route === "coming-soon" && (
+                          <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1">Soon</span>
+                        )}
+                      </NavLink>
+                    </Tooltip>
                   ) : (
                     <Tooltip key={f.key} content={`${f.hint} Coming soon.`}>
                       <span className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-300 cursor-default select-none">

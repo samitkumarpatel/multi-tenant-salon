@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Globe, Copy, Check, LoaderCircle, ExternalLink } from "lucide-react";
+import { Globe, Copy, Check, LoaderCircle, ExternalLink, CornerDownRight } from "lucide-react";
 import { ADMIN_API, apiFetch } from "~/lib/api";
 
 export interface DomainSettings {
@@ -18,6 +18,47 @@ export function connectedHostname(settings: DomainSettings | null): string | und
   return settings?.available && settings.websiteEnabled && settings.domain?.status === "ACTIVE" ? settings.domain.hostname : undefined;
 }
 
+/**
+ * The bare (root) domain that sits above a connected www hostname — e.g. fullstack1o1.net for
+ * www.fullstack1o1.net — using the DNS zone the API discovered, falling back to stripping "www.".
+ * A bare domain can't CNAME to us, so the owner redirects it to the www address at their provider.
+ */
+export function bareDomainFor(domain: DomainSettings["domain"]): string | undefined {
+  if (!domain) return undefined;
+  const zone = domain.records.find((r) => r.zone)?.zone ?? undefined;
+  if (zone && domain.hostname === `www.${zone}`) return zone;
+  if (!zone && domain.hostname.startsWith("www.") && domain.hostname.split(".").length >= 3) return domain.hostname.slice(4);
+  return undefined;
+}
+
+function BareDomainRedirectHelp({ bare, target, connected }: { bare: string; target: string; connected: boolean }) {
+  return <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-3">
+    <div>
+      <p className="flex items-center gap-2 font-semibold text-slate-800"><CornerDownRight className="h-4 w-4 text-matcha-600" /> Make {bare} work too</p>
+      <p className="mt-1">
+        <code>{bare}</code> is your bare (root) domain. It can't point to us directly with a CNAME, so visitors who type it
+        won't reach your website until you add a <strong>redirect</strong> at your domain or DNS provider, sending{" "}
+        <code>{bare}</code> to <code>https://{target}</code>.{connected ? "" : " You can set this up now or after the connection is active."}
+      </p>
+    </div>
+    <ol className="list-decimal space-y-1 pl-5">
+      <li>At your DNS provider or registrar, open the feature called <em>domain forwarding</em>, <em>URL redirect</em> or <em>redirect rule</em>.</li>
+      <li>Forward <code>{bare}</code> to <code>https://{target}</code> as a <strong>permanent (301)</strong> redirect. Keep the path and query if offered, and turn on HTTPS for <code>{bare}</code> if your provider offers it.</li>
+      <li>Leave the <code>www</code> records above exactly as they are, and don't add a CNAME for <code>{bare}</code>.</li>
+      <li>Test it: open <code>http://{bare}</code> and <code>https://{bare}</code> — both should land on <code>https://{target}</code>.</li>
+    </ol>
+    <details className="group">
+      <summary className="cursor-pointer select-none font-medium text-matcha-700">Tips for common providers</summary>
+      <ul className="mt-2 list-disc space-y-1.5 pl-5">
+        <li><strong>Cloudflare DNS:</strong> add an <code>A</code> record for <code>@</code> → <code>192.0.2.1</code> with the proxy <em>on</em> (orange cloud), then a Redirect Rule from <code>{bare}</code> to <code>https://{target}</code> (301). Keep the <code>www</code> CNAME <em>DNS only</em>.</li>
+        <li><strong>GoDaddy, Namecheap, one.com and most registrars:</strong> use <em>Domain forwarding</em> / <em>URL redirect</em> for <code>{bare}</code>. This usually requires the registrar's own nameservers.</li>
+        <li><strong>Azure DNS:</strong> has no redirect feature. Point an alias record at <code>@</code> to an Azure service that redirects (for example an Azure Front Door rule), or manage DNS at a provider that offers forwarding.</li>
+        <li><strong>AWS Route 53:</strong> point an alias record at <code>@</code> to an S3 bucket configured to redirect to <code>{target}</code> (add CloudFront for HTTPS).</li>
+      </ul>
+    </details>
+  </div>;
+}
+
 const labels = { PENDING_DNS: "Waiting for DNS", PROVISIONING: "Preparing HTTPS", ACTIVE: "Connected", ERROR: "Needs attention", DELETING: "Disconnecting" };
 
 export function WebsiteDomains({ salonId, includedUrl, settings, onChange }: {
@@ -29,7 +70,8 @@ export function WebsiteDomains({ salonId, includedUrl, settings, onChange }: {
   const [copied, setCopied] = useState("");
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const requestId = useRef(0);
-  useEffect(() => () => { requestId.current++; }, []);
+  const copiedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => { requestId.current++; window.clearTimeout(copiedTimer.current); }, []);
   const endpoint = `${ADMIN_API}/${salonId}/website/domains`;
   const domain = settings?.domain;
 
@@ -56,7 +98,13 @@ export function WebsiteDomains({ salonId, includedUrl, settings, onChange }: {
   }
 
   async function copy(value: string) {
-    try { await navigator.clipboard.writeText(value); setCopied(value); }
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(value);
+      // Revert the check mark to the copy icon so the next copy gives fresh feedback.
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(""), 2000);
+    }
     catch { setError("Could not copy. Select the DNS value and copy it manually."); }
   }
 
@@ -106,19 +154,26 @@ export function WebsiteDomains({ salonId, includedUrl, settings, onChange }: {
               : <>Some providers append your domain automatically; enter only the part before your domain in that case.</>}
               {" "}Use DNS-only mode for the CNAME. DNS changes can take time to appear. HTTPS is prepared automatically.</p>
           </>}
-          <div className="flex flex-wrap gap-3 items-center">
-            <button type="button" disabled={busy || !settings.available} onClick={() => act("POST", "/check")} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Checking…" : "Check connection"}</button>
-            {connectedHostname(settings) && <a href={`https://${domain.hostname}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-matcha-700">Visit website <ExternalLink className="h-3.5 w-3.5" /></a>}
-            {domain.status !== "DELETING" && <button type="button" disabled={busy} onClick={() => setConfirmDisconnect(true)} className="text-sm text-red-600 disabled:opacity-50">Disconnect</button>}
-          </div>
+          {connectedHostname(settings)
+            // Connected: nothing left to check manually (background checks keep running), so the
+            // primary action becomes Disconnect and Visit website is a secondary button.
+            ? <div className="flex flex-wrap gap-3 items-center">
+              <button type="button" disabled={busy} onClick={() => setConfirmDisconnect(true)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">Disconnect</button>
+              <a href={`https://${domain.hostname}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-matcha-600 px-4 py-2 text-sm font-semibold text-matcha-700 no-underline hover:bg-matcha-50">Visit website <ExternalLink className="h-3.5 w-3.5" /></a>
+            </div>
+            : <div className="flex flex-wrap gap-3 items-center">
+              <button type="button" disabled={busy || !settings.available} onClick={() => act("POST", "/check")} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Checking…" : "Check connection"}</button>
+              {domain.status !== "DELETING" && <button type="button" disabled={busy} onClick={() => setConfirmDisconnect(true)} className="text-sm text-red-600 disabled:opacity-50">Disconnect</button>}
+            </div>}
           {confirmDisconnect && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             <p>Disconnect {domain.hostname}? It will stop serving your website. Your included address will keep working. Remove the DNS records from your provider afterwards.</p>
             <div className="mt-3 flex gap-4"><button type="button" disabled={busy} onClick={() => act("DELETE")} className="font-semibold">Disconnect domain</button><button type="button" disabled={busy} onClick={() => setConfirmDisconnect(false)}>Cancel</button></div>
           </div>}
           {domain.checkedAt && <p className="text-xs text-slate-400">Last checked: {new Date(domain.checkedAt).toLocaleString()}</p>}
+          {domain.status !== "DELETING" && bareDomainFor(domain) && <BareDomainRedirectHelp bare={bareDomainFor(domain)!} target={domain.hostname} connected={!!connectedHostname(settings)} />}
         </div> : settings.available && settings.websiteEnabled && <form onSubmit={(event) => { event.preventDefault(); void act("POST", "", { hostname: hostname.trim() }); }} className="space-y-3">
           <label htmlFor="custom-hostname" className="block text-sm font-semibold text-slate-700">Connect your own domain</label>
-          <p id="custom-hostname-help" className="text-sm text-slate-500">Use a hostname such as www.mysalon.dk. This setup requires a CNAME record; bare domains such as mysalon.dk are not supported in this release.</p>
+          <p id="custom-hostname-help" className="text-sm text-slate-500">Use a hostname such as www.mysalon.dk. This setup requires a CNAME record, so bare domains such as mysalon.dk can't be connected directly — connect www.mysalon.dk and we'll show you how to redirect mysalon.dk to it.</p>
           <div className="flex gap-2 flex-wrap"><input id="custom-hostname" aria-describedby="custom-hostname-help" value={hostname} onChange={(event) => setHostname(event.target.value)} placeholder="www.mysalon.dk" required maxLength={253} autoCapitalize="none" autoCorrect="off" spellCheck={false} disabled={busy} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-matcha-500" /><button disabled={busy || !hostname.trim()} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Connect domain</button></div>
         </form>}
       </>}

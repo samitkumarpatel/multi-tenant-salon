@@ -28,7 +28,9 @@ export default {
       try {
         const resolution = await fetch(API_BASE + "/api/salon/domain/resolve?hostname=" + encodeURIComponent(tenantHost), {
           headers: { Accept: "application/json" },
-          redirect: "error",
+          // Workers only support "follow" | "manual" ("error" throws a TypeError). With "manual" a
+          // redirect comes back as a 3xx response, which !ok below treats as unavailable.
+          redirect: "manual",
           signal: AbortSignal.timeout(10000),
           cf: { cacheTtl: 0, cacheEverything: false },
         });

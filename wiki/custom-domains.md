@@ -1,5 +1,8 @@
 # Customer website domains
 
+> New to this feature? Start with the step-by-step walkthrough in
+> [custom-domains-flow.md](custom-domains-flow.md). This page is the setup and operations reference.
+
 Owners connect one hostname under **Admin → Website → Domains**. They keep their
 registrar, nameservers and DNS provider. We never create a customer DNS zone or
 change their DNS records. The existing `<handler>.salonsaas.org` address remains

@@ -151,7 +151,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
 export default function WebsiteManagement() {
   const { salon, setWebsiteMode: persistMode } = useOutletContext<LayoutContext>();
   const { initialWebsiteMode, domains: initialDomains, sid } = useLoaderData<typeof clientLoader>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const section = searchParams.get("section") === "domain" ? "domain" : "design";
   const [domains, setDomains] = useState(initialDomains);
   useEffect(() => { setDomains(initialDomains); }, [initialDomains, sid]);
@@ -167,13 +167,6 @@ export default function WebsiteManagement() {
 
   const includedUrl = websiteUrl(salon.handler ?? String(salon.id));
   const liveUrl = websiteUrl(salon.handler ?? String(salon.id), connectedHostname(domains));
-
-  function selectSection(next: "domain" | "design") {
-    const params = new URLSearchParams(searchParams);
-    if (next === "design") params.delete("section");
-    else params.set("section", next);
-    setSearchParams(params, { preventScrollReset: true });
-  }
 
   return (
     <div className="max-w-2xl">
@@ -197,37 +190,12 @@ export default function WebsiteManagement() {
         )}
       </div>
 
-      <div role="tablist" aria-label="Website settings" className="mb-6 grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1">
-        <button
-          id="website-domain-tab"
-          type="button"
-          role="tab"
-          aria-selected={section === "domain"}
-          aria-controls="website-domain-panel"
-          onClick={() => selectSection("domain")}
-          className={`min-h-10 cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "domain" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
-        >
-          Domain
-        </button>
-        <button
-          id="website-design-tab"
-          type="button"
-          role="tab"
-          aria-selected={section === "design"}
-          aria-controls="website-design-panel"
-          onClick={() => selectSection("design")}
-          className={`min-h-10 cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "design" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
-        >
-          Web &amp; Design
-        </button>
-      </div>
-
       {section === "domain" ? (
-        <div id="website-domain-panel" role="tabpanel" aria-labelledby="website-domain-tab">
+        <div id="website-domain-panel">
           <WebsiteDomains key={sid} salonId={sid} includedUrl={includedUrl} settings={domains} onChange={setDomains} />
         </div>
       ) : (
-      <div id="website-design-panel" role="tabpanel" aria-labelledby="website-design-tab" className="flex flex-col gap-4">
+      <div id="website-design-panel" className="flex flex-col gap-4">
 
         <ModeCard
           id="STATIC_WEBSITE"

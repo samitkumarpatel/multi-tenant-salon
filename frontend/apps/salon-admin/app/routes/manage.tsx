@@ -43,6 +43,8 @@ type SalonLink = {
   label: string;
   desc: string;
   url: string;
+  /** Another address for the same page, shown under `url` after an "or". */
+  altUrl?: string;
   icon: React.ElementType;
 };
 
@@ -81,7 +83,12 @@ export default function Manage() {
       desc: "Team member access",
     },
     ...(hasBooking ? [{
-      key: "booking" as LinkKey, label: "Booking Link", icon: CalendarCheck, url: bookingUrl(handler),
+      // With a connected custom domain the website's own /book page is the branded booking link;
+      // the book.salonsaas.org link keeps working, so both are shown.
+      key: "booking" as LinkKey, label: "Booking Link", icon: CalendarCheck,
+      ...(dashboardSettings.customHostname
+        ? { url: `https://${dashboardSettings.customHostname}/book`, altUrl: bookingUrl(handler) }
+        : { url: bookingUrl(handler) }),
       desc: "Customer-facing appointment page",
     }] : []),
     ...(hasDashboard && dashboardAvailable ? [{
@@ -437,8 +444,8 @@ function CompactLinkList({
 }) {
   return (
     <ul className="divide-y divide-slate-100">
-      {links.map(({ key, label, desc, url, icon: Icon }) => (
-        <li key={key} className="flex items-center gap-3 px-3 py-3 sm:px-4">
+      {links.map(({ key, label, desc, url, altUrl, icon: Icon }) => (
+        <li key={key} className="flex items-start gap-3 px-3 py-3 sm:px-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
             <Icon className="h-4 w-4 text-slate-500" />
           </div>
@@ -447,30 +454,44 @@ function CompactLinkList({
               <p className="shrink-0 text-sm font-semibold text-slate-800">{label}</p>
               <p className="hidden truncate text-[11px] text-slate-400 sm:block">{desc}</p>
             </div>
-            <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{url}</p>
+            <LinkUrl url={url} label={label} copyKey={key} copied={copied} onCopy={onCopy} />
+            {altUrl && <>
+              <p className="text-[11px] text-slate-400">or</p>
+              <LinkUrl url={altUrl} label={label} copyKey={`${key}-alt`} copied={copied} onCopy={onCopy} />
+            </>}
           </div>
-          <button
-            type="button"
-            onClick={() => onCopy(url, key)}
-            className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
-            title={`Copy ${label} URL`}
-            aria-label={`Copy ${label} URL`}
-          >
-            {copied === key ? <Check className="h-4 w-4 text-matcha-600" /> : <Copy className="h-4 w-4" />}
-          </button>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-            title={`Open ${label}`}
-            aria-label={`Open ${label} in a new tab`}
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
         </li>
       ))}
     </ul>
+  );
+}
+
+function LinkUrl({ url, label, copyKey, copied, onCopy }: {
+  url: string; label: string; copyKey: string; copied: string | null; onCopy: (url: string, key: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-500">{url}</p>
+      <button
+        type="button"
+        onClick={() => onCopy(url, copyKey)}
+        className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+        title={`Copy ${url}`}
+        aria-label={`Copy ${label} URL ${url}`}
+      >
+        {copied === copyKey ? <Check className="h-4 w-4 text-matcha-600" /> : <Copy className="h-4 w-4" />}
+      </button>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        title={`Open ${url}`}
+        aria-label={`Open ${label} ${url} in a new tab`}
+      >
+        <ExternalLink className="h-4 w-4" />
+      </a>
+    </div>
   );
 }
 

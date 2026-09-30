@@ -127,7 +127,7 @@ public class StripeConnectService implements PaymentGateway {
         var saved = new SalonPaymentSettings(salonId, shop, booking, pos, bookingType, depositPercent, Instant.now());
         jdbc.sql("INSERT INTO salon_payment_settings (salon_id, shop_enabled, booking_enabled, pos_enabled, booking_payment_type, booking_deposit_percent, updated_at) VALUES (:id, :shop, :booking, :pos, :type, :deposit, :updated) ON CONFLICT (salon_id) DO UPDATE SET shop_enabled = EXCLUDED.shop_enabled, booking_enabled = EXCLUDED.booking_enabled, pos_enabled = EXCLUDED.pos_enabled, booking_payment_type = EXCLUDED.booking_payment_type, booking_deposit_percent = EXCLUDED.booking_deposit_percent, updated_at = EXCLUDED.updated_at")
                 .param("id", salonId).param("shop", shop).param("booking", booking).param("pos", pos)
-                .param("type", bookingType.name()).param("deposit", depositPercent).param("updated", saved.updatedAt()).update();
+                .param("type", bookingType.name()).param("deposit", depositPercent).param("updated", timestamp(saved.updatedAt())).update();
         return saved;
     }
 
@@ -366,11 +366,16 @@ public class StripeConnectService implements PaymentGateway {
         return saveAccount(accountState(saved.salonId(), saved.country(), response));
     }
 
-    private StripeConnectedAccount saveAccount(StripeConnectedAccount account) {
+    /** pgjdbc can't infer a SQL type for java.time.Instant through JdbcClient; OffsetDateTime maps to timestamptz. */
+    private static java.time.OffsetDateTime timestamp(Instant instant) {
+        return instant == null ? null : java.time.OffsetDateTime.ofInstant(instant, java.time.ZoneOffset.UTC);
+    }
+
+    StripeConnectedAccount saveAccount(StripeConnectedAccount account) {
         jdbc.sql("INSERT INTO stripe_connected_account (salon_id, stripe_account_id, country, details_submitted, charges_enabled, payouts_enabled, updated_at) VALUES (:salon, :account, :country, :details, :charges, :payouts, :updated) ON CONFLICT (salon_id) DO UPDATE SET stripe_account_id = EXCLUDED.stripe_account_id, country = EXCLUDED.country, details_submitted = EXCLUDED.details_submitted, charges_enabled = EXCLUDED.charges_enabled, payouts_enabled = EXCLUDED.payouts_enabled, updated_at = EXCLUDED.updated_at")
                 .param("salon", account.salonId()).param("account", account.stripeAccountId()).param("country", account.country())
                 .param("details", account.detailsSubmitted()).param("charges", account.chargesEnabled())
-                .param("payouts", account.payoutsEnabled()).param("updated", account.updatedAt()).update();
+                .param("payouts", account.payoutsEnabled()).param("updated", timestamp(account.updatedAt())).update();
         return account;
     }
 

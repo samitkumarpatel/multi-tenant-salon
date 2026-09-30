@@ -45,6 +45,24 @@ test("wrong hostname mapping is rejected", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json({ hostname: "www.bob.dk", salonId: "bob-id" }));
   assert.equal((await worker.fetch(new Request("https://www.alice.dk/"))).status, 404);
 });
+test("resolve uses a redirect mode Cloudflare Workers support", async (t) => {
+  // Workers accept only "follow" | "manual"; anything else (e.g. "error") throws at runtime,
+  // which Node's fetch would not catch in these tests.
+  let init;
+  t.mock.method(globalThis, "fetch", async (_request, options) => {
+    init ??= options;
+    return Response.json({ hostname: "www.alice.dk", salonId: "alice-id" });
+  });
+  await worker.fetch(new Request("https://www.alice.dk/"));
+  assert.ok(["follow", "manual"].includes(init.redirect), `unsupported redirect mode ${init.redirect}`);
+  assert.equal(init.redirect, "manual");
+});
+test("a redirecting resolve response fails closed", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    new Response(null, { status: 302, headers: { Location: "https://evil.example/" } }));
+  assert.equal((await worker.fetch(new Request("https://www.alice.dk/"))).status, 503);
+  assert.equal(fetch.mock.callCount(), 1);
+});
 test("HTTP redirects preserve the tenant hostname and path", async () => {
   const response = await worker.fetch(new Request("http://alice.salonsaas.org/team"));
   assert.equal(response.status, 308);

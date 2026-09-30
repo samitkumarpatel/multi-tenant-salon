@@ -51,6 +51,16 @@ Backend environment variables (non-Terraform deployments):
 | `PAYMENTS_WEBSITE_APP_URL` | empty — set only when the website runs on a single host with `?slug=` (local dev) |
 | `SALON_DOMAIN` | `salonsaas.org` — tenant subdomain for the shop fallback return |
 
+## Payment methods
+
+Checkout Sessions don't set `payment_method_types`, so Stripe offers every method the salon has
+enabled on its own connected account that fits the currency and the customer's device (cards,
+Apple Pay / Google Pay, MobilePay, Klarna, …). Salons have the full Stripe Dashboard, so the owner
+manages this themselves at **Stripe Dashboard → Settings → Payment methods**; once connected, the
+admin Payments screen links there ("Manage payment methods"). The choice is account-wide — the same
+methods apply to Shop, Booking and Till / POS. Per-area choices would need Stripe's Payment Method
+Configurations API and aren't implemented.
+
 ## Return pages and custom domains
 
 The website stores the pending order/booking in `sessionStorage`, which is per-origin, so Stripe must

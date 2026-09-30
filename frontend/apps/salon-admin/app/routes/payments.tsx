@@ -8,6 +8,9 @@ import type { LayoutContext } from "~/lib/types";
 
 type Account = { stripeAccountId: string; detailsSubmitted: boolean; chargesEnabled: boolean; payoutsEnabled: boolean };
 type Settings = { salonId: string; shopEnabled: boolean; bookingEnabled: boolean; posEnabled: boolean; bookingPaymentType: "FULL" | "DEPOSIT"; bookingDepositPercent: number };
+// Checkout Sessions don't pin payment_method_types, so Stripe offers whatever the salon enables here
+// (salons have the full Stripe Dashboard on their own connected account).
+const STRIPE_PAYMENT_METHODS_URL = "https://dashboard.stripe.com/settings/payment_methods";
 type Payload = { stripe: { account: Account | null; settings: Settings; configured: boolean } };
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
@@ -71,8 +74,12 @@ export default function PaymentsPage() {
           {account && <p className="mt-2 text-[11px] text-slate-400">Account {account.stripeAccountId} · {account.payoutsEnabled ? "Payouts enabled" : "Payout setup pending"}</p>}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {connected ? <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"><BadgeCheck className="h-4 w-4" /> Connected</span> : <button type="button" disabled={busy || !payload.stripe.configured} onClick={connectStripe} className="inline-flex items-center gap-2 rounded-lg bg-matcha-700 px-4 py-2 text-xs font-semibold text-white hover:bg-matcha-800 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}{account ? "Continue Stripe setup" : "Connect with Stripe"}</button>}
+            {connected && <a href={STRIPE_PAYMENT_METHODS_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 no-underline hover:bg-slate-50">Manage payment methods <ExternalLink className="h-3.5 w-3.5" /></a>}
             {!payload.stripe.configured && <span className="text-xs text-amber-700">Stripe is not configured for this environment.</span>}
           </div>
+          {connected && <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+            Customers see the payment methods you turn on in your Stripe account — for example cards, Apple Pay, Google Pay, MobilePay or Klarna, where available for your country and currency. Sign in to Stripe with your own Stripe login to change them. The same methods apply to the shop, bookings and the till.
+          </p>}
         </div>
       </div>
     </section>
