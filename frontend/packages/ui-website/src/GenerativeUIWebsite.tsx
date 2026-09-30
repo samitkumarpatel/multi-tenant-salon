@@ -852,11 +852,16 @@ export function GenerativeUIWebsite({
       return next;
     });
 
-    apiFetch<Booking>(`${API_BASE}/api/salon/${salon.id}/booking`, {
+    apiFetch<Booking | { booking: Booking; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/booking`, {
       method: "POST",
       body: JSON.stringify(payload),
     })
-      .then((booking) => {
+      .then((result) => {
+        const booking = "booking" in result ? result.booking : result;
+        if ("checkoutUrl" in result && result.checkoutUrl) {
+          window.location.assign(result.checkoutUrl);
+          return;
+        }
         setMessages((prev) => {
           const next = [...prev];
           const m = next[messageIndex];

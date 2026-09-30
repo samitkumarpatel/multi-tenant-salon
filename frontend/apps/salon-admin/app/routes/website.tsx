@@ -205,7 +205,7 @@ export default function WebsiteManagement() {
           aria-selected={section === "domain"}
           aria-controls="website-domain-panel"
           onClick={() => selectSection("domain")}
-          className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "domain" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+          className={`min-h-10 cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "domain" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
         >
           Domain
         </button>
@@ -216,7 +216,7 @@ export default function WebsiteManagement() {
           aria-selected={section === "design"}
           aria-controls="website-design-panel"
           onClick={() => selectSection("design")}
-          className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "design" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+          className={`min-h-10 cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "design" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
         >
           Web &amp; Design
         </button>

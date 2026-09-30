@@ -19,12 +19,15 @@ public record PosSale(
         BigDecimal total,
         String currency,
         Instant createdAt,
+        String paymentStatus,
+        String paymentReference,
         @MappedCollection(idColumn = "sale_id", keyColumn = "sale_key") List<Line> lines
 ) {
     public enum PaymentMethod { CASH, CARD, OTHER }
     public enum SourceType { SERVICE, PRODUCT }
 
     public PosSale {
+        if (paymentStatus == null) paymentStatus = "PAID";
         lines = lines != null ? List.copyOf(lines) : List.of();
     }
 

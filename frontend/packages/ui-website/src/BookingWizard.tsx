@@ -1588,6 +1588,20 @@ export function BookingWizard({
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentReturned, setPaymentReturned] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "success") return;
+    setPaymentReturned(true);
+    try {
+      const saved = window.sessionStorage.getItem(`booking-payment:${salon.id}`);
+      if (!saved) return;
+      setConfirmed(JSON.parse(saved) as Booking);
+      window.sessionStorage.removeItem(`booking-payment:${salon.id}`);
+      setStep(5);
+    } catch { /* Ignore stale checkout return data. */ }
+  }, [salon.id]);
 
   useEffect(() => {
     loadGoogleFont(theme.fontFamily);
@@ -1647,7 +1661,7 @@ export function BookingWizard({
     setBusy(true);
     setError(null);
     try {
-      const booking = await apiFetch<Booking>(`${CUSTOMER_API}/${salon.id}/booking`, {
+      const result = await apiFetch<Booking | { booking: Booking; checkoutUrl: string }>(`${CUSTOMER_API}/${salon.id}/booking`, {
         method: "POST",
         body: JSON.stringify({
           serviceId: service.id,
@@ -1660,6 +1674,12 @@ export function BookingWizard({
           notes: form.notes || null,
         }),
       });
+      const booking = "booking" in result ? result.booking : result;
+      if ("checkoutUrl" in result && result.checkoutUrl) {
+        window.sessionStorage.setItem(`booking-payment:${salon.id}`, JSON.stringify(booking));
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       setConfirmed(booking);
       setStep(5);
     } catch (e) {
@@ -1682,6 +1702,7 @@ export function BookingWizard({
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStackCss }}>
       {/* Accent ribbon */}
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
+      {paymentReturned && !confirmed && <div className="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm text-green-800">Payment received. Your appointment is being confirmed by the salon.</div>}
 
       {/* Header — same chrome as the salon website (Book link swapped for Back) */}
       <SiteHeader salon={salon} theme={theme} current="book" onBack={onExit} onNavigate={onNavigate} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />

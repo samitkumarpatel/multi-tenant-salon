@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLoaderData, useOutletContext } from "react-router";
+import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Bell, CalendarCheck, Check, ExternalLink, ShoppingCart } from "lucide-react";
 import { Toast, useToast } from "@salon/ui-shared";
@@ -49,7 +49,7 @@ export default function DashboardSettingsPage() {
   return <div className="max-w-3xl space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-xl font-bold text-slate-900">Dashboard</h1><p className="mt-1 text-sm text-slate-500">Choose which operational tools your salon can use.</p></div>
-      <a href={dashboardUrl(String(salon.id))} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-matcha-700">Open Dashboard <ExternalLink className="h-4 w-4" /></a>
+      <div className="flex flex-wrap gap-2"><Link to={`/${salon.id}/payments`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 no-underline hover:bg-slate-50">Payment setup</Link><a href={dashboardUrl(String(salon.id))} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-matcha-700">Open Dashboard <ExternalLink className="h-4 w-4" /></a></div>
     </div>
 
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

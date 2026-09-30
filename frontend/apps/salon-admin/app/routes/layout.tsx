@@ -652,6 +652,12 @@ export default function Layout() {
               </Tooltip>
             )}
 
+            <Tooltip content="Connect Stripe and choose which salon features can accept card payments.">
+              <NavLink to="payments" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <CreditCard className="w-4 h-4 shrink-0" /> Payments
+              </NavLink>
+            </Tooltip>
+
             {FEATURE_NAV.some((f) => salon.features?.includes(f.key)) && (
               <>
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5 mt-2">

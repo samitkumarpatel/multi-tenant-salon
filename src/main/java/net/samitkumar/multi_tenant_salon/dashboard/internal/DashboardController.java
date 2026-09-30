@@ -23,6 +23,7 @@ class DashboardController {
                            boolean notificationsEnabled, String defaultNotification) {}
     record SaleRequest(String customerName, PosSale.PaymentMethod paymentMethod,
                        List<DashboardManager.SaleItemRequest> items) {}
+    record CardCheckoutResponse(PosSale sale, String checkoutUrl) {}
     record NotificationRequest(String subject, String message) {}
 
     @GetMapping("/settings")
@@ -48,8 +49,18 @@ class DashboardController {
 
     @PostMapping("/sales")
     ResponseEntity<PosSale> createSale(@PathVariable String salonId, @RequestBody SaleRequest request) {
+        if (request.paymentMethod() == PosSale.PaymentMethod.CARD) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Use the card checkout endpoint for Stripe payments");
+        }
         return ResponseEntity.ok(dashboard.createSale(salonApi.resolveId(salonId), request.customerName(),
                 request.paymentMethod(), request.items()));
+    }
+
+    @PostMapping("/sales/card-checkout")
+    ResponseEntity<CardCheckoutResponse> createCardCheckout(@PathVariable String salonId, @RequestBody SaleRequest request) {
+        var result = dashboard.createCardCheckout(salonApi.resolveId(salonId), request.customerName(), request.items());
+        return ResponseEntity.ok(new CardCheckoutResponse(result.sale(), result.checkoutUrl()));
     }
 
     @PostMapping("/bookings/{bookingId}/notifications")

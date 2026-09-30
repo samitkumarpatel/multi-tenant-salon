@@ -22,5 +22,7 @@ public record Booking(
         LocalTime endTime,
         BookingStatus status,
         String notes,
-        Instant createdAt
+        Instant createdAt,
+        String paymentStatus,
+        String paymentReference
 ) {}

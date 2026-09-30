@@ -72,6 +72,20 @@ A root-level `frontend/.env` file (modelled on `frontend/.env.example`) applies 
 | `VITE_SALON_DOMAIN` | `my-salon.online` | admin, onboarding, public-website | Base domain for tenant URLs (e.g. `my-salon.my-salon.online`). The public-website uses this to extract the salon slug from the subdomain; falls back to `?slug=` query param when running on `localhost`. |
 | `VITE_ADMIN_APP_URL` | `http://localhost:5173` | onboarding | URL of the admin app; used to redirect after salon creation. Set to the deployed admin URL in production. |
 
+### Stripe Connect payments
+
+To enable Connect onboarding and checkout, configure the backend with `STRIPE_SECRET_KEY` and
+`STRIPE_WEBHOOK_SECRET`. Set `PAYMENTS_ADMIN_APP_URL`, `PAYMENTS_DASHBOARD_APP_URL`,
+`PAYMENTS_BOOKING_APP_URL`, `PAYMENTS_WEBSITE_APP_URL` (optional), and `SALON_DOMAIN` to the
+deployed frontend origins. Register a Connect webhook at `/api/payments/stripe/webhook` for
+connected-account `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, and `checkout.session.expired` events. For local work,
+forward Stripe CLI Connect events to `http://localhost:8080/api/payments/stripe/webhook` and use
+the CLI-provided signing secret as `STRIPE_WEBHOOK_SECRET`.
+
+Till / POS card payments currently use Stripe Checkout in the browser; accepting physical
+card-present taps through Stripe Terminal readers is a separate hardware integration.
+
 ## Port summary
 
 | Service | URL | Purpose |

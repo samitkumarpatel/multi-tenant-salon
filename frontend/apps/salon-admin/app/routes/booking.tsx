@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLoaderData, useOutletContext, useSearchParams } from "react-router";
+import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
@@ -2237,6 +2237,7 @@ function BookingSettingsPanel({
       </div>
 
       <div className="flex justify-end">
+        <Link to={`/${salon.id}/payments`} className="mr-auto inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 no-underline hover:bg-slate-50">Payment setup</Link>
         <button onClick={save} disabled={saving}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
           {saved ? <><Check className="w-3 h-3" /> Saved!</> : saving ? "Saving…" : "Save settings"}

@@ -63,6 +63,19 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const [sort, setSort] = useState<"default" | "price-asc" | "price-desc" | "name-asc">("default");
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "success") return;
+    try {
+      const pending = window.sessionStorage.getItem(`shop-pending-order:${salon.id}`);
+      if (!pending) return;
+      setPlaced(JSON.parse(pending) as ShopOrder);
+      window.sessionStorage.removeItem(`shop-pending-order:${salon.id}`);
+      cart.clear();
+      setStep("done");
+    } catch { /* Ignore stale checkout return data. */ }
+  }, [salon.id]);
+
   // Card size is the shopper's browsing preference, not salon data — one setting shared
   // across every storefront, same as a device-wide theme choice.
   const [density, setDensity] = useState<"comfortable" | "compact">(() => {
@@ -201,7 +214,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           Order placed
         </h1>
         <p className="text-sm mb-1" style={{ color: sub }}>
-          Thanks, {placed.customerName.split(" ")[0]}! Your order number is
+          {placed.paymentStatus === "PENDING" ? "Payment received. We’re confirming your order." : `Thanks, ${placed.customerName.split(" ")[0]}! Your order number is`}
         </p>
         <p className="text-lg font-bold mb-6" style={{ color: theme.heroTextColor }}>{placed.orderNumber}</p>
         <div
@@ -218,7 +231,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
             </div>
           ))}
           <div className="border-t mt-2 pt-2 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
-            <span>Total paid</span>
+            <span>{placed.paymentStatus === "PENDING" ? "Total" : "Total paid"}</span>
             <span>{formatPrice(placed.subtotal, placed.currency)}</span>
           </div>
         </div>
@@ -1310,7 +1323,7 @@ function CheckoutForm({
         line1: f.line1 || undefined, line2: f.line2 || undefined, city: f.city || undefined,
         state: f.state || undefined, country: f.country || undefined, zipCode: f.zipCode || undefined,
       };
-      const order = await apiFetch<ShopOrder>(`${API_BASE}/api/salon/${salon.id}/shop/orders`, {
+      const result = await apiFetch<ShopOrder | { order: ShopOrder; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/shop/orders`, {
         method: "POST",
         body: JSON.stringify({
           customerName: f.customerName.trim(),
@@ -1321,6 +1334,12 @@ function CheckoutForm({
           communicationPreference: f.communicationPreference,
         }),
       });
+      const order = "order" in result ? result.order : result;
+      if ("checkoutUrl" in result && result.checkoutUrl) {
+        window.sessionStorage.setItem(`shop-pending-order:${salon.id}`, JSON.stringify(order));
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       onPlaced(order);
     } catch (e) {
       setSubmitError(friendlyMessage(e));

@@ -57,6 +57,12 @@ class ShopCatalogService implements ShopCatalogApi {
         if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "Product is out of stock");
     }
 
+    @Override
+    public void incrementStock(UUID salonId, Long variantId, int quantity) {
+        jdbc.sql("UPDATE product_variant SET quantity_on_hand = quantity_on_hand + :qty WHERE id = :id AND salon_id = :salon")
+                .param("qty", quantity).param("id", variantId).param("salon", salonId).update();
+    }
+
     private CatalogItem toItem(Product product, ProductVariant variant) {
         return new CatalogItem(variant.id(), product.id(), product.name(), variant.label(), variant.price(),
                 variant.currency(), variant.quantityOnHand());

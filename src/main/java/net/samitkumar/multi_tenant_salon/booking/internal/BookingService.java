@@ -517,7 +517,7 @@ class BookingService implements BookingApi {
     @Transactional
     Booking create(UUID salonId, Long serviceId, Long requestedStaffId,
                    String customerName, String customerEmail, String customerPhone,
-                   LocalDate appointmentDate, LocalTime startTime, String notes) {
+                   LocalDate appointmentDate, LocalTime startTime, String notes, boolean paymentRequired) {
         log.info("[BookingService] Creating booking for salon={} service={} customer='{}' date={} time={}", salonId, serviceId, customerEmail, appointmentDate, startTime);
         if (salonApi.isClosedOn(salonId, appointmentDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -554,13 +554,13 @@ class BookingService implements BookingApi {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Requested slot is no longer available");
         }
 
-        var initialStatus = salonApi.bookingRequiresConfirmation(salonId)
+        var initialStatus = paymentRequired || salonApi.bookingRequiresConfirmation(salonId)
                 ? BookingStatus.PENDING
                 : BookingStatus.CONFIRMED;
         var booking = new Booking(null, salonId, serviceId, staffId,
                 customerName, customerEmail, customerPhone,
                 appointmentDate, startTime, endTime,
-                initialStatus, notes, Instant.now());
+                initialStatus, notes, Instant.now(), paymentRequired ? "PENDING" : "NOT_REQUIRED", null);
         var saved = bookingRepo.save(booking);
         log.info("[BookingService] Booking created id={} status={} staff={}", saved.id(), saved.status(), staffId);
         var salon = salonContact(salonId);
@@ -585,7 +585,7 @@ class BookingService implements BookingApi {
             var updated = new Booking(existing.id(), existing.salonId(), existing.serviceId(),
                     existing.staffId(), existing.customerName(), existing.customerEmail(),
                     existing.customerPhone(), existing.appointmentDate(), existing.startTime(),
-                    existing.endTime(), newStatus, existing.notes(), existing.createdAt());
+                    existing.endTime(), newStatus, existing.notes(), existing.createdAt(), existing.paymentStatus(), existing.paymentReference());
             var saved = bookingRepo.save(updated);
             var salon = salonContact(salonId);
             eventPublisher.publishEvent(new BookingStatusChangedEvent(
@@ -620,7 +620,7 @@ class BookingService implements BookingApi {
             var updated = new Booking(existing.id(), existing.salonId(), existing.serviceId(),
                     staffId, existing.customerName(), existing.customerEmail(),
                     existing.customerPhone(), newDate, newStartTime, newEndTime,
-                    existing.status(), notes != null ? notes : existing.notes(), existing.createdAt());
+                    existing.status(), notes != null ? notes : existing.notes(), existing.createdAt(), existing.paymentStatus(), existing.paymentReference());
             var saved = bookingRepo.save(updated);
             var salon = salonContact(salonId);
             eventPublisher.publishEvent(new BookingRescheduledEvent(
@@ -638,6 +638,24 @@ class BookingService implements BookingApi {
 
             return saved;
         });
+    }
+
+    @Transactional
+    void recordStripePayment(UUID salonId, Long bookingId, String sessionId, boolean succeeded) {
+        var booking = bookingRepo.findBySalonIdAndId(salonId, bookingId).orElse(null);
+        if (booking == null || !"PENDING".equals(booking.paymentStatus())) return;
+        var nextStatus = succeeded
+                ? (salonApi.bookingRequiresConfirmation(salonId) ? BookingStatus.PENDING : BookingStatus.CONFIRMED)
+                : BookingStatus.CANCELLED;
+        int updated = jdbcClient.sql("UPDATE booking SET payment_status = :payment, payment_reference = :reference, status = :status WHERE id = :id AND salon_id = :salon AND payment_status = 'PENDING'")
+                .param("payment", succeeded ? "PAID" : "FAILED").param("reference", sessionId)
+                .param("status", nextStatus.name()).param("id", bookingId).param("salon", salonId).update();
+        if (updated == 1 && !succeeded) {
+            var salon = salonContact(salonId);
+            eventPublisher.publishEvent(new BookingStatusChangedEvent(booking.id(), salonId, BookingStatus.CANCELLED,
+                    booking.customerName(), booking.customerEmail(), booking.customerPhone(), booking.appointmentDate(),
+                    booking.startTime(), booking.endTime(), salon.name(), salon.phone(), salon.email()));
+        }
     }
 
     @Transactional

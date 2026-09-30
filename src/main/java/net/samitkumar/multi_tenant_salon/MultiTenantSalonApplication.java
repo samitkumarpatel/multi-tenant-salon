@@ -85,7 +85,8 @@ public class MultiTenantSalonApplication {
 										// checks the target salon has opted into the ANALYTICS feature before
 										// enqueuing anything.
 										"/api/analytics/**",
-										"/internal/user-identity").permitAll()
+								"/internal/user-identity").permitAll()
+								.requestMatchers("/api/payments/stripe/webhook").permitAll()
 								.requestMatchers("/api/salon-super-admin/**").hasRole("SUPER_ADMIN")
 								// A salon owner is also auto-enrolled as a staff_member row (role=MANAGER,
 								// isOwner=true) so they can use the same portal for their own bookings/holidays —

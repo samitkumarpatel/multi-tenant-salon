@@ -48,6 +48,14 @@ spring:
       staff-app-url: ${NOTIFICATION_STAFF_APP_URL:https://staff.salonsaas.org}
       booking-app-url: ${NOTIFICATION_BOOKING_APP_URL:https://book.salonsaas.org}
       support-email: ${NOTIFICATION_SUPPORT_EMAIL:admin@salonsaas.org}
+    payments:
+      stripe-secret-key: ${STRIPE_SECRET_KEY:}
+      stripe-webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+      admin-app-url: ${PAYMENTS_ADMIN_APP_URL:https://admin.salonsaas.org}
+      dashboard-app-url: ${PAYMENTS_DASHBOARD_APP_URL:https://dashboard.salonsaas.org}
+      booking-app-url: ${PAYMENTS_BOOKING_APP_URL:https://book.salonsaas.org}
+      website-app-url: ${PAYMENTS_WEBSITE_APP_URL:}
+      salon-domain: ${SALON_DOMAIN:salonsaas.org}
     chat:
       # Base URL the AI assistant's tools use to call this app's own public /api/salon/** API.
       internal-api-base-url: ${INTERNAL_API_BASE_URL:http://localhost:8080}
@@ -102,6 +110,7 @@ spring:
         - classpath:db/V9__shop_module.sql
         - classpath:db/V10__additional_changes.sql
         - classpath:db/V11__website_domains.sql
+        - classpath:db/V12__stripe_connect.sql
   modulith:
     events:
       jdbc:

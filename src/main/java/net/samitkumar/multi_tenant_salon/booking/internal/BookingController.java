@@ -5,6 +5,8 @@ import net.samitkumar.multi_tenant_salon.booking.Booking;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import net.samitkumar.multi_tenant_salon.booking.SalonAvailability;
 import net.samitkumar.multi_tenant_salon.booking.StaffSchedule;
+import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
+import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -22,10 +24,16 @@ class BookingController {
 
     private final BookingService service;
     private final SalonApi salonApi;
+    private final PaymentGateway stripe;
+    private final SalonServiceApi services;
 
-    BookingController(BookingService service, SalonApi salonApi) {
+    record BookingCheckout(Booking booking, String checkoutUrl) {}
+
+    BookingController(BookingService service, SalonApi salonApi, PaymentGateway stripe, SalonServiceApi services) {
         this.service = service;
         this.salonApi = salonApi;
+        this.stripe = stripe;
+        this.services = services;
     }
 
     record CreateBookingRequest(Long serviceId, Long staffId, String customerName,
@@ -72,16 +80,39 @@ class BookingController {
     }
 
     @PostMapping({"/api/salon/{salonId}/booking", "/api/salon-admin/{salonId}/booking"})
-    ResponseEntity<Booking> createBooking(@PathVariable String salonId,
-                                          @RequestBody CreateBookingRequest request) {
+    ResponseEntity<?> createBooking(@PathVariable String salonId,
+                                    @RequestBody CreateBookingRequest request,
+                                    jakarta.servlet.http.HttpServletRequest httpRequest) {
+        var id = salonApi.resolveId(salonId);
+        boolean customerBooking = httpRequest.getRequestURI().startsWith("/api/salon/");
+        var paymentConfig = stripe.bookingConfig(id);
+        boolean paymentRequired = customerBooking && paymentConfig.enabled();
+        if (paymentRequired) stripe.requireEnabled(id, "BOOKING");
         var hasEmail = request.customerEmail() != null && !request.customerEmail().isBlank();
         var hasPhone = request.customerPhone() != null && !request.customerPhone().isBlank();
         if (!hasEmail && !hasPhone) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Either email or phone number is required");
         }
-        var booking = service.create(salonApi.resolveId(salonId), request.serviceId(), request.staffId(),
+        var booking = service.create(id, request.serviceId(), request.staffId(),
                 request.customerName(), request.customerEmail(), request.customerPhone(),
-                request.appointmentDate(), request.startTime(), request.notes());
+                request.appointmentDate(), request.startTime(), request.notes(), paymentRequired);
+        if (paymentRequired) {
+            try {
+                var serviceItem = services.findByIdAndSalonId(request.serviceId(), id)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
+                var amount = serviceItem.price();
+                if (paymentConfig.paymentType() == net.samitkumar.multi_tenant_salon.payments.SalonPaymentSettings.BookingPaymentType.DEPOSIT) {
+                    amount = amount.multiply(java.math.BigDecimal.valueOf(paymentConfig.depositPercent()))
+                            .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+                }
+                var checkout = stripe.createCheckout(id, "BOOKING", String.valueOf(booking.id()), amount,
+                        serviceItem.currency() == null ? "USD" : serviceItem.currency(), "Booking payment — " + serviceItem.name());
+                return ResponseEntity.ok(new BookingCheckout(booking, checkout));
+            } catch (RuntimeException error) {
+                service.delete(id, booking.id());
+                throw error;
+            }
+        }
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(booking.id())

@@ -350,6 +350,11 @@ class ShopManager {
 
     @Transactional
     OrderView placeOrder(UUID salonId, CheckoutRequest req) {
+        return placeOrder(salonId, req, false);
+    }
+
+    @Transactional
+    OrderView placeOrder(UUID salonId, CheckoutRequest req, boolean stripePending) {
         if (req == null || req.items() == null || req.items().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Your cart is empty");
         }
@@ -398,8 +403,8 @@ class ShopManager {
         var pref = req.communicationPreference() != null ? req.communicationPreference() : CommunicationPreference.IMPORTANT_ONLY;
         var order = new ShopOrder(null, salonId, generateOrderNumber(),
                 req.customerName().trim(), req.customerEmail().trim(), trimToNull(req.customerPhone()),
-                req.shippingAddress(), OrderStatus.NEW, PaymentStatus.PAID,
-                "DUMMY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT),
+                req.shippingAddress(), OrderStatus.NEW, stripePending ? PaymentStatus.PENDING : PaymentStatus.PAID,
+                stripePending ? null : "DUMMY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT),
                 subtotal, finalCurrency, now, null, null, pref,
                 null, null, null,
                 null, null, null, null,
@@ -413,19 +418,49 @@ class ShopManager {
                     line.quantity() + " × " + line.productName() + label + " ordered", "customer", now));
         }
 
-        var contact = salonContact(salonId);
-        eventPublisher.publishEvent(new OrderPlacedEvent(saved.id(), salonId, saved.orderNumber(),
-                saved.customerName(), saved.customerEmail(), saved.customerPhone(),
-                saved.lines().stream().mapToInt(ShopOrder.OrderLine::quantity).sum(),
-                saved.subtotal(), saved.currency(), contact.name(), contact.phone(), contact.email(),
-                saved.communicationPreference()));
+        if (!stripePending) publishOrderPlaced(saved);
 
-        recordOrderActivity(saved.id(), salonId, "ORDER_PLACED",
+        if (!stripePending) recordOrderActivity(saved.id(), salonId, "ORDER_PLACED",
                 "Order " + saved.orderNumber() + " placed by " + saved.customerName(),
                 "customer", false, saved.customerEmail(), saved.customerPhone());
         log.info("[ShopManager] Order placed id={} number={} salon={} lines={} subtotal={} {}",
                 saved.id(), saved.orderNumber(), salonId, saved.lines().size(), saved.subtotal(), saved.currency());
         return getOrder(salonId, saved.id()).orElseThrow();
+    }
+
+    @Transactional
+    void recordStripePayment(UUID salonId, Long orderId, String sessionId, boolean succeeded) {
+        var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
+        if (order == null || order.paymentStatus() != PaymentStatus.PENDING) return;
+        int changed = jdbcClient.sql("UPDATE shop_order SET payment_status = :status, payment_reference = :reference WHERE id = :id AND salon_id = :salon AND payment_status = 'PENDING'")
+                .param("status", succeeded ? PaymentStatus.PAID.name() : PaymentStatus.FAILED.name())
+                .param("reference", sessionId).param("id", orderId).param("salon", salonId).update();
+        if (changed != 1) return;
+        if (!succeeded) {
+            order.lines().stream().filter(line -> line.variantId() != null).forEach(line ->
+                    jdbcClient.sql("UPDATE product_variant SET quantity_on_hand = quantity_on_hand + :qty WHERE id = :id AND salon_id = :salon")
+                            .param("qty", line.quantity()).param("id", line.variantId()).param("salon", salonId).update());
+            recordOrderActivity(order.id(), salonId, "PAYMENT_FAILED", "Payment failed or checkout expired", "system", false, null, null);
+        } else {
+            publishOrderPlaced(new ShopOrder(order.id(), order.salonId(), order.orderNumber(), order.customerName(),
+                    order.customerEmail(), order.customerPhone(), order.shippingAddress(), order.status(), PaymentStatus.PAID,
+                    sessionId, order.subtotal(), order.currency(), order.createdAt(), order.trackingCarrier(), order.trackingNumber(),
+                    order.communicationPreference(), order.refundAmount(), order.refundReason(), order.refundStatus(),
+                    order.returnStatus(), order.returnReason(), order.returnNotes(), order.returnUpdatedAt(), order.creditNoteRef(),
+                    order.creditNoteStatus(), order.creditNoteAt(), order.lines()));
+            recordOrderActivity(order.id(), salonId, "ORDER_PLACED",
+                    "Order " + order.orderNumber() + " placed by " + order.customerName(),
+                    "customer", false, order.customerEmail(), order.customerPhone());
+            recordOrderActivity(order.id(), salonId, "PAYMENT_PAID", "Payment received", "system", false, null, null);
+        }
+    }
+
+    private void publishOrderPlaced(ShopOrder order) {
+        var contact = salonContact(order.salonId());
+        eventPublisher.publishEvent(new OrderPlacedEvent(order.id(), order.salonId(), order.orderNumber(),
+                order.customerName(), order.customerEmail(), order.customerPhone(),
+                order.lines().stream().mapToInt(ShopOrder.OrderLine::quantity).sum(), order.subtotal(), order.currency(),
+                contact.name(), contact.phone(), contact.email(), order.communicationPreference()));
     }
 
     @Transactional

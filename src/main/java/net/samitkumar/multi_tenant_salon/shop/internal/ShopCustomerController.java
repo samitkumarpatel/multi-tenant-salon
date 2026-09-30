@@ -9,16 +9,19 @@ import net.samitkumar.multi_tenant_salon.shop.internal.ShopManager.CheckoutItem;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopManager.CheckoutRequest;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderView;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.ProductView;
+import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
  * Public, anonymous storefront — {@code /api/salon/{salonId}/shop/**}, covered by the security
- * config's {@code /api/salon/**} permit-all rule. Only active products/variants are exposed, and
- * checkout runs an atomic stock decrement + a dummy payment step.
+ * config's {@code /api/salon/**} permit-all rule. Only active products/variants are exposed.
+ * Salons with Shop payments enabled receive a connected-account Checkout Session; salons that
+ * have not enabled Stripe retain the existing legacy checkout behavior.
  */
 @RestController
 @RequestMapping("/api/salon/{salonId}/shop")
@@ -26,15 +29,18 @@ class ShopCustomerController {
 
     private final ShopManager shop;
     private final SalonApi salonApi;
+    private final PaymentGateway stripe;
 
-    ShopCustomerController(ShopManager shop, SalonApi salonApi) {
+    ShopCustomerController(ShopManager shop, SalonApi salonApi, PaymentGateway stripe) {
         this.shop = shop;
         this.salonApi = salonApi;
+        this.stripe = stripe;
     }
 
     record CheckoutBody(String customerName, String customerEmail, String customerPhone,
                         ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
                         CommunicationPreference communicationPreference) {}
+    record CheckoutResponse(OrderView order, String checkoutUrl) {}
 
     @GetMapping("/brands")
     List<Brand> listBrands(@PathVariable String salonId) {
@@ -61,11 +67,23 @@ class ShopCustomerController {
     }
 
     @PostMapping("/orders")
-    ResponseEntity<OrderView> checkout(@PathVariable String salonId, @RequestBody CheckoutBody body) {
-        var order = shop.placeOrder(salonApi.resolveId(salonId), new CheckoutRequest(
+    @Transactional
+    ResponseEntity<?> checkout(@PathVariable String salonId, @RequestBody CheckoutBody body) {
+        var id = salonApi.resolveId(salonId);
+        boolean stripeEnabled = stripe.enabled(id, "SHOP");
+        var order = shop.placeOrder(id, new CheckoutRequest(
                 body.customerName(), body.customerEmail(), body.customerPhone(),
-                body.shippingAddress(), body.items(), body.communicationPreference()));
+                body.shippingAddress(), body.items(), body.communicationPreference()), stripeEnabled);
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(order.id()).toUri();
-        return ResponseEntity.created(location).body(order);
+        if (!stripeEnabled) return ResponseEntity.created(location).body(order);
+        String checkoutUrl;
+        try {
+            checkoutUrl = stripe.createCheckout(id, "SHOP", String.valueOf(order.id()), order.subtotal(),
+                    order.currency(), "Order " + order.orderNumber());
+        } catch (RuntimeException error) {
+            shop.recordStripePayment(id, order.id(), "checkout-creation-failed", false);
+            throw error;
+        }
+        return ResponseEntity.created(location).body(new CheckoutResponse(order, checkoutUrl));
     }
 }

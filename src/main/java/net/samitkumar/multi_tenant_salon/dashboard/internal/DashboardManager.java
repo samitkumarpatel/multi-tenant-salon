@@ -9,11 +9,14 @@ import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.shop.ShopCatalogApi;
+import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,6 +27,7 @@ import java.util.UUID;
 
 @Service
 class DashboardManager {
+    record CardCheckout(PosSale sale, String checkoutUrl) {}
     record CashierItem(PosSale.SourceType sourceType, Long sourceId, String name, String detail,
                        BigDecimal price, String currency, Integer availableQuantity) {}
     record SaleItemRequest(PosSale.SourceType sourceType, Long sourceId, int quantity) {}
@@ -35,10 +39,13 @@ class DashboardManager {
     private final ShopCatalogApi shopApi;
     private final BookingApi bookingApi;
     private final ApplicationEventPublisher events;
+    private final PaymentGateway stripe;
+    private final JdbcClient jdbc;
 
     DashboardManager(DashboardSettingsRepository settingsRepository, PosSaleRepository saleRepository,
                      SalonApi salonApi, SalonServiceApi serviceApi, ShopCatalogApi shopApi,
-                     BookingApi bookingApi, ApplicationEventPublisher events) {
+                     BookingApi bookingApi, ApplicationEventPublisher events, PaymentGateway stripe,
+                     JdbcTemplate jdbcTemplate) {
         this.settingsRepository = settingsRepository;
         this.saleRepository = saleRepository;
         this.salonApi = salonApi;
@@ -46,6 +53,8 @@ class DashboardManager {
         this.shopApi = shopApi;
         this.bookingApi = bookingApi;
         this.events = events;
+        this.stripe = stripe;
+        this.jdbc = JdbcClient.create(jdbcTemplate);
     }
 
     DashboardSettings settings(UUID salonId) {
@@ -130,7 +139,31 @@ class DashboardManager {
         }
         var saleNumber = "POS-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         return saleRepository.save(new PosSale(null, salonId, saleNumber, trimToNull(customerName),
-                paymentMethod, total, currency == null ? "USD" : currency, Instant.now(), lines));
+                paymentMethod, total, currency == null ? "USD" : currency, Instant.now(), "PAID", null, lines));
+    }
+
+    @Transactional
+    CardCheckout createCardCheckout(UUID salonId, String customerName, List<SaleItemRequest> requestedItems) {
+        stripe.requireEnabled(salonId, "POS");
+        var sale = createSale(salonId, customerName, PosSale.PaymentMethod.CARD, requestedItems);
+        var pending = saleRepository.save(new PosSale(sale.id(), sale.salonId(), sale.saleNumber(), sale.customerName(),
+                sale.paymentMethod(), sale.total(), sale.currency(), sale.createdAt(), "PENDING", null, sale.lines()));
+        var checkout = stripe.createCheckout(salonId, "POS", String.valueOf(pending.id()), pending.total(),
+                pending.currency(), "Salon purchase " + pending.saleNumber());
+        return new CardCheckout(pending, checkout);
+    }
+
+    @Transactional
+    void recordStripePayment(UUID salonId, Long saleId, String sessionId, boolean succeeded) {
+        var sale = saleRepository.findById(saleId).filter(s -> s.salonId().equals(salonId)).orElse(null);
+        if (sale == null || !"PENDING".equals(sale.paymentStatus())) return;
+        var updated = jdbc.sql("UPDATE pos_sale SET payment_status = :status, payment_reference = :session WHERE id = :id AND salon_id = :salon AND payment_status = 'PENDING'")
+                .param("status", succeeded ? "PAID" : "FAILED").param("session", sessionId)
+                .param("id", saleId).param("salon", salonId).update();
+        if (updated == 1 && !succeeded) {
+            sale.lines().stream().filter(line -> line.sourceType() == PosSale.SourceType.PRODUCT)
+                    .forEach(line -> shopApi.incrementStock(salonId, line.sourceId(), line.quantity()));
+        }
     }
 
     List<PosSale> recentSales(UUID salonId) {

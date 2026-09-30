@@ -140,6 +140,8 @@ export interface Booking {
   status: BookingStatus;
   notes?: string;
   createdAt: string;
+  paymentStatus?: "NOT_REQUIRED" | "PENDING" | "PAID" | "FAILED";
+  paymentReference?: string | null;
 }
 
 export interface AvailableSlot {

@@ -13,4 +13,5 @@ public interface ShopCatalogApi {
     List<CatalogItem> findAvailableItems(UUID salonId);
     Optional<CatalogItem> findAvailableItem(UUID salonId, Long variantId);
     void decrementStock(UUID salonId, Long variantId, int quantity);
+    void incrementStock(UUID salonId, Long variantId, int quantity);
 }

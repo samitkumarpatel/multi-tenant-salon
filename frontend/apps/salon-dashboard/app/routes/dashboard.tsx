@@ -17,6 +17,7 @@ import type {
 import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
 type DashboardView = "appointments" | "cashier";
+type CashierView = "pos" | "invoices";
 
 interface DashboardSettings {
   salonId: string;
@@ -44,7 +45,10 @@ interface PosSale {
   total: number;
   currency: string;
   createdAt: string;
+  paymentStatus?: "PENDING" | "PAID" | "FAILED";
+  paymentReference?: string | null;
 }
+interface PaymentSetup { stripe: { account: { chargesEnabled: boolean } | null; settings: { posEnabled: boolean } } }
 
 interface CartLine extends CashierItem { quantity: number }
 
@@ -55,7 +59,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!salon.features?.includes("DASHBOARD")) throw new Response("Dashboard is not enabled for this salon", { status: 403 });
   const settings = await apiFetch<DashboardSettings>(`${ADMIN_API}/${sid}/dashboard/settings`);
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
-  const [bookings, staff, services, closures, holidays, cashierItems, sales, countries] = await Promise.all([
+  const [bookings, staff, services, closures, holidays, cashierItems, sales, countries, paymentSetup] = await Promise.all([
     bookingEnabled ? apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`).catch((): Booking[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`).catch((): StaffMember[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`).catch((): ServiceItem[] => []) : Promise.resolve([]),
@@ -66,6 +70,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
       : Promise.resolve([] as CashierItem[]),
     settings.cashierEnabled ? apiFetch<PosSale[]>(`${ADMIN_API}/${sid}/dashboard/sales`).catch((): PosSale[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<Country[]>(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/salon-utility/countries`).catch((): Country[] => []) : Promise.resolve([] as Country[]),
+    settings.cashierEnabled ? apiFetch<PaymentSetup>(`${ADMIN_API}/${sid}/payments/stripe`).catch((): null => null) : Promise.resolve(null),
   ]);
   const schedules = bookingEnabled ? (await Promise.all(staff.map(async (member) => {
     const [availability, overrides] = await Promise.all([
@@ -74,7 +79,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     ]);
     return { staffId: member.id, availability, overrides };
   }))) : [];
-  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, countries };
+  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, countries, paymentSetup };
 }
 
 const inputCls = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
@@ -86,6 +91,11 @@ export default function DashboardPage() {
   const { toast, notify } = useToast();
   const appointmentEnabled = initial.settings.bookingManagementEnabled && initial.salon.features?.includes("BOOKING");
   const requestedView = params.get("view");
+  const cashierView: CashierView = params.get("cashierView") === "invoices" ? "invoices" : "pos";
+  const invoicePeriod = params.get("invoicePeriod") ?? "all";
+  const [invoicePicker, setInvoicePicker] = useState<"month" | "range" | null>(null);
+  const paymentReturn = params.get("payment");
+  const returnedSessionId = params.get("session_id");
   const appointmentsView = params.get("appointmentsView");
   const todayView = params.get("todayView") === "stylist" ? "stylist" : "day";
   const view: DashboardView = requestedView === "cashier" && initial.settings.cashierEnabled
@@ -93,11 +103,32 @@ export default function DashboardPage() {
     : appointmentEnabled ? "appointments" : "cashier";
 
   const [settings] = useState(initial.settings);
+  const cardPaymentEnabled = Boolean(initial.paymentSetup?.stripe.settings.posEnabled && initial.paymentSetup?.stripe.account?.chargesEnabled);
   const [bookings, setBookings] = useState(initial.bookings);
   const [cashierItems] = useState(initial.cashierItems);
   const [cashierSearch, setCashierSearch] = useState("");
   const [cashierFilter, setCashierFilter] = useState<"ALL" | "SERVICE" | "PRODUCT">("ALL");
   const [sales, setSales] = useState(initial.sales);
+  useEffect(() => {
+    if (paymentReturn !== "success") return;
+    let stopped = false;
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const refreshed = await apiFetch<PosSale[]>(`${ADMIN_API}/${initial.sid}/dashboard/sales`);
+        if (stopped) return;
+        setSales(refreshed);
+        if (refreshed.some((sale) => sale.paymentReference === returnedSessionId && sale.paymentStatus !== "PENDING")) {
+          window.clearInterval(timer);
+        }
+      } catch { /* Keep the current sale list if a refresh fails. */ }
+      attempts += 1;
+      if (attempts >= 8) window.clearInterval(timer);
+    };
+    const timer = window.setInterval(() => { void poll(); }, 1500);
+    void poll();
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [paymentReturn, returnedSessionId, initial.sid]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PosSale["paymentMethod"]>("CASH");
   const [customerName, setCustomerName] = useState("");
@@ -147,11 +178,44 @@ export default function DashboardPage() {
       && (!query || `${item.name} ${item.detail ?? ""}`.toLocaleLowerCase().includes(query)));
   }, [cashierItems, cashierFilter, cashierSearch]);
 
+  const visibleSales = useMemo(() => {
+    const now = new Date();
+    const today = localDateKey(now);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const weekStart = localDateKey(startOfWeek);
+    const selectedMonth = params.get("invoiceMonth") ?? today.slice(0, 7);
+    const from = params.get("invoiceFrom") ?? "";
+    const to = params.get("invoiceTo") ?? "";
+    return sales.filter((sale) => {
+      const date = localDateKey(new Date(sale.createdAt));
+      if (invoicePeriod === "today") return date === today;
+      if (invoicePeriod === "week") return date >= weekStart && date <= today;
+      if (invoicePeriod === "month") return date.slice(0, 7) === selectedMonth;
+      if (invoicePeriod === "range") return (!from || date >= from) && (!to || date <= to);
+      return true;
+    });
+  }, [sales, invoicePeriod, params]);
+
+  function selectInvoicePeriod(period: "all" | "today" | "week" | "month" | "range") {
+    const next = new URLSearchParams(params);
+    const samePeriod = next.get("invoicePeriod") === period;
+    next.set("view", "cashier");
+    next.set("cashierView", "invoices");
+    next.set("invoicePeriod", period);
+    if (!samePeriod || period !== "month") next.delete("invoiceMonth");
+    if (!samePeriod || period !== "range") {
+      next.delete("invoiceFrom");
+      next.delete("invoiceTo");
+    }
+    setParams(next);
+  }
+
   async function completeSale() {
     if (!cart.length) return;
     setSaving(true);
     try {
-      const sale = await apiFetch<PosSale>(`${ADMIN_API}/${initial.sid}/dashboard/sales`, {
+      const response = await apiFetch<PosSale | { sale: PosSale; checkoutUrl: string }>(`${ADMIN_API}/${initial.sid}/dashboard/sales${paymentMethod === "CARD" ? "/card-checkout" : ""}`, {
         method: "POST",
         body: JSON.stringify({
           customerName: customerName.trim() || null,
@@ -159,9 +223,14 @@ export default function DashboardPage() {
           items: cart.map(({ sourceType, sourceId, quantity }) => ({ sourceType, sourceId, quantity })),
         }),
       });
+      const sale = "sale" in response ? response.sale : response;
       setSales((current) => [sale, ...current]);
       setCart([]);
       setCustomerName("");
+      if ("checkoutUrl" in response) {
+        window.location.assign(response.checkoutUrl);
+        return;
+      }
       notify(`Sale ${sale.saleNumber} completed.`);
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not complete sale", "error");
@@ -175,8 +244,8 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "cashier" ? "Cashier" : appointmentsView === "new" ? "Book appointment" : "Overview"}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "cashier" ? "Build an in-salon sale from services and products." : appointmentsView === "new" ? "Choose an available time to start a booking." : "Appointments for the selected date."}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "cashier" ? cashierView === "invoices" ? "Invoices" : "Till / POS" : appointmentsView === "new" ? "Book appointment" : "Overview"}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "cashier" ? cashierView === "invoices" ? "Review sales recorded through Till / POS." : "Build an in-salon sale from services and products." : appointmentsView === "new" ? "Choose an available time to start a booking." : "Appointments for the selected date."}</p>
           </div>
           {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">Book</button>}
         </div>
@@ -205,7 +274,48 @@ export default function DashboardPage() {
           onNew={(date, time, staffId) => setServicePickerTime({ date, time: time ?? "09:00", staffId })} onSelect={setSelectedBooking} />
       )}
 
-      {view === "cashier" && settings.cashierEnabled && (
+      {view === "cashier" && cashierView === "invoices" && settings.cashierEnabled && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Filter invoices by date">
+              {([ ["all", "All"], ["today", "Today"], ["week", "This week"], ["month", "Month"], ["range", "Date"]] as const).map(([key, label]) => <div key={key} className="relative">
+                <button type="button" onClick={() => {
+                  if (key === "month" || key === "range") {
+                    selectInvoicePeriod(key);
+                    setInvoicePicker((current) => current === key ? null : key);
+                  } else {
+                    selectInvoicePeriod(key);
+                    setInvoicePicker(null);
+                  }
+                }} aria-pressed={invoicePeriod === key} aria-expanded={(key === "month" || key === "range") && invoicePicker === key} className={`cursor-pointer rounded-md px-3 py-2 text-xs font-semibold transition-colors ${invoicePeriod === key ? "bg-matcha-100 text-matcha-900" : "text-slate-500 hover:bg-slate-50"}`}>{label}</button>
+                {key === "month" && invoicePicker === "month" && <div role="dialog" aria-label="Choose invoice month" className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                  <label className="block text-xs font-medium text-slate-600">Choose month<input type="month" value={params.get("invoiceMonth") ?? localDateKey().slice(0, 7)} onChange={(event) => { const next = new URLSearchParams(params); next.set("invoiceMonth", event.target.value); setParams(next); }} className="mt-2 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
+                  <button type="button" onClick={() => setInvoicePicker(null)} className="mt-3 w-full cursor-pointer rounded-lg bg-matcha-700 px-3 py-2 text-xs font-semibold text-white hover:bg-matcha-800">Done</button>
+                </div>}
+                {key === "range" && invoicePicker === "range" && <div role="dialog" aria-label="Choose invoice date range" className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                  <div className="space-y-3">
+                    <label className="block text-xs font-medium text-slate-600">From<input type="date" value={params.get("invoiceFrom") ?? ""} onChange={(event) => { const next = new URLSearchParams(params); const from = event.target.value; if (from) next.set("invoiceFrom", from); else next.delete("invoiceFrom"); const to = next.get("invoiceTo"); if (to && from && to <= from) next.delete("invoiceTo"); setParams(next); }} className="mt-1 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
+                    <label className="block text-xs font-medium text-slate-600">To<input type="date" min={params.get("invoiceFrom") ? nextDateKey(params.get("invoiceFrom")!) : undefined} value={params.get("invoiceTo") ?? ""} onChange={(event) => { const next = new URLSearchParams(params); const to = event.target.value; if (to) next.set("invoiceTo", to); else next.delete("invoiceTo"); setParams(next); }} className="mt-1 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
+                  </div>
+                  <button type="button" onClick={() => setInvoicePicker(null)} className="mt-3 w-full cursor-pointer rounded-lg bg-matcha-700 px-3 py-2 text-xs font-semibold text-white hover:bg-matcha-800">Done</button>
+                </div>}
+              </div>)}
+            </div>
+          </div>
+          {visibleSales.length ? <div className="divide-y divide-slate-100">
+            {visibleSales.map((sale) => <div key={sale.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs">
+              <Receipt className="h-4 w-4 text-slate-400" />
+              <span className="font-mono font-semibold text-slate-700">{sale.saleNumber}</span>
+              <span className="min-w-0 flex-1 truncate text-slate-500">{sale.customerName || "Walk-in customer"}</span>
+              <span className="text-slate-400">{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(sale.createdAt))}</span>
+              <span className="capitalize text-slate-500">{sale.paymentMethod.toLowerCase()}{sale.paymentStatus === "PENDING" ? " · awaiting payment" : sale.paymentStatus === "FAILED" ? " · failed" : ""}</span>
+              <span className="font-semibold text-slate-800">{formatPrice(sale.total, sale.currency)}</span>
+            </div>)}
+          </div> : <p className="px-4 py-12 text-center text-sm text-slate-400">No invoices found for this period.</p>}
+        </section>
+      )}
+
+      {view === "cashier" && cashierView === "pos" && settings.cashierEnabled && (
         <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
           <div className="order-2 flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white lg:order-1 lg:h-[calc(100vh-10rem)]">
             <div className="border-b border-slate-100 px-4 py-3">
@@ -221,18 +331,24 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <div className="grid max-h-[38vh] gap-2 overflow-y-auto p-3 sm:grid-cols-2 lg:min-h-0 lg:max-h-none lg:flex-1">
+            <div className="grid max-h-[38vh] gap-2 overflow-y-auto p-3 sm:grid-cols-2 xl:grid-cols-3 lg:min-h-0 lg:max-h-none lg:flex-1 lg:content-start">
               {visibleCashierItems.map((item) => (
                 <button key={`${item.sourceType}-${item.sourceId}`} type="button" onClick={() => addToCart(item)}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-matcha-300 hover:bg-matcha-50 cursor-pointer">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                    {item.sourceType === "SERVICE" ? <CalendarCheck className="h-4 w-4 text-slate-500" /> : <ShoppingCart className="h-4 w-4 text-slate-500" />}
+                  className="group flex min-h-[64px] items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-matcha-300 hover:bg-matcha-50 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1 cursor-pointer">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-matcha-100 group-hover:text-matcha-700">
+                    {item.sourceType === "SERVICE" ? <CalendarCheck className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-700">{item.name}</p>
-                    <p className="text-xs text-slate-400">{item.detail || (item.sourceType === "SERVICE" ? "Service" : "Product")}</p>
+                    <p className="truncate text-xs font-semibold text-slate-700">{item.name}</p>
+                    <p className="mt-0.5 truncate text-[10px] text-slate-400">{item.detail || (item.sourceType === "SERVICE" ? "Service" : "Product")}</p>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">{formatPrice(item.price, item.currency)}</span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="text-xs font-semibold text-slate-700">{formatPrice(item.price, item.currency)}</span>
+                    {(() => {
+                      const quantity = cart.find((line) => line.sourceType === item.sourceType && line.sourceId === item.sourceId)?.quantity ?? 0;
+                      return <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold transition-colors ${quantity ? "bg-matcha-100 text-matcha-800" : "bg-slate-100 text-slate-500 group-hover:bg-matcha-600 group-hover:text-white"}`} aria-label={quantity ? `${quantity} in current sale` : "Add to current sale"}>{quantity || <Plus className="h-3 w-3" />}</span>;
+                    })()}
+                  </div>
                 </button>
               ))}
               {!cashierItems.length ? <p className="p-4 text-sm text-slate-400">No active services or products are available.</p>
@@ -263,11 +379,11 @@ export default function DashboardPage() {
                 </div>
                 <input className={`${inputCls} mb-2`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name (optional)" />
                 <select className={`${inputCls} mb-3`} value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PosSale["paymentMethod"])}>
-                  <option value="CASH">Cash</option><option value="CARD">Card</option><option value="OTHER">Other</option>
+                  <option value="CASH">Cash</option><option value="CARD" disabled={!cardPaymentEnabled}>Card{cardPaymentEnabled ? " · Stripe" : " · connect Stripe in Admin"}</option><option value="OTHER">Other</option>
                 </select>
                 <button type="button" disabled={!cart.length || saving} onClick={completeSale}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-matcha-700 disabled:opacity-40 cursor-pointer">
-                  <CreditCard className="h-4 w-4" /> {saving ? "Recording…" : "Record payment"}
+                  <CreditCard className="h-4 w-4" /> {saving ? "Processing…" : paymentMethod === "CARD" ? "Continue to card payment" : "Record payment"}
                 </button>
               </div>
             </div>
@@ -322,6 +438,12 @@ const STATUS_STYLE: Record<Booking["status"], string> = {
 
 function localDateKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function nextDateKey(dateKey: string) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  return localDateKey(date);
 }
 function parseDate(value: string) { return new Date(`${value}T12:00:00`); }
 function addDays(date: Date, amount: number) { const next = new Date(date); next.setDate(next.getDate() + amount); return next; }
