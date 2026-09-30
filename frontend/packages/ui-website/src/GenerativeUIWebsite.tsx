@@ -854,7 +854,7 @@ export function GenerativeUIWebsite({
 
     apiFetch<Booking | { booking: Booking; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/booking`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, returnUrl: window.location.href }),
     })
       .then((result) => {
         const booking = "booking" in result ? result.booking : result;

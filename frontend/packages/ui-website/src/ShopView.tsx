@@ -1332,6 +1332,8 @@ function CheckoutForm({
           shippingAddress: address,
           items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           communicationPreference: f.communicationPreference,
+          // Stripe returns here (same origin) so the pending-order hand-off in sessionStorage survives.
+          returnUrl: window.location.href,
         }),
       });
       const order = "order" in result ? result.order : result;

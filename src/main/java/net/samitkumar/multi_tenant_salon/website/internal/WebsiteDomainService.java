@@ -83,14 +83,22 @@ class WebsiteDomainService implements WebsiteDomainApi {
     }
 
     @Override public boolean isActiveOrigin(String origin) {
-        if (origin == null || !properties.configured()) return false;
+        return activeSalonForOrigin(origin).isPresent();
+    }
+
+    @Override public boolean isActiveOriginFor(UUID salonId, String origin) {
+        return salonId != null && activeSalonForOrigin(origin).filter(salonId::equals).isPresent();
+    }
+
+    private java.util.Optional<UUID> activeSalonForOrigin(String origin) {
+        if (origin == null || !properties.configured()) return java.util.Optional.empty();
         try {
             URI uri = URI.create(origin);
             if (!"https".equals(uri.getScheme()) || uri.getRawUserInfo() != null || uri.getHost() == null
                     || (uri.getPort() != -1 && uri.getPort() != 443) || uri.getRawQuery() != null
-                    || uri.getRawFragment() != null || !uri.getRawPath().isEmpty()) return false;
-            return repository.activeSalon(DomainHostname.normalize(uri.getHost())).isPresent();
-        } catch (IllegalArgumentException e) { return false; }
+                    || uri.getRawFragment() != null || !uri.getRawPath().isEmpty()) return java.util.Optional.empty();
+            return repository.activeSalon(DomainHostname.normalize(uri.getHost()));
+        } catch (IllegalArgumentException e) { return java.util.Optional.empty(); }
     }
 
     @Scheduled(fixedDelayString = "${spring.application.website-domains.poll-interval-ms:60000}")

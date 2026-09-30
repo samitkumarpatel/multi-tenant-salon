@@ -525,10 +525,17 @@ rather than deriving it. `slots` is `null` unless `granularity=SLOT`; each entry
 | `appointmentDate` | date | yes | |
 | `startTime` | time | yes | |
 | `notes` | string | no | |
+| `returnUrl` | string | no | Page Stripe Checkout returns to (send `window.location.href`). Honoured only for this salon's `<handler>.salonsaas.org`, its **active custom domain**, or the configured booking/website app; otherwise the booking app page is used. |
 
 **Response** `201 Created` — booking object. Initial `status` depends on the salon setting:
 - `bookingRequiresConfirmation = false` (default) → `CONFIRMED`
 - `bookingRequiresConfirmation = true` → `PENDING` (admin must confirm)
+
+**Response** `200 OK` — only when the salon has **Stripe booking payments** enabled:
+`{ "booking": { …, "status": "PENDING", "paymentStatus": "PENDING" }, "checkoutUrl": "https://checkout.stripe.com/…" }`.
+Redirect to `checkoutUrl`; the Connect webhook sets `paymentStatus` to `PAID` (status → `CONFIRMED`, or
+`PENDING` if confirmation is required) or `FAILED` (status → `CANCELLED`). The charge is the full
+service price or the configured deposit percentage. If Checkout creation fails the booking is deleted.
 
 **Response** `400 Bad Request` — `appointmentDate` falls within a salon closure
 
@@ -2053,6 +2060,14 @@ lines, then completes a **dummy payment** — the returned order is already `PAI
 
 **Response** `201 Created` — the full order object (see below), with an `SO-…` `orderNumber`.
 
+**Stripe shop payments** — when the salon has shop payments enabled the order is created with
+`paymentStatus: "PENDING"` (no OrderPlacedEvent yet) and the `201` body is
+`{ "order": { … }, "checkoutUrl": "https://checkout.stripe.com/…" }`. Send `returnUrl`
+(`window.location.href`) so Stripe returns to the page the shopper is on — including a connected
+custom domain — with `?payment=success|cancel&reference=<orderId>&session_id=…`. `returnUrl` is honoured
+only for the salon's own hosts (see *Create a booking*). The Connect webhook marks the order `PAID`
+(emits **OrderPlacedEvent**) or `FAILED` (stock restored, `PAYMENT_FAILED` activity).
+
 **Response** `400 Bad Request` — empty cart, or missing `customerName` / `customerEmail`.
 
 **Response** `409 Conflict` — an item is out of stock or its product is inactive.
@@ -2202,6 +2217,29 @@ customer received (`channel` / `subject` / `body` / `status`, where `status` ∈
 (dispatch skipped — e.g. provider not configured in dev) / `FAILED`); the shop module appends them
 when the notification module acknowledges a send via `OrderCustomerNotifiedEvent`. All other types
 leave those four fields null.
+
+---
+
+## Admin — Payments (Stripe Connect)
+
+Owner-only, under `/api/salon-admin/{salonId}`. Stripe is configured server-side with
+`STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`; without both, `configured` is `false` and onboarding
+returns `503`.
+
+| Method & path | Purpose |
+|---|---|
+| `GET /payments/stripe` | `{ stripe: { account, settings, configured } }` — refreshes the Express account's `detailsSubmitted` / `chargesEnabled` / `payoutsEnabled` from Stripe |
+| `POST /payments/stripe/onboarding-link` | Creates the Express account on first call (country from the salon location — `409` if missing) and returns `{ url }` (single-use Account Link). Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
+| `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD) is off or onboarding is incomplete |
+| `POST /dashboard/sales/card-checkout` | Till / POS card sale — same body as `POST /dashboard/sales`; returns `{ sale, checkoutUrl }` with the sale `PENDING`. Returns to the dashboard cashier view |
+
+### Stripe webhook
+
+`POST /api/payments/stripe/webhook` — public, verified via the `Stripe-Signature` header (5-minute
+tolerance). Register as a **Connect** endpoint (events on connected accounts) for
+`checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, `checkout.session.expired`. It publishes `StripePaymentEvent`,
+consumed by the shop, booking and dashboard modules. Handlers are idempotent (only `PENDING` rows move).
 
 ---
 

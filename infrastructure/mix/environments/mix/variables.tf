@@ -20,6 +20,18 @@ variable "website_domains_api_token" {
   }
 }
 
+variable "stripe_secret_key" {
+  type        = string
+  sensitive   = true
+  description = "Platform Stripe secret key (sk_test_/sk_live_, or a restricted rk_ key with Connect accounts, account links and Checkout Sessions write). Injected as a Container App secret into api as STRIPE_SECRET_KEY."
+}
+
+variable "stripe_webhook_secret" {
+  type        = string
+  sensitive   = true
+  description = "Signing secret (whsec_) of the Connect webhook endpoint https://api.<domain>/api/payments/stripe/webhook. Injected as a Container App secret into api as STRIPE_WEBHOOK_SECRET."
+}
+
 variable "azure_resource_group" {
   type        = string
   default     = "multi-tenant-salon-mix"

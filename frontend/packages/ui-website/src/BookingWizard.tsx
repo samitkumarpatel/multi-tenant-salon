@@ -1672,6 +1672,8 @@ export function BookingWizard({
           appointmentDate: date,
           startTime: slot.startTime,
           notes: form.notes || null,
+          // Stripe returns here (same origin) so the pending-booking hand-off in sessionStorage survives.
+          returnUrl: window.location.href,
         }),
       });
       const booking = "booking" in result ? result.booking : result;

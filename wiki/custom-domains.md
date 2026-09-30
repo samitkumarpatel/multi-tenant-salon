@@ -87,6 +87,12 @@ scheduler, do not stop the API while customer websites are expected to work.
   admin endpoints retain their existing JWT ownership rules. CORS does not replace
   authorization. Requests without a browser Origin header follow existing rules.
 
+- Stripe Checkout (shop/booking) returns shoppers to the page they paid from when it is the salon's
+  active custom domain, so the checkout hand-off survives on the custom origin. See
+  [stripe-connect.md](stripe-connect.md). The return page is fixed when the Checkout Session is
+  created, so a domain disconnected mid-checkout returns to a dead host; the payment itself is still
+  settled by the webhook.
+
 ## Verification and rollout
 
 ```sh

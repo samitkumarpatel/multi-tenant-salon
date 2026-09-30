@@ -87,6 +87,8 @@ class WebsiteDomainIntegrationTest {
         assertThat(service.isActiveOrigin("http://www.mysalon.dk")).isFalse();
         assertThat(service.isActiveOrigin("https://www.mysalon.dk.evil.com")).isFalse();
         assertThat(service.isActiveOrigin("https://www.mysalon.dk:8443")).isFalse();
+        assertThat(service.isActiveOriginFor(salonId, "https://www.mysalon.dk")).isTrue();
+        assertThat(service.isActiveOriginFor(UUID.randomUUID(), "https://www.mysalon.dk")).isFalse();
 
         when(cloudflare.delete(anyString(), anyString())).thenThrow(new IllegalStateException("provider unavailable"));
         client.delete().uri(path).header("Authorization", "Bearer owner").exchange().expectStatus().isAccepted();

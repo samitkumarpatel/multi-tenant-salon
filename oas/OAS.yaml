@@ -57,6 +57,8 @@ servers:
     description: Local development server
 
 tags:
+  - name: AdminPayments
+    description: Stripe Connect (Express) onboarding, per-area payment settings, POS card checkout and the Connect webhook.
   - name: SalonOnboarding
     description: |
       New salon tenant registration and platform-level salon listing.
@@ -476,6 +478,13 @@ paths:
         - `true` → status is **PENDING**; an admin must confirm before the appointment is active.
         Emits **BookingCreatedEvent** → customer receives a booking confirmation notification.
         Also emits **StaffBookingAssignedEvent** → the assigned staff member is notified.
+
+        **Stripe booking payments:** when the salon has booking payments enabled (see
+        `/api/salon-admin/{salonId}/payments/settings`), the booking is created `PENDING` with
+        `paymentStatus: PENDING` and the response is **200** `{ booking, checkoutUrl }` — redirect the
+        customer to `checkoutUrl`. The Connect webhook later marks it `PAID` (→ CONFIRMED, or PENDING
+        when confirmation is required) or `FAILED` (→ CANCELLED). Amount is the full service price
+        or the configured deposit percentage.
       operationId: createBooking
       requestBody:
         required: true
@@ -490,6 +499,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Booking"
+        "200":
+          description: Booking reserved pending Stripe payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCheckoutResponse"
         "400":
           description: Salon is closed on the requested date (salon closure)
         "404":
@@ -2264,6 +2279,11 @@ paths:
         Validates each variant, atomically decrements stock, snapshots price/name onto the
         order lines, then completes a dummy payment — the returned order is `PAID`. Returns
         409 if any item is out of stock, 400 for an empty cart or missing name/email.
+
+        **Stripe shop payments:** when the salon has shop payments enabled, the order is created with
+        `paymentStatus: PENDING` and the 201 body is `{ order, checkoutUrl }` — redirect to
+        `checkoutUrl`. The Connect webhook marks it `PAID` (emits OrderPlacedEvent) or `FAILED`
+        (stock is restored). Returns 502 if Stripe rejects the Checkout Session.
       operationId: placeShopOrder
       requestBody:
         required: true
@@ -2273,11 +2293,13 @@ paths:
               $ref: "#/components/schemas/ShopCheckoutRequest"
       responses:
         "201":
-          description: Order placed
+          description: Order placed (`ShopOrder`), or pending payment (`ShopCheckoutResponse`) when Stripe is enabled
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ShopOrder"
+                oneOf:
+                  - $ref: "#/components/schemas/ShopOrder"
+                  - $ref: "#/components/schemas/ShopCheckoutResponse"
         "400":
           description: Empty cart, or missing customer name / email
         "409":
@@ -2802,6 +2824,153 @@ paths:
                   hostname:
                     type: [string, 'null']
 
+  # ─── Payments — Stripe Connect ───────────────────────────────────────────────
+
+  /api/salon-admin/{salonId}/payments/stripe:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminPayments]
+      summary: Get Stripe Connect status and payment settings
+      description: Refreshes the connected account's `details_submitted` / `charges_enabled` from Stripe when configured.
+      operationId: getStripeConnectStatus
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Connect status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeConnectStatus"
+        "502":
+          description: Stripe could not be reached
+
+  /api/salon-admin/{salonId}/payments/stripe/onboarding-link:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminPayments]
+      summary: Create a Stripe Express onboarding link
+      description: |
+        Creates the salon's Express connected account on first use (country from the salon
+        location), then returns a single-use Account Link. Stripe returns the owner to
+        `<PAYMENTS_ADMIN_APP_URL>/{salonId}/payments?stripe=return|refresh`.
+      operationId: createStripeOnboardingLink
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Onboarding link
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: { type: string, format: uri }
+        "409":
+          description: Salon has no valid country
+        "502":
+          description: Stripe request failed
+        "503":
+          description: Stripe secret key / webhook secret not configured on the server
+
+  /api/salon-admin/{salonId}/payments/settings:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    put:
+      tags: [AdminPayments]
+      summary: Enable/disable Stripe payments per area
+      operationId: updatePaymentSettings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePaymentSettingsRequest"
+      responses:
+        "200":
+          description: Saved settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalonPaymentSettings"
+        "400":
+          description: Missing booking payment type or deposit outside 1–100
+        "409":
+          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD) disabled, or Stripe onboarding incomplete
+
+  /api/salon-admin/{salonId}/dashboard/sales/card-checkout:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminPayments]
+      summary: Take a Till / POS card payment through Stripe Checkout
+      description: |
+        Records the sale with `paymentStatus: PENDING` and returns a Checkout URL that returns to the
+        dashboard cashier view. The webhook marks it `PAID`, or `FAILED` (product stock restored).
+        Card-present Stripe Terminal readers are not supported.
+      operationId: createPosCardCheckout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerName: { type: string, nullable: true }
+                items:
+                  type: array
+                  items: { type: object }
+      responses:
+        "200":
+          description: Pending sale and Checkout URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sale, checkoutUrl]
+                properties:
+                  sale: { type: object }
+                  checkoutUrl: { type: string, format: uri }
+        "409":
+          description: POS payments not enabled or Stripe not ready
+
+  /api/payments/stripe/webhook:
+    post:
+      tags: [AdminPayments]
+      summary: Stripe Connect webhook
+      description: |
+        Unauthenticated; verified with the `Stripe-Signature` header (HMAC-SHA256, 5-minute
+        tolerance) against `STRIPE_WEBHOOK_SECRET`. Register it as a **Connect** endpoint for
+        `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+        `checkout.session.async_payment_failed` and `checkout.session.expired`. Events for unknown
+        accounts or mismatched `metadata.salon_id` are acknowledged and ignored.
+      operationId: stripeWebhook
+      security: []
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Processed or ignored
+        "400":
+          description: Invalid signature or payload
+        "503":
+          description: Webhook secret not configured
+
 components:
 
   securitySchemes:
@@ -2905,6 +3074,68 @@ components:
             $ref: "#/components/schemas/ProblemDetail"
 
   schemas:
+    StripeConnectStatus:
+      type: object
+      properties:
+        stripe:
+          type: object
+          properties:
+            configured:
+              type: boolean
+              description: Server has both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET
+            account:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/StripeConnectedAccount"
+            settings:
+              $ref: "#/components/schemas/SalonPaymentSettings"
+
+    StripeConnectedAccount:
+      type: object
+      properties:
+        salonId: { type: string, format: uuid }
+        stripeAccountId: { type: string, example: "acct_1Nxyz" }
+        country: { type: string, example: "DK" }
+        detailsSubmitted: { type: boolean }
+        chargesEnabled: { type: boolean }
+        payoutsEnabled: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    SalonPaymentSettings:
+      type: object
+      properties:
+        salonId: { type: string, format: uuid }
+        shopEnabled: { type: boolean }
+        bookingEnabled: { type: boolean }
+        posEnabled: { type: boolean }
+        bookingPaymentType: { type: string, enum: [FULL, DEPOSIT] }
+        bookingDepositPercent: { type: integer, minimum: 1, maximum: 100 }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    UpdatePaymentSettingsRequest:
+      type: object
+      required: [bookingPaymentType, bookingDepositPercent]
+      properties:
+        shopEnabled: { type: boolean }
+        bookingEnabled: { type: boolean }
+        posEnabled: { type: boolean }
+        bookingPaymentType: { type: string, enum: [FULL, DEPOSIT] }
+        bookingDepositPercent: { type: integer, minimum: 1, maximum: 100 }
+
+    BookingCheckoutResponse:
+      type: object
+      required: [booking, checkoutUrl]
+      properties:
+        booking: { $ref: "#/components/schemas/Booking" }
+        checkoutUrl: { type: string, format: uri }
+
+    ShopCheckoutResponse:
+      type: object
+      required: [order, checkoutUrl]
+      properties:
+        order: { $ref: "#/components/schemas/ShopOrder" }
+        checkoutUrl: { type: string, format: uri }
+
     WebsiteDomainSettings:
       type: object
       required: [available, websiteEnabled, domain]
@@ -4120,6 +4351,13 @@ components:
         createdAt:
           type: string
           format: date-time
+        paymentStatus:
+          type: string
+          enum: [NOT_REQUIRED, PENDING, PAID, FAILED]
+        paymentReference:
+          type: string
+          nullable: true
+          description: Stripe Checkout Session id once the payment settles.
 
     BookingStatus:
       type: string
@@ -4151,6 +4389,15 @@ components:
           format: time
         notes:
           type: string
+        returnUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            Page Stripe Checkout returns the customer to (normally `window.location.href`). Used only
+            when its origin belongs to this salon — the `<handler>.<SALON_DOMAIN>` subdomain, the salon's
+            active custom domain, or a configured booking/website app. Anything else falls back to the
+            default page. `payment`, `reference` and `session_id` query params are replaced on return.
 
     UpdateBookingRequest:
       type: object
@@ -4661,7 +4908,7 @@ components:
         shippingAddress:
           $ref: "#/components/schemas/ShopShippingAddress"
         status: { $ref: "#/components/schemas/OrderStatus" }
-        paymentStatus: { type: string, enum: [PENDING, PAID] }
+        paymentStatus: { type: string, enum: [PENDING, PAID, FAILED] }
         paymentReference: { type: string, nullable: true, example: "DUMMY-1A2B3C4D" }
         subtotal: { type: number, format: double }
         currency: { type: string }
@@ -4709,3 +4956,12 @@ components:
             properties:
               variantId: { type: integer, format: int64 }
               quantity: { type: integer, minimum: 1 }
+        returnUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            Page Stripe Checkout returns the customer to (normally `window.location.href`). Used only
+            when its origin belongs to this salon — the `<handler>.<SALON_DOMAIN>` subdomain, the salon's
+            active custom domain, or a configured booking/website app. Anything else falls back to the
+            default page. `payment`, `reference` and `session_id` query params are replaced on return.

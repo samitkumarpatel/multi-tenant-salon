@@ -39,7 +39,7 @@ class ShopCustomerController {
 
     record CheckoutBody(String customerName, String customerEmail, String customerPhone,
                         ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
-                        CommunicationPreference communicationPreference) {}
+                        CommunicationPreference communicationPreference, String returnUrl) {}
     record CheckoutResponse(OrderView order, String checkoutUrl) {}
 
     @GetMapping("/brands")
@@ -79,7 +79,7 @@ class ShopCustomerController {
         String checkoutUrl;
         try {
             checkoutUrl = stripe.createCheckout(id, "SHOP", String.valueOf(order.id()), order.subtotal(),
-                    order.currency(), "Order " + order.orderNumber());
+                    order.currency(), "Order " + order.orderNumber(), body.returnUrl());
         } catch (RuntimeException error) {
             shop.recordStripePayment(id, order.id(), "checkout-creation-failed", false);
             throw error;

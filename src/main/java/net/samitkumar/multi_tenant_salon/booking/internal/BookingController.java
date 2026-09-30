@@ -38,7 +38,8 @@ class BookingController {
 
     record CreateBookingRequest(Long serviceId, Long staffId, String customerName,
                                 String customerEmail, String customerPhone,
-                                LocalDate appointmentDate, LocalTime startTime, String notes) {}
+                                LocalDate appointmentDate, LocalTime startTime, String notes,
+                                String returnUrl) {}
 
     record UpdateBookingRequest(LocalDate appointmentDate, LocalTime startTime, Long staffId, String notes) {}
 
@@ -106,7 +107,8 @@ class BookingController {
                             .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 }
                 var checkout = stripe.createCheckout(id, "BOOKING", String.valueOf(booking.id()), amount,
-                        serviceItem.currency() == null ? "USD" : serviceItem.currency(), "Booking payment — " + serviceItem.name());
+                        serviceItem.currency() == null ? "USD" : serviceItem.currency(), "Booking payment — " + serviceItem.name(),
+                        request.returnUrl());
                 return ResponseEntity.ok(new BookingCheckout(booking, checkout));
             } catch (RuntimeException error) {
                 service.delete(id, booking.id());

@@ -7,6 +7,9 @@ import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.utility.CountryApi;
+import net.samitkumar.multi_tenant_salon.website.WebsiteDomainApi;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import net.samitkumar.multi_tenant_salon.payments.StripePaymentEvent;
 import org.springframework.context.ApplicationEventPublisher;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -48,6 +52,7 @@ public class StripeConnectService implements PaymentGateway {
     private final String websiteAppUrl;
     private final String salonDomain;
     private final JdbcClient jdbc;
+    private final ObjectProvider<WebsiteDomainApi> domains;
 
     StripeConnectService(StripeConnectedAccountRepository accounts, SalonPaymentSettingsRepository settings,
                          SalonApi salons, CountryApi countries, RestClient.Builder clientBuilder,
@@ -58,7 +63,8 @@ public class StripeConnectService implements PaymentGateway {
                          @Value("${spring.application.payments.booking-app-url}") String bookingAppUrl,
                          @Value("${spring.application.payments.website-app-url:}") String websiteAppUrl,
                          @Value("${spring.application.payments.salon-domain:salonsaas.org}") String salonDomain,
-                         ApplicationEventPublisher events, JdbcTemplate jdbcTemplate) {
+                         ApplicationEventPublisher events, JdbcTemplate jdbcTemplate,
+                         ObjectProvider<WebsiteDomainApi> domains) {
         this.accounts = accounts;
         this.settings = settings;
         this.salons = salons;
@@ -73,6 +79,7 @@ public class StripeConnectService implements PaymentGateway {
         this.websiteAppUrl = websiteAppUrl.replaceAll("/$", "");
         this.salonDomain = salonDomain;
         this.jdbc = JdbcClient.create(jdbcTemplate);
+        this.domains = domains;
     }
 
     Status status(UUID salonId) {
@@ -146,7 +153,8 @@ public class StripeConnectService implements PaymentGateway {
         }
     }
 
-    @Override public String createCheckout(UUID salonId, String area, String reference, BigDecimal amount, String currency, String itemName) {
+    @Override public String createCheckout(UUID salonId, String area, String reference, BigDecimal amount, String currency,
+                                           String itemName, String returnUrl) {
         requireEnabled(salonId, area);
         if (amount == null || amount.signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A positive price is required to accept online payment");
@@ -155,18 +163,11 @@ public class StripeConnectService implements PaymentGateway {
         var minorUnits = amount.movePointRight(currencyExponent(currency))
                 .setScale(0, RoundingMode.HALF_UP).longValueExact();
         var salon = salons.findById(salonId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Salon not found"));
-        var base = switch (area) {
-            case "SHOP" -> websiteAppUrl.isBlank()
-                    ? "https://" + salon.handler() + "." + salonDomain + "/"
-                    : websiteAppUrl + "/?slug=" + salon.handler();
-            case "BOOKING" -> bookingAppUrl + "/" + salon.handler();
-            default -> dashboardAppUrl + "/" + salonId + "?view=cashier&cashierView=pos";
-        };
-        var successSuffix = "POS".equals(area) ? "&" : area.equals("SHOP") && !websiteAppUrl.isBlank() ? "&" : "?";
+        var returnPage = returnPage(salon, area, returnUrl);
         var form = new LinkedMultiValueMap<String, String>();
         form.add("mode", "payment");
-        form.add("success_url", base + successSuffix + "payment=success&reference=" + reference + "&session_id={CHECKOUT_SESSION_ID}");
-        form.add("cancel_url", base + successSuffix + "payment=cancel&reference=" + reference + "&session_id={CHECKOUT_SESSION_ID}");
+        form.add("success_url", paymentReturn(returnPage, "success", reference));
+        form.add("cancel_url", paymentReturn(returnPage, "cancel", reference));
         form.add("client_reference_id", area + ":" + reference);
         form.add("line_items[0][price_data][currency]", currency.toLowerCase(Locale.ROOT));
         form.add("line_items[0][price_data][unit_amount]", Long.toString(minorUnits));
@@ -178,6 +179,68 @@ public class StripeConnectService implements PaymentGateway {
         var response = post("/checkout/sessions", form, "checkout-" + area.toLowerCase(Locale.ROOT) + "-" + reference,
                 account.stripeAccountId());
         return (String) response.get("url");
+    }
+
+    /**
+     * The page Stripe sends the customer back to. The customer's own page (so the per-origin
+     * sessionStorage hand-off survives, e.g. on a connected custom domain) is used only when its origin
+     * belongs to this salon; anything else falls back to the area default, so this is never an open redirect.
+     */
+    String returnPage(Salon salon, String area, String returnUrl) {
+        var requested = "POS".equals(area) ? null : allowedReturnPage(salon, returnUrl);
+        if (requested != null) return requested;
+        return switch (area) {
+            case "SHOP" -> websiteAppUrl.isBlank()
+                    ? "https://" + salon.handler() + "." + salonDomain + "/"
+                    : websiteAppUrl + "/?slug=" + salon.handler();
+            case "BOOKING" -> bookingAppUrl + "/" + salon.handler();
+            default -> dashboardAppUrl + "/" + salon.id() + "?view=cashier&cashierView=pos";
+        };
+    }
+
+    private String allowedReturnPage(Salon salon, String returnUrl) {
+        if (returnUrl == null || returnUrl.isBlank()) return null;
+        try {
+            var uri = URI.create(returnUrl.trim());
+            var origin = origin(uri);
+            if (origin == null) return null;
+            boolean allowed = origin.equals(origin(websiteAppUrl)) || origin.equals(origin(bookingAppUrl))
+                    || origin.equals("https://" + salon.handler().toLowerCase(Locale.ROOT) + "." + salonDomain.toLowerCase(Locale.ROOT))
+                    || isActiveCustomDomain(salon.id(), origin);
+            if (!allowed) return null;
+            return UriComponentsBuilder.fromUri(uri).fragment(null)
+                    .replaceQueryParam("payment").replaceQueryParam("reference").replaceQueryParam("session_id")
+                    .build().toUriString();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private boolean isActiveCustomDomain(UUID salonId, String origin) {
+        // Isolated Modulith contexts may omit the website module; then only platform hosts are accepted.
+        var api = domains.getIfAvailable();
+        return api != null && api.isActiveOriginFor(salonId, origin);
+    }
+
+    private static String origin(String url) {
+        if (url == null || url.isBlank()) return null;
+        try { return origin(URI.create(url)); } catch (IllegalArgumentException e) { return null; }
+    }
+
+    private static String origin(URI uri) {
+        var scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!"https".equals(scheme) && !"http".equals(scheme)) return null;
+        if (uri.getHost() == null || uri.getRawUserInfo() != null) return null;
+        int port = uri.getPort();
+        boolean defaultPort = port == -1 || ("https".equals(scheme) && port == 443) || ("http".equals(scheme) && port == 80);
+        return scheme + "://" + uri.getHost().toLowerCase(Locale.ROOT) + (defaultPort ? "" : ":" + port);
+    }
+
+    private static String paymentReturn(String page, String outcome, String reference) {
+        // {CHECKOUT_SESSION_ID} is Stripe's template placeholder — appended verbatim, never URI-encoded.
+        return UriComponentsBuilder.fromUriString(page).replaceQueryParam("payment", outcome)
+                .replaceQueryParam("reference", reference).build().toUriString()
+                + "&session_id={CHECKOUT_SESSION_ID}";
     }
 
     void handleWebhook(String payload, String signature) {

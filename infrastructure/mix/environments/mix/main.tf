@@ -199,10 +199,15 @@ module "backend" {
         # SPRING_DATASOURCE_URL / _USERNAME are set by the backend stack from
         # module.postgres; SPRING_DATASOURCE_PASSWORD is a Container App secret.
         env = {
-          WEBSITE_DOMAINS_ENABLED                                   = tostring(var.website_domains_enabled)
-          WEBSITE_DOMAINS_ZONE_ID                                   = module.dns.zone_id
-          WEBSITE_DOMAINS_CNAME_TARGET                              = "customers.${local.domain}"
-          SALON_DOMAIN                                              = local.domain
+          WEBSITE_DOMAINS_ENABLED      = tostring(var.website_domains_enabled)
+          WEBSITE_DOMAINS_ZONE_ID      = module.dns.zone_id
+          WEBSITE_DOMAINS_CNAME_TARGET = "customers.${local.domain}"
+          SALON_DOMAIN                 = local.domain
+          # Stripe Connect return pages. Shop/booking checkouts return to the customer's own page
+          # (tenant subdomain or connected custom domain) when it belongs to the salon; these are fallbacks.
+          PAYMENTS_ADMIN_APP_URL                                    = "https://${local.frontend_hostnames["admin-web"]}"
+          PAYMENTS_DASHBOARD_APP_URL                                = "https://${local.frontend_hostnames["dashboard-web"]}"
+          PAYMENTS_BOOKING_APP_URL                                  = "https://${local.frontend_hostnames["booking-web"]}"
           SPRING_SQL_INIT_MODE                                      = "never"
           SPRING_MODULITH_EVENTS_JDBC_SCHEMA_INITIALIZATION_ENABLED = "false"
           SPRING_FLYWAY_ENABLED                                     = "true"
@@ -233,6 +238,9 @@ module "backend" {
         MAILJET_API_KEY    = var.mailjet_api_key
         MAILJET_API_SECRET = var.mailjet_api_secret
         ANTHROPIC_API_KEY  = var.anthropic_api_key
+        # Stripe Connect — platform key + Connect webhook signing secret.
+        STRIPE_SECRET_KEY     = var.stripe_secret_key
+        STRIPE_WEBHOOK_SECRET = var.stripe_webhook_secret
       }, var.website_domains_enabled ? { WEBSITE_DOMAINS_API_TOKEN = var.website_domains_api_token } : {})
       ingress = {
         external_enabled = true
