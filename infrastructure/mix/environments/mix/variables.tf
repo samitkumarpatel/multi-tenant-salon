@@ -3,6 +3,23 @@ variable "cloudflare_account_id" {
   description = "Cloudflare account ID that owns the salonsaas.org zone and every Pages project."
 }
 
+variable "website_domains_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable customer-managed CNAME domains using Cloudflare for SaaS."
+}
+
+variable "website_domains_api_token" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Separate runtime token with SSL and Certificates Write permission scoped only to the SaaS zone."
+  validation {
+    condition     = !var.website_domains_enabled || length(var.website_domains_api_token) > 0
+    error_message = "Set website_domains_api_token before enabling custom domains."
+  }
+}
+
 variable "azure_resource_group" {
   type        = string
   default     = "multi-tenant-salon-mix"

@@ -3,6 +3,18 @@ variable "account_id" {
   description = "Cloudflare account ID that owns the zone and the Worker."
 }
 
+variable "custom_domains_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable Cloudflare for SaaS routing after enabling it on the zone."
+}
+
+variable "api_base_url" {
+  type        = string
+  default     = "https://api.salonsaas.org"
+  description = "Trusted API origin used to resolve active customer domains."
+}
+
 variable "zone_id" {
   type        = string
   description = "Cloudflare zone ID for the domain (from the dns-zone stack)."

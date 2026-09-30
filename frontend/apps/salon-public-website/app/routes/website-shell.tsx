@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { Outlet, useLoaderData } from "react-router";
+import { Outlet, useLoaderData, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE } from "@salon/ui-website";
 import type { Salon, StaffMember, ServiceItem, WebsiteTheme } from "@salon/ui-website";
 import { AnalyticsTracker } from "../components/AnalyticsTracker";
+import { tenantHost } from "../lib/tenant-host";
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
@@ -27,30 +28,6 @@ function buildFaviconHref(name: string, bgColor: string): string {
 
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
-function slugFromRequest(request: Request): string | null {
-  const url = new URL(request.url);
-  const hostname = url.hostname;
-
-  // Local dev: hostname is localhost or 127.0.0.1 — use slug query param
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return url.searchParams.get("slug");
-  }
-
-  // Production: if the hostname ends with the configured domain, extract the subdomain
-  if (hostname.endsWith(`.${SALON_DOMAIN}`)) {
-    return hostname.slice(0, -(SALON_DOMAIN.length + 1)) || null;
-  }
-
-  // Fallback for any other real domain: if there is a subdomain (3+ labels, e.g. btw.salonsaas.org),
-  // treat the first label as the slug so subdomain routing works regardless of VITE_SALON_DOMAIN
-  const parts = hostname.split(".");
-  if (parts.length > 2) {
-    return parts[0] || null;
-  }
-
-  return url.searchParams.get("slug");
-}
-
 export type TenantData = {
   salon: Salon;
   staff: StaffMember[];
@@ -59,30 +36,33 @@ export type TenantData = {
 };
 
 type LoaderData =
-  | ({ status: "ok" } & TenantData)
+  | ({ status: "ok"; canonicalOrigin: string } & TenantData)
   | { status: "disabled"; salonName?: string }
   | { status: "not_found" }
   | { status: "error" };
 
 export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promise<LoaderData> {
-  const slug = slugFromRequest(request);
-  if (!slug) return { status: "not_found" };
+  const { slug, customHostname } = tenantHost(new URL(request.url), SALON_DOMAIN);
+  if (!slug && !customHostname) return { status: "not_found" };
 
   try {
-    const salon = await apiFetch<Salon>(`${API_BASE}/api/salon/${slug}`);
+    const resolution = customHostname ? await apiFetch<{ salonId: string }>(`${API_BASE}/api/salon/domain/resolve?hostname=${encodeURIComponent(customHostname)}`) : null;
+    const salon = await apiFetch<Salon>(`${API_BASE}/api/salon/${resolution?.salonId ?? slug}`);
     if (salon.status === "DISABLED") {
       return { status: "disabled", salonName: salon.name };
     }
-    const [staff, services, theme] = await Promise.all([
+    const [staff, services, theme, preferredDomain] = await Promise.all([
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
+      apiFetch<{ hostname: string | null }>(`${API_BASE}/api/salon/${salon.id}/website/domain`).catch(() => null),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
     if (!salon.features?.includes("STATIC_WEBSITE")) {
       return { status: "disabled", salonName: salon.name };
     }
-    return { status: "ok", salon, staff, services, theme: resolvedTheme };
+    const canonicalOrigin = preferredDomain?.hostname ? `https://${preferredDomain.hostname}` : new URL(request.url).origin;
+    return { status: "ok", salon, staff, services, theme: resolvedTheme, canonicalOrigin };
   } catch (err) {
     const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
     return { status: is404 ? "not_found" : "error" };
@@ -105,6 +85,16 @@ export function shouldRevalidate({
 
 export default function WebsiteShell() {
   const data = useLoaderData<typeof clientLoader>();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (data.status !== "ok") return;
+    const canonical = document.createElement("link");
+    canonical.rel = "canonical";
+    canonical.href = new URL(location.pathname, data.canonicalOrigin).href;
+    document.head.appendChild(canonical);
+    return () => canonical.remove();
+  }, [data, location.pathname]);
 
   useEffect(() => {
     if (data.status === "ok") {

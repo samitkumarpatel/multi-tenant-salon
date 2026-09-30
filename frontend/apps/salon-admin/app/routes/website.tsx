@@ -1,10 +1,12 @@
-import React, { useState } from "react";
-import { useOutletContext, useLoaderData } from "react-router";
+import React, { useEffect, useState } from "react";
+import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Monitor, BotMessageSquare, ExternalLink, Eye, Handshake, Mail } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { CONTACT_EMAIL, websiteUrl } from "~/lib/config";
+import { WebsiteDomains, connectedHostname } from "~/components/WebsiteDomains";
+import type { DomainSettings } from "~/components/WebsiteDomains";
 
 type Mode = WebsiteMode;
 
@@ -139,13 +141,20 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, i
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const data = await apiFetch<{ websiteType: WebsiteMode }>(`${ADMIN_API}/${sid}/website`).catch(() => null);
-  return { initialWebsiteMode: data?.websiteType ?? null };
+  const [data, domains] = await Promise.all([
+    apiFetch<{ websiteType: WebsiteMode }>(`${ADMIN_API}/${sid}/website`).catch(() => null),
+    apiFetch<DomainSettings>(`${ADMIN_API}/${sid}/website/domains`).catch(() => null),
+  ]);
+  return { initialWebsiteMode: data?.websiteType ?? null, domains, sid };
 }
 
 export default function WebsiteManagement() {
   const { salon, setWebsiteMode: persistMode } = useOutletContext<LayoutContext>();
-  const { initialWebsiteMode } = useLoaderData<typeof clientLoader>();
+  const { initialWebsiteMode, domains: initialDomains, sid } = useLoaderData<typeof clientLoader>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = searchParams.get("section") === "domain" ? "domain" : "design";
+  const [domains, setDomains] = useState(initialDomains);
+  useEffect(() => { setDomains(initialDomains); }, [initialDomains, sid]);
   const [mode, setModeState] = useState<WebsiteMode | null>(initialWebsiteMode);
 
   function setMode(m: WebsiteMode | null) {
@@ -156,7 +165,15 @@ export default function WebsiteManagement() {
   const previewUrl = `/${salon.handler ?? salon.id}/website-preview`;
   const designUrl  = `${previewUrl}?design=1`;
 
-  const liveUrl = websiteUrl(salon.handler ?? String(salon.id));
+  const includedUrl = websiteUrl(salon.handler ?? String(salon.id));
+  const liveUrl = websiteUrl(salon.handler ?? String(salon.id), connectedHostname(domains));
+
+  function selectSection(next: "domain" | "design") {
+    const params = new URLSearchParams(searchParams);
+    if (next === "design") params.delete("section");
+    else params.set("section", next);
+    setSearchParams(params, { preventScrollReset: true });
+  }
 
   return (
     <div className="max-w-2xl">
@@ -180,7 +197,37 @@ export default function WebsiteManagement() {
         )}
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div role="tablist" aria-label="Website settings" className="mb-6 grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1">
+        <button
+          id="website-domain-tab"
+          type="button"
+          role="tab"
+          aria-selected={section === "domain"}
+          aria-controls="website-domain-panel"
+          onClick={() => selectSection("domain")}
+          className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "domain" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+        >
+          Domain
+        </button>
+        <button
+          id="website-design-tab"
+          type="button"
+          role="tab"
+          aria-selected={section === "design"}
+          aria-controls="website-design-panel"
+          onClick={() => selectSection("design")}
+          className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 ${section === "design" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+        >
+          Web &amp; Design
+        </button>
+      </div>
+
+      {section === "domain" ? (
+        <div id="website-domain-panel" role="tabpanel" aria-labelledby="website-domain-tab">
+          <WebsiteDomains key={sid} salonId={sid} includedUrl={includedUrl} settings={domains} onChange={setDomains} />
+        </div>
+      ) : (
+      <div id="website-design-panel" role="tabpanel" aria-labelledby="website-design-tab" className="flex flex-col gap-4">
 
         <ModeCard
           id="STATIC_WEBSITE"
@@ -311,6 +358,7 @@ export default function WebsiteManagement() {
         </ModeCard>
 
       </div>
+      )}
     </div>
   );
 }

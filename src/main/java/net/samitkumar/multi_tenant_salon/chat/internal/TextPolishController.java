@@ -21,7 +21,8 @@ class TextPolishController {
         this.client = builder.build();
     }
 
-    record PolishRequest(@NotBlank @Size(max = 5000) String text) {}
+    enum PolishContext { STAFF_BIO }
+    record PolishRequest(@NotBlank @Size(max = 5000) String text, PolishContext context) {}
     record PolishVariants(String polished, String friendly, String concise) {}
     // Keep text as the default suggestion for existing consumers.
     record PolishResponse(String text, PolishVariants suggestions) {}
@@ -31,10 +32,17 @@ class TextPolishController {
     PolishResponse polish(@Valid @RequestBody PolishRequest request) {
         String result;
         var converter = new BeanOutputConverter<>(PolishVariants.class);
+        String editingContext = request.context() == PolishContext.STAFF_BIO ? """
+                Edit the About me field of an individual salon staff member's profile.
+                Every version must remain a personal biography about that person, not a service,
+                treatment, product or salon description. Preserve first-person or third-person voice
+                when present; for fragments without a point of view, use first person.
+                Keep the person's stated skills, interests and experience as personal facts.
+                Do not turn them into service benefits, sales copy or booking calls to action.
+                """ : "Polish the supplied salon biography or description for customers.\n";
         try {
             result = client.prompt()
-                    .system("""
-                            Polish the supplied salon biography or description for customers.
+                    .system(editingContext + """
                             Correct spelling and grammar and make it clear, natural, warm and professional.
                             Preserve its language, meaning, point of view and all factual details.
                             Do not invent qualifications, experience, benefits, prices or other claims.

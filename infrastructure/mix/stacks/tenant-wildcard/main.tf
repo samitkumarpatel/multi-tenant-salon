@@ -23,7 +23,10 @@ resource "cloudflare_workers_script" "tenant_proxy" {
   script_name = var.script_name
 
   content = templatefile("${path.module}/worker.js.tftpl", {
-    pages_host = var.pages_host
+    pages_host             = var.pages_host
+    zone_name              = var.zone_name
+    api_base_url           = var.api_base_url
+    custom_domains_enabled = var.custom_domains_enabled
   })
   main_module        = "worker.js"
   compatibility_date = var.compatibility_date
@@ -57,4 +60,36 @@ resource "cloudflare_dns_record" "tenant_wildcard" {
   content = var.placeholder_origin_ip
   ttl     = 1
   proxied = true
+}
+
+# Customer DNS stays at their provider. Only the shared SaaS target and fallback
+# belong to this zone; per-customer custom hostnames are managed by the backend.
+resource "cloudflare_dns_record" "customer_target" {
+  count   = var.custom_domains_enabled ? 1 : 0
+  zone_id = var.zone_id
+  name    = "customers.${var.zone_name}"
+  type    = "AAAA"
+  content = "100::"
+  ttl     = 1
+  proxied = true
+}
+
+resource "cloudflare_custom_hostname_fallback_origin" "customers" {
+  count   = var.custom_domains_enabled ? 1 : 0
+  zone_id = var.zone_id
+  origin  = cloudflare_dns_record.customer_target[0].name
+}
+
+resource "cloudflare_workers_route" "customer_domains" {
+  count   = var.custom_domains_enabled ? 1 : 0
+  zone_id = var.zone_id
+  pattern = "*/*"
+  script  = cloudflare_workers_script.tenant_proxy.script_name
+}
+
+# Unlike *.<zone>/*, */* also catches the apex marketing site.
+resource "cloudflare_workers_route" "apex_bypass" {
+  count   = var.custom_domains_enabled ? 1 : 0
+  zone_id = var.zone_id
+  pattern = "${var.zone_name}/*"
 }

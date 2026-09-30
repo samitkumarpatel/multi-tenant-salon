@@ -12,10 +12,37 @@
 // overwrites it.
 
 const PAGES_HOST = "${pages_host}";
+const PLATFORM_DOMAIN = "${zone_name}";
+const API_BASE = "${api_base_url}";
+const CUSTOM_DOMAINS_ENABLED = ${custom_domains_enabled};
 
 export default {
   async fetch(request) {
     const tenantHost = new URL(request.url).hostname;
+
+    // Only verified, active mappings may serve a customer domain. Never infer
+    // a salon from the first label of a third-party hostname. No mapping cache:
+    // disconnecting a domain must take effect before serving the next request.
+    if (tenantHost !== PLATFORM_DOMAIN && !tenantHost.endsWith("." + PLATFORM_DOMAIN)) {
+      if (!CUSTOM_DOMAINS_ENABLED) return unavailable(404);
+      try {
+        const resolution = await fetch(API_BASE + "/api/salon/domain/resolve?hostname=" + encodeURIComponent(tenantHost), {
+          headers: { Accept: "application/json" },
+          redirect: "error",
+          signal: AbortSignal.timeout(10000),
+          cf: { cacheTtl: 0, cacheEverything: false },
+        });
+        if (!resolution.ok) return unavailable(resolution.status === 404 ? 404 : 503);
+        const mapping = await resolution.json();
+        if (mapping.hostname !== tenantHost || !mapping.salonId) return unavailable(404);
+      } catch { return unavailable(503); }
+    }
+
+    if (new URL(request.url).protocol !== "https:") {
+      const secure = new URL(request.url);
+      secure.protocol = "https:";
+      return Response.redirect(secure.toString(), 308);
+    }
 
     const upstream = new URL(request.url);
     upstream.hostname = PAGES_HOST;
@@ -46,3 +73,10 @@ export default {
     return response;
   },
 };
+
+function unavailable(status) {
+  return new Response("This website is currently unavailable. Please try again later.", {
+    status,
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}

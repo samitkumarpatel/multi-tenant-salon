@@ -617,7 +617,7 @@ function AddStaffFlow({
           </div>
           <div>
             <label className={fieldLabel}>About me</label>
-            <FixWithAi value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
+            <FixWithAi context="STAFF_BIO" value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
               <textarea
                 className={`${inputCls} resize-none`}
                 rows={3}
@@ -726,7 +726,7 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
 
       <div className="mt-4 mb-4">
         <label className={fieldLabel}>About me</label>
-        <FixWithAi value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
+        <FixWithAi context="STAFF_BIO" value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
           <textarea
             className={`${inputCls} resize-none`}
             rows={3}

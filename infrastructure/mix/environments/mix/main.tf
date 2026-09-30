@@ -110,10 +110,12 @@ module "frontend" {
 module "tenant_wildcard" {
   source = "../../stacks/tenant-wildcard"
 
-  account_id = var.cloudflare_account_id
-  zone_id    = module.dns.zone_id
-  zone_name  = local.domain
-  pages_host = module.frontend.pages_hostnames["public-web"]
+  account_id             = var.cloudflare_account_id
+  zone_id                = module.dns.zone_id
+  zone_name              = local.domain
+  pages_host             = module.frontend.pages_hostnames["public-web"]
+  custom_domains_enabled = var.website_domains_enabled
+  api_base_url           = "https://${local.api_host}"
 
   # Everything that must NOT be swallowed by "*.salonsaas.org/*": the other
   # five frontend apps (apex excluded — the wildcard route can't match it) and
@@ -197,6 +199,10 @@ module "backend" {
         # SPRING_DATASOURCE_URL / _USERNAME are set by the backend stack from
         # module.postgres; SPRING_DATASOURCE_PASSWORD is a Container App secret.
         env = {
+          WEBSITE_DOMAINS_ENABLED                                   = tostring(var.website_domains_enabled)
+          WEBSITE_DOMAINS_ZONE_ID                                   = module.dns.zone_id
+          WEBSITE_DOMAINS_CNAME_TARGET                              = "customers.${local.domain}"
+          SALON_DOMAIN                                              = local.domain
           SPRING_SQL_INIT_MODE                                      = "never"
           SPRING_MODULITH_EVENTS_JDBC_SCHEMA_INITIALIZATION_ENABLED = "false"
           SPRING_FLYWAY_ENABLED                                     = "true"
@@ -223,17 +229,18 @@ module "backend" {
       }
       # Container App secrets — replaces the chart's mailjet-secret + anthropic-secret
       # envFrom. SPRING_DATASOURCE_PASSWORD is added by the backend stack.
-      secret_env = {
+      secret_env = merge({
         MAILJET_API_KEY    = var.mailjet_api_key
         MAILJET_API_SECRET = var.mailjet_api_secret
         ANTHROPIC_API_KEY  = var.anthropic_api_key
-      }
+      }, var.website_domains_enabled ? { WEBSITE_DOMAINS_API_TOKEN = var.website_domains_api_token } : {})
       ingress = {
         external_enabled = true
         target_port      = 8080
         transport        = "auto"
       }
-      replicas = { min = 0, max = 2 }
+      # Domain DNS/TLS reconciliation must continue even without HTTP traffic.
+      replicas = { min = var.website_domains_enabled ? 1 : 0, max = 2 }
     }
 
     auth = {

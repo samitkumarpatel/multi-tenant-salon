@@ -51,6 +51,64 @@ class TextPolishControllerTest {
     }
 
     @Test
+    void serviceDescriptionsKeepTheOriginalPromptAfterEditingABio() throws Exception {
+        when(model.call(any(Prompt.class))).thenReturn(reply("""
+                {"polished":"Haircut with wash and styling.","friendly":"Enjoy a haircut with a wash and styling.","concise":"Haircut, wash and styling."}
+                """));
+        mvc.perform(post("/api/salon-admin/salon-1/ai/polish").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"i love hair styling\",\"context\":\"STAFF_BIO\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/salon-admin/salon-1/ai/polish").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"haircut with wash and styling\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.text").value("Haircut with wash and styling."))
+                .andExpect(jsonPath("$.suggestions.polished").value("Haircut with wash and styling."))
+                .andExpect(jsonPath("$.suggestions.friendly").value("Enjoy a haircut with a wash and styling."))
+                .andExpect(jsonPath("$.suggestions.concise").value("Haircut, wash and styling."));
+
+        var prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(model, times(2)).call(prompts.capture());
+        var servicePrompt = prompts.getAllValues().get(1);
+        assertThat(servicePrompt.getSystemMessage().getText())
+                .startsWith("Polish the supplied salon biography or description for customers.\n")
+                .doesNotContain("About me", "personal biography about that person", "use first person");
+        assertThat(servicePrompt.getInstructions())
+                .filteredOn(message -> message instanceof UserMessage)
+                .extracting(message -> message.getText())
+                .containsExactly("Rewrite the following draft into all three versions.\n\nDRAFT TO EDIT:\nhaircut with wash and styling");
+    }
+
+    @Test
+    void bothPortalRoutesUsePersonalBiographyInstructionsWhenRequested() throws Exception {
+        when(model.call(any(Prompt.class))).thenReturn(reply("""
+                {"polished":"I love styling hair.","friendly":"I love helping people style their hair.","concise":"I love hairstyling."}
+                """));
+        for (var path : List.of("/api/salon-admin/salon-1/ai/polish", "/api/salon-staff/ai/polish")) {
+            mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"text\":\"i love styling hair\",\"context\":\"STAFF_BIO\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.text").value("I love styling hair."));
+        }
+        var prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(model, times(2)).call(prompts.capture());
+        for (var prompt : prompts.getAllValues()) {
+            assertThat(prompt.getSystemMessage().getText())
+                    .contains("About me", "personal biography about that person", "Preserve first-person or third-person voice",
+                            "Do not turn them into service benefits, sales copy or booking calls to action.")
+                    .doesNotContain("Polish the supplied salon biography or description for customers.");
+            assertThat(prompt.getUserMessage().getText()).endsWith("DRAFT TO EDIT:\ni love styling hair");
+        }
+    }
+
+    @Test
+    void rejectsUnknownContextWithoutCallingModel() throws Exception {
+        mvc.perform(post("/api/salon-staff/ai/polish").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"my bio\",\"context\":\"UNKNOWN\"}"))
+                .andExpect(status().isBadRequest());
+        verify(model, never()).call(any(Prompt.class));
+    }
+
+    @Test
     void sendsTheExactDraftToTheModelWithoutTemplateExpansionOrPreviousDrafts() throws Exception {
         when(model.call(any(Prompt.class))).thenReturn(reply("""
                 {"polished":"A stylist.","friendly":"Your stylist.","concise":"Stylist."}

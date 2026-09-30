@@ -2666,6 +2666,142 @@ paths:
 
 # ─── Components ───────────────────────────────────────────────────────────────
 
+  /api/salon-admin/{salonId}/website/domains:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      summary: Get custom website domain settings and DNS instructions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current settings; domain is null when no connection exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebsiteDomainSettings'
+        '401':
+          description: Authentication required
+        '403':
+          description: Requires active salon owner or super-admin
+    post:
+      summary: Connect one customer-managed CNAME hostname
+      description: Requires the website feature and configured provider. Customers retain their DNS provider. Unverified claims expire after seven days.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hostname]
+              properties:
+                hostname:
+                  type: string
+                  maxLength: 253
+                  example: www.mysalon.dk
+      responses:
+        '200':
+          description: Pending connection with TXT and CNAME instructions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebsiteDomainSettings'
+        '400':
+          description: Invalid hostname
+        '401':
+          description: Authentication required
+        '403':
+          description: Requires active salon owner or super-admin
+        '409':
+          description: Existing hostname or salon connection, or website feature disabled
+        '503':
+          description: Domain provider is not configured
+    delete:
+      summary: Disconnect the domain and queue provider cleanup
+      description: Removes serving and custom-origin access immediately. The claim remains reserved until provider cleanup succeeds.
+      security:
+        - BearerAuth: []
+      responses:
+        '202':
+          description: Cleanup queued, or no connection exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebsiteDomainSettings'
+        '401':
+          description: Authentication required
+        '403':
+          description: Requires active salon owner or super-admin
+
+  /api/salon-admin/{salonId}/website/domains/check:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      summary: Check ownership, routing and HTTPS readiness
+      description: Checks have a 30-second cooldown. Concurrent checks return the current state. Provisioning also retries automatically.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current settings, including actionable provisioning status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebsiteDomainSettings'
+        '401':
+          description: Authentication required
+        '403':
+          description: Requires active salon owner or super-admin
+        '503':
+          description: Domain provider is not configured
+
+  /api/salon/domain/resolve:
+    get:
+      summary: Resolve an active custom hostname to a salon
+      description: Public, no-store. Only active domains of active salons with the website feature resolve. Never returns ownership tokens.
+      parameters:
+        - name: hostname
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Verified active mapping
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [salonId, hostname]
+                properties:
+                  salonId:
+                    type: string
+                    format: uuid
+                  hostname:
+                    type: string
+        '404':
+          description: Unknown, disabled, disconnected or unverified hostname
+
+  /api/salon/{salonId}/website/domain:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      summary: Get the preferred active custom hostname
+      description: Public, no-store. Returns null when no active custom domain is available.
+      responses:
+        '200':
+          description: Preferred hostname
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hostname]
+                properties:
+                  hostname:
+                    type: [string, 'null']
+
 components:
 
   securitySchemes:
@@ -2769,6 +2905,46 @@ components:
             $ref: "#/components/schemas/ProblemDetail"
 
   schemas:
+    WebsiteDomainSettings:
+      type: object
+      required: [available, websiteEnabled, domain]
+      properties:
+        available:
+          type: boolean
+        websiteEnabled:
+          type: boolean
+        domain:
+          oneOf:
+            - $ref: '#/components/schemas/WebsiteDomain'
+            - type: 'null'
+    WebsiteDomain:
+      type: object
+      required: [hostname, status, records]
+      properties:
+        hostname:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_DNS, PROVISIONING, ACTIVE, ERROR, DELETING]
+        message:
+          type: [string, 'null']
+        checkedAt:
+          type: [string, 'null']
+          format: date-time
+        records:
+          type: array
+          items:
+            type: object
+            required: [type, name, value]
+            properties:
+              type:
+                type: string
+                enum: [TXT, CNAME]
+              name:
+                type: string
+              value:
+                type: string
+
 
     TextPolishRequest:
       type: object

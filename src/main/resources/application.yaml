@@ -29,6 +29,13 @@ spring:
       # Comma-separated origin patterns. Override in production via CORS_ALLOWED_ORIGIN_PATTERNS.
       # e.g. https://salonsaas.org,https://www.salonsaas.org,https://*.salonsaas.org
       allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+    website-domains:
+      enabled: ${WEBSITE_DOMAINS_ENABLED:false}
+      platform-domain: ${SALON_DOMAIN:salonsaas.org}
+      cname-target: ${WEBSITE_DOMAINS_CNAME_TARGET:customers.salonsaas.org}
+      zone-id: ${WEBSITE_DOMAINS_ZONE_ID:}
+      api-token: ${WEBSITE_DOMAINS_API_TOKEN:}
+      poll-interval-ms: ${WEBSITE_DOMAINS_POLL_INTERVAL_MS:60000}
     notification:
       mailjet:
         sender: ${MAILJET_SENDER:noreply@salonsaas.org}
@@ -94,6 +101,7 @@ spring:
         - classpath:db/V8__salon_social_links.sql
         - classpath:db/V9__shop_module.sql
         - classpath:db/V10__additional_changes.sql
+        - classpath:db/V11__website_domains.sql
   modulith:
     events:
       jdbc:

@@ -1,7 +1,6 @@
 package net.samitkumar.multi_tenant_salon;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -21,8 +20,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,22 +33,6 @@ public class MultiTenantSalonApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(MultiTenantSalonApplication.class, args);
-	}
-
-	@Bean
-	WebMvcConfigurer corsConfigurer(@Value("${spring.application.cors.allowed-origin-patterns:*}") String[] allowedOriginPatterns) {
-		return new WebMvcConfigurer() {
-			@Override
-			public void addCorsMappings(@NonNull CorsRegistry registry) {
-				registry.addMapping("/**")
-						.allowedOriginPatterns(allowedOriginPatterns)
-						.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
-						.allowedHeaders("Content-Type", "Authorization", "X-Requested-With")
-						.exposedHeaders("Content-Type", "x-tenant-id")
-						.allowCredentials(false)
-						.maxAge(300);
-			}
-		};
 	}
 
 	@Bean
@@ -80,7 +61,7 @@ public class MultiTenantSalonApplication {
 			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
 		if (issuerUri.contains("localhost")) {
 			log.warn("No OAuth2 issuer configured (still the localhost default) — running with security disabled for local development.");
-			return http -> http.csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
+			return http -> http.csrf(AbstractHttpConfigurer::disable).cors(Customizer.withDefaults()).authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
 		}
 		return http ->
 				http
@@ -124,7 +105,7 @@ public class MultiTenantSalonApplication {
 								.requestMatchers("/api/salon-admin/{salonId}", "/api/salon-admin/{salonId}/**").access((authentication, context) -> {
 									Authentication auth = authentication.get();
 
-									if (auth == null || !auth.isAuthenticated()) {
+									if (!(auth instanceof JwtAuthenticationToken jwtAuth) || !auth.isAuthenticated()) {
 										return new AuthorizationDecision(false);
 									}
 
@@ -139,7 +120,7 @@ public class MultiTenantSalonApplication {
 
                                     assert context != null;
                                     String salonIdParam = context.getVariables().get("salonId");
-									Jwt jwt = ((JwtAuthenticationToken) auth).getToken();
+									Jwt jwt = jwtAuth.getToken();
 									List<Map<String, Object>> salons = jwt.getClaim("salons");
 									log.info("Requested salonId: {} having jwt: {}", salonIdParam, salons);
 									boolean allowed = salons != null && salons.stream().anyMatch(s ->

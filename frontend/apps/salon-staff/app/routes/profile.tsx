@@ -526,7 +526,7 @@ export default function Profile() {
               <label className={fieldLabel}>About me</label>
               <AiPolishButton value={form.bio} onApply={(text) => setForm((p) => ({ ...p, bio: text }))}
                 polish={(text) => apiFetch<AiPolishResponse>(`${STAFF_PORTAL_API}/ai/polish`, {
-                  method: "POST", body: JSON.stringify({ text }),
+                  method: "POST", body: JSON.stringify({ text, context: "STAFF_BIO" }),
                 })}>
                 <textarea
                   className={`${inputCls} resize-none`}

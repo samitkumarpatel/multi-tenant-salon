@@ -9,6 +9,8 @@ import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants"
 import { InfoBar } from "@salon/ui-shared";
 import { ADMIN_APP_URL, STAFF_APP_URL, bookingUrl, dashboardUrl, websiteUrl } from "~/lib/config";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
+import { connectedHostname } from "~/components/WebsiteDomains";
+import type { DomainSettings } from "~/components/WebsiteDomains";
 
 interface DashboardSettings {
   bookingManagementEnabled: boolean;
@@ -17,8 +19,12 @@ interface DashboardSettings {
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const salonId = await resolveSalonUUID(params.salonId!);
-  return apiFetch<DashboardSettings>(`${ADMIN_API}/${salonId}/dashboard/settings`)
-    .catch((): DashboardSettings => ({ bookingManagementEnabled: false, cashierEnabled: false }));
+  const [dashboard, domains] = await Promise.all([
+    apiFetch<DashboardSettings>(`${ADMIN_API}/${salonId}/dashboard/settings`)
+      .catch((): DashboardSettings => ({ bookingManagementEnabled: false, cashierEnabled: false })),
+    apiFetch<DomainSettings>(`${ADMIN_API}/${salonId}/website/domains`).catch(() => null),
+  ]);
+  return { ...dashboard, customHostname: connectedHostname(domains) };
 }
 
 const FEATURE_HINTS: Record<string, string> = {
@@ -85,7 +91,7 @@ export default function Manage() {
         : dashboardSettings.bookingManagementEnabled ? "Appointment management" : "In-salon checkout",
     }] : []),
     ...(hasWebsite ? [{
-      key: "website" as LinkKey, label: "Public Website", icon: Globe, url: websiteUrl(handler),
+      key: "website" as LinkKey, label: "Public Website", icon: Globe, url: websiteUrl(handler, dashboardSettings.customHostname),
       desc: "Your public salon page",
     }] : []),
   ];

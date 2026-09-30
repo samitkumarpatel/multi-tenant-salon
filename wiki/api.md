@@ -2623,3 +2623,25 @@ Creates a date-specific unavailability override. Existing bookings on this date 
 `DELETE /api/salon-staff/{staffId}/holidays/{holidayId}`
 
 **Response** `204 No Content`
+# Website custom domains
+
+See [customer setup and deployment](custom-domains.md). Customers manage their own
+DNS. All admin paths below inherit active salon owner / super-admin authorization.
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/api/salon-admin/{salonId}/website/domains` | Availability, website eligibility, current domain and DNS instructions |
+| POST | `/api/salon-admin/{salonId}/website/domains` | Add `{ "hostname": "www.mysalon.dk" }`; requires enabled website; one domain per salon |
+| POST | `/api/salon-admin/{salonId}/website/domains/check` | Recheck DNS/TLS; 30-second cooldown; returns current settings |
+| DELETE | `/api/salon-admin/{salonId}/website/domains` | `202`; immediately disable serving and queue provider cleanup |
+| GET | `/api/salon/domain/resolve?hostname=www.mysalon.dk` | Public `{ "salonId": "uuid", "hostname": "www.mysalon.dk" }` for active mappings; otherwise `404`; no-store |
+| GET | `/api/salon/{salonId}/website/domain` | Public `{ "hostname": "www.mysalon.dk" }`, or `{ "hostname": null }`; no-store |
+
+Settings response: `{ available, websiteEnabled, domain }`. `domain` is null or
+`{ hostname, status, message, checkedAt, records: [{ type, name, value }] }`.
+Statuses: `PENDING_DNS`, `PROVISIONING`, `ACTIVE`, `ERROR`, `DELETING`.
+Only admin responses contain the ownership TXT token. Hostnames are normalized to
+lowercase ASCII/IDNA. Invalid input is `400`; an existing hostname/salon connection
+or disabled website is `409`; unconfigured provider operations return `503`.
+Unverified claims expire after seven days; disconnected claims stay reserved until
+provider cleanup succeeds. GET and DELETE remain usable while provisioning is disabled.

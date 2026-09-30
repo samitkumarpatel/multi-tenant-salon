@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:domains": "node --experimental-strip-types --test tests/tenant-host.test.mjs",
     "dev": "react-router dev",
     "build": "react-router build",
     "preview": "npx serve build/client",

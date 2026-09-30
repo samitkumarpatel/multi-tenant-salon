@@ -8,7 +8,8 @@ const WEBSITE_BASE_URL: string =
   import.meta.env.VITE_WEBSITE_BASE_URL ??
   (import.meta.env.DEV ? "http://localhost:5174" : "");
 
-export function websiteUrl(handler: string): string {
+export function websiteUrl(handler: string, customHostname?: string): string {
+  if (customHostname) return `https://${customHostname}`;
   return WEBSITE_BASE_URL
     ? `${WEBSITE_BASE_URL}/?slug=${handler}`
     : `https://${handler}.${SALON_DOMAIN}`;
