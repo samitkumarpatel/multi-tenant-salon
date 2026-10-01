@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
-import type { ClientLoaderFunctionArgs } from "react-router";
+import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Filter, List,
   Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Search,
 } from "lucide-react";
-import { ADMIN_API, CUSTOMER_API, COUNTRIES_API, apiFetch, resolveSalonUUID } from "~/lib/api";
+import { ADMIN_API, CUSTOMER_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
 import type {
   LayoutContext, StaffMember, ServiceItem, Booking, BookingStatus,
@@ -17,13 +17,20 @@ import { Tooltip } from "~/components/Tooltip";
 import { Toast, useToast } from "@salon/ui-shared";
 import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
+// The sidebar's sub-links only change `?section=…`; the page already holds its data,
+// so don't refetch it (and block the UI on the API) for a tab switch.
+export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }: ShouldRevalidateFunctionArgs) {
+  if (currentUrl.pathname === nextUrl.pathname && currentUrl.search !== nextUrl.search) return false;
+  return defaultShouldRevalidate;
+}
+
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
   const [bookings, staff, services, countries] = await Promise.all([
     apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`),
     apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`),
     apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`),
-    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
+    apiFetchCached<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
   return { bookings, staff, services, countries };
 }

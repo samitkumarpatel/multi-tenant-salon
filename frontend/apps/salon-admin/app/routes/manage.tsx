@@ -1,5 +1,5 @@
 import { useOutletContext, useLoaderData, Link, useSearchParams } from "react-router";
-import type { ClientLoaderFunctionArgs } from "react-router";
+import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink, Share2, Gauge } from "lucide-react";
 import React, { useState } from "react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
@@ -15,6 +15,13 @@ import type { DomainSettings } from "~/components/WebsiteDomains";
 interface DashboardSettings {
   bookingManagementEnabled: boolean;
   cashierEnabled: boolean;
+}
+
+// The sidebar's sub-links only change `?tab=…`; the page already holds its data,
+// so don't refetch it (and block the UI on the API) for a tab switch.
+export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }: ShouldRevalidateFunctionArgs) {
+  if (currentUrl.pathname === nextUrl.pathname && currentUrl.search !== nextUrl.search) return false;
+  return defaultShouldRevalidate;
 }
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {

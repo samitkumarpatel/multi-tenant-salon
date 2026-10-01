@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, Users, Scissors, Clock, Tag, Plus, ChevronDown } from "lucide-react";
-import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSalonUUID } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID } from "~/lib/api";
 import { SERVICE_CATEGORIES, CATEGORY_LABEL, formatPrice, toggleList } from "~/lib/constants";
 import type { LayoutContext, StaffMember, ServiceItem, Country } from "~/lib/types";
 import { InfoBar, Toast, useToast } from "@salon/ui-shared";
@@ -23,7 +23,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const [services, staff, countries] = await Promise.all([
     apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`),
     apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`),
-    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
+    apiFetchCached<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
   return { services, staff, countries };
 }

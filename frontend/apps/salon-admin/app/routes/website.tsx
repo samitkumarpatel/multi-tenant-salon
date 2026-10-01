@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
-import type { ClientLoaderFunctionArgs } from "react-router";
+import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import { Monitor, BotMessageSquare, ExternalLink, Eye, Handshake, Mail } from "lucide-react";
 import type { LayoutContext, WebsiteMode } from "~/lib/types";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
@@ -138,6 +138,13 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, i
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+// The sidebar's sub-links only change `?section=…`; the page already holds its data,
+// so don't refetch it (and block the UI on the API) for a tab switch.
+export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }: ShouldRevalidateFunctionArgs) {
+  if (currentUrl.pathname === nextUrl.pathname && currentUrl.search !== nextUrl.search) return false;
+  return defaultShouldRevalidate;
+}
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);

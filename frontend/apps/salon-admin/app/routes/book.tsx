@@ -6,7 +6,7 @@
 
 import { useLoaderData, useNavigate, useParams, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { CUSTOMER_API, COUNTRIES_API, apiFetch } from "~/lib/api";
+import { CUSTOMER_API, COUNTRIES_API, apiFetch, apiFetchCached } from "~/lib/api";
 import { DEFAULT_THEME, BookingWizard } from "@salon/ui-website";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, Country } from "~/lib/types";
 
@@ -18,7 +18,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     apiFetch<ServiceItem[]>(`${CUSTOMER_API}/${salon.id}/services`).catch((): ServiceItem[] => []),
     apiFetch<StaffMember[]>(`${CUSTOMER_API}/${salon.id}/staff`).catch((): StaffMember[] => []),
     apiFetch<WebsiteTheme>(`${CUSTOMER_API}/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
-    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
+    apiFetchCached<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
   return {
     salon,

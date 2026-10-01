@@ -38,6 +38,24 @@ export async function resolveSalonUUID(rawId: string): Promise<string> {
   return uuid;
 }
 
+/** In-flight/resolved GETs for static reference data, keyed by URL. */
+const staticGetCache = new Map<string, Promise<unknown>>();
+
+/**
+ * `apiFetch` for reference data that doesn't change within a session (e.g. the
+ * country list) — fetched once and reused, so page loaders don't re-request it
+ * on every navigation. A failed request is dropped so the next call retries.
+ */
+export function apiFetchCached<T>(url: string): Promise<T> {
+  let hit = staticGetCache.get(url) as Promise<T> | undefined;
+  if (!hit) {
+    hit = apiFetch<T>(url);
+    staticGetCache.set(url, hit);
+    hit.catch(() => staticGetCache.delete(url));
+  }
+  return hit;
+}
+
 /**
  * Uploads a file to a pre-signed PUT URL from `.../photo-upload-url` — S3, Azure
  * Blob, or the local media endpoint all use the same contract here. Azure Blob

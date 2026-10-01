@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLoaderData, useSearchParams } from "react-router";
 import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
-import { ONBOARDING_API as SALON_ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
+import { ONBOARDING_API as SALON_ONBOARDING_API, COUNTRIES_API, apiFetch, apiFetchCached } from "~/lib/api";
 import { SALON_DOMAIN } from "~/lib/config";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, defaultHours } from "~/lib/constants";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
@@ -15,7 +15,7 @@ export async function clientLoader() {
   let countries: Country[] = [];
   let countriesError: string | null = null;
   try {
-    countries = await apiFetch<Country[]>(COUNTRIES_API);
+    countries = await apiFetchCached<Country[]>(COUNTRIES_API);
   } catch (e: unknown) {
     countriesError = e instanceof Error ? e.message : "Could not load country/phone-code data";
   }

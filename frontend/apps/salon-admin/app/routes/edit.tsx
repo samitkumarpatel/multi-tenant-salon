@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link, useOutletContext, useLoaderData, useSearchParams, useRevalidator } from "react-router";
-import { ADMIN_API, COUNTRIES_API, apiFetch } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached } from "~/lib/api";
 import { FEATURES, FEATURE_LABEL, cloneHours } from "~/lib/constants";
 import type { LayoutContext, Salon, Location, ContactInfo, Country } from "~/lib/types";
 import { HoursTable, TileGrid, CountrySelect, PhoneInput, InfoBar } from "@salon/ui-shared";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 
 export async function clientLoader() {
-  const countries = await apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []);
+  const countries = await apiFetchCached<Country[]>(COUNTRIES_API).catch((): Country[] => []);
   return { countries };
 }
 

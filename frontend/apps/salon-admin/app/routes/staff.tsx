@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { Pencil, Trash2, X, UserCircle, Crown, CalendarOff, Clock, Camera, RefreshCw, AlertTriangle, Plus, ChevronDown } from "lucide-react";
-import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
 import {
   STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_STATUSES, STAFF_STATUS_LABEL,
   CATEGORY_LABEL, SPECIALIZATION_OPTIONS,
@@ -19,7 +19,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
   const [staff, countries] = await Promise.all([
     apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`),
-    apiFetch<Country[]>(COUNTRIES_API).catch(() => [] as Country[]),
+    apiFetchCached<Country[]>(COUNTRIES_API).catch(() => [] as Country[]),
   ]);
   return { staff, countries };
 }

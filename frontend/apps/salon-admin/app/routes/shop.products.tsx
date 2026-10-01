@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { ImagePlus, LayoutGrid, List, Package, Pencil, Plus, Trash2, X } from "lucide-react";
-import { ADMIN_API, COUNTRIES_API, apiFetch, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
+import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
 import { Toast, useToast } from "@salon/ui-shared";
 import { Modal, ModalActions } from "~/components/ShopModal";
@@ -27,7 +27,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     apiFetch<ShopProduct[]>(`${ADMIN_API}/${sid}/shop/products`),
     apiFetch<ShopBrand[]>(`${ADMIN_API}/${sid}/shop/brands`).catch((): ShopBrand[] => []),
     apiFetch<ShopCategory[]>(`${ADMIN_API}/${sid}/shop/categories`).catch((): ShopCategory[] => []),
-    apiFetch<Country[]>(COUNTRIES_API).catch((): Country[] => []),
+    apiFetchCached<Country[]>(COUNTRIES_API).catch((): Country[] => []),
   ]);
   return { sid, products, brands, categories, countries };
 }

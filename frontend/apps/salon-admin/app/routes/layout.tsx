@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
-import type { ClientLoaderFunctionArgs } from "react-router";
+import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation, useNavigation } from "react-router";
+import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
@@ -11,6 +11,26 @@ import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
 import { SALON_DOMAIN } from "~/lib/config";
 import type { Salon, LayoutContext, WebsiteMode } from "~/lib/types";
+
+// Pages whose edits can change the onboarding flags (pendingServices / pendingStaff /
+// pendingWebsite) this loader computes — leaving one of them refreshes the flags.
+const SETUP_PAGES = /\/(services|staff|website)\/?$/;
+
+// This loader costs up to 4 requests in 2 round trips. Running it on every sidebar
+// click (the default) made each link wait on the API before the page switched, so
+// it only re-runs when its result can actually differ.
+export function shouldRevalidate({ currentUrl, nextUrl, currentParams, nextParams, formMethod, defaultShouldRevalidate }: ShouldRevalidateFunctionArgs) {
+  if (currentParams.salonId !== nextParams.salonId) return true;
+  // Explicit revalidate() (same URL) or a mutation — keep the default.
+  if (currentUrl.href === nextUrl.href || (formMethod && formMethod !== "GET")) return defaultShouldRevalidate;
+  // Tab switches (`?tab=` / `?section=`) never change layout data.
+  if (currentUrl.pathname === nextUrl.pathname) return false;
+  // The public preview is loaded without a session check; re-check on the way out.
+  if (currentUrl.pathname.endsWith("/website-preview")) return true;
+  // The index route redirects to the setup checklist from inside this loader.
+  if (nextUrl.pathname.replace(/\/$/, "").endsWith(`/${nextParams.salonId}`)) return true;
+  return SETUP_PAGES.test(currentUrl.pathname);
+}
 
 export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
   const salonId = params.salonId!;
@@ -106,18 +126,25 @@ const BOOKING_SECTIONS = [
 
 // ── Salon switcher ───────────────────────────────────────────────────────────
 
+// Height and fade run on separate curves: the height eases out over 300ms while
+// the links fade/slide in slightly behind it, so rows never pop in or get visibly
+// clipped mid-flight.
+const SUBMENU_EASE = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+
 function SidebarSubmenu({ id, expanded, children }: { id: string; expanded: boolean; children: React.ReactNode }) {
   return (
     <div
       id={id}
       inert={!expanded}
       aria-hidden={!expanded}
-      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
-        expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+      className={`grid transition-[grid-template-rows] duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${
+        expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
       }`}
     >
       <div className="min-h-0 overflow-hidden">
-        <div className="py-1">
+        <div className={`py-1 transition-[opacity,translate] ${SUBMENU_EASE} motion-reduce:transition-none ${
+          expanded ? "translate-y-0 opacity-100 delay-75 duration-300" : "-translate-y-1 opacity-0 duration-150"
+        }`}>
           <div className="relative ml-5 flex flex-col gap-0.5 pl-4 before:absolute before:inset-y-1 before:left-0 before:w-px before:bg-slate-200">
             {children}
           </div>
@@ -149,7 +176,7 @@ function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onC
       <span>{label}</span>
       {badge}
       <ChevronDown
-        className={`${badge ? "ml-2" : "ml-auto"} w-3.5 h-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+        className={`${badge ? "ml-2" : "ml-auto"} w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
       />
     </button>
   );
@@ -375,6 +402,10 @@ export default function Layout() {
   const { salon: loaderSalon, salonId, pendingServices, pendingStaff, pendingWebsite } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
   const location = useLocation();
+  const navigation = useNavigation();
+  // A link to another page was clicked and its data is still loading: swap the
+  // content area to a spinner right away instead of leaving the old page up.
+  const pagePending = navigation.state === "loading" && navigation.location.pathname !== location.pathname;
   const session = getAdminSession();
   const [salon, setSalon]             = useState<Salon>(loaderSalon as Salon);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -491,9 +522,10 @@ export default function Layout() {
     return <Outlet context={ctx} />;
   }
 
-  const sideNavClass = ({ isActive }: { isActive: boolean }) =>
+  // `isPending` highlights the clicked link at once, while its page is still loading.
+  const sideNavClass = ({ isActive, isPending }: { isActive: boolean; isPending: boolean }) =>
     `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-      isActive
+      isPending || (isActive && !pagePending)
         ? "bg-matcha-50 text-matcha-700"
         : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
     }`;
@@ -828,6 +860,11 @@ export default function Layout() {
                   <Power className="w-4 h-4" />
                   {enabling ? "Enabling…" : "Enable salon"}
                 </button>
+              </div>
+            ) : pagePending ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
+                <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-matcha-600" />
+                <p className="text-sm font-medium text-slate-400">Loading…</p>
               </div>
             ) : (
               <Outlet context={ctx} />

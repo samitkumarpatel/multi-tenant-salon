@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigate } from "react-router";
-import type { ClientLoaderFunctionArgs } from "react-router";
+import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import { CalendarDays, ChevronDown, LogOut, Receipt, ShoppingCart } from "lucide-react";
 import { SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { DEFAULT_THEME, API_BASE, contrastText } from "@salon/ui-website";
@@ -19,29 +19,50 @@ function buildFaviconHref(name: string, bgColor: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// Height and fade run on separate curves: the height eases out over 300ms while
+// the content fades/slides in slightly behind it, so rows never pop in or get
+// visibly clipped mid-flight. One submenu collapsing while the other expands
+// share the same curve, so the items between them glide instead of jumping.
+const SUBMENU_EASE = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+
 function AnimatedSubmenu({ open, className, children }: { open: boolean; className: string; children: ReactNode }) {
   return <div
     aria-hidden={!open}
     inert={!open}
-    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "pointer-events-none grid-rows-[0fr] opacity-0"}`}
+    className={`grid transition-[grid-template-rows] duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${open ? "grid-rows-[1fr]" : "pointer-events-none grid-rows-[0fr]"}`}
   >
     <div className="min-h-0 overflow-hidden">
-      <div className={className}>{children}</div>
+      <div className={`transition-[opacity,translate] ${SUBMENU_EASE} motion-reduce:transition-none ${open ? "translate-y-0 opacity-100 delay-75 duration-300" : "-translate-y-1 opacity-0 duration-150"}`}>
+        <div className={className}>{children}</div>
+      </div>
     </div>
   </div>;
+}
+
+// The sidebar links only change `?view=…` search params. Without this, every
+// click re-ran the loader and the UI waited on the API before switching view.
+export function shouldRevalidate({ currentParams, nextParams }: ShouldRevalidateFunctionArgs) {
+  return currentParams.salonId !== nextParams.salonId;
 }
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!getDashboardSession()) {
     throw redirect(`/login?salon=${encodeURIComponent(params.salonId ?? "")}`);
   }
-  const [salon, theme] = await Promise.all([
+  // Settings are requested alongside the salon (not after it) to save a round
+  // trip; the result is only used when the DASHBOARD feature is on.
+  const settingsRequest = apiFetch<{ bookingManagementEnabled: boolean; cashierEnabled: boolean }>(`${ADMIN_API}/${params.salonId}/dashboard/settings`)
+    .then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
+  const [salon, theme, settingsResult] = await Promise.all([
     apiFetch<Salon>(`${ADMIN_API}/${params.salonId}`),
     apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${params.salonId}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
+    settingsRequest,
   ]);
-  const settings = salon.features?.includes("DASHBOARD")
-    ? await apiFetch<{ bookingManagementEnabled: boolean; cashierEnabled: boolean }>(`${ADMIN_API}/${params.salonId}/dashboard/settings`)
-    : { bookingManagementEnabled: false, cashierEnabled: false };
+  let settings = { bookingManagementEnabled: false, cashierEnabled: false };
+  if (salon.features?.includes("DASHBOARD")) {
+    if (!settingsResult.value) throw settingsResult.error;
+    settings = settingsResult.value;
+  }
   return { salon, settings, theme: { ...DEFAULT_THEME, ...theme } };
 }
 
@@ -116,7 +137,7 @@ export default function DashboardLayout() {
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-48 shrink-0 px-4 py-6 md:flex md:flex-col">
         <nav className="space-y-1">
           {navItems.map(({ key, label, icon: Icon }) => <div key={key}>
-            <Link to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`flex items-center gap-3 rounded-md px-2 py-2.5 text-sm font-semibold no-underline transition-colors ${activeView === key ? "text-matcha-800" : "text-slate-500 hover:text-slate-800"}`}><Icon className={`h-4 w-4 ${activeView === key ? "text-matcha-600" : ""}`} />{label}<ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition-transform ${activeView === key ? "rotate-180" : ""}`} /></Link>
+            <Link to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`flex items-center gap-3 rounded-md px-2 py-2.5 text-sm font-semibold no-underline transition-colors ${activeView === key ? "text-matcha-800" : "text-slate-500 hover:text-slate-800"}`}><Icon className={`h-4 w-4 ${activeView === key ? "text-matcha-600" : ""}`} />{label}<ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>
             {key === "appointments" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
               <Link to="?view=appointments&appointmentsView=today&todayView=day" className={`block rounded px-2 py-1.5 text-xs no-underline ${requestedAppointmentsView !== "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}>Overview</Link>
               <Link to="?view=appointments&appointmentsView=new" className={`my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}>Book</Link>
@@ -131,7 +152,7 @@ export default function DashboardLayout() {
       <div className="min-w-0 flex-1">
         <nav className="border-b border-slate-200 bg-white px-4 py-2 md:hidden">
           <div className="flex gap-2 overflow-x-auto">
-            {navItems.map(({ key, label, icon: Icon }) => <Link key={key} to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold no-underline ${activeView === key ? "bg-matcha-50 text-matcha-700" : "text-slate-500"}`}><Icon className="h-4 w-4" />{label}<ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${activeView === key ? "rotate-180" : ""}`} /></Link>)}
+            {navItems.map(({ key, label, icon: Icon }) => <Link key={key} to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold no-underline ${activeView === key ? "bg-matcha-50 text-matcha-700" : "text-slate-500"}`}><Icon className="h-4 w-4" />{label}<ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>)}
           </div>
           <AnimatedSubmenu open={activeView === "appointments"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">
             <Link to="?view=appointments&appointmentsView=today&todayView=day" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedAppointmentsView !== "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>Overview</Link>

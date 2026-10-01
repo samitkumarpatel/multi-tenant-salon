@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { redirect, useLoaderData, useSearchParams } from "react-router";
-import type { ClientLoaderFunctionArgs } from "react-router";
+import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
   Bell, CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard,
   Maximize2, Minimize2, Minus, Pencil, Plus, Receipt, ShoppingCart, UserRound, X, XCircle,
@@ -52,12 +52,22 @@ interface PaymentSetup { stripe: { account: { chargesEnabled: boolean } | null; 
 
 interface CartLine extends CashierItem { quantity: number }
 
+// View switches are search-param-only and render from data already in memory;
+// re-running this loader (15+ requests) on each click made every link feel slow.
+export function shouldRevalidate({ currentParams, nextParams }: ShouldRevalidateFunctionArgs) {
+  return currentParams.salonId !== nextParams.salonId;
+}
+
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!getDashboardSession()) throw redirect(`/login?salon=${encodeURIComponent(params.salonId!)}`);
   const sid = params.salonId!;
-  const salon = await apiFetch<Salon>(`${ADMIN_API}/${sid}`);
+  // Settings are requested alongside the salon (not after it) to save a round trip.
+  const settingsRequest = apiFetch<DashboardSettings>(`${ADMIN_API}/${sid}/dashboard/settings`)
+    .then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
+  const [salon, settingsResult] = await Promise.all([apiFetch<Salon>(`${ADMIN_API}/${sid}`), settingsRequest]);
   if (!salon.features?.includes("DASHBOARD")) throw new Response("Dashboard is not enabled for this salon", { status: 403 });
-  const settings = await apiFetch<DashboardSettings>(`${ADMIN_API}/${sid}/dashboard/settings`);
+  if (!settingsResult.value) throw settingsResult.error;
+  const settings = settingsResult.value;
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
   const [bookings, staff, services, closures, holidays, cashierItems, sales, countries, paymentSetup] = await Promise.all([
     bookingEnabled ? apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`).catch((): Booking[] => []) : Promise.resolve([]),
