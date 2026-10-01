@@ -55,7 +55,7 @@ class StripeConnectAccountsV2Test {
     }
 
     void expectNoExistingAccount() {
-        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=100"))
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=20"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
                         {"data":[{"id":"acct_other","metadata":{"salon_id":"someone-else"}}],"next_page_url":null}
@@ -98,11 +98,11 @@ class StripeConnectAccountsV2Test {
     }
 
     @Test void onboardingAdoptsAccountCreatedByAnEarlierUnsavedAttempt() {
-        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=100"))
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=20"))
                 .andRespond(withSuccess("""
-                        {"data":[{"id":"acct_other","metadata":{}}],"next_page_url":"/v2/core/accounts?limit=100&page=p2"}
+                        {"data":[{"id":"acct_other","metadata":{}}],"next_page_url":"/v2/core/accounts?limit=20&page=p2"}
                         """, MediaType.APPLICATION_JSON));
-        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=100&page=p2"))
+        server.expect(requestTo("https://api.stripe.com/v2/core/accounts?limit=20&page=p2"))
                 .andRespond(withSuccess("""
                         {"data":[{"id":"acct_orphan","metadata":{"salon_id":"%s"}}],"next_page_url":null}
                         """.formatted(salonId), MediaType.APPLICATION_JSON));

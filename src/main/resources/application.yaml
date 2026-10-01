@@ -114,6 +114,7 @@ spring:
         - classpath:db/V11__website_domains.sql
         - classpath:db/V12__stripe_connect.sql
         - classpath:db/V13__website_domain_zone.sql
+        - classpath:db/V14__ratings.sql
   modulith:
     events:
       jdbc:
