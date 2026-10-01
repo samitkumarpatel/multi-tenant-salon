@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ContactRound, MoveHorizontal, Star,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ArrowUpRight, MoveHorizontal, Star,
 } from "lucide-react";
 import { StaffSpotlight } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
@@ -748,9 +748,9 @@ function DesignerGrid({
               <div className="flex items-center justify-between gap-1 border-t border-slate-100 px-2 py-2">
                 <button type="button" onClick={() => onViewProfile(member)}
                   aria-label={`View ${member.name}'s profile`}
-                  className="cursor-pointer whitespace-nowrap text-[10px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  className="flex cursor-pointer items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                   style={{ color: accent.color }}>
-                  View Profile <span aria-hidden="true">→</span>
+                  View profile <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                 </button>
                 {typeof member.rating === "number" && (member.reviewCount ?? 0) > 0 && (
                   <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-slate-600"
@@ -1142,10 +1142,9 @@ function StepDate({
 
             </button>
             <button type="button" onClick={() => setProfileStaff(s)} aria-label={`View ${s.name}'s profile`}
-              title={`View ${s.name}'s profile`}
-              className="mb-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center self-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+              className="mb-1.5 flex shrink-0 cursor-pointer items-center gap-0.5 self-center whitespace-nowrap rounded px-1 text-[10px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
               style={{ color: accent.color }}>
-              <ContactRound className="h-4 w-4" aria-hidden="true" />
+              View profile <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
             </button>
             </div>
           ))}
