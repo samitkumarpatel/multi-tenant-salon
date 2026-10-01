@@ -404,7 +404,13 @@ export function GenerativeUIWebsite({
   const salonId = salonProp.id;
   const refreshSalonData = useCallback(() => {
     apiFetch<Salon>(`${API_BASE}/api/salon/${salonId}`).then(setSalon).catch(() => {});
-    apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salonId}/staff`).then(setStaff).catch(() => {});
+    // The staff endpoint carries no ratings — keep the ones merged in by the loader.
+    apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salonId}/staff`)
+      .then((fresh) => setStaff((prev) => {
+        const rated = new Map(prev.map((m) => [m.id, m]));
+        return fresh.map((m) => ({ ...m, rating: m.rating ?? rated.get(m.id)?.rating, reviewCount: m.reviewCount ?? rated.get(m.id)?.reviewCount }));
+      }))
+      .catch(() => {});
     apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salonId}/services`).then(setServices).catch(() => {});
   }, [salonId]);
 

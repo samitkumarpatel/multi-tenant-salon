@@ -17,7 +17,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ArrowUpRight, ChevronDown, MoveHorizontal, Star,
 } from "lucide-react";
-import { StaffSpotlight } from "./StaffMedia";
+import { StaffSpotlight, StaffRating } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
@@ -1193,6 +1193,7 @@ function StepDate({
               </div>
               <span className="text-[11px] font-semibold text-slate-700 text-center w-14 truncate">{s.name.split(" ")[0]}</span>
               <span className="text-[9px] text-slate-400 -mt-0.5 w-14 truncate text-center">{STAFF_ROLE_LABEL[s.role] ?? s.role}</span>
+              <StaffRating member={s} className="text-[10px] text-slate-600" />
 
               {staffId === s.id && (
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>

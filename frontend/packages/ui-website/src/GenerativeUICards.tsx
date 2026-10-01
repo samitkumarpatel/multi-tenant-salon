@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Users, User, Clock, MapPin, Phone, Mail, Globe, ChevronRight, ChevronLeft, Loader2, Images, Quote } from "lucide-react";
 import { formatPrice, CATEGORY_LABEL, STAFF_ROLE_LABEL, DAY_SHORT } from "./constants";
 import { apiFetch, API_BASE } from "./api";
-import { staffAvatar, MediaThumb, Lightbox } from "./StaffMedia";
+import { staffAvatar, MediaThumb, Lightbox, StaffRating } from "./StaffMedia";
 import { CategoryIcon } from "./CategoryIcon";
 import { type ClosureRange, isDateClosed, firstBookableDate, closedWeekdays, isPastSlot } from "./bookingDates";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, OperatingHours, AvailableSlot, StaffSchedule } from "./types";
@@ -129,7 +129,10 @@ export function StaffCard({ staff, tokens, showBookPill, onBook, onViewProfile }
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate" style={{ color: msgText }}>{m.name}</p>
-              <p className="text-[11px]" style={{ color: msgDim }}>{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+              <p className="flex items-center gap-1.5 text-[11px]" style={{ color: msgDim }}>
+                <span className="truncate">{STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                <StaffRating member={m} className="shrink-0" style={{ color: msgText }} />
+              </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {onViewProfile && (
@@ -175,6 +178,7 @@ export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold truncate" style={{ color: msgText }}>{member.name}</p>
           <p className="text-[11px]" style={{ color: msgDim }}>{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+          <StaffRating member={member} className="mt-0.5 text-[11px]" style={{ color: msgText }} />
           {member.specializations && member.specializations.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {member.specializations.map((s) => (

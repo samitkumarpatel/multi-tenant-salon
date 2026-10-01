@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, ChevronLeft, Play, Film, X, CalendarCheck, Quote, Images } from "lucide-react";
+import { ChevronRight, ChevronLeft, Play, Film, X, CalendarCheck, Quote, Images, Star } from "lucide-react";
 import { isVideoUrl, STAFF_ROLE_LABEL, CATEGORY_LABEL } from "./constants";
 import type { StaffMember, WebsiteTheme } from "./types";
 
@@ -12,6 +12,19 @@ export function staffAvatar(m: StaffMember): string | undefined {
 }
 
 /** A single work-sample tile — image, or video with a play affordance. Opens the lightbox on click. */
+/** Star + average + (count) for a staff member; renders nothing until they have at least one rating. */
+export function StaffRating({ member, className = "", style }: { member: StaffMember; className?: string; style?: React.CSSProperties }) {
+  if (typeof member.rating !== "number" || (member.reviewCount ?? 0) <= 0) return null;
+  return (
+    <span className={`inline-flex items-center gap-0.5 ${className}`} style={style}
+      aria-label={`${member.rating.toFixed(1)} out of 5, ${member.reviewCount} ${member.reviewCount === 1 ? "rating" : "ratings"}`}>
+      <Star className="h-[1em] w-[1em] shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
+      <span className="font-semibold">{member.rating.toFixed(1)}</span>
+      <span className="opacity-60">({member.reviewCount})</span>
+    </span>
+  );
+}
+
 export function MediaThumb({ url, onClick, className = "" }: { url: string; onClick: () => void; className?: string }) {
   const video = isVideoUrl(url);
   return (
@@ -147,6 +160,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
             <div className="min-w-0 flex-1">
               <p className="text-base font-bold leading-tight text-slate-900">{member.name}</p>
               <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+              <StaffRating member={member} className="mt-1 text-xs text-slate-700" />
               {member.specializations && member.specializations.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {member.specializations.map((s) => (
