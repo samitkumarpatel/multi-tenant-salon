@@ -77,7 +77,8 @@ public class MultiTenantSalonApplication {
 										// an unauthenticated caller gets masked as a 401 by the entry point.
 										"/error",
 										"/actuator/**",
-										"/api/salon", "/api/salon/**",
+								"/api/salon", "/api/salon/**",
+								"/api/public/rating/**",
 										"/api/salon-onboarding", "/api/salon-onboarding/**",
 										"/api/salon-utility/**",
 										"/api/media/photos/**",

@@ -34,18 +34,20 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs): Promis
       return { status: "booking_disabled", salonName: salon.name };
     }
 
-    const [services, staff, theme, countries] = await Promise.all([
+    const [services, staff, theme, countries, ratings] = await Promise.all([
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
       apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`).catch((): Country[] => []),
+      apiFetch<{ salon: { average: number | null; count: number }; staff: Record<string, { average: number | null; count: number }> }>(`${API_BASE}/api/salon/${salon.id}/ratings`).catch(() => null),
     ]);
 
+    const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
     return {
       status: "ok",
-      salon,
+      salon: ratedSalon,
       services: services.filter((s) => s.active),
-      staff: staff.filter((s) => s.status === "ACTIVE"),
+      staff: staff.filter((s) => s.status === "ACTIVE").map((s) => ({ ...s, rating: ratings?.staff[String(s.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(s.id)]?.count ?? 0 })),
       theme: { ...DEFAULT_THEME, ...theme },
       countries,
     };

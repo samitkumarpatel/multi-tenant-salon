@@ -71,6 +71,8 @@ export interface Salon {
   businessIdLabel?: string;
   createdAt?: string;
   status?: "ACTIVE" | "DISABLED";
+  rating?: number;
+  ratingCount?: number;
 }
 
 export type WebsiteMode = "STATIC_WEBSITE" | "GENERATIVE_UI" | "CUSTOMISE_WEBSITE_CONTACT_US";
@@ -89,6 +91,9 @@ export interface StaffMember {
   avatarUrl?: string;
   workMedia?: string[];
   bio?: string;
+  /** Public review summary, when supplied by the salon API. */
+  rating?: number;
+  reviewCount?: number;
   createdAt?: string;
 }
 

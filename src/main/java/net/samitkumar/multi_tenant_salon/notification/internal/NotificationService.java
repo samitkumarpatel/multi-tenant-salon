@@ -228,6 +228,9 @@ class NotificationService {
             default -> "Your booking status has been updated to " + event.newStatus() + ".";
         };
         var subject = salonSubject(event.salonName(), "Booking update — " + event.newStatus());
+        var reviewUrl = event.reviewToken() == null ? null : bookingAppUrl + "/review/" + event.reviewToken();
+        var reviewText = reviewUrl == null ? "" : "\n\nHow was your visit? Rate the salon and your stylist here:\n" + reviewUrl;
+        var reviewHtml = reviewUrl == null ? "" : "<p>How was your visit? <a href=\"" + HtmlUtils.htmlEscape(reviewUrl) + "\">Rate the salon and your stylist</a>.</p>";
         var text = """
                 Hi %s,
 
@@ -236,9 +239,11 @@ class NotificationService {
                 Booking #%d — %s at %s
                 %s
                 %s
+                %s
                 """.formatted(event.customerName(), message, event.bookingId(),
                 event.appointmentDate() != null ? event.appointmentDate().format(DATE_FMT) : "—",
                 event.startTime() != null ? event.startTime().format(TIME_FMT) : "—",
+                reviewText,
                 salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureText(event.salonName()));
         var html = """
@@ -247,9 +252,11 @@ class NotificationService {
                 <p>Booking #%d — %s at %s</p>
                 %s
                 %s
+                %s
                 """.formatted(event.customerName(), message, event.bookingId(),
                 event.appointmentDate() != null ? event.appointmentDate().format(DATE_FMT) : "—",
                 event.startTime() != null ? event.startTime().format(TIME_FMT) : "—",
+                reviewHtml,
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 

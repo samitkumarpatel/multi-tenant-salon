@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ContactRound, MoveHorizontal,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ContactRound, MoveHorizontal, Star,
 } from "lucide-react";
 import { StaffSpotlight } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
@@ -745,12 +745,22 @@ function DesignerGrid({
                     : "No times this week"}
                 </span>
               </button>
-              <button type="button" onClick={() => onViewProfile(member)} aria-label={`View ${member.name}'s profile`}
-                title={`View ${member.name}'s profile`}
-                className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all duration-150 hover:scale-110 hover:border-slate-300 hover:text-slate-800 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                style={{ color: accent.color }}>
-                <ContactRound className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <div className="flex items-center justify-between gap-1 border-t border-slate-100 px-2 py-2">
+                <button type="button" onClick={() => onViewProfile(member)}
+                  aria-label={`View ${member.name}'s profile`}
+                  className="cursor-pointer whitespace-nowrap text-[10px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  style={{ color: accent.color }}>
+                  View Profile <span aria-hidden="true">→</span>
+                </button>
+                {typeof member.rating === "number" && (member.reviewCount ?? 0) > 0 && (
+                  <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-slate-600"
+                    aria-label={`${member.rating.toFixed(1)} out of 5${member.reviewCount ? `, ${member.reviewCount} ratings` : ""}`}>
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden="true" />
+                    <span className="font-semibold">{member.rating.toFixed(1)}</span>
+                    {typeof member.reviewCount === "number" && <span className="text-slate-400">({member.reviewCount})</span>}
+                  </span>
+                )}
+              </div>
               </div>
             );
           })}
@@ -1716,6 +1726,12 @@ export function BookingWizard({
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}
         <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
+          {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
+            <p className="mb-3 flex items-center justify-end gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
+              <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)}
+              <span className="font-normal text-slate-400">({salon.ratingCount} ratings)</span>
+            </p>
+          )}
           {step < 5 && <StepBar current={step} accent={accent} />}
           {step < 5 && (step > 1 || service) && (
             <div className="flex items-center gap-2 mb-6">

@@ -51,18 +51,21 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     if (salon.status === "DISABLED") {
       return { status: "disabled", salonName: salon.name };
     }
-    const [staff, services, theme, preferredDomain] = await Promise.all([
+    const [staff, services, theme, preferredDomain, ratings] = await Promise.all([
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
       apiFetch<{ hostname: string | null }>(`${API_BASE}/api/salon/${salon.id}/website/domain`).catch(() => null),
+      apiFetch<{ salon: { average: number | null; count: number }; staff: Record<string, { average: number | null; count: number }> }>(`${API_BASE}/api/salon/${salon.id}/ratings`).catch(() => null),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
     if (!salon.features?.includes("STATIC_WEBSITE")) {
       return { status: "disabled", salonName: salon.name };
     }
     const canonicalOrigin = preferredDomain?.hostname ? `https://${preferredDomain.hostname}` : new URL(request.url).origin;
-    return { status: "ok", salon, staff, services, theme: resolvedTheme, canonicalOrigin };
+    const ratedStaff = staff.map((member) => ({ ...member, rating: ratings?.staff[String(member.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(member.id)]?.count ?? 0 }));
+    const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
+    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, canonicalOrigin };
   } catch (err) {
     const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
     return { status: is404 ? "not_found" : "error" };

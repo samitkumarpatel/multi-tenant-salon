@@ -15,6 +15,9 @@ interface BookingRepository extends ListCrudRepository<Booking, Long> {
 
     Optional<Booking> findBySalonIdAndId(UUID salonId, Long id);
 
+    @Query("SELECT * FROM booking WHERE salon_id = :salonId AND id = :id FOR UPDATE")
+    Optional<Booking> findBySalonIdAndIdForUpdate(UUID salonId, Long id);
+
     @Query("SELECT * FROM booking WHERE salon_id = :salonId AND staff_id = :staffId AND appointment_date = :date AND status <> 'CANCELLED'")
     List<Booking> findActiveByStaffOnDate(UUID salonId, Long staffId, LocalDate date);
 

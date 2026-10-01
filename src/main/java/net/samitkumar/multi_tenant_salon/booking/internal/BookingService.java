@@ -21,6 +21,7 @@ import net.samitkumar.multi_tenant_salon.salon.SalonClosure;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffMember;
+import net.samitkumar.multi_tenant_salon.rating.RatingApi;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -61,6 +62,7 @@ class BookingService implements BookingApi {
     private final SalonApi salonApi;
     private final ApplicationEventPublisher eventPublisher;
     private final JdbcClient jdbcClient;
+    private final RatingApi ratingApi;
 
     BookingService(BookingRepository bookingRepo,
                    StaffAvailabilityRepository availabilityRepo,
@@ -68,6 +70,7 @@ class BookingService implements BookingApi {
                    SalonServiceApi salonServiceApi,
                    StaffApi staffApi,
                    SalonApi salonApi,
+                   RatingApi ratingApi,
                    ApplicationEventPublisher eventPublisher,
                    JdbcTemplate jdbcTemplate) {
         this.bookingRepo = bookingRepo;
@@ -76,6 +79,7 @@ class BookingService implements BookingApi {
         this.salonServiceApi = salonServiceApi;
         this.staffApi = staffApi;
         this.salonApi = salonApi;
+        this.ratingApi = ratingApi;
         this.eventPublisher = eventPublisher;
         this.jdbcClient = JdbcClient.create(jdbcTemplate);
     }
@@ -581,18 +585,22 @@ class BookingService implements BookingApi {
     @Transactional
     Optional<Booking> updateStatus(UUID salonId, Long bookingId, BookingStatus newStatus) {
         log.info("[BookingService] Updating booking id={} salon={} status={}", bookingId, salonId, newStatus);
-        return bookingRepo.findBySalonIdAndId(salonId, bookingId).map(existing -> {
+        return bookingRepo.findBySalonIdAndIdForUpdate(salonId, bookingId).map(existing -> {
+            if (existing.status() == newStatus) return existing;
             var updated = new Booking(existing.id(), existing.salonId(), existing.serviceId(),
                     existing.staffId(), existing.customerName(), existing.customerEmail(),
                     existing.customerPhone(), existing.appointmentDate(), existing.startTime(),
                     existing.endTime(), newStatus, existing.notes(), existing.createdAt(), existing.paymentStatus(), existing.paymentReference());
             var saved = bookingRepo.save(updated);
             var salon = salonContact(salonId);
+            var reviewToken = newStatus == BookingStatus.COMPLETED
+                    && saved.customerEmail() != null && !saved.customerEmail().isBlank()
+                    ? ratingApi.issueInvitation(saved.id(), salonId, saved.staffId()) : null;
             eventPublisher.publishEvent(new BookingStatusChangedEvent(
                     saved.id(), salonId, newStatus,
                     saved.customerName(), saved.customerEmail(), saved.customerPhone(),
                     saved.appointmentDate(), saved.startTime(), saved.endTime(),
-                    salon.name(), salon.phone(), salon.email()));
+                    salon.name(), salon.phone(), salon.email(), reviewToken));
             return saved;
         });
     }

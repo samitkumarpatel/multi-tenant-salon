@@ -325,7 +325,9 @@ public class StripeConnectService implements PaymentGateway {
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> findAccountBySalon(UUID salonId) {
-        String page = "/v2/core/accounts?limit=100";
+        // Accounts v2 permits at most 20 results per page (unlike several v1 list endpoints,
+        // which accept up to 100). Follow next_page_url verbatim to continue cursor pagination.
+        String page = "/v2/core/accounts?limit=20";
         for (int i = 0; page != null && i < MAX_ACCOUNT_PAGES; i++) {
             var response = getV2(page);
             if (response.get("data") instanceof List<?> data) {

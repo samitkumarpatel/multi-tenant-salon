@@ -1082,6 +1082,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   <div className="mb-4">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Meet our team</h2>
+                    {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
+                        <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)} <span className="font-normal text-slate-400">({salon.ratingCount} ratings)</span>
+                      </p>
+                    )}
                     {activeStaff.some(staffHasDetails) && (
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                         <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
@@ -1114,6 +1119,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                             </div>
                             <p className="text-xs font-bold text-slate-900 leading-tight truncate w-full">{m.name}</p>
                             <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+                            {typeof m.rating === "number" && (m.reviewCount ?? 0) > 0 && <span className="text-[10px] font-semibold text-slate-600" aria-label={`${m.rating.toFixed(1)} out of 5 from ${m.reviewCount} ratings`}><span className="text-amber-400" aria-hidden="true">★</span> {m.rating.toFixed(1)} <span className="font-normal text-slate-400">({m.reviewCount})</span></span>}
                             {photos + videos > 0 ? (
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
                                 {photos > 0 && <span className="inline-flex items-center gap-0.5"><Images className="w-2.5 h-2.5" />{photos}</span>}
@@ -1196,6 +1202,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                               <div className="min-w-0">
                                 <p className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[150px] sm:max-w-[190px]">{m.name}</p>
                                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[m.role] ?? m.role}</p>
+                                {typeof m.rating === "number" && (m.reviewCount ?? 0) > 0 && <p className="mt-0.5 text-[10px] font-semibold text-slate-600" aria-label={`${m.rating.toFixed(1)} out of 5 from ${m.reviewCount} ratings`}><span className="text-amber-400" aria-hidden="true">★</span> {m.rating.toFixed(1)} <span className="font-normal text-slate-400">({m.reviewCount})</span></p>}
                                 {hint && (
                                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
                                     {workMedia.length > 0
