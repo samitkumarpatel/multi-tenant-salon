@@ -2832,7 +2832,9 @@ paths:
     get:
       tags: [AdminPayments]
       summary: Get Stripe Connect status and payment settings
-      description: Refreshes the connected account's `details_submitted` / `charges_enabled` from Stripe when configured.
+      description: |
+        Refreshes the connected account's `details_submitted` / `charges_enabled` from Stripe when configured,
+        and reports the onboarding stage with Stripe's outstanding requirements.
       operationId: getStripeConnectStatus
       security:
         - BearerAuth: []
@@ -2884,6 +2886,10 @@ paths:
     put:
       tags: [AdminPayments]
       summary: Enable/disable Stripe payments per area
+      description: |
+        Areas can be selected as soon as the connected account exists. A selected area only takes effect
+        for customers once Stripe has activated card payments on the account; until then shop, booking
+        and till behave as if the area were off.
       operationId: updatePaymentSettings
       security:
         - BearerAuth: []
@@ -2903,7 +2909,7 @@ paths:
         "400":
           description: Missing booking payment type or deposit outside 1–100
         "409":
-          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD) disabled, or Stripe onboarding incomplete
+          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD) disabled, or no Stripe account connected yet
 
   /api/salon-admin/{salonId}/dashboard/sales/card-checkout:
     parameters:
@@ -3091,6 +3097,28 @@ components:
                 - $ref: "#/components/schemas/StripeConnectedAccount"
             settings:
               $ref: "#/components/schemas/SalonPaymentSettings"
+            testMode:
+              type: boolean
+              description: The server uses a Stripe sandbox/test secret key (`sk_test_…`)
+            onboarding:
+              type: object
+              properties:
+                stage:
+                  type: string
+                  enum: [NOT_STARTED, ACTION_REQUIRED, IN_REVIEW, READY]
+                  description: |
+                    `NOT_STARTED` no connected account; `ACTION_REQUIRED` Stripe needs information from
+                    the salon; `IN_REVIEW` everything due is submitted but card payments aren't active
+                    yet; `READY` card payments active.
+                requirements:
+                  type: array
+                  description: Stripe requirements that are currently or past due (empty when Stripe wasn't queried)
+                  items:
+                    type: object
+                    properties:
+                      description: { type: string }
+                      awaitingActionFrom: { type: string, enum: [user, stripe] }
+                      deadline: { type: string, enum: [currently_due, past_due] }
 
     StripeConnectedAccount:
       type: object

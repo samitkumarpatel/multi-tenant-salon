@@ -2228,9 +2228,9 @@ returns `503`.
 
 | Method & path | Purpose |
 |---|---|
-| `GET /payments/stripe` | `{ stripe: { account, settings, configured } }` — refreshes the Accounts v2 account's `detailsSubmitted` (nothing currently/past due) / `chargesEnabled` (`card_payments` active) / `payoutsEnabled` (`stripe_balance.payouts` active) from Stripe |
+| `GET /payments/stripe` | `{ stripe: { account, settings, configured, testMode, onboarding: { stage, requirements[] } } }` — `stage` is `NOT_STARTED` / `ACTION_REQUIRED` / `IN_REVIEW` / `READY`; `requirements` lists Stripe's currently/past-due items (`description`, `awaitingActionFrom: user\|stripe`, `deadline`); `testMode` is true on a sandbox key. Also refreshes the Accounts v2 account's `detailsSubmitted` (nothing currently/past due) / `chargesEnabled` (`card_payments` active) / `payoutsEnabled` (`stripe_balance.payouts` active) from Stripe |
 | `POST /payments/stripe/onboarding-link` | Creates the salon's Accounts v2 merchant account on first call (`dashboard: full`, Stripe collects fees and carries losses; country from the salon location — `409` if missing) and returns `{ url }` (single-use v2 Account Link). Stripe errors come back as `502` with Stripe's message in the reason. Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
-| `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD) is off or onboarding is incomplete |
+| `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD) is off or no Stripe account is connected yet. Areas may be selected before onboarding finishes; they only take effect once Stripe activates card payments (`chargesEnabled`) |
 | `POST /dashboard/sales/card-checkout` | Till / POS card sale — same body as `POST /dashboard/sales`; returns `{ sale, checkoutUrl }` with the sale `PENDING`. Returns to the dashboard cashier view |
 
 ### Stripe webhook

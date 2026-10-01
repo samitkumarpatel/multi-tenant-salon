@@ -158,4 +158,32 @@ class StripeConnectAccountsV2Test {
         assertThat(pending.detailsSubmitted()).isFalse();
         assertThat(pending.payoutsEnabled()).isFalse();
     }
+
+    @Test void reportsOnboardingStageAndWhatStripeIsWaitingFor() {
+        var now = java.time.Instant.now();
+        assertThat(StripeConnectService.onboarding(null, null).stage())
+                .isEqualTo(StripeConnectService.Onboarding.Stage.NOT_STARTED);
+
+        var created = new net.samitkumar.multi_tenant_salon.payments.StripeConnectedAccount(salonId, "acct_v2", "DK", false, false, false, now);
+        var actionRequired = StripeConnectService.onboarding(created, Map.of("requirements", Map.of("entries", java.util.List.of(
+                Map.of("description", "Provide a bank account", "awaiting_action_from", "user",
+                        "minimum_deadline", Map.of("status", "currently_due")),
+                Map.of("description", "Verify identity document", "awaiting_action_from", "stripe",
+                        "minimum_deadline", Map.of("status", "past_due")),
+                Map.of("description", "Extra info at higher volume", "awaiting_action_from", "user",
+                        "minimum_deadline", Map.of("status", "eventually_due"))))));
+        assertThat(actionRequired.stage()).isEqualTo(StripeConnectService.Onboarding.Stage.ACTION_REQUIRED);
+        assertThat(actionRequired.requirements()).extracting(StripeConnectService.Requirement::description)
+                .containsExactly("Provide a bank account", "Verify identity document");
+        assertThat(actionRequired.requirements().get(1).awaitingActionFrom()).isEqualTo("stripe");
+
+        var submitted = new net.samitkumar.multi_tenant_salon.payments.StripeConnectedAccount(salonId, "acct_v2", "DK", true, false, false, now);
+        assertThat(StripeConnectService.onboarding(submitted, Map.of()).stage())
+                .isEqualTo(StripeConnectService.Onboarding.Stage.IN_REVIEW);
+
+        var active = new net.samitkumar.multi_tenant_salon.payments.StripeConnectedAccount(salonId, "acct_v2", "DK", true, true, false, now);
+        var ready = StripeConnectService.onboarding(active, null);
+        assertThat(ready.stage()).isEqualTo(StripeConnectService.Onboarding.Stage.READY);
+        assertThat(ready.requirements()).isEmpty();
+    }
 }

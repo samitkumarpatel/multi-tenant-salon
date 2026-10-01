@@ -20,6 +20,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -71,7 +72,26 @@ class DashboardManager {
         }
         var saved = new DashboardSettings(salonId, bookingManagement, cashier, notifications,
                 trimToNull(defaultNotification), Instant.now());
-        return settingsRepository.save(saved);
+        // Upsert rather than settingsRepository.save(): the id (salon_id) is assigned, not generated,
+        // so Spring Data JDBC treats the record as existing and issues an UPDATE — which silently
+        // matches no row until one has been inserted, and nothing else ever inserts it.
+        jdbc.sql("""
+                INSERT INTO dashboard_settings (salon_id, booking_management_enabled, cashier_enabled,
+                                                notifications_enabled, default_notification, updated_at)
+                VALUES (:id, :booking, :cashier, :notifications, :message, :updated)
+                ON CONFLICT (salon_id) DO UPDATE SET
+                    booking_management_enabled = EXCLUDED.booking_management_enabled,
+                    cashier_enabled = EXCLUDED.cashier_enabled,
+                    notifications_enabled = EXCLUDED.notifications_enabled,
+                    default_notification = EXCLUDED.default_notification,
+                    updated_at = EXCLUDED.updated_at
+                """)
+                .param("id", salonId).param("booking", saved.bookingManagementEnabled())
+                .param("cashier", saved.cashierEnabled()).param("notifications", saved.notificationsEnabled())
+                .param("message", saved.defaultNotification())
+                .param("updated", saved.updatedAt().atOffset(ZoneOffset.UTC))
+                .update();
+        return saved;
     }
 
     List<CashierItem> cashierItems(UUID salonId) {

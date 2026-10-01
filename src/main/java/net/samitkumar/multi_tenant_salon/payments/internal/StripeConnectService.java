@@ -39,7 +39,28 @@ import java.math.RoundingMode;
 
 @Service
 public class StripeConnectService implements PaymentGateway {
-    record Status(StripeConnectedAccount account, SalonPaymentSettings settings, boolean configured) {}
+    record Status(StripeConnectedAccount account, SalonPaymentSettings settings, boolean configured,
+                  Onboarding onboarding, boolean testMode) {}
+
+    /** Where the salon is in Stripe's onboarding, and what Stripe is still waiting for. */
+    record Onboarding(Stage stage, List<Requirement> requirements) {
+        enum Stage {
+            /** No connected account yet. */
+            NOT_STARTED,
+            /** Account exists but Stripe still needs information from the salon. */
+            ACTION_REQUIRED,
+            /** Everything due was submitted; Stripe hasn't activated card payments yet. */
+            IN_REVIEW,
+            /** Card payments are active. */
+            READY
+        }
+    }
+
+    /** One outstanding Stripe requirement: {@code awaitingActionFrom} is {@code user} or {@code stripe}. */
+    record Requirement(String description, String awaitingActionFrom, String deadline) {}
+
+    /** While onboarding is pending, re-check Stripe at most this often from customer-facing requests. */
+    private static final Duration PENDING_ACCOUNT_RECHECK = Duration.ofMinutes(1);
 
     private final StripeConnectedAccountRepository accounts;
     private final SalonPaymentSettingsRepository settings;
@@ -91,8 +112,33 @@ public class StripeConnectService implements PaymentGateway {
     Status status(UUID salonId) {
         var salon = requireSalon(salonId);
         var account = accounts.findById(salonId).orElse(null);
-        if (account != null && configured()) account = refresh(account);
-        return new Status(account, settings.findById(salonId).orElseGet(() -> defaults(salon)), configured());
+        Map<String, Object> remote = null;
+        if (account != null && configured()) {
+            remote = fetchAccount(account.stripeAccountId());
+            account = saveAccount(accountState(account.salonId(), account.country(), remote));
+        }
+        return new Status(account, settings.findById(salonId).orElseGet(() -> defaults(salon)), configured(),
+                onboarding(account, remote), secretConfigured() && secretKey.startsWith("sk_test_"));
+    }
+
+    /** Stage from the stored flags; the outstanding requirements only when Stripe's account is at hand. */
+    static Onboarding onboarding(StripeConnectedAccount account, Map<String, Object> remote) {
+        if (account == null) return new Onboarding(Onboarding.Stage.NOT_STARTED, List.of());
+        var requirements = new java.util.ArrayList<Requirement>();
+        if (nested(remote, "requirements").get("entries") instanceof List<?> entries) {
+            for (var item : entries) {
+                if (!(item instanceof Map<?, ?> entry)) continue;
+                var deadline = entry.get("minimum_deadline") instanceof Map<?, ?> d ? d.get("status") : null;
+                // eventually_due items only apply at volume thresholds — not part of getting set up.
+                if (!"currently_due".equals(deadline) && !"past_due".equals(deadline)) continue;
+                if (!(entry.get("description") instanceof String description) || description.isBlank()) continue;
+                requirements.add(new Requirement(description,
+                        entry.get("awaiting_action_from") instanceof String from ? from : "user", (String) deadline));
+            }
+        }
+        var stage = account.detailsSubmitted() && account.chargesEnabled() ? Onboarding.Stage.READY
+                : account.detailsSubmitted() ? Onboarding.Stage.IN_REVIEW : Onboarding.Stage.ACTION_REQUIRED;
+        return new Onboarding(stage, List.copyOf(requirements));
     }
 
     String onboardingUrl(UUID salonId) {
@@ -118,8 +164,10 @@ public class StripeConnectService implements PaymentGateway {
                 || (pos && !hasFeature(salon, SalonFeature.DASHBOARD))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Enable the related salon feature first");
         }
-        if ((shop || booking || pos) && !isReady(salonId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Complete Stripe onboarding before enabling payments");
+        // Areas can be chosen as soon as the connected account exists; they only take effect once Stripe
+        // activates card payments (see enabled()), since Stripe refuses charges on an account before that.
+        if ((shop || booking || pos) && accounts.findById(salonId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Connect a Stripe account before enabling payments");
         }
         if (depositPercent < 1 || depositPercent > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Deposit percentage must be between 1 and 100");
@@ -141,18 +189,39 @@ public class StripeConnectService implements PaymentGateway {
     @Override public boolean enabled(UUID salonId, String area) {
         var config = settings.findById(salonId).orElse(null);
         if (config == null) return false;
-        return switch (area) {
+        boolean selected = switch (area) {
             case "SHOP" -> config.shopEnabled();
             case "BOOKING" -> config.bookingEnabled();
             case "POS" -> config.posEnabled();
             default -> false;
         };
+        return selected && canCharge(salonId);
+    }
+
+    /**
+     * Whether the salon's account can take charges, from the stored flags — so an area selected before
+     * onboarding finished stays off for customers instead of sending them to a checkout Stripe would refuse.
+     * While pending, Stripe is re-checked (throttled) so the area goes live without the owner revisiting.
+     */
+    private boolean canCharge(UUID salonId) {
+        var account = accounts.findById(salonId).orElse(null);
+        if (account == null) return false;
+        if (account.detailsSubmitted() && account.chargesEnabled()) return true;
+        if (!configured() || (account.updatedAt() != null
+                && account.updatedAt().isAfter(Instant.now().minus(PENDING_ACCOUNT_RECHECK)))) return false;
+        try {
+            account = refresh(account);
+            return account.detailsSubmitted() && account.chargesEnabled();
+        } catch (ResponseStatusException e) {
+            return false;
+        }
     }
 
     @Override public PaymentGateway.BookingConfig bookingConfig(UUID salonId) {
         var config = settings.findById(salonId).orElse(null);
         return config == null ? new PaymentGateway.BookingConfig(false, SalonPaymentSettings.BookingPaymentType.FULL, 20)
-                : new PaymentGateway.BookingConfig(config.bookingEnabled(), config.bookingPaymentType(), config.bookingDepositPercent());
+                : new PaymentGateway.BookingConfig(config.bookingEnabled() && canCharge(salonId),
+                        config.bookingPaymentType(), config.bookingDepositPercent());
     }
 
     @Override public void requireEnabled(UUID salonId, String area) {
@@ -419,9 +488,12 @@ public class StripeConnectService implements PaymentGateway {
     }
 
     private StripeConnectedAccount refresh(StripeConnectedAccount saved) {
-        var response = getV2("/v2/core/accounts/" + saved.stripeAccountId()
+        return saveAccount(accountState(saved.salonId(), saved.country(), fetchAccount(saved.stripeAccountId())));
+    }
+
+    private Map<String, Object> fetchAccount(String stripeAccountId) {
+        return getV2("/v2/core/accounts/" + stripeAccountId
                 + "?include[0]=configuration.merchant&include[1]=requirements");
-        return saveAccount(accountState(saved.salonId(), saved.country(), response));
     }
 
     /** pgjdbc can't infer a SQL type for java.time.Instant through JdbcClient; OffsetDateTime maps to timestamptz. */
