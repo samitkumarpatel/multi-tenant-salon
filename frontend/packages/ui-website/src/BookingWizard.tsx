@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ArrowUpRight, MoveHorizontal, Star,
+  ArrowLeft, ArrowRight, CalendarCheck, Users, Clock, Check, Search, ArrowUpRight, ChevronDown, MoveHorizontal, Star,
 } from "lucide-react";
 import { StaffSpotlight } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
@@ -340,6 +340,13 @@ function defaultBookingDate(hours: OperatingHours[]): string {
   return toISODate(now);
 }
 
+/** ISO-8601 week number (weeks start Monday; week 1 contains the year's first Thursday). */
+function isoWeek(d: Date): number {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+}
+
 function WeekGrid({
   salonId, serviceId, staffId, date, setDate, selectedSlot, accent, closedDays, closedDateRanges, maxDate, onPick,
 }: {
@@ -362,6 +369,14 @@ function WeekGrid({
   const [slotsByDate, setSlotsByDate] = useState<Record<string, AvailableSlot[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [weekMenuOpen, setWeekMenuOpen] = useState(false);
+  const weekMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!weekMenuOpen) return;
+    const onDown = (e: MouseEvent) => { if (!weekMenuRef.current?.contains(e.target as Node)) setWeekMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [weekMenuOpen]);
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
@@ -370,7 +385,14 @@ function WeekGrid({
   });
   const canPrev = weekStart > mondayOf(today);
   const canNext = days[6] < maxDate;
-  const rangeLabel = `${days[0].toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${days[6].toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
+  const fmtRange = (start: Date) => {
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return `${start.toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${end.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
+  };
+  // Every bookable week, from the current one to the week containing maxDate.
+  const weekOptions: Date[] = [];
+  for (let w = mondayOf(today); w <= maxDate; w = new Date(w.getFullYear(), w.getMonth(), w.getDate() + 7)) weekOptions.push(w);
 
   useEffect(() => {
     let cancelled = false;
@@ -409,7 +431,43 @@ function WeekGrid({
         >
           <ArrowLeft className="w-3.5 h-3.5" />
         </button>
-        <span className="text-sm font-bold text-slate-900">{rangeLabel}</span>
+        {/* Week picker — bold week number, regular date range, in both the trigger and the list. */}
+        <div ref={weekMenuRef} className="relative min-w-0 max-w-[75%]"
+          onKeyDown={(e) => { if (e.key === "Escape") setWeekMenuOpen(false); }}>
+          <button
+            type="button"
+            onClick={() => setWeekMenuOpen((o) => !o)}
+            aria-haspopup="listbox"
+            aria-expanded={weekMenuOpen}
+            aria-label={`Choose a week — week ${isoWeek(weekStart)}, ${fmtRange(weekStart)}`}
+            className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-sm text-slate-900 transition-colors hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2"
+          >
+            <span className="shrink-0 font-bold">Week {isoWeek(weekStart)}</span>
+            <span className="truncate font-normal text-slate-600">{fmtRange(weekStart)}</span>
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${weekMenuOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+          </button>
+          {weekMenuOpen && (
+            <ul role="listbox" aria-label="Bookable weeks"
+              className="absolute left-1/2 top-full z-30 mt-1 max-h-64 w-max max-w-[calc(100vw-3rem)] -translate-x-1/2 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+              {weekOptions.map((w) => {
+                const isSel = w.getTime() === weekStart.getTime();
+                return (
+                  <li key={w.getTime()} role="option" aria-selected={isSel}>
+                    <button
+                      type="button"
+                      onClick={() => { setWeekStart(w); setWeekMenuOpen(false); }}
+                      className="flex w-full cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+                      style={isSel ? { backgroundColor: accent.tint } : undefined}
+                    >
+                      <span className="w-16 shrink-0 font-bold" style={{ color: isSel ? accent.color : "#0f172a" }}>Week {isoWeek(w)}</span>
+                      <span className="font-normal text-slate-600">{fmtRange(w)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setWeekStart((w) => { const n = new Date(w); n.setDate(n.getDate() + 7); return n; })}
@@ -1011,7 +1069,7 @@ function SoonestSlots({ salonId, serviceId, staffId, staff, maxDate, accent, onP
 }
 
 function StepDate({
-  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, theme, accentText, closedDays, closedDateRanges, maxDate, onBack, onNext, onPickSlot,
+  salonId, serviceId, staff, date, setDate, staffId, setStaffId, selectedSlot, accent, theme, accentText, closedDays, closedDateRanges, maxDate, onBack, onNext, onPickSlot, onResetSelection,
 }: {
   salonId: string;
   serviceId: number;
@@ -1031,6 +1089,8 @@ function StepDate({
   onNext: () => void;
   /** Week view: picking a slot selects date + time in one go */
   onPickSlot: (date: string, slot: AvailableSlot) => void;
+  /** Switching view tabs starts over: clears the stylist, date and time picked in the previous tab */
+  onResetSelection: () => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
   // Soonest is the default booking view, including when a stylist was preselected.
@@ -1191,7 +1251,7 @@ function StepDate({
             <button
               key={m}
               type="button"
-              onClick={() => setDateMode(m)}
+              onClick={() => { if (m !== dateMode) { onResetSelection(); setDateMode(m); } }}
               aria-pressed={dateMode === m}
               className="relative shrink-0 px-2 sm:px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
               style={dateMode === m
@@ -1798,6 +1858,12 @@ export function BookingWizard({
               onBack={goBack}
               onNext={() => { setViaWeek(false); setStep(3); }}
               onPickSlot={(d, s) => { setDate(d); setSlot(s); setViaWeek(true); setStep(4); }}
+              onResetSelection={() => {
+                setDate(defaultBookingDate(salon.operatingHours ?? []));
+                setStaffId(preStaff?.id ?? null);
+                setSlot(null);
+                setViaWeek(false);
+              }}
             />
           )}
 

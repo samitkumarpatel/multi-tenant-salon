@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   MapPin, Phone, Mail, Globe, Clock, Timer, Check,
-  ChevronRight, ChevronLeft, ChevronDown, CalendarCheck, ArrowUp,
-  Play, Film, Images, Quote, Sparkles, X, Menu,
+  ChevronRight, ChevronLeft, ChevronDown, ChevronsDown, ChevronsUp, CalendarCheck, ArrowUp,
+  Play, Film, Images, Quote, X, Menu,
 } from "lucide-react";
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
@@ -121,6 +121,66 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
     }}>
       {children}
     </div>
+  );
+}
+
+/**
+ * Bouncing scroll button for a pinned section heading. Shows only while the
+ * nearest sticky ancestor is stuck under the header: points down while its column
+ * still has cards left to scroll beneath it (click jumps to the end of the list),
+ * and up once the end is reached (click jumps back to the start).
+ */
+function StickyScrollHint({ accentColor, label }: { accentColor: string; label: string }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [dir, setDir] = useState<"down" | "up" | null>(null);
+  // Cards count as "left to scroll" while at least ~a card's worth sits below the pinned heading.
+  const TAIL = 96;
+  const pinned = () => {
+    let head: HTMLElement | null = ref.current?.parentElement ?? null;
+    while (head && getComputedStyle(head).position !== "sticky") head = head.parentElement;
+    const column = head?.parentElement;
+    return head && column ? { head, column } : null;
+  };
+  useEffect(() => {
+    const els = pinned();
+    if (!els) { setDir(null); return; }
+    const { head, column } = els;
+    const update = () => {
+      const style = getComputedStyle(head);
+      const rect = head.getBoundingClientRect();
+      const stuck = style.position === "sticky" && rect.top <= (parseFloat(style.top) || 0) + 1;
+      const pageCanScroll = window.scrollY + window.innerHeight < document.documentElement.scrollHeight - 4;
+      const more = pageCanScroll && column.getBoundingClientRect().bottom > rect.bottom + TAIL;
+      setDir(stuck ? (more ? "down" : "up") : null);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  });
+  const jump = () => {
+    const els = pinned();
+    if (!els || !dir) return;
+    if (dir === "up") {
+      // Back to the top of the section (its scroll-mt clears the header).
+      (els.head.closest("section") ?? els.column).scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    // Bring the last cards just under the pinned heading.
+    const by = els.column.getBoundingClientRect().bottom - els.head.getBoundingClientRect().bottom - TAIL + 8;
+    window.scrollBy({ top: by, behavior: "smooth" });
+  };
+  return (
+    <button ref={ref} type="button" onClick={jump} disabled={!dir} tabIndex={dir ? 0 : -1}
+      aria-label={dir === "up" ? `Back to the start of ${label}` : `Jump to the end of ${label}`}
+      className={`absolute right-0 bottom-5 hidden h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-opacity duration-300 hover:border-slate-300 hover:shadow focus-visible:outline-none focus-visible:ring-2 md:flex ${dir ? "cursor-pointer opacity-100" : "pointer-events-none opacity-0"}`}>
+      {dir === "up"
+        ? <ChevronsUp className="h-4 w-4 animate-bounce" style={{ color: accentColor }} aria-hidden="true" />
+        : <ChevronsDown className="h-4 w-4 animate-bounce" style={{ color: accentColor }} aria-hidden="true" />}
+    </button>
   );
 }
 
@@ -528,6 +588,15 @@ export function SalonDisabledPage({ salonName }: { salonName?: string }) {
   );
 }
 
+/** Hero title size steps down as the salon name gets longer, so long names wrap into a tidy block instead of one oversized line. */
+function heroNameSize(name: string): string {
+  const len = name.trim().length;
+  if (len <= 14) return "text-4xl sm:text-6xl leading-[0.95]";
+  if (len <= 24) return "text-3xl sm:text-5xl leading-[1.02]";
+  if (len <= 40) return "text-3xl sm:text-4xl leading-[1.08]";
+  return "text-2xl sm:text-3xl leading-tight";
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export interface SalonWebsiteProps {
@@ -747,10 +816,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
               <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.logoBgColor }}>
                 <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
               </div>
-              <span className="text-sm font-bold truncate" style={{ color: headerText }}>{salon.name}</span>
+              {/* Long names drop a size and wrap onto two lines instead of being cut off with an ellipsis. */}
+              <span title={salon.name}
+                className={`font-bold ${salon.name.trim().length > 24 ? "text-xs leading-tight line-clamp-2 text-balance break-words" : "text-sm truncate"}`}
+                style={{ color: headerText }}>{salon.name}</span>
             </a>
             {featurePages.length > 0 && (
-              <nav className="hidden md:flex items-center gap-6 text-sm">
+              <nav className="hidden md:flex shrink-0 items-center gap-6 text-sm">
                 {featurePages.map((fp) => (
                   <a key={fp.path} href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`} className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900" onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}>{fp.label}</a>
                 ))}
@@ -821,7 +893,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 {city && <span className="flex items-center gap-1.5 text-xs" style={{ color: hero.sub }}><MapPin className="w-3 h-3" /> {city}</span>}
               </div>
 
-              <h1 className="text-4xl sm:text-6xl font-bold leading-[0.95] tracking-tight" style={{ color: theme.heroTextColor }}>{salon.name}</h1>
+              <h1 className={`font-bold tracking-tight text-balance break-words ${heroNameSize(salon.name)}`} style={{ color: theme.heroTextColor }}>{salon.name}</h1>
 
               {rotatingWords.length > 0 && (
                 <p className="text-base sm:text-lg mt-3" style={{ color: `${theme.heroTextColor}99` }}>
@@ -979,11 +1051,12 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
 
             {activeServices.length > 0 && (
               <div>
-                <FadeIn className="relative z-20">
-                  <div className="mb-6">
+                {/* Heading pins under the header on md+ (like the sticky team column); the -mt/pt pair lets its white background cover the gap below the header. */}
+                <FadeIn className="relative z-20 bg-white md:sticky md:top-14 md:-mt-6 md:pt-6">
+                  <div className="pb-6">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>What we offer</p>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Services &amp; pricing</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 border-b-2 pb-1" style={{ borderColor: theme.accentColor }}>Services &amp; pricing</h2>
                       {grouped.length > 1 && (
                         <CategoryFilter
                           categories={grouped.map(([cat]) => cat)}
@@ -993,11 +1066,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                         />
                       )}
                     </div>
-                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
-                      <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
+                    <p className="mt-1.5 text-xs text-slate-500">
                       Tap a service to know more &amp; who offers it
                     </p>
                   </div>
+                  <StickyScrollHint accentColor={theme.accentColor} label="services" />
                 </FadeIn>
                 <FadeIn delay={80}>
                   <div className="relative">
@@ -1079,20 +1152,21 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                   @keyframes sw-sheet { from { opacity: 0; transform: translateY(28px) } to { opacity: 1; transform: translateY(0) } }
                 `}</style>
                 <FadeIn delay={100}>
-                  <div className="mb-4">
+                  {/* Same pinned heading as "Services & pricing" — keeps it under the header when the team list is too tall for the column itself to stick. */}
+                  <div className="relative z-10 bg-white pb-4 md:sticky md:top-14 md:-mt-6 md:pt-6">
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>The people behind your look</p>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Meet our team</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 w-fit border-b-2 pb-1" style={{ borderColor: theme.accentColor }}>Meet our team</h2>
                     {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
                       <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
                         <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)} <span className="font-normal text-slate-400">({salon.ratingCount} ratings)</span>
                       </p>
                     )}
                     {activeStaff.some(staffHasDetails) && (
-                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
-                        <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: theme.accentColor }} />
+                      <p className="mt-1.5 text-xs text-slate-500">
                         Tap a stylist to see their story &amp; recent work
                       </p>
                     )}
+                    <StickyScrollHint accentColor={theme.accentColor} label="the team" />
                   </div>
 
                   {/* Mobile — swipeable cards (2+ staff only); tap to open the stylist spotlight */}
