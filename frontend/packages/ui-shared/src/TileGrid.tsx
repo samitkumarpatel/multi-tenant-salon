@@ -22,6 +22,7 @@ export function TileGrid({ options, labels, selected, onChange, descriptions }: 
           <button
             key={f}
             type="button"
+            aria-pressed={on}
             onClick={() => onChange(toggle(selected, f))}
             className={`flex gap-3 px-4 py-3 rounded-xl border text-left transition-colors cursor-pointer select-none ${
               desc ? "items-start" : "items-center"

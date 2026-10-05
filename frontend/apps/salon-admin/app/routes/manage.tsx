@@ -1,12 +1,12 @@
 import { useOutletContext, useLoaderData, Link, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink, Share2, Gauge } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { SocialLinksForm } from "~/components/SocialLinksForm";
+import { OwnerHome } from "~/components/OwnerHome";
 import type { LayoutContext } from "~/lib/types";
 import { FEATURES, FEATURE_LABEL, DAY_SHORT, formatDate } from "~/lib/constants";
-import { InfoBar } from "@salon/ui-shared";
 import { ADMIN_APP_URL, STAFF_APP_URL, bookingUrl, dashboardUrl, websiteUrl } from "~/lib/config";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { connectedHostname } from "~/components/WebsiteDomains";
@@ -59,12 +59,20 @@ export default function Manage() {
   const { salon, setSalon } = useOutletContext<LayoutContext>();
   const dashboardSettings = useLoaderData<typeof clientLoader>();
   const [copied, setCopied] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editSocial, setEditSocial] = useState(false);
 
-  const tab = searchParams.get("tab") === "links" ? "links" : "details";
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = window.setTimeout(() => setCopied(null), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [copied]);
 
-  function setTab(nextTab: "details" | "links") {
+  const tabParam = searchParams.get("tab");
+  const tab = tabParam === "links" || tabParam === "details" ? tabParam : "home";
+
+  function setTab(nextTab: "home" | "details" | "links") {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", nextTab);
     setSearchParams(nextParams);
@@ -110,11 +118,15 @@ export default function Manage() {
     }] : []),
   ];
 
-  function copyLink(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(() => {
+  async function copyLink(text: string, key: string) {
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(text);
       setCopied(key);
-      setTimeout(() => setCopied(null), 1500);
-    });
+    } catch {
+      setCopied(null);
+      setCopyError("Couldn’t copy automatically. Select the link text to copy it manually.");
+    }
   }
 
   return (
@@ -122,11 +134,11 @@ export default function Manage() {
 
       {/* Page header */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Overview</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="break-words text-xl font-bold text-slate-900">{tab === "home" ? salon.name : tab === "details" ? "Salon details" : "Share links"}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {tab === "details" ? "Salon details" : "Share links"}
+              {tab === "home" ? "Your everyday salon tasks, all in one place." : tab === "details" ? "Review and update your salon information." : "Share booking and website links with customers, or portal links with your team."}
             </p>
           </div>
           <Link
@@ -137,15 +149,23 @@ export default function Manage() {
           </Link>
         </div>
 
-        {tab === "details" && (
-          <InfoBar id="manage-details">A read-only snapshot of your salon's current setup. Use <span className="font-medium">Edit salon</span> (or the Edit link on any card) to change it; use the sidebar to manage staff and services.</InfoBar>
-        )}
+        <nav aria-label="Salon overview" className="flex flex-wrap gap-1 border-b border-slate-200 pb-2">
+          {([['home', 'Home'], ['details', 'Salon details'], ['links', 'Share links']] as const).map(([key, label]) => (
+            <Link key={key} to={`?${new URLSearchParams({ ...Object.fromEntries(searchParams), tab: key })}`} aria-current={tab === key ? "page" : undefined}
+              className={`inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-medium transition-colors ${tab === key ? "bg-matcha-100 text-matcha-800" : "text-slate-600 hover:bg-slate-100"}`}>
+              {label}
+            </Link>
+          ))}
+        </nav>
       </div>
+
+      {tab === "home" && <OwnerHome dashboardAvailable={dashboardAvailable} />}
+      <p role="status" className={copyError ? "text-sm text-red-700" : "sr-only"}>{copyError ?? (copied ? "Copied to clipboard." : "")}</p>
 
       {/* ── Details tab ─────────────────────────────────────────────────── */}
       {tab === "details" && (
         <>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>div]:min-w-0">
 
             {/* Salon Identity */}
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
@@ -157,7 +177,7 @@ export default function Manage() {
                 <span className="text-xs text-slate-400 min-w-[64px] shrink-0">ID</span>
                 <span className="font-mono text-xs text-slate-600 truncate flex-1">{String(salon.id)}</span>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(String(salon.id)).then(() => { setCopied("id"); setTimeout(() => setCopied(null), 1500); }); }}
+                  onClick={() => copyLink(String(salon.id), "id")}
                   className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
                   title="Copy ID"
                 >
@@ -166,20 +186,19 @@ export default function Manage() {
               </div>
               {salon.handler && (
                 <div className="flex gap-3 py-1 text-sm items-center">
-                  <span className="text-xs text-slate-400 min-w-[64px] shrink-0">Handler</span>
+                  <span className="text-xs text-slate-400 min-w-[64px] shrink-0">Web name</span>
                   <span className="font-mono text-xs text-slate-600 truncate flex-1">{salon.handler}</span>
                   <button
-                    onClick={() => { navigator.clipboard.writeText(salon.handler!).then(() => { setCopied("handler"); setTimeout(() => setCopied(null), 1500); }); }}
+                    onClick={() => copyLink(salon.handler!, "handler")}
                     className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                    title="Copy handler"
+                    title="Copy web name"
                   >
                     {copied === "handler" ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               )}
               <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
-                Use the ID or handler to access your salon's public page:{" "}
-                <code className="bg-slate-50 px-1 py-0.5 rounded text-slate-500">/{salon.handler ?? salon.id}/website-preview</code>
+                Your salon reference for support. Customer links are available under Share links.
               </p>
             </div>
 
@@ -243,7 +262,7 @@ export default function Manage() {
                     <span className="text-xs text-slate-400 min-w-[64px] shrink-0 flex items-center gap-1.5">
                       <Mail className="w-3 h-3" /> Email
                     </span>
-                    <span className="text-slate-700">{salon.contact.email}</span>
+                    <span className="min-w-0 break-words text-slate-700">{salon.contact.email}</span>
                   </div>
                 )}
                 {salon.contact.website && (
@@ -366,7 +385,7 @@ export default function Manage() {
 
           {/* Keep sharing discoverable without duplicating the links list. */}
           <div className="max-w-2xl rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-matcha-50">
                 <Share2 className="h-4 w-4 text-matcha-600" />
               </div>
@@ -399,7 +418,7 @@ export default function Manage() {
                   <p className="text-sm font-semibold text-slate-700">More features available</p>
                   <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
                     These capabilities aren't active yet. Enable them via{" "}
-                    <Link to="edit" className="text-matcha-600 hover:underline font-medium">
+                    <Link to="edit?step=3" className="text-matcha-600 hover:underline font-medium">
                       Edit Salon → Features
                     </Link>{" "}
                     to unlock the corresponding admin sections.
@@ -418,7 +437,7 @@ export default function Manage() {
                 ))}
               </div>
               <Link
-                to="edit"
+                to="edit?step=3"
                 className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold text-matcha-600 hover:text-matcha-700 no-underline hover:underline"
               >
                 Go to Edit Salon <ArrowRight className="w-3 h-3" />
@@ -477,26 +496,28 @@ function LinkUrl({ url, label, copyKey, copied, onCopy }: {
   url: string; label: string; copyKey: string; copied: string | null; onCopy: (url: string, key: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-1">
-      <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-500">{url}</p>
+    <div className="flex flex-wrap items-center gap-1">
+      <p className="w-full break-all py-1 text-sm text-slate-600">{url}</p>
       <button
         type="button"
         onClick={() => onCopy(url, copyKey)}
-        className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+        className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-matcha-700 transition-colors hover:bg-matcha-50 cursor-pointer"
         title={`Copy ${url}`}
         aria-label={`Copy ${label} URL ${url}`}
       >
         {copied === copyKey ? <Check className="h-4 w-4 text-matcha-600" /> : <Copy className="h-4 w-4" />}
+        {copied === copyKey ? "Copied" : "Copy link"}
       </button>
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="shrink-0 rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
         title={`Open ${url}`}
         aria-label={`Open ${label} ${url} in a new tab`}
       >
         <ExternalLink className="h-4 w-4" />
+        Open
       </a>
     </div>
   );
@@ -506,7 +527,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
   return (
     <div className="flex gap-3 py-0.5 text-sm">
       <span className="text-xs text-slate-400 min-w-[64px] shrink-0 pt-px">{label}</span>
-      <span className="text-slate-700">{children}</span>
+      <span className="min-w-0 break-words text-slate-700">{children}</span>
     </div>
   );
 }
