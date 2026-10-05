@@ -2,6 +2,11 @@
 @source "../../../packages/ui-shared/src";
 @source "../../../packages/ui-website/src";
 
+.admin-shell :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--color-matcha-600);
+  outline-offset: 3px;
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Playfair Display", Georgia, serif;

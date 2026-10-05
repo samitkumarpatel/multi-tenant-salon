@@ -27,7 +27,7 @@ export function shouldRevalidate({ currentUrl, nextUrl, currentParams, nextParam
   if (currentUrl.pathname === nextUrl.pathname) return false;
   // The public preview is loaded without a session check; re-check on the way out.
   if (currentUrl.pathname.endsWith("/website-preview")) return true;
-  // The index route redirects to the setup checklist from inside this loader.
+  // Refresh setup reminders when returning home.
   if (nextUrl.pathname.replace(/\/$/, "").endsWith(`/${nextParams.salonId}`)) return true;
   return SETUP_PAGES.test(currentUrl.pathname);
 }
@@ -87,12 +87,7 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
 
   await Promise.all(fetchTasks);
 
-  const pathname = new URL(request.url).pathname;
-  const isIndex = pathname.endsWith(`/${salonId}`) || pathname.endsWith(`/${salonId}/`);
-  if (isIndex && (pendingServices || pendingStaff || pendingWebsite)) {
-    throw redirect(`/${salonId}/setup`);
-  }
-
+  // Setup is a reminder on Home, so owners can skip it and return later.
   return { salon, salonId, pendingServices, pendingStaff, pendingWebsite };
 }
 
@@ -115,7 +110,7 @@ const WEBSITE_SECTIONS = [
 
 /** Expandable sidebar groups. Only one is open at a time (accordion), so moving between groups
  *  animates a single collapse/expand instead of two competing ones. */
-type SidebarGroup = "overview" | "booking" | "website";
+type SidebarGroup = "booking" | "website";
 
 const BOOKING_SECTIONS = [
   { key: "appointments", label: "Appointments" },
@@ -164,7 +159,7 @@ function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onC
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={onClick}
-      className={`flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+      className={`flex min-h-11 w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
         active
           ? expanded
             ? "text-matcha-700 hover:bg-slate-50"
@@ -184,17 +179,16 @@ function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onC
 
 function SidebarSubLink({ to, active, onClick, children }: { to: string; active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <NavLink
+    <Link
       to={to}
-      end
       aria-current={active ? "page" : undefined}
       onClick={onClick}
-      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+      className={`flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
         active ? "bg-matcha-50 text-matcha-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
       }`}
     >
       {children}
-    </NavLink>
+    </Link>
   );
 }
 
@@ -466,11 +460,10 @@ export default function Layout() {
 
   const ctx: LayoutContext = { salon, setSalon: (s) => setSalon(s), websiteMode, setWebsiteMode, pendingServices, pendingStaff, pendingWebsite };
   const isPreview = Boolean(useMatch("/:salonId/website-preview"));
-  const isOverview = Boolean(useMatch("/:salonId"));
   const isBookings = Boolean(useMatch("/:salonId/booking"));
   const isWebsite = Boolean(useMatch("/:salonId/website"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const routeGroup: SidebarGroup | null = isOverview ? "overview" : isBookings ? "booking" : isWebsite ? "website" : null;
+  const routeGroup: SidebarGroup | null = isBookings ? "booking" : isWebsite ? "website" : null;
   const [openGroup, setOpenGroup] = useState<SidebarGroup | null>(routeGroup);
   // Follow the route *during render* (not in an effect) so a navigation never paints a frame with
   // the previous group's open state and then corrects it — that one-frame flip made the menu jumpy.
@@ -483,7 +476,6 @@ export default function Layout() {
     () => Boolean(salon && localStorage.getItem(`website-style-hint-seen:${salon.id}`))
   );
 
-  const overviewTab = new URLSearchParams(location.search).get("tab") === "links" ? "links" : "details";
   const bookingSectionParam = new URLSearchParams(location.search).get("section");
   const bookingSection = bookingSectionParam === "availability" || bookingSectionParam === "blocked-dates" || bookingSectionParam === "settings"
     ? bookingSectionParam
@@ -494,6 +486,7 @@ export default function Layout() {
   /** On another page: go to the group's landing page (the route change opens it). On it: toggle. */
   function toggleGroup(group: SidebarGroup, landing: string) {
     if (routeGroup !== group) {
+      setSidebarOpen(false);
       navigate(landing);
       return;
     }
@@ -524,7 +517,7 @@ export default function Layout() {
 
   // `isPending` highlights the clicked link at once, while its page is still loading.
   const sideNavClass = ({ isActive, isPending }: { isActive: boolean; isPending: boolean }) =>
-    `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+    `flex min-h-11 items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
       isPending || (isActive && !pagePending)
         ? "bg-matcha-50 text-matcha-700"
         : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
@@ -560,14 +553,16 @@ export default function Layout() {
   }
 
   return (
-    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
+    <div className="admin-shell h-[100dvh] bg-slate-50 flex flex-col overflow-hidden">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <header className="h-12 bg-white border-b border-slate-200 flex items-center px-3 gap-2 shrink-0 z-40">
         <button
-          className="md:hidden p-1.5 rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer"
+          className="md:hidden min-h-11 min-w-11 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer"
           onClick={() => setSidebarOpen((v) => !v)}
           aria-label="Toggle navigation"
+          aria-expanded={sidebarOpen}
+          aria-controls="admin-sidebar"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -613,16 +608,16 @@ export default function Layout() {
         )}
 
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
-        <aside className={`
+        <aside id="admin-sidebar" className={`
           absolute inset-y-0 left-0 z-50 w-52 bg-white border-r border-slate-200
           flex flex-col shrink-0 overflow-y-auto [scrollbar-gutter:stable] transition-transform duration-200 ease-in-out motion-reduce:transition-none
-          md:relative md:translate-x-0
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          md:visible md:relative md:translate-x-0
+          ${sidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"}
         `}>
 
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 md:hidden">
             <span className="text-xs font-semibold text-slate-500">Navigation</span>
-            <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+            <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} className="flex min-h-11 min-w-11 items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer">
               <XIcon className="w-4 h-4" />
             </button>
           </div>
@@ -652,27 +647,11 @@ export default function Layout() {
               </Tooltip>
             )}
 
-            <div>
-              <Tooltip content="View your salon details and all links associated with it.">
-                <SidebarGroupHeader
-                  controls="overview-navigation"
-                  icon={LayoutDashboard}
-                  label="Overview"
-                  active={isOverview}
-                  expanded={openGroup === "overview"}
-                  onClick={() => toggleGroup("overview", `/${salonId}?tab=details`)}
-                />
-              </Tooltip>
-
-              <SidebarSubmenu id="overview-navigation" expanded={openGroup === "overview"}>
-                <SidebarSubLink to={`/${salonId}?tab=details`} active={isOverview && overviewTab === "details"} onClick={() => setSidebarOpen(false)}>
-                  Salon details
-                </SidebarSubLink>
-                <SidebarSubLink to={`/${salonId}?tab=links`} active={isOverview && overviewTab === "links"} onClick={() => setSidebarOpen(false)}>
-                  Share links
-                </SidebarSubLink>
-              </SidebarSubmenu>
-            </div>
+            <Tooltip content="Your everyday tasks, salon details, and sharing links.">
+              <NavLink to={`/${salonId}`} end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <LayoutDashboard className="w-4 h-4 shrink-0" /> Home
+              </NavLink>
+            </Tooltip>
 
             <Tooltip content="Build your booking menu — add treatments, set pricing, duration, and assign staff.">
               <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
@@ -841,7 +820,7 @@ export default function Layout() {
         </aside>
 
         {/* ── Main content ──────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
             {salon.status === "DISABLED" ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">

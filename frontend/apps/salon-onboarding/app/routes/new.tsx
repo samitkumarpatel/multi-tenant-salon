@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { Link, useLoaderData } from "react-router";
-import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown, Gauge } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useLoaderData, useRevalidator } from "react-router";
+import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown, Gauge, RefreshCw } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
 import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl, dashboardUrl } from "~/lib/config";
@@ -8,7 +8,8 @@ import { SiteFooter } from "~/components/SiteFooter";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, FEATURE_DESCRIPTION, defaultHours } from "~/lib/constants";
 import { TERMS_TEXT, PRIVACY_TEXT } from "~/lib/legal";
 import type { Country, Owner, Location, ContactInfo, OperatingHours } from "~/lib/types";
-import { HoursTable, TileGrid, CountrySelect, PhoneInput, Toast, useToast } from "@salon/ui-shared";
+import { CountrySelect, PhoneInput, TileGrid } from "@salon/ui-shared";
+import { OpeningHours } from "~/components/OpeningHours";
 
 export async function clientLoader() {
   let countries: Country[] = [];
@@ -27,13 +28,13 @@ function previewUrl(name: string) {
 }
 
 const STEPS = [
-  { title: "Salon name",     hint: "Choose a name that represents your brand." },
-  { title: "Owner details",   hint: "Who is the account holder?" },
-  { title: "Location",        hint: "Where is your salon? Country is required." },
-  { title: "Contact",         hint: "How can customers reach you? All optional." },
-  { title: "Features",        hint: "Select everything your salon offers." },
-  { title: "Opening hours",   hint: "Set your weekly schedule." },
-  { title: "Review & launch", hint: "Everything look right? Go live!" },
+  { title: "Salon name", hint: "Start with the name your customers know." },
+  { title: "Your account", hint: "Use an email you can access. You’ll use it to sign in and manage your salon." },
+  { title: "Location", hint: "Select your country. The other address details are optional." },
+  { title: "Customer contact", hint: "Choose the details customers can use to reach you. You can leave these blank and add them later." },
+  { title: "Salon tools", hint: "Choose what you need to start. You can change your choices in the admin screen later." },
+  { title: "Opening hours", hint: "Check the suggested times and mark the days you’re closed." },
+  { title: "Review", hint: "Check your details before creating your salon. Nothing is submitted until you select Create salon." },
 ] as const;
 
 const TOTAL = STEPS.length;
@@ -65,13 +66,13 @@ function emptyForm(): FormState {
 }
 
 const inputCls = "w-full px-4 py-3 border border-stone-200 rounded-xl text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-stone-900 transition-all placeholder:text-stone-300";
-const labelCls = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide";
+const labelCls = "block text-sm font-medium text-stone-700 mb-2";
 const fieldCls = "mb-4";
 
 // ── Field error ─────────────────────────────────────────────────────────────
-function FieldError({ msg }: { msg: string }) {
+function FieldError({ msg, id }: { msg: string; id?: string }) {
   return (
-    <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg animate-[fade-in_0.15s_ease]">
+    <div id={id} className="flex items-center gap-2 mt-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
       <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
       <span className="text-xs font-medium text-red-600">{msg}</span>
     </div>
@@ -81,12 +82,14 @@ function FieldError({ msg }: { msg: string }) {
 // ── Review step ─────────────────────────────────────────────────────────────
 function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: React.ReactNode }) {
   return (
-    <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+    <div className="min-w-0 break-words bg-stone-50 border border-stone-200 rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{title}</span>
         <button
+          type="button"
+          aria-label={`Edit ${title.toLowerCase()}`}
           onClick={onEdit}
-          className="text-xs text-matcha-600 hover:text-matcha-700 cursor-pointer font-medium px-2 py-0.5 rounded-lg hover:bg-matcha-50 transition-colors"
+          className="min-h-11 px-3 text-sm text-matcha-600 hover:text-matcha-700 cursor-pointer font-medium rounded-lg hover:bg-matcha-50 transition-colors"
         >
           Edit
         </button>
@@ -96,9 +99,9 @@ function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () 
   );
 }
 
-function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: (s: number) => void; onTermsChange: (v: boolean) => void }) {
+function ReviewStep({ form, onEdit, onTermsChange, termsError }: { form: FormState; onEdit: (s: number) => void; onTermsChange: (v: boolean) => void; termsError?: string }) {
   const url      = previewUrl(form.name);
-  const openDays = form.hours.filter((h) => !h.closed).map((h) => DAY_SHORT[h.day] ?? h.day).join(", ");
+  const openDays = form.hours.filter((h) => !h.closed);
   const hasLoc   = form.location.address || form.location.city || form.location.country;
   const hasCon   = form.contact.phone   || form.contact.email  || form.contact.website;
   const [expanded, setExpanded] = useState<"terms" | "privacy" | null>(null);
@@ -107,7 +110,7 @@ function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: 
     <div className="flex flex-col gap-3">
       <ReviewSection title="Salon" onEdit={() => onEdit(0)}>
         <p className="font-semibold text-stone-900">{form.name}</p>
-        {url && <p className="text-matcha-600 text-xs mt-0.5">{url}</p>}
+        {url && form.features.includes("STATIC_WEBSITE") && <p className="text-matcha-600 text-xs mt-0.5">Suggested web address: {url}</p>}
       </ReviewSection>
 
       <ReviewSection title="Owner" onEdit={() => onEdit(1)}>
@@ -164,11 +167,10 @@ function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: 
         </ReviewSection>
 
         <ReviewSection title="Hours" onEdit={() => onEdit(5)}>
-          {openDays ? (
-            <>
-              <p className="text-stone-700 text-sm font-medium">{form.hours.filter((h) => !h.closed).length} days / week</p>
-              <p className="text-stone-400 text-xs mt-0.5">{openDays}</p>
-            </>
+          {openDays.length ? (
+            <ul className="space-y-1 text-sm text-stone-600">
+              {openDays.map((day) => <li key={day.day}>{DAY_SHORT[day.day]}: {day.openTime}–{day.closeTime}</li>)}
+            </ul>
           ) : (
             <p className="text-stone-400 text-sm">All days closed</p>
           )}
@@ -176,14 +178,18 @@ function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: 
       </div>
 
       <div className="border border-stone-200 rounded-xl overflow-hidden bg-stone-50">
-        <label className="flex items-start gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-stone-100 transition-colors">
+        <div className="flex items-start gap-3 px-4 py-3.5 hover:bg-stone-100 transition-colors">
           <input
+            id="termsAccepted"
             type="checkbox"
+            aria-describedby={termsError ? "termsAccepted-error" : undefined}
+            aria-invalid={Boolean(termsError)}
             checked={form.termsAccepted}
             onChange={(e) => onTermsChange(e.target.checked)}
             className="mt-0.5 w-4 h-4 accent-matcha-600 shrink-0 cursor-pointer"
           />
-          <span className="text-sm text-stone-600 leading-relaxed">
+          <div className="text-sm text-stone-600 leading-relaxed">
+            <span>
             I have read and agree to the{" "}
             <button
               type="button"
@@ -201,8 +207,11 @@ function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: 
               Privacy Policy {expanded === "privacy" ? "▲" : "▼"}
             </button>
             .
-          </span>
-        </label>
+            </span>
+          </div>
+        </div>
+
+        {termsError && <div className="px-4 pb-3"><FieldError id="termsAccepted-error" msg={termsError} /></div>}
 
         {expanded && (
           <div className="border-t border-stone-200 bg-white px-4 py-3 max-h-52 overflow-y-auto">
@@ -221,35 +230,27 @@ function ReviewStep({ form, onEdit, onTermsChange }: { form: FormState; onEdit: 
 
 // ── Success screen ───────────────────────────────────────────────────────────
 
-const PROCESSING_STEPS = [
-  "Creating your salon profile",
-  "Registering account with identity provider",
-  "Configuring your workspace",
-  "Sending welcome email",
-];
-
-const STEP_DURATION = 900; // ms per step
-
 type CopyKey = "admin" | "staff" | "website" | "booking" | "dashboard";
 
 function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: { salonId: string; salonHandler: string; emailId: string; salonName: string; features: string[] }) {
-  const [completedSteps, setCompletedSteps] = useState(0);
-  const [ready, setReady]                   = useState(false);
   const [copied, setCopied]                 = useState<CopyKey | null>(null);
+  const [copyError, setCopyError] = useState("");
 
   useEffect(() => {
-    const timers = PROCESSING_STEPS.map((_, i) =>
-      setTimeout(() => setCompletedSteps(i + 1), (i + 1) * STEP_DURATION)
-    );
-    const done = setTimeout(() => setReady(true), PROCESSING_STEPS.length * STEP_DURATION + 400);
-    return () => { timers.forEach(clearTimeout); clearTimeout(done); };
-  }, []);
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
 
-  function copy(text: string, key: CopyKey) {
-    navigator.clipboard.writeText(text).then(() => {
+  async function copy(text: string, key: CopyKey) {
+    setCopyError("");
+    try {
+      await navigator.clipboard.writeText(text);
       setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
-    });
+    } catch {
+      setCopied(null);
+      setCopyError("Couldn’t copy the link. Select the link text to copy it manually.");
+    }
   }
 
   function LinkRow({ icon, label, hint, url, copyKey, copied: c, onCopy }: {
@@ -262,17 +263,18 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
         <span className="mt-0.5 shrink-0">{icon}</span>
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-0.5">{label}</p>
-          <p className="text-xs font-mono text-stone-700 truncate">{url}</p>
+          <a href={url} className="break-all text-sm text-matcha-700 hover:underline">{url}</a>
           <p className="text-[10px] text-stone-400 mt-0.5">{hint}</p>
         </div>
         <button
           onClick={() => onCopy(url, copyKey)}
-          className="shrink-0 p-2 -m-2 mt-[-3px] text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
-          title="Copy"
+          className="flex min-h-11 shrink-0 items-center gap-1 px-2 text-sm text-matcha-700 hover:bg-matcha-50 rounded-lg cursor-pointer"
+          aria-label={`Copy ${label.toLowerCase()} link`}
         >
           {c === copyKey
             ? <Check className="w-4 h-4 text-matcha-600" />
             : <Copy className="w-4 h-4" />}
+          {c === copyKey ? "Copied" : "Copy"}
         </button>
       </div>
     );
@@ -284,66 +286,6 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
   const salonWebsiteUrl = websiteUrl(salonHandler);
   const salonBookingUrl = bookingUrl(salonHandler);
   const salonDashboardUrl = dashboardUrl(salonId);
-  const progress        = Math.round((completedSteps / PROCESSING_STEPS.length) * 100);
-
-  // ── Processing phase ────────────────────────────────────────────────────────
-  if (!ready) {
-    return (
-      <div className="min-h-[100dvh] bg-cream flex flex-col">
-        <div className="flex-1 overflow-y-auto px-5 py-10 flex flex-col items-center">
-        <div className="w-full max-w-sm my-auto">
-          <div className="flex justify-center mb-7">
-            <div className="w-16 h-16 rounded-full bg-matcha-100 border-2 border-matcha-300 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-matcha-600 animate-spin" />
-            </div>
-          </div>
-
-          <h1 className="text-lg font-bold text-stone-900 text-center mb-1">
-            Setting up <span className="text-matcha-700">{salonName}</span>
-          </h1>
-          <p className="text-stone-400 text-sm text-center mb-7">This will only take a moment…</p>
-
-          {/* Progress bar */}
-          <div className="mb-6">
-            <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
-              <div
-                className="h-1.5 bg-matcha-500 rounded-full transition-all duration-700 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-right text-[10px] text-stone-400 mt-1 tabular-nums">{progress}%</p>
-          </div>
-
-          {/* Step list */}
-          <div className="flex flex-col gap-3">
-            {PROCESSING_STEPS.map((label, i) => {
-              const done    = i < completedSteps;
-              const active  = i === completedSteps;
-              return (
-                <div
-                  key={label}
-                  className={`flex items-center gap-3 transition-opacity duration-300 ${done || active ? "opacity-100" : "opacity-25"}`}
-                >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors duration-500 ${done ? "bg-matcha-500" : "bg-stone-200"}`}>
-                    {done
-                      ? <Check className="w-3 h-3 text-white" />
-                      : active
-                        ? <Loader2 className="w-3 h-3 text-stone-400 animate-spin" />
-                        : <span className="w-1.5 h-1.5 rounded-full bg-stone-300 block" />}
-                  </div>
-                  <span className={`text-sm transition-colors duration-300 ${done ? "text-stone-700" : active ? "text-stone-500" : "text-stone-300"}`}>
-                    {label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        </div>
-        <SiteFooter />
-      </div>
-    );
-  }
 
   // ── Done phase ──────────────────────────────────────────────────────────────
   return (
@@ -355,14 +297,15 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
           <div className="w-14 h-14 rounded-full bg-matcha-100 border-2 border-matcha-400 flex items-center justify-center mb-4">
             <Check className="w-7 h-7 text-matcha-600" />
           </div>
-          <h1 className="text-xl font-bold text-stone-900 text-center">You're all set!</h1>
+          <h1 className="text-xl font-bold text-stone-900 text-center">Your salon is created!</h1>
           <p className="text-stone-500 text-sm text-center mt-1.5 leading-relaxed">
-            <strong className="text-stone-700">{salonName}</strong> is ready.<br />
-            Sign in to your admin panel to start managing it.
+            Sign in to finish setting up <strong className="text-stone-700">{salonName}</strong>, add your services, and invite your team.
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
+          <a href={ADMIN_APP_URL} className="block rounded-xl bg-matcha-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-matcha-700">Continue to salon admin →</a>
+          <p role="status" className={copyError ? "text-sm text-red-700" : "sr-only"}>{copyError || (copied ? "Link copied." : "")}</p>
           {/* Email sent hint */}
           <div className="flex items-start gap-3 px-4 py-3 bg-matcha-50 border border-matcha-100 rounded-2xl">
             <Mail className="w-4 h-4 text-matcha-600 mt-0.5 shrink-0" />
@@ -372,8 +315,8 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
           </div>
 
           {/* Links section */}
-          <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 px-4 pt-3.5 pb-2">Your links</p>
+          <details className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-stone-700">Your salon and team links</summary>
 
             {/* Admin panel */}
             <LinkRow
@@ -434,15 +377,7 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
                 onCopy={copy}
               />
             )}
-          </div>
-
-          {/* CTA */}
-          <a
-            href={ADMIN_APP_URL}
-            className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
-          >
-            Go to admin panel &amp; sign in →
-          </a>
+          </details>
 
           <a
             href="/new"
@@ -466,30 +401,29 @@ export default function NewSalon() {
   const [errors,    setErrors]    = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
   const [created,  setCreated]  = useState<{ salonId: string; salonHandler: string; emailId: string } | null>(null);
-  const { toast, notify }       = useToast();
-
-  const [reuseOwnerContact,  setReuseOwnerContact]  = useState(true);
-  const [formShaking,        setFormShaking]        = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [editingReview, setEditingReview] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const submittingRef = useRef(false);
+  const revalidator = useRevalidator();
   const [socialOpen,         setSocialOpen]         = useState(false);
 
   function setOwner(patch: Partial<Owner>)         { setForm((f) => ({ ...f, owner:    { ...f.owner,    ...patch } })); }
   function setLocation(patch: Partial<Location>)   { setForm((f) => ({ ...f, location: { ...f.location, ...patch } })); }
   function setContact(patch: Partial<ContactInfo>) { setForm((f) => ({ ...f, contact:  { ...f.contact,  ...patch } })); }
 
-  // Auto-fill contact from owner details when entering step 3 with reuse enabled
   useEffect(() => {
-    if (step === 3 && reuseOwnerContact) {
-      setForm((f) => ({ ...f, contact: { ...f.contact, phone: f.owner.phone ?? "", email: f.owner.email } }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    headingRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, [step]);
 
-  function handleReuseToggle(reuse: boolean) {
-    setReuseOwnerContact(reuse);
-    setContact(reuse
-      ? { phone: form.owner.phone ?? "", email: form.owner.email }
-      : { phone: "", email: "" }
-    );
+  useEffect(() => {
+    const firstError = Object.keys(errors)[0];
+    if (firstError) document.getElementById(firstError)?.focus();
+  }, [errors]);
+
+  function fieldProps(id: string) {
+    return { id, "aria-invalid": Boolean(errors[id]), "aria-describedby": errors[id] ? `${id}-error` : undefined };
   }
 
   function validate(s: number): Record<string, string> {
@@ -498,7 +432,7 @@ export default function NewSalon() {
     if (s === 1) {
       if (!form.owner.name.trim())  e.ownerName  = "Owner name is required.";
       if (!form.owner.email.trim()) e.ownerEmail = "Owner email is required.";
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.owner.email))
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.owner.email.trim()))
         e.ownerEmail = "Enter a valid email address.";
       if (form.owner.phone) {
         if (!form.owner.phone.startsWith("+"))
@@ -517,36 +451,57 @@ export default function NewSalon() {
         else if (!/^\+[\d\s\-()+]{5,20}$/.test(form.contact.phone))
           e.contactPhone = "Phone number must contain only digits.";
       }
-      if (form.contact.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact.email))
+      if (form.contact.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact.email.trim()))
         e.contactEmail = "Enter a valid email address.";
       if (form.contact.website) {
-        try { new URL(form.contact.website); } catch { e.contactWebsite = "Enter a valid URL (e.g. https://yoursalon.com)."; }
+        try {
+          const url = new URL(form.contact.website.trim());
+          if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+        } catch { e.contactWebsite = "Enter a website address starting with https:// (for example, https://yoursalon.com)."; }
       }
+    }
+    if (s === 5 && form.hours.some((day) => !day.closed && (!day.openTime || !day.closeTime || day.openTime >= day.closeTime))) {
+      e.hours = "Each open day needs a closing time later than its opening time.";
     }
     return e;
   }
 
-  function triggerShake() {
-    setFormShaking(true);
-    setTimeout(() => setFormShaking(false), 450);
-  }
-
   function goNext() {
+    if (saving) return;
     const e = validate(step);
-    if (Object.keys(e).length) { setErrors(e); triggerShake(); return; }
+    if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
-    if (step === 2 && !form.contact.website) {
-      const url = previewUrl(form.name);
-      if (url) setContact({ website: `https://${url}` });
-    }
-    setStep((s) => s + 1);
+    setStep((s) => editingReview ? TOTAL - 1 : Math.min(s + 1, TOTAL - 1));
+    setEditingReview(false);
   }
 
-  function goBack() { setErrors({}); setStep((s) => s - 1); }
-  function goTo(s: number) { if (s < step) { setErrors({}); setStep(s); } }
+  function goBack() { if (!saving) { setErrors({}); setEditingReview(false); setStep((s) => Math.max(0, s - 1)); } }
+  function goTo(s: number) {
+    if (!saving && s < step) {
+      setErrors({});
+      setEditingReview(step === TOTAL - 1);
+      setStep(s);
+    }
+  }
 
   async function handleCreate() {
+    if (submittingRef.current) return;
+    if (!form.termsAccepted) {
+      setErrors({ termsAccepted: "Please read and accept the terms and privacy policy to continue." });
+      return;
+    }
+    for (let s = 0; s < TOTAL - 1; s++) {
+      const issues = validate(s);
+      if (Object.keys(issues).length) {
+        setStep(s);
+        setEditingReview(true);
+        setErrors(issues);
+        return;
+      }
+    }
+    submittingRef.current = true;
     setSaving(true);
+    setSubmitError("");
     try {
       const result = await apiFetch<{ salonId: string; salonHandler: string; emailId: string; message: string }>(ONBOARDING_API, {
         method: "POST",
@@ -582,7 +537,9 @@ export default function NewSalon() {
       });
       setCreated({ salonId: result.salonId, salonHandler: result.salonHandler, emailId: result.emailId });
     } catch (e: unknown) {
-      notify(e instanceof Error ? e.message : "Failed to create salon", "error");
+      setSubmitError(e instanceof Error ? e.message : "We couldn’t create your salon. Please try again.");
+    } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   }
@@ -596,19 +553,20 @@ export default function NewSalon() {
       case 0:
         return (
           <div>
+            <label htmlFor="name" className={labelCls}>Salon name <span className="normal-case">(required)</span></label>
             <input
-              autoFocus
+              {...fieldProps("name")}
+              autoComplete="organization"
               className={`${inputCls} text-lg font-semibold py-4 ${errors.name ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="e.g. The Modern Cut"
-              onKeyDown={(e) => e.key === "Enter" && goNext()}
             />
             {errors.name
-              ? <FieldError msg={errors.name} />
+              ? <FieldError id="name-error" msg={errors.name} />
               : form.name && (
                 <p className="text-stone-400 text-xs mt-2">
-                  Your URL: <span className="text-matcha-600 font-medium">{previewUrl(form.name) ?? "…"}</span>
+                  Suggested web address: <span className="break-all text-matcha-600 font-medium">{previewUrl(form.name) ?? "…"}</span>
                 </p>
               )
             }
@@ -619,18 +577,19 @@ export default function NewSalon() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Full name <span className="text-red-400">*</span></label>
-              <input autoFocus className={`${inputCls} ${errors.ownerName ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.name} onChange={(e) => setOwner({ name: e.target.value })} placeholder="Jane Doe" />
-              {errors.ownerName && <FieldError msg={errors.ownerName} />}
+              <label htmlFor="ownerName" className={labelCls}>Full name (required)</label>
+              <input {...fieldProps("ownerName")} autoComplete="name" className={`${inputCls} ${errors.ownerName ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.name} onChange={(e) => setOwner({ name: e.target.value })} placeholder="Jane Doe" />
+              {errors.ownerName && <FieldError id="ownerName-error" msg={errors.ownerName} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Email <span className="text-red-400">*</span></label>
-              <input type="email" className={`${inputCls} ${errors.ownerEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.email} onChange={(e) => setOwner({ email: e.target.value })} placeholder="jane@example.com" />
-              {errors.ownerEmail && <FieldError msg={errors.ownerEmail} />}
+              <label htmlFor="ownerEmail" className={labelCls}>Sign-in email (required)</label>
+              <input {...fieldProps("ownerEmail")} autoComplete="email" type="email" className={`${inputCls} ${errors.ownerEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.email} onChange={(e) => setOwner({ email: e.target.value })} placeholder="jane@example.com" />
+              {errors.ownerEmail && <FieldError id="ownerEmail-error" msg={errors.ownerEmail} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Phone <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span></label>
+              <label htmlFor="ownerPhone" className={labelCls}>Phone (optional)</label>
               <PhoneInput
+                {...fieldProps("ownerPhone")}
                 value={form.owner.phone ?? ""}
                 onChange={(v) => {
                   setOwner({ phone: v });
@@ -644,7 +603,7 @@ export default function NewSalon() {
                 }}
                 countries={countries}
               />
-              {errors.ownerPhone && <FieldError msg={errors.ownerPhone} />}
+              {errors.ownerPhone && <FieldError id="ownerPhone-error" msg={errors.ownerPhone} />}
             </div>
           </div>
         );
@@ -656,30 +615,32 @@ export default function NewSalon() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Country / Region <span className="text-red-400">*</span></label>
+              <label htmlFor="locationCountry" className={labelCls}>Country or region (required)</label>
               <CountrySelect
+                {...fieldProps("locationCountry")}
                 value={form.location.country ?? ""}
                 onChange={(v) => {
+                  setErrors((prev) => { const { locationCountry: _error, ...rest } = prev; return rest; });
                   setLocation({ country: v });
                   setForm((f) => ({ ...f, businessRegistrationId: "", showBusinessId: false }));
                 }}
                 countries={countries}
                 className={errors.locationCountry ? "border-red-400 focus:border-red-400" : ""}
               />
-              {errors.locationCountry && <FieldError msg={errors.locationCountry} />}
+              {errors.locationCountry && <FieldError id="locationCountry-error" msg={errors.locationCountry} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Address</label>
-              <input className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder="123 Main St" />
+              <label htmlFor="locationAddress" className={labelCls}>Street address (optional)</label>
+              <input id="locationAddress" autoComplete="street-address" className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder="123 Main St" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className={fieldCls}>
-                <label className={labelCls}>Postal code</label>
-                <input className={inputCls} value={form.location.zipCode ?? ""} onChange={(e) => setLocation({ zipCode: e.target.value })} placeholder="94105" />
+                <label htmlFor="locationZip" className={labelCls}>Postal code (optional)</label>
+                <input id="locationZip" autoComplete="postal-code" className={inputCls} value={form.location.zipCode ?? ""} onChange={(e) => setLocation({ zipCode: e.target.value })} placeholder="94105" />
               </div>
               <div className={fieldCls}>
-                <label className={labelCls}>City</label>
-                <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
+                <label htmlFor="locationCity" className={labelCls}>City (optional)</label>
+                <input id="locationCity" autoComplete="address-level2" className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
               </div>
             </div>
             {bizIdLabel && (
@@ -717,34 +678,11 @@ export default function NewSalon() {
       case 3:
         return (
           <div>
-            {/* Reuse owner details prompt */}
-            <div className="mb-5 p-4 bg-stone-50 border border-stone-100 rounded-xl">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
-                Same phone & email as the owner?
-              </p>
-              <div className="flex gap-2">
-                {([true, false] as const).map((opt) => (
-                  <button
-                    key={String(opt)}
-                    type="button"
-                    onClick={() => handleReuseToggle(opt)}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all cursor-pointer ${
-                      reuseOwnerContact === opt
-                        ? "bg-matcha-600 text-white border-matcha-600"
-                        : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"
-                    }`}
-                  >
-                    {opt ? "Yes, use owner's" : "No, enter new"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+            <p className="mb-5 rounded-xl bg-matcha-50 p-4 text-sm leading-relaxed text-matcha-900">These details are shown to customers on your salon page. We’ve left them blank so you can choose what to share.</p>
             <div className={fieldCls}>
-              <label className={labelCls}>Phone</label>
+              <label htmlFor="contactPhone" className={labelCls}>Customer-facing phone (optional)</label>
               <PhoneInput
-                key={`contact-phone-${reuseOwnerContact}-${form.location.country}`}
-                autoFocus
+                {...fieldProps("contactPhone")}
                 value={form.contact.phone ?? ""}
                 defaultCountry={form.location.country || undefined}
                 onChange={(v) => {
@@ -759,17 +697,17 @@ export default function NewSalon() {
                 }}
                 countries={countries}
               />
-              {errors.contactPhone && <FieldError msg={errors.contactPhone} />}
+              {errors.contactPhone && <FieldError id="contactPhone-error" msg={errors.contactPhone} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Email</label>
-              <input type="email" className={`${inputCls} ${errors.contactEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.email ?? ""} onChange={(e) => setContact({ email: e.target.value })} placeholder="hello@yoursalon.com" />
-              {errors.contactEmail && <FieldError msg={errors.contactEmail} />}
+              <label htmlFor="contactEmail" className={labelCls}>Customer-facing email (optional)</label>
+              <input {...fieldProps("contactEmail")} autoComplete="organization" type="email" className={`${inputCls} ${errors.contactEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.email ?? ""} onChange={(e) => setContact({ email: e.target.value })} placeholder="hello@yoursalon.com" />
+              {errors.contactEmail && <FieldError id="contactEmail-error" msg={errors.contactEmail} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Website</label>
-              <input className={`${inputCls} ${errors.contactWebsite ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.website ?? ""} onChange={(e) => setContact({ website: e.target.value })} placeholder="https://yoursalon.com" />
-              {errors.contactWebsite && <FieldError msg={errors.contactWebsite} />}
+              <label htmlFor="contactWebsite" className={labelCls}>Website (optional)</label>
+              <input {...fieldProps("contactWebsite")} autoComplete="url" type="url" className={`${inputCls} ${errors.contactWebsite ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.website ?? ""} onChange={(e) => setContact({ website: e.target.value })} placeholder="https://yoursalon.com" />
+              {errors.contactWebsite && <FieldError id="contactWebsite-error" msg={errors.contactWebsite} />}
             </div>
 
             <div className="border-t border-stone-100 pt-3">
@@ -790,7 +728,7 @@ export default function NewSalon() {
                   {SOCIAL_PLATFORMS.map((p) => {
                     const on = form.contact[p.visibleKey] === true;
                     return (
-                      <div key={p.key} className="flex items-center gap-2.5">
+                      <div key={p.key} className="flex flex-wrap items-center gap-2.5">
                         <span className="flex items-center gap-1.5 w-[104px] shrink-0 text-xs font-medium text-stone-600">
                           <p.Icon className={`w-4 h-4 shrink-0 ${on ? "text-stone-500" : "text-stone-300"}`} />
                           <span className="truncate">{p.label}</span>
@@ -806,7 +744,7 @@ export default function NewSalon() {
                           <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out ${on ? "translate-x-4" : "translate-x-0"}`} />
                         </button>
                         <input
-                          className={`${inputCls} ${on ? "" : "opacity-50"}`}
+                          className={`${inputCls} min-w-[140px] flex-1 ${on ? "" : "opacity-50"}`}
                           value={form.contact[p.urlKey] ?? ""}
                           onChange={(e) => setContact({ [p.urlKey]: e.target.value } as Partial<ContactInfo>)}
                           placeholder={p.placeholder}
@@ -834,18 +772,21 @@ export default function NewSalon() {
 
       case 5:
         return (
-          <HoursTable
-            hours={form.hours}
-            onChange={(hours) => setForm((f) => ({ ...f, hours }))}
-          />
+          <div>
+            <OpeningHours hours={form.hours} onChange={(hours) => setForm((f) => ({ ...f, hours }))} />
+            {errors.hours && <FieldError id="hours-error" msg={errors.hours} />}
+          </div>
         );
 
       case 6:
-        return <ReviewStep form={form} onEdit={goTo} onTermsChange={(v) => setForm((f) => ({ ...f, termsAccepted: v }))} />;
+        return <ReviewStep form={form} onEdit={goTo} termsError={errors.termsAccepted} onTermsChange={(v) => {
+          setForm((f) => ({ ...f, termsAccepted: v }));
+          if (v) setErrors((prev) => { const { termsAccepted: _error, ...rest } = prev; return rest; });
+        }} />;
     }
   }
 
-  const progress = Math.round((step / (TOTAL - 1)) * 100);
+  const progress = Math.round(((step + 1) / TOTAL) * 100);
 
   return (
     <div className="min-h-[100dvh] bg-cream flex flex-col">
@@ -853,63 +794,76 @@ export default function NewSalon() {
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           {step > 0 ? (
-            <button onClick={goBack} className="text-stone-400 hover:text-stone-700 cursor-pointer text-sm shrink-0 transition-colors">←</button>
+            <button type="button" disabled={saving} onClick={goBack} aria-label="Go back one step" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-stone-500 hover:text-stone-900 cursor-pointer text-lg shrink-0 transition-colors disabled:opacity-50">←</button>
           ) : (
-            <Link to="/" className="text-stone-400 hover:text-stone-700 no-underline text-sm shrink-0 transition-colors">←</Link>
+            <Link to="/" aria-label="Back to home" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-stone-500 hover:text-stone-900 no-underline text-lg shrink-0 transition-colors">←</Link>
           )}
           <span className="text-xs font-medium text-stone-400 flex-1 uppercase tracking-wide">{STEPS[step].title}</span>
           <span className="text-xs text-stone-400 shrink-0 tabular-nums">{step + 1} / {TOTAL}</span>
         </div>
 
-        {/* Progress bar */}
-        <div className="h-0.5 bg-stone-100">
+        <div className="flex items-center gap-3 px-4 pb-2">
+        {/* Progress bar reflects current position and remains visible to assistive technology. */}
+        <div role="progressbar" aria-label="Signup progress" aria-valuemin={0} aria-valuemax={TOTAL} aria-valuenow={step + 1} aria-valuetext={`Step ${step + 1} of ${TOTAL}: ${STEPS[step].title}`} className="h-1.5 flex-1 overflow-hidden rounded-full bg-stone-100">
           <div
-            className="h-0.5 bg-matcha-500 transition-all duration-500 ease-out"
+            className="h-full rounded-full bg-matcha-500 transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
-
-        {/* Step dots */}
-        <div className="flex items-center justify-center gap-1.5 py-2.5">
+        <span className="shrink-0 text-xs tabular-nums text-stone-600">Step {step + 1} of {TOTAL}</span>
+        </div>
+        <nav aria-label="Completed signup steps" className="flex justify-center gap-2 pb-3">
           {STEPS.map((_, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => goTo(i)}
-              disabled={i >= step}
-              aria-label={`Go to step ${i + 1}`}
-              className={`rounded-full transition-all duration-300 disabled:cursor-default ${
-                i === step ? "w-6 h-2 bg-matcha-600" :
-                i < step   ? "w-2 h-2 bg-matcha-400 hover:bg-matcha-600 cursor-pointer" :
-                             "w-2 h-2 bg-stone-200"
+              disabled={i >= step || saving}
+              aria-label={`Return to ${STEPS[i].title}`}
+              aria-current={i === step ? "step" : undefined}
+              title={STEPS[i].title}
+              className={`min-h-8 min-w-8 rounded-full disabled:cursor-default ${
+                i === step ? "bg-matcha-100 ring-2 ring-matcha-500" :
+                i < step   ? "bg-matcha-400 hover:bg-matcha-600" :
+                             "bg-stone-200"
               }`}
             />
           ))}
-        </div>
+        </nav>
       </header>
 
       {/* Content area */}
       <main className="flex-1 flex items-start justify-center px-4 pt-6 sm:pt-12 pb-8">
         <div className="w-full max-w-lg">
-          <div className={`bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm transition-transform ${formShaking ? "animate-[shake_0.45s_ease]" : ""}`}>
+          <form onSubmit={(e) => { e.preventDefault(); if (step === TOTAL - 1) void handleCreate(); else goNext(); }} className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
 
             {/* Card header */}
             <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 sm:pb-5 border-b border-stone-100">
-              <h2 className="text-lg font-bold text-stone-900 mb-1">{STEPS[step].title}</h2>
+              <h1 ref={headingRef} tabIndex={-1} className="text-lg font-bold text-stone-900 mb-1 focus:outline-none">{STEPS[step].title}</h1>
               <p className="text-sm text-stone-500 leading-relaxed">{STEPS[step].hint}</p>
             </div>
 
-            {/* Sticky error banner — outside keyed div so it doesn't re-animate on step change */}
-            {countriesError && (
+            {submitError && (
+              <div role="alert" className="mx-4 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:mx-6">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                <p className="min-w-0 flex-1 text-sm text-red-800">{submitError}</p>
+                <button type="button" onClick={() => void handleCreate()} disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"><RefreshCw className="h-4 w-4" /> Try again</button>
+              </div>
+            )}
+
+            {/* Country/phone fields need the country list; Retry reruns the loader. */}
+            {(countriesError || countries.length === 0) && (
               <div className="px-4 sm:px-6 pt-4">
-                <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                <div role="alert" className="flex flex-wrap items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                  <p className="text-sm text-red-700">We are experiencing an error — please try again later.</p>
+                  <p className="min-w-0 flex-1 text-sm text-red-700">We couldn’t load the country list. Try again to choose your salon’s country.</p>
+                  <button type="button" onClick={() => revalidator.revalidate()} disabled={revalidator.state !== "idle"} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${revalidator.state !== "idle" ? "animate-spin" : ""}`} /> Retry</button>
                 </div>
               </div>
             )}
 
             {/* Step content — keyed so it fades in on each transition */}
-            <div key={step} className="px-4 sm:px-6 py-4 sm:py-5 animate-[fade-in_0.18s_ease]">
+            <div key={step} className="px-4 sm:px-6 py-4 sm:py-5 motion-safe:animate-[fade-in_0.18s_ease]">
               {renderStep()}
             </div>
 
@@ -917,8 +871,10 @@ export default function NewSalon() {
             <div className="px-4 sm:px-6 py-4 border-t border-stone-100 flex justify-between items-center bg-stone-50/60">
               {step > 0 ? (
                 <button
+                  type="button"
+                  disabled={saving}
                   onClick={goBack}
-                  className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-sm text-stone-600 hover:border-stone-400 hover:bg-stone-50 active:scale-[0.97] transition-all cursor-pointer"
+                  className="min-h-11 px-4 rounded-xl border border-stone-200 bg-white text-sm text-stone-600 hover:border-stone-400 hover:bg-stone-50 transition-all cursor-pointer disabled:opacity-50"
                 >
                   ← Back
                 </button>
@@ -926,28 +882,28 @@ export default function NewSalon() {
 
               {step < TOTAL - 1 ? (
                 <button
-                  onClick={goNext}
-                  className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
+                  type="submit"
+                  disabled={saving || Boolean(countriesError) || countries.length === 0}
+                  className="min-h-11 px-6 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Next →
+                  {editingReview ? "Save & return to review →" : "Continue →"}
                 </button>
               ) : (
                 <button
-                  onClick={handleCreate}
-                  disabled={saving || !form.termsAccepted}
-                  className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!form.termsAccepted ? "Please accept the terms and conditions" : undefined}
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex min-h-11 items-center gap-2 px-6 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 transition-all cursor-pointer shadow-sm disabled:opacity-70 disabled:cursor-wait"
                 >
-                  {saving ? "Launching…" : "Launch salon"}
+                  {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  {saving ? "Creating salon…" : "Create salon"}
                 </button>
               )}
             </div>
-          </div>
+          </form>
         </div>
       </main>
 
       <SiteFooter />
-      <Toast toast={toast} />
     </div>
   );
 }

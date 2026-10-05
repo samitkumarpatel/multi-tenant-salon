@@ -4,13 +4,16 @@ import type { Country } from "@salon/ui-website";
 import { detectCountry } from "./locale";
 
 interface Props {
+  id?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
   value: string;
   onChange: (value: string) => void;
   countries: Country[];
   className?: string;
 }
 
-export function CountrySelect({ value, onChange, countries, className = "" }: Props) {
+export function CountrySelect({ value, onChange, countries, className = "", id, "aria-invalid": invalid, "aria-describedby": describedBy }: Props) {
   const [open, setOpen]             = useState(false);
   const [query, setQuery]           = useState("");
   const [highlighted, setHighlight] = useState(-1);
@@ -116,6 +119,9 @@ export function CountrySelect({ value, onChange, countries, className = "" }: Pr
   return (
     <>
       <button
+        id={id}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}

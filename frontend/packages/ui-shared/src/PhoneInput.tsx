@@ -4,6 +4,9 @@ import type { Country } from "@salon/ui-website";
 import { detectCountry } from "./locale";
 
 interface Props {
+  id?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
   value: string;
   onChange: (value: string) => void;
   countries: Country[];
@@ -29,7 +32,7 @@ function defaultDialCode(countries: Country[], countryName?: string): string {
   return detectCountry(countries)?.dialCode ?? countries[0]?.dialCode ?? "";
 }
 
-export function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus }: Props) {
+export function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus, id, "aria-invalid": invalid, "aria-describedby": describedBy }: Props) {
   const parsed = parsePhone(value);
   const [dialCode, setDialCode]     = useState(() => parsed.dialCode || defaultDialCode(countries, defaultCountry));
   const [local, setLocal]           = useState(parsed.local);
@@ -163,6 +166,9 @@ export function PhoneInput({ value, onChange, countries, defaultCountry, autoFoc
         </button>
 
         <input
+          id={id}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
           autoFocus={autoFocus}
           type="tel"
           inputMode="numeric"

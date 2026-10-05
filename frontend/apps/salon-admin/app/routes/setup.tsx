@@ -82,14 +82,14 @@ export default function Setup() {
         </div>
         <h1 className="text-xl font-bold text-slate-900 mb-2">You're all set!</h1>
         <p className="text-sm text-slate-500 leading-relaxed mb-7">
-          <span className="font-medium text-slate-700">{salon.name}</span> is fully configured and ready for customers.
+          You’ve completed the setup checklist for <span className="font-medium text-slate-700">{salon.name}</span>.
         </p>
         <Link
           to=".."
           relative="path"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-matcha-600 hover:bg-matcha-700 text-white text-sm font-semibold transition-colors no-underline"
         >
-          Go to Overview <ArrowRight className="w-4 h-4" />
+          Go to Home <ArrowRight className="w-4 h-4" />
         </Link>
 
         <div className="mt-8 text-left rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
@@ -132,7 +132,7 @@ export default function Setup() {
       <div className="max-w-md mx-auto py-14 text-center">
         <p className="text-sm text-slate-400">No setup steps required for your current feature set.</p>
         <Link to=".." relative="path" className="mt-4 inline-flex items-center gap-1 text-sm text-matcha-600 hover:underline no-underline">
-          <ArrowRight className="w-4 h-4" /> Go to Overview
+          <ArrowRight className="w-4 h-4" /> Go to Home
         </Link>
       </div>
     );
@@ -198,7 +198,7 @@ export default function Setup() {
                       : "bg-white border-slate-200 shadow-sm"
                   }`}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex flex-wrap items-start gap-3">
                     <div
                       className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                         step.done ? "bg-matcha-100" : "bg-slate-100"
@@ -251,7 +251,7 @@ export default function Setup() {
                       <Link
                         to={`../${step.href}`}
                         relative="path"
-                        className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-matcha-600 hover:text-matcha-700 no-underline whitespace-nowrap"
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-lg bg-matcha-600 px-3 text-sm font-semibold text-white hover:bg-matcha-700 no-underline"
                       >
                         {step.cta} <ChevronRight className="w-3.5 h-3.5" />
                       </Link>
