@@ -89,12 +89,8 @@ class SalonPolicyService {
 
     List<SalonPolicy> published(UUID salonId, String placement) {
         String field = "website".equals(placement) ? "website" : "booking";
-        var resolved = new java.util.LinkedHashMap<String, SalonPolicy>();
-        defaults().forEach(policy -> resolved.put(policy.key(), policy));
-        jdbc.sql("SELECT published_document FROM salon_policy_document WHERE salon_id = :id AND published_document IS NOT NULL")
+        return jdbc.sql("SELECT published_document FROM salon_policy_document WHERE salon_id = :id AND published_document IS NOT NULL")
                 .param("id", salonId).query(String.class).list().stream().map(this::decode)
-                .forEach(policy -> resolved.put(policy.key(), policy));
-        return resolved.values().stream()
                 .filter(policy -> policy.enabled() && ("website".equals(field) ? policy.website() : policy.booking()))
                 .toList();
     }
