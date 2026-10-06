@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { Links, Scripts, isRouteErrorResponse, useRouteError } from "react-router";
 import { ApiError, friendlyMessage } from "./apiError";
 
@@ -28,6 +29,7 @@ export interface ErrorStateProps {
 /** Full-height centered error card — for route error boundaries and
  *  "the page couldn't load" states. */
 export function ErrorState({ error, title, onRetry, homeHref, accent = "#0f172a" }: ErrorStateProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const heading = headingFor(error, title);
   const message = friendlyMessage(error);
 
@@ -53,8 +55,7 @@ export function ErrorState({ error, title, onRetry, homeHref, accent = "#0f172a"
                 textDecoration: "none", fontSize: 14, fontWeight: 500,
               }}
             >
-              ← Home
-            </a>
+              {translateUi("← Home ")}</a>
           )}
           {onRetry && (
             <button
@@ -64,8 +65,7 @@ export function ErrorState({ error, title, onRetry, homeHref, accent = "#0f172a"
                 background: "#fff", cursor: "pointer", fontSize: 14, color: "#374151",
               }}
             >
-              ↻ Retry
-            </button>
+              {translateUi("↻ Retry ")}</button>
           )}
         </div>
       </div>
@@ -83,6 +83,7 @@ export interface ErrorNoteProps {
 /** Compact inline error strip — for forms and panels where the surrounding
  *  page is still usable. */
 export function ErrorNote({ error, onRetry, style }: ErrorNoteProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   if (error == null) return null;
   return (
     <div
@@ -101,8 +102,7 @@ export function ErrorNote({ error, onRetry, style }: ErrorNoteProps) {
           onClick={onRetry}
           style={{ flexShrink: 0, background: "none", border: "none", color: "#991b1b", fontWeight: 600, cursor: "pointer", fontSize: 13, textDecoration: "underline" }}
         >
-          Retry
-        </button>
+          {translateUi("Retry ")}</button>
       )}
     </div>
   );

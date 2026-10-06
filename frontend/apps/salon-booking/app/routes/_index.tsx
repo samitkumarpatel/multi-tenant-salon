@@ -1,6 +1,8 @@
+import { useI18n } from "@salon/i18n";
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 export default function IndexPage() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const exampleUrl =
     typeof window !== "undefined" && window.location.hostname === "localhost"
       ? `${window.location.host}/your-salon`
@@ -25,10 +27,9 @@ export default function IndexPage() {
       </div>
 
       <h1 className="text-xl sm:text-2xl font-bold text-white mb-3 leading-snug">
-        Book your appointment
-      </h1>
+        {translateUi("Book your appointment ")}</h1>
       <p className="text-sm text-slate-400 leading-relaxed max-w-xs">
-        Use the booking link your salon shared with you, e.g.{" "}
+        {translateUi("Use the booking link your salon shared with you, e.g.")}{" "}
         <code className="text-xs text-slate-300 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-md whitespace-nowrap">
           {exampleUrl}
         </code>

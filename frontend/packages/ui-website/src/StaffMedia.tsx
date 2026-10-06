@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, Play, Film, X, CalendarCheck, Quote, Images, Star } from "lucide-react";
@@ -26,6 +27,7 @@ export function StaffRating({ member, className = "", style }: { member: StaffMe
 }
 
 export function MediaThumb({ url, onClick, className = "" }: { url: string; onClick: () => void; className?: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const video = isVideoUrl(url);
   return (
     <button
@@ -42,13 +44,12 @@ export function MediaThumb({ url, onClick, className = "" }: { url: string; onCl
             </span>
           </span>
           <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[9px] font-bold uppercase tracking-wide">
-            <Film className="w-2.5 h-2.5" /> Video
-          </span>
+            <Film className="w-2.5 h-2.5" /> {translateUi("Video ")}</span>
         </>
       ) : (
         <img
           src={url}
-          alt=""
+          alt={""}
           loading="lazy"
           className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
           onError={(e) => { e.currentTarget.style.display = "none"; }}
@@ -63,12 +64,13 @@ export function Lightbox({ items, index, title, onClose, onPrev, onNext }: {
   items: string[]; index: number; title: string;
   onClose: () => void; onPrev: () => void; onNext: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const url = items[index];
   return createPortal(
     <div className="fixed inset-0 z-[130] flex flex-col bg-black/92 backdrop-blur-sm" style={{ animation: "sw-fade .15s ease" }} onClick={onClose}>
       <div className="flex items-center justify-between h-14 px-4 text-white/75 text-xs font-medium">
         <span className="tabular-nums">{title} · {index + 1} / {items.length}</span>
-        <button type="button" onClick={onClose} aria-label="Close" className="p-2 -m-2 hover:text-white transition-colors cursor-pointer">
+        <button type="button" onClick={onClose} aria-label={translateUi("Close")} className="p-2 -m-2 hover:text-white transition-colors cursor-pointer">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -76,16 +78,16 @@ export function Lightbox({ items, index, title, onClose, onPrev, onNext }: {
         {isVideoUrl(url) ? (
           <video key={url} src={url} controls autoPlay playsInline className="max-h-full max-w-full rounded-lg bg-black" />
         ) : (
-          <img key={url} src={url} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
+          <img key={url} src={url} alt={""} className="max-h-full max-w-full object-contain rounded-lg" />
         )}
       </div>
       {items.length > 1 && (
         <>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onPrev(); }} aria-label="Previous"
+          <button type="button" onClick={(e) => { e.stopPropagation(); onPrev(); }} aria-label={translateUi("Previous")}
             className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onNext(); }} aria-label="Next"
+          <button type="button" onClick={(e) => { e.stopPropagation(); onNext(); }} aria-label={translateUi("Next")}
             className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-sm transition-colors cursor-pointer">
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -112,6 +114,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
   member: StaffMember; theme: WebsiteTheme; accentText: string;
   hasBooking?: boolean; onBook?: (m: StaffMember) => void; onClose: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const media = member.workMedia ?? [];
   const avatar = staffAvatar(member);
   const firstName = member.name.split(" ")[0];
@@ -159,19 +162,19 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-base font-bold leading-tight text-slate-900">{member.name}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</p>
               <StaffRating member={member} className="mt-1 text-xs text-slate-700" />
               {member.specializations && member.specializations.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {member.specializations.map((s) => (
                     <span key={s} className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                      {CATEGORY_LABEL[s] ?? s}
+                      {translateUi(CATEGORY_LABEL[s] ?? s)}
                     </span>
                   ))}
                 </div>
               )}
             </div>
-            <button type="button" onClick={onClose} aria-label="Close" className="-m-1 shrink-0 p-1 text-slate-400 transition-colors hover:text-slate-700 cursor-pointer">
+            <button type="button" onClick={onClose} aria-label={translateUi("Close")} className="-m-1 shrink-0 p-1 text-slate-400 transition-colors hover:text-slate-700 cursor-pointer">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -182,7 +185,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
               <div className="relative pl-4">
                 <span className="absolute bottom-0 left-0 top-1 w-1 rounded-full" style={{ backgroundColor: theme.accentColor }} />
                 <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
-                  <Quote className="h-3 w-3" /> About {firstName}
+                  <Quote className="h-3 w-3" /> {translateUi("About ")}{firstName}
                 </p>
                 <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{member.bio}</p>
               </div>
@@ -192,7 +195,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
               <div>
                 <div className="mb-2 flex items-center gap-1.5">
                   <Images className="h-3.5 w-3.5 text-slate-400" />
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{firstName}&rsquo;s work</p>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{firstName}{translateUi("’s work")}</p>
                   <span className="text-[11px] text-slate-400">{media.length}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -205,8 +208,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
 
             {!member.bio && media.length === 0 && (
               <p className="py-4 text-center text-sm text-slate-400">
-                {firstName} hasn&rsquo;t added a portfolio yet.
-              </p>
+                {firstName} {translateUi("hasn’t added a portfolio yet. ")}</p>
             )}
           </div>
 
@@ -219,7 +221,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 cursor-pointer"
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
               >
-                <CalendarCheck className="h-4 w-4" /> Book with {firstName}
+                <CalendarCheck className="h-4 w-4" /> {translateUi("Book with ")}{firstName}
               </button>
             </div>
           )}

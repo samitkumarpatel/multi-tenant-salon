@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useOutletContext, useLoaderData, Link, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import { User, MapPin, Phone, Mail, Globe, Clock, CalendarDays, Zap, Lock, ArrowRight, Pencil, Hash, Copy, Check, LayoutDashboard, Users, CalendarCheck, ExternalLink, Share2, Gauge } from "lucide-react";
@@ -56,6 +57,7 @@ type SalonLink = {
 };
 
 export default function Manage() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon, setSalon } = useOutletContext<LayoutContext>();
   const dashboardSettings = useLoaderData<typeof clientLoader>();
   const [copied, setCopied] = useState<string | null>(null);
@@ -136,24 +138,23 @@ export default function Manage() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="break-words text-xl font-bold text-slate-900">{tab === "home" ? salon.name : tab === "details" ? "Salon details" : "Share links"}</h1>
+            <h1 className="break-words text-xl font-bold text-slate-900">{tab === "home" ? salon.name : tab === "details" ? translateUi("Salon details") : translateUi("Share links")}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {tab === "home" ? "Your everyday salon tasks, all in one place." : tab === "details" ? "Review and update your salon information." : "Share booking and website links with customers, or portal links with your team."}
+              {tab === "home" ? translateUi("Your everyday salon tasks, all in one place.") : tab === "details" ? translateUi("Review and update your salon information.") : translateUi("Share booking and website links with customers, or portal links with your team.")}
             </p>
           </div>
           <Link
             to="edit"
             className="inline-flex h-11 items-center gap-1.5 px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:border-matcha-400 hover:text-matcha-700 no-underline transition-colors"
           >
-            <Pencil className="w-4 h-4" /> Edit salon
-          </Link>
+            <Pencil className="w-4 h-4" /> {translateUi("Edit salon ")}</Link>
         </div>
 
-        <nav aria-label="Salon overview" className="flex flex-wrap gap-1 border-b border-slate-200 pb-2">
+        <nav aria-label={translateUi("Salon overview")} className="flex flex-wrap gap-1 border-b border-slate-200 pb-2">
           {([['home', 'Home'], ['details', 'Salon details'], ['links', 'Share links']] as const).map(([key, label]) => (
             <Link key={key} to={`?${new URLSearchParams({ ...Object.fromEntries(searchParams), tab: key })}`} aria-current={tab === key ? "page" : undefined}
               className={`inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-medium transition-colors ${tab === key ? "bg-matcha-100 text-matcha-800" : "text-slate-600 hover:bg-slate-100"}`}>
-              {label}
+              {translateUi(label)}
             </Link>
           ))}
         </nav>
@@ -171,46 +172,45 @@ export default function Manage() {
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                 <Hash className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Salon Identity</span>
+                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Salon Identity")}</span>
               </div>
               <div className="flex gap-3 py-1 text-sm items-center">
-                <span className="text-xs text-slate-400 min-w-[64px] shrink-0">ID</span>
+                <span className="text-xs text-slate-400 min-w-[64px] shrink-0">{translateUi("ID")}</span>
                 <span className="font-mono text-xs text-slate-600 truncate flex-1">{String(salon.id)}</span>
                 <button
                   onClick={() => copyLink(String(salon.id), "id")}
                   className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                  title="Copy ID"
+                  title={translateUi("Copy ID")}
                 >
                   {copied === "id" ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
               {salon.handler && (
                 <div className="flex gap-3 py-1 text-sm items-center">
-                  <span className="text-xs text-slate-400 min-w-[64px] shrink-0">Web name</span>
+                  <span className="text-xs text-slate-400 min-w-[64px] shrink-0">{translateUi("Web name")}</span>
                   <span className="font-mono text-xs text-slate-600 truncate flex-1">{salon.handler}</span>
                   <button
                     onClick={() => copyLink(salon.handler!, "handler")}
                     className="shrink-0 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                    title="Copy web name"
+                    title={translateUi("Copy web name")}
                   >
                     {copied === "handler" ? <Check className="w-3.5 h-3.5 text-matcha-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               )}
               <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
-                Your salon reference for support. Customer links are available under Share links.
-              </p>
+                {translateUi("Your salon reference for support. Customer links are available under Share links. ")}</p>
             </div>
 
             {/* Owner */}
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                 <User className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Owner</span>
+                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Owner")}</span>
               </div>
-              <InfoRow label="Name">{salon.owner?.name}</InfoRow>
-              <InfoRow label="Email">{salon.owner?.email}</InfoRow>
-              {salon.owner?.phone && <InfoRow label="Phone">{salon.owner.phone}</InfoRow>}
+              <InfoRow label={translateUi("Name")}>{salon.owner?.name}</InfoRow>
+              <InfoRow label={translateUi("Email")}>{salon.owner?.email}</InfoRow>
+              {salon.owner?.phone && <InfoRow label={translateUi("Phone")}>{salon.owner.phone}</InfoRow>}
             </div>
 
             {/* Location */}
@@ -218,21 +218,20 @@ export default function Manage() {
               <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Location</span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Location")}</span>
                   <Link to="edit?step=1" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
-                    <Pencil className="w-3 h-3" /> Edit
-                  </Link>
+                    <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</Link>
                 </div>
-                {salon.location.address && <InfoRow label="Address">{salon.location.address}</InfoRow>}
-                {salon.location.city    && <InfoRow label="City">{salon.location.city}</InfoRow>}
-                {salon.location.state   && <InfoRow label="State">{salon.location.state}</InfoRow>}
-                {salon.location.country && <InfoRow label="Country">{salon.location.country}</InfoRow>}
-                {salon.location.zipCode && <InfoRow label="ZIP">{salon.location.zipCode}</InfoRow>}
+                {salon.location.address && <InfoRow label={translateUi("Address")}>{salon.location.address}</InfoRow>}
+                {salon.location.city    && <InfoRow label={translateUi("City")}>{salon.location.city}</InfoRow>}
+                {salon.location.state   && <InfoRow label={translateUi("State")}>{salon.location.state}</InfoRow>}
+                {salon.location.country && <InfoRow label={translateUi("Country")}>{salon.location.country}</InfoRow>}
+                {salon.location.zipCode && <InfoRow label={translateUi("ZIP")}>{salon.location.zipCode}</InfoRow>}
                 {salon.businessRegistrationId && (
                   <InfoRow label={salon.businessIdLabel ?? "Reg. ID"}>
                     {salon.businessRegistrationId}
                     {salon.showBusinessId && (
-                      <span className="ml-2 text-[10px] font-medium text-matcha-600">· shown publicly</span>
+                      <span className="ml-2 text-[10px] font-medium text-matcha-600">{translateUi("· shown publicly")}</span>
                     )}
                   </InfoRow>
                 )}
@@ -244,32 +243,28 @@ export default function Manage() {
               <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                   <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Contact</span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Contact")}</span>
                   <Link to="edit?step=2" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
-                    <Pencil className="w-3 h-3" /> Edit
-                  </Link>
+                    <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</Link>
                 </div>
                 {salon.contact.phone && (
                   <div className="flex gap-3 py-0.5 text-sm items-center">
                     <span className="text-xs text-slate-400 min-w-[64px] shrink-0 flex items-center gap-1.5">
-                      <Phone className="w-3 h-3" /> Phone
-                    </span>
+                      <Phone className="w-3 h-3" /> {translateUi("Phone ")}</span>
                     <span className="text-slate-700">{salon.contact.phone}</span>
                   </div>
                 )}
                 {salon.contact.email && (
                   <div className="flex gap-3 py-0.5 text-sm items-center">
                     <span className="text-xs text-slate-400 min-w-[64px] shrink-0 flex items-center gap-1.5">
-                      <Mail className="w-3 h-3" /> Email
-                    </span>
+                      <Mail className="w-3 h-3" /> {translateUi("Email ")}</span>
                     <span className="min-w-0 break-words text-slate-700">{salon.contact.email}</span>
                   </div>
                 )}
                 {salon.contact.website && (
                   <div className="flex gap-3 py-0.5 text-sm items-center">
                     <span className="text-xs text-slate-400 min-w-[64px] shrink-0 flex items-center gap-1.5">
-                      <Globe className="w-3 h-3" /> Website
-                    </span>
+                      <Globe className="w-3 h-3" /> {translateUi("Website ")}</span>
                     <a href={salon.contact.website} target="_blank" rel="noopener noreferrer" className="text-matcha-600 hover:underline truncate">
                       {salon.contact.website}
                     </a>
@@ -285,30 +280,27 @@ export default function Manage() {
             >
               <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                 <Share2 className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Social Media</span>
+                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Social Media")}</span>
                 {!editSocial && (
                   <button
                     type="button"
                     onClick={() => setEditSocial(true)}
                     className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 cursor-pointer"
                   >
-                    <Pencil className="w-3 h-3" /> Edit
-                  </button>
+                    <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
                 )}
               </div>
 
               {editSocial ? (
                 <>
                   <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                    Turn a platform on to show its icon in your website footer; add the link to make it
-                    clickable. A visible platform with no link shows as a disabled icon.
-                  </p>
+                    {translateUi("Turn a platform on to show its icon in your website footer; add the link to make it clickable. A visible platform with no link shows as a disabled icon. ")}</p>
                   <SocialLinksForm salon={salon} onSaved={setSalon} onCancel={() => setEditSocial(false)} />
                 </>
               ) : (() => {
                 const shown = SOCIAL_PLATFORMS.filter((p) => salon.contact?.[p.visibleKey] === true);
                 if (shown.length === 0) {
-                  return <span className="text-xs text-slate-400 italic">None shown on your website</span>;
+                  return <span className="text-xs text-slate-400 italic">{translateUi("None shown on your website")}</span>;
                 }
                 return shown.map((p) => {
                   const url = salon.contact?.[p.urlKey]?.trim();
@@ -322,7 +314,7 @@ export default function Manage() {
                           {url}
                         </a>
                       ) : (
-                        <span className="text-slate-400 italic">shown, no link yet</span>
+                        <span className="text-slate-400 italic">{translateUi("shown, no link yet")}</span>
                       )}
                     </div>
                   );
@@ -334,21 +326,20 @@ export default function Manage() {
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                 <Zap className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Features</span>
+                <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Features")}</span>
                 <Link to="edit?step=3" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
-                  <Pencil className="w-3 h-3" /> Edit
-                </Link>
+                  <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</Link>
               </div>
               {salon.features?.length ? (
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {salon.features.map((f) => (
                     <span key={f} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wide">
-                      {FEATURE_LABEL[f] ?? f}
+                      {translateUi(FEATURE_LABEL[f] ?? f)}
                     </span>
                   ))}
                 </div>
               ) : (
-                <span className="text-xs text-slate-400 italic">No features enabled</span>
+                <span className="text-xs text-slate-400 italic">{translateUi("No features enabled")}</span>
               )}
             </div>
 
@@ -357,14 +348,13 @@ export default function Manage() {
               <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Operating Hours</span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Operating Hours")}</span>
                   <Link to="edit?step=4" className="ml-auto flex items-center gap-1 text-[0.65rem] font-semibold text-matcha-600 hover:text-matcha-700 no-underline">
-                    <Pencil className="w-3 h-3" /> Edit
-                  </Link>
+                    <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</Link>
                 </div>
                 {openHours.map((h) => (
                   <div key={h.day} className="flex gap-3 py-0.5 text-sm">
-                    <span className="text-xs text-slate-400 min-w-[64px] shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
+                    <span className="text-xs text-slate-400 min-w-[64px] shrink-0">{translateUi(DAY_SHORT[h.day] ?? h.day)}</span>
                     <span className="text-slate-700 font-medium">{h.openTime} – {h.closeTime}</span>
                   </div>
                 ))}
@@ -376,7 +366,7 @@ export default function Manage() {
               <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
                   <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Created</span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Created")}</span>
                 </div>
                 <span className="text-sm text-slate-700">{formatDate(salon.createdAt)}</span>
               </div>
@@ -391,12 +381,12 @@ export default function Manage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-800">
-                  {hasBooking || hasWebsite ? "Share your salon" : "Share with your team"}
+                  {hasBooking || hasWebsite ? translateUi("Share your salon") : translateUi("Share with your team")}
                 </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
                   {hasBooking || hasWebsite
-                    ? "Access your booking, website, and other salon links in one place."
-                    : "Access the portal links your team needs in one place."}
+                    ? translateUi("Access your booking, website, and other salon links in one place.")
+                    : translateUi("Access the portal links your team needs in one place.")}
                 </p>
               </div>
               <button
@@ -404,7 +394,7 @@ export default function Manage() {
                 onClick={() => setTab("links")}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-matcha-300 hover:bg-matcha-50 hover:text-matcha-700 cursor-pointer"
               >
-                View share links <ArrowRight className="h-3.5 w-3.5" />
+                {translateUi("View share links ")}<ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -415,14 +405,12 @@ export default function Manage() {
               <div className="flex items-start gap-3 mb-4">
                 <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-slate-700">More features available</p>
+                  <p className="text-sm font-semibold text-slate-700">{translateUi("More features available")}</p>
                   <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                    These capabilities aren't active yet. Enable them via{" "}
+                    {translateUi("These capabilities aren't active yet. Enable them via")}{" "}
                     <Link to="edit?step=3" className="text-matcha-600 hover:underline font-medium">
-                      Edit Salon → Features
-                    </Link>{" "}
-                    to unlock the corresponding admin sections.
-                  </p>
+                      {translateUi("Edit Salon → Features ")}</Link>{" "}
+                    {translateUi("to unlock the corresponding admin sections. ")}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -430,7 +418,7 @@ export default function Manage() {
                   <div key={key} className="flex items-start gap-2.5 bg-white border border-slate-200 rounded-lg px-3 py-2.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mt-1.5" />
                     <div>
-                      <p className="text-xs font-semibold text-slate-600">{FEATURE_LABEL[key] ?? key}</p>
+                      <p className="text-xs font-semibold text-slate-600">{translateUi(FEATURE_LABEL[key] ?? key)}</p>
                       <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{FEATURE_HINTS[key]}</p>
                     </div>
                   </div>
@@ -440,7 +428,7 @@ export default function Manage() {
                 to="edit?step=3"
                 className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold text-matcha-600 hover:text-matcha-700 no-underline hover:underline"
               >
-                Go to Edit Salon <ArrowRight className="w-3 h-3" />
+                {translateUi("Go to Edit Salon ")}<ArrowRight className="w-3 h-3" />
               </Link>
             </div>
           )}
@@ -468,6 +456,7 @@ function CompactLinkList({
   copied: string | null;
   onCopy: (url: string, key: string) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <ul className="divide-y divide-slate-100">
       {links.map(({ key, label, desc, url, altUrl, icon: Icon }) => (
@@ -477,13 +466,13 @@ function CompactLinkList({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2">
-              <p className="shrink-0 text-sm font-semibold text-slate-800">{label}</p>
+              <p className="shrink-0 text-sm font-semibold text-slate-800">{translateUi(label)}</p>
               <p className="hidden truncate text-[11px] text-slate-400 sm:block">{desc}</p>
             </div>
-            <LinkUrl url={url} label={label} copyKey={key} copied={copied} onCopy={onCopy} />
+            <LinkUrl url={url} label={translateUi(label)} copyKey={key} copied={copied} onCopy={onCopy} />
             {altUrl && <>
-              <p className="text-[11px] text-slate-400">or</p>
-              <LinkUrl url={altUrl} label={label} copyKey={`${key}-alt`} copied={copied} onCopy={onCopy} />
+              <p className="text-[11px] text-slate-400">{translateUi("or")}</p>
+              <LinkUrl url={altUrl} label={translateUi(label)} copyKey={`${key}-alt`} copied={copied} onCopy={onCopy} />
             </>}
           </div>
         </li>
@@ -495,6 +484,7 @@ function CompactLinkList({
 function LinkUrl({ url, label, copyKey, copied, onCopy }: {
   url: string; label: string; copyKey: string; copied: string | null; onCopy: (url: string, key: string) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex flex-wrap items-center gap-1">
       <p className="w-full break-all py-1 text-sm text-slate-600">{url}</p>
@@ -506,7 +496,7 @@ function LinkUrl({ url, label, copyKey, copied, onCopy }: {
         aria-label={`Copy ${label} URL ${url}`}
       >
         {copied === copyKey ? <Check className="h-4 w-4 text-matcha-600" /> : <Copy className="h-4 w-4" />}
-        {copied === copyKey ? "Copied" : "Copy link"}
+        {copied === copyKey ? translateUi("Copied") : translateUi("Copy link")}
       </button>
       <a
         href={url}
@@ -517,16 +507,16 @@ function LinkUrl({ url, label, copyKey, copied, onCopy }: {
         aria-label={`Open ${label} ${url} in a new tab`}
       >
         <ExternalLink className="h-4 w-4" />
-        Open
-      </a>
+        {translateUi("Open ")}</a>
     </div>
   );
 }
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex gap-3 py-0.5 text-sm">
-      <span className="text-xs text-slate-400 min-w-[64px] shrink-0 pt-px">{label}</span>
+      <span className="text-xs text-slate-400 min-w-[64px] shrink-0 pt-px">{translateUi(label)}</span>
       <span className="min-w-0 break-words text-slate-700">{children}</span>
     </div>
   );

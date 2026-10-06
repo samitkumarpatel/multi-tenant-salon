@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Country } from "./types";
@@ -29,6 +30,7 @@ function defaultDialCode(countries: Country[], countryName?: string): string {
 }
 
 export default function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus }: Props) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const parsed = parsePhone(value);
   const [dialCode, setDialCode] = useState(() => parsed.dialCode || defaultDialCode(countries, defaultCountry));
   const [local, setLocal]       = useState(parsed.local);
@@ -110,7 +112,7 @@ export default function PhoneInput({ value, onChange, countries, defaultCountry,
             setLocal(cleaned);
             emit(dialCode, cleaned);
           }}
-          placeholder="555 000 0000"
+          placeholder={"555 000 0000"}
           className="flex-1 min-w-0 px-4 py-3 text-sm outline-none text-stone-900 placeholder:text-stone-300 bg-white rounded-r-xl"
         />
       </div>
@@ -121,7 +123,7 @@ export default function PhoneInput({ value, onChange, countries, defaultCountry,
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Select country code"
+            aria-label={translateUi("Select country code")}
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70vh]"
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
@@ -133,7 +135,7 @@ export default function PhoneInput({ value, onChange, countries, defaultCountry,
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search country or dial code…"
+                placeholder={translateUi("Search country or dial code…")}
                 className="flex-1 text-sm outline-none text-stone-900 placeholder:text-stone-400"
               />
               {query && (
@@ -161,7 +163,7 @@ export default function PhoneInput({ value, onChange, countries, defaultCountry,
                 </li>
               ))}
               {filtered.length === 0 && (
-                <li className="py-12 text-center text-sm text-stone-400">No countries found</li>
+                <li className="py-12 text-center text-sm text-stone-400">{translateUi("No countries found")}</li>
               )}
             </ul>
           </div>

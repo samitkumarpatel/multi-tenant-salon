@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -57,11 +58,12 @@ function StatusBadge({ status }: { status: ShopOrderStatus }) {
   );
 }
 
-function fmtDate(ts: string) {
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function fmtDate(ts: string, locale = "en") {
+  return new Date(ts).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function ShopOrders() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { page } = useLoaderData<typeof clientLoader>();
   const [params, setParams] = useSearchParams();
@@ -119,8 +121,8 @@ export default function ShopOrders() {
         <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
           <ClipboardList className="w-5 h-5 text-matcha-600" />
         </div>
-        <h2 className="text-sm font-bold text-slate-800">No orders yet</h2>
-        <p className="text-xs text-slate-500 mt-1">Orders placed from your public shop appear here.</p>
+        <h2 className="text-sm font-bold text-slate-800">{translateUi("No orders yet")}</h2>
+        <p className="text-xs text-slate-500 mt-1">{translateUi("Orders placed from your public shop appear here.")}</p>
       </div>
     );
   }
@@ -136,14 +138,14 @@ export default function ShopOrders() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && update({ q: draft || null })}
-            placeholder="Search orders…"
+            placeholder={translateUi("Search orders…")}
             className={`${controlCls} pl-8 pr-7 w-60`}
           />
           {draft && (
             <button
               onClick={() => setDraft("")}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              aria-label="Clear search"
+              aria-label={translateUi("Clear search")}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -157,21 +159,19 @@ export default function ShopOrders() {
           onChange={(e) => update({ sort: e.target.value === "oldest" ? "oldest" : null })}
           className={`${controlCls} cursor-pointer`}
         >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
+          <option value="newest">{translateUi("Newest first")}</option>
+          <option value="oldest">{translateUi("Oldest first")}</option>
         </select>
 
         <div className="inline-flex items-center gap-1.5 text-xs text-slate-400">
-          From
-          <input
+          {translateUi("From ")}<input
             type="date"
             value={from}
             max={to || undefined}
             onChange={(e) => update({ from: e.target.value || null })}
             className={`${controlCls} cursor-pointer`}
           />
-          To
-          <input
+          {translateUi("To ")}<input
             type="date"
             value={to}
             min={from || undefined}
@@ -185,8 +185,7 @@ export default function ShopOrders() {
             onClick={() => setParams(new URLSearchParams(), { replace: true })}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" /> Clear
-          </button>
+            <X className="w-3.5 h-3.5" /> {translateUi("Clear ")}</button>
         )}
       </div>
 
@@ -194,7 +193,7 @@ export default function ShopOrders() {
              on a table isn't a discoverable mobile gesture) ─────────────────── */}
       <div className="sm:hidden flex flex-col gap-2">
         {orders.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">No orders match your filters.</div>
+          <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">{translateUi("No orders match your filters.")}</div>
         ) : (
           orders.map((o) => {
             const items = o.lines.reduce((n, l) => n + l.quantity, 0);
@@ -214,8 +213,8 @@ export default function ShopOrders() {
                   <div className={`text-[11px] truncate ${st.faint}`}>{o.customerEmail}</div>
                 </div>
                 <div className={`mt-2 flex items-center justify-between gap-2 text-xs ${st.muted}`}>
-                  <span>{fmtDate(o.createdAt)} · {items} item{items !== 1 ? "s" : ""}</span>
-                  <span className={`font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency)}</span>
+                  <span>{fmtDate(o.createdAt, uiLocale)} · {items} {translateUi("item")}{items !== 1 ? translateUi("s") : ""}</span>
+                  <span className={`font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency, uiLocale)}</span>
                 </div>
               </Link>
             );
@@ -226,17 +225,17 @@ export default function ShopOrders() {
       {/* ── Table (sm and up) ────────────────────────────────────────────── */}
       <div className="hidden sm:block bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
         {orders.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No orders match your filters.</div>
+          <div className="p-8 text-center text-sm text-slate-500">{translateUi("No orders match your filters.")}</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Items</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">{translateUi("Order")}</th>
+                <th className="px-4 py-3">{translateUi("Date")}</th>
+                <th className="px-4 py-3">{translateUi("Customer")}</th>
+                <th className="px-4 py-3">{translateUi("Items")}</th>
+                <th className="px-4 py-3">{translateUi("Total")}</th>
+                <th className="px-4 py-3">{translateUi("Status")}</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -254,13 +253,13 @@ export default function ShopOrders() {
                     }}
                   >
                     <td className={`px-4 py-3 font-mono text-xs font-semibold ${st.strong}`}>{o.orderNumber}</td>
-                    <td className={`px-4 py-3 ${st.muted}`}>{fmtDate(o.createdAt)}</td>
+                    <td className={`px-4 py-3 ${st.muted}`}>{fmtDate(o.createdAt, uiLocale)}</td>
                     <td className="px-4 py-3">
                       <div className={st.strong}>{o.customerName}</div>
                       <div className={`text-[11px] ${st.faint}`}>{o.customerEmail}</div>
                     </td>
                     <td className={`px-4 py-3 ${st.muted}`}>{items}</td>
-                    <td className={`px-4 py-3 font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency)}</td>
+                    <td className={`px-4 py-3 font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency, uiLocale)}</td>
                     <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3 text-right">
                       <Link
@@ -268,7 +267,7 @@ export default function ShopOrders() {
                         to={`${o.id}`}
                         className={`inline-flex items-center gap-1 text-xs font-medium ${st.link} group-hover:underline`}
                       >
-                        View <ChevronRight className="w-3.5 h-3.5" />
+                        {translateUi("View ")}<ChevronRight className="w-3.5 h-3.5" />
                       </Link>
                     </td>
                   </tr>
@@ -283,7 +282,7 @@ export default function ShopOrders() {
       <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
         <span>
           {totalElements === 0
-            ? "No orders"
+            ? translateUi("No orders")
             : `${rangeStart}–${rangeEnd} of ${totalElements} order${totalElements === 1 ? "" : "s"}`}
         </span>
         {totalPages > 1 && (
@@ -293,17 +292,16 @@ export default function ShopOrders() {
               onClick={() => update({ page: String(pageIdx - 1) })}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-medium text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <ChevronLeft className="w-3.5 h-3.5" /> Prev
-            </button>
+              <ChevronLeft className="w-3.5 h-3.5" /> {translateUi("Prev ")}</button>
             <span className="px-2 tabular-nums">
-              Page {pageIdx + 1} / {totalPages}
+              {translateUi("Page ")}{pageIdx + 1} / {totalPages}
             </span>
             <button
               disabled={pageIdx >= totalPages - 1}
               onClick={() => update({ page: String(pageIdx + 1) })}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-medium text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Next <ChevronRight className="w-3.5 h-3.5" />
+              {translateUi("Next ")}<ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -323,6 +321,7 @@ function StatusMenu({
   count: (f: ShopOrderStatus | "ALL") => number;
   onPick: (f: ShopOrderStatus | "ALL") => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [open, setOpen] = useState(false);
   const label = useMemo(() => (value === "ALL" ? "All orders" : ORDER_STATUS_LABEL[value]), [value]);
 
@@ -332,8 +331,8 @@ function StatusMenu({
         onClick={() => setOpen((v) => !v)}
         className={`${controlCls} inline-flex items-center gap-2 font-semibold cursor-pointer`}
       >
-        <span className="font-medium text-slate-400">Status</span>
-        {label}
+        <span className="font-medium text-slate-400">{translateUi("Status")}</span>
+        {translateUi(label)}
         <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
           {count(value)}
         </span>
@@ -361,7 +360,7 @@ function StatusMenu({
                       {active && <Check className="w-3.5 h-3.5 text-matcha-600" />}
                     </span>
                     {f === "ALL" ? (
-                      <span className="font-medium text-slate-700">All orders</span>
+                      <span className="font-medium text-slate-700">{translateUi("All orders")}</span>
                     ) : (
                       <StatusBadge status={f} />
                     )}

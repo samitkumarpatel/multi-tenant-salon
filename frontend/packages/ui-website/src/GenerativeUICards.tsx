@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Users, User, Clock, MapPin, Phone, Mail, Globe, ChevronRight, ChevronLeft, Loader2, Images, Quote } from "lucide-react";
 import { formatPrice, CATEGORY_LABEL, STAFF_ROLE_LABEL, DAY_SHORT } from "./constants";
@@ -38,13 +39,14 @@ export function CardShell({ title, icon: Icon, tokens, children }: { title: stri
 }
 
 function BookPill({ label, tokens, onClick }: { label: string; tokens: CardTokens; onClick: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <button
       onClick={onClick}
       className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-transform active:scale-95"
       style={{ backgroundColor: tokens.theme.accentColor, color: tokens.accentText }}
     >
-      {label}
+      {translateUi(label)}
     </button>
   );
 }
@@ -72,29 +74,30 @@ function groupByCategory(list: ServiceItem[]): [string, ServiceItem[]][] {
 export function ServicesCard({ services, tokens, showBookPill, onBook }: {
   services: ServiceItem[]; tokens: CardTokens; showBookPill: boolean; onBook: (service: ServiceItem) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { msgText, msgDim } = tokens;
   const grouped = groupByCategory(services.filter((s) => s.active));
   if (grouped.length === 0) return null;
 
   return (
-    <CardShell title="Our services" icon={Sparkles} tokens={tokens}>
+    <CardShell title={translateUi("Our services")} icon={Sparkles} tokens={tokens}>
       <div className="space-y-3.5">
         {grouped.map(([cat, items]) => (
           <div key={cat}>
             <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: msgDim }}>
               <CategoryIcon category={cat} className="w-3 h-3" />
-              {CATEGORY_LABEL[cat] ?? cat}
+              {translateUi(CATEGORY_LABEL[cat] ?? cat)}
             </p>
             <div className="space-y-2">
               {items.map((s) => (
                 <div key={s.id} className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate" style={{ color: msgText }}>{s.name}</p>
-                    <p className="text-[11px]" style={{ color: msgDim }}>{s.durationMinutes ?? 30} min</p>
+                    <p className="text-[11px]" style={{ color: msgDim }}>{s.durationMinutes ?? 30} {translateUi("min")}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs font-semibold tabular-nums" style={{ color: msgText }}>{formatPrice(s.price, s.currency)}</span>
-                    {showBookPill && <BookPill label="Book" tokens={tokens} onClick={() => onBook(s)} />}
+                    <span className="text-xs font-semibold tabular-nums" style={{ color: msgText }}>{formatPrice(s.price, s.currency, uiLocale)}</span>
+                    {showBookPill && <BookPill label={translateUi("Book")} tokens={tokens} onClick={() => onBook(s)} />}
                   </div>
                 </div>
               ))}
@@ -111,12 +114,13 @@ export function ServicesCard({ services, tokens, showBookPill, onBook }: {
 export function StaffCard({ staff, tokens, showBookPill, onBook, onViewProfile }: {
   staff: StaffMember[]; tokens: CardTokens; showBookPill: boolean; onBook: (member: StaffMember) => void; onViewProfile?: (member: StaffMember) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim } = tokens;
   const active = staff.filter((m) => m.status === "ACTIVE");
   if (active.length === 0) return null;
 
   return (
-    <CardShell title="Meet the team" icon={Users} tokens={tokens}>
+    <CardShell title={translateUi("Meet the team")} icon={Users} tokens={tokens}>
       <div className="space-y-3">
         {active.map((m) => (
           <div key={m.id} className="flex items-center gap-3">
@@ -130,7 +134,7 @@ export function StaffCard({ staff, tokens, showBookPill, onBook, onViewProfile }
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate" style={{ color: msgText }}>{m.name}</p>
               <p className="flex items-center gap-1.5 text-[11px]" style={{ color: msgDim }}>
-                <span className="truncate">{STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                <span className="truncate">{translateUi(STAFF_ROLE_LABEL[m.role] ?? m.role)}</span>
                 <StaffRating member={m} className="shrink-0" style={{ color: msgText }} />
               </p>
             </div>
@@ -142,10 +146,9 @@ export function StaffCard({ staff, tokens, showBookPill, onBook, onViewProfile }
                   className="px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-opacity hover:opacity-70 border"
                   style={{ color: theme.accentColor, borderColor: theme.accentColor, background: "transparent" }}
                 >
-                  Profile
-                </button>
+                  {translateUi("Profile ")}</button>
               )}
-              {showBookPill && <BookPill label="Book" tokens={tokens} onClick={() => onBook(m)} />}
+              {showBookPill && <BookPill label={translateUi("Book")} tokens={tokens} onClick={() => onBook(m)} />}
             </div>
           </div>
         ))}
@@ -159,6 +162,7 @@ export function StaffCard({ staff, tokens, showBookPill, onBook, onViewProfile }
 export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
   member: StaffMember; tokens: CardTokens; showBookPill: boolean; onBook: (member: StaffMember) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim, accentText } = tokens;
   const media = member.workMedia ?? [];
   const avatar = staffAvatar(member);
@@ -177,13 +181,13 @@ export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold truncate" style={{ color: msgText }}>{member.name}</p>
-          <p className="text-[11px]" style={{ color: msgDim }}>{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+          <p className="text-[11px]" style={{ color: msgDim }}>{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</p>
           <StaffRating member={member} className="mt-0.5 text-[11px]" style={{ color: msgText }} />
           {member.specializations && member.specializations.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {member.specializations.map((s) => (
                 <span key={s} className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                  {CATEGORY_LABEL[s] ?? s}
+                  {translateUi(CATEGORY_LABEL[s] ?? s)}
                 </span>
               ))}
             </div>
@@ -195,7 +199,7 @@ export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
         <div className="relative pl-3 mb-3.5">
           <span className="absolute bottom-0 left-0 top-0.5 w-0.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
           <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
-            <Quote className="w-3 h-3" /> About {firstName}
+            <Quote className="w-3 h-3" /> {translateUi("About ")}{firstName}
           </p>
           <p className="whitespace-pre-line text-xs leading-relaxed" style={{ color: msgDim }}>{member.bio}</p>
         </div>
@@ -205,7 +209,7 @@ export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
         <div className="mb-3.5">
           <div className="mb-1.5 flex items-center gap-1.5">
             <Images className="w-3 h-3" style={{ color: msgDim }} />
-            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: msgDim }}>{firstName}&rsquo;s work</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: msgDim }}>{firstName}{translateUi("’s work")}</p>
           </div>
           <div className="grid grid-cols-3 gap-1.5">
             {media.map((url, i) => (
@@ -216,7 +220,7 @@ export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
       )}
 
       {!member.bio && media.length === 0 && (
-        <p className="text-xs py-2 mb-1" style={{ color: msgDim }}>{firstName} hasn&rsquo;t added a portfolio yet.</p>
+        <p className="text-xs py-2 mb-1" style={{ color: msgDim }}>{firstName} {translateUi("hasn’t added a portfolio yet.")}</p>
       )}
 
       {showBookPill && (
@@ -226,7 +230,7 @@ export function StaffProfileCard({ member, tokens, showBookPill, onBook }: {
           className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-transform active:scale-[0.98]"
           style={{ backgroundColor: theme.accentColor, color: accentText }}
         >
-          Book with {firstName}
+          {translateUi("Book with ")}{firstName}
         </button>
       )}
 
@@ -260,6 +264,7 @@ function isOpenNow(hours?: OperatingHours[]): boolean {
 }
 
 export function HoursCard({ salon, tokens }: { salon: Salon; tokens: CardTokens }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim } = tokens;
   const hours = salon.operatingHours;
   if (!hours?.length) return null;
@@ -267,10 +272,10 @@ export function HoursCard({ salon, tokens }: { salon: Salon; tokens: CardTokens 
   const open = isOpenNow(hours);
 
   return (
-    <CardShell title="Opening hours" icon={Clock} tokens={tokens}>
+    <CardShell title={translateUi("Opening hours")} icon={Clock} tokens={tokens}>
       <div className="flex items-center gap-1.5 mb-2.5">
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: open ? "#34D399" : msgDim }} />
-        <span className="text-xs font-semibold" style={{ color: open ? theme.accentColor : msgDim }}>{open ? "Open now" : "Closed now"}</span>
+        <span className="text-xs font-semibold" style={{ color: open ? theme.accentColor : msgDim }}>{open ? translateUi("Open now") : translateUi("Closed now")}</span>
       </div>
       <div className="space-y-1">
         {DAY_ORDER.map((day, i) => {
@@ -283,9 +288,9 @@ export function HoursCard({ salon, tokens }: { salon: Salon; tokens: CardTokens 
               className="flex items-center justify-between text-xs py-0.5"
               style={{ color: isToday ? theme.accentColor : msgText, fontWeight: isToday ? 700 : 400 }}
             >
-              <span>{DAY_SHORT[day] ?? day}</span>
+              <span>{translateUi(DAY_SHORT[day] ?? day)}</span>
               <span className="font-mono" style={{ color: isToday ? theme.accentColor : msgDim }}>
-                {h.closed ? "Closed" : `${h.openTime} – ${h.closeTime}`}
+                {h.closed ? translateUi("Closed") : `${h.openTime} – ${h.closeTime}`}
               </span>
             </div>
           );
@@ -298,6 +303,7 @@ export function HoursCard({ salon, tokens }: { salon: Salon; tokens: CardTokens 
 // ── Location ─────────────────────────────────────────────────────────────────
 
 export function LocationCard({ salon, tokens }: { salon: Salon; tokens: CardTokens }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim } = tokens;
   const loc = salon.location;
   if (!loc?.address && !loc?.city) return null;
@@ -306,7 +312,7 @@ export function LocationCard({ salon, tokens }: { salon: Salon; tokens: CardToke
   )}`;
 
   return (
-    <CardShell title="Find us" icon={MapPin} tokens={tokens}>
+    <CardShell title={translateUi("Find us")} icon={MapPin} tokens={tokens}>
       <div className="space-y-0.5 mb-2.5">
         {loc.address && <p className="text-sm font-medium" style={{ color: msgText }}>{loc.address}</p>}
         {(loc.zipCode || loc.city) && (
@@ -315,8 +321,8 @@ export function LocationCard({ salon, tokens }: { salon: Salon; tokens: CardToke
         {loc.country && <p className="text-xs" style={{ color: msgDim }}>{loc.country}</p>}
       </div>
       <span className="inline-flex items-center gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
-        Open in Maps <ChevronRight className="w-3 h-3" />
-        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+        {translateUi("Open in Maps ")}<ChevronRight className="w-3 h-3" />
+        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">{translateUi("soon")}</span>
       </span>
     </CardShell>
   );
@@ -325,12 +331,13 @@ export function LocationCard({ salon, tokens }: { salon: Salon; tokens: CardToke
 // ── Contact ──────────────────────────────────────────────────────────────────
 
 export function ContactCard({ salon, tokens }: { salon: Salon; tokens: CardTokens }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText } = tokens;
   const c = salon.contact;
   if (!c?.phone && !c?.email && !c?.website) return null;
 
   return (
-    <CardShell title="Contact us" icon={Phone} tokens={tokens}>
+    <CardShell title={translateUi("Contact us")} icon={Phone} tokens={tokens}>
       <div className="space-y-2">
         {c.phone && (
           <a href={`tel:${c.phone}`} className="flex items-center gap-2.5 no-underline" style={{ color: msgText }}>
@@ -399,6 +406,7 @@ export function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, cl
   closedDateRanges: ClosureRange[];
   tokens: CardTokens;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const sel = new Date(`${value}T00:00:00`);
   const [month, setMonth] = useState(() => new Date(sel.getFullYear(), sel.getMonth(), 1));
   const { theme, msgText, msgDim, accentText } = tokens;
@@ -424,7 +432,7 @@ export function MiniCalendar({ value, onChange, minDate, maxDate, closedDays, cl
           <ChevronLeft className="w-3.5 h-3.5" />
         </button>
         <p className="text-xs font-semibold" style={{ color: msgText }}>
-          {month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          {month.toLocaleDateString(uiLocale, { month: "long", year: "numeric" })}
         </p>
         <button
           type="button" disabled={!canNext}
@@ -506,6 +514,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
    *  history clue for the chat assistant. */
   onProgress?: (progress: PickerProgress) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim, bubbleBorder, accentText } = tokens;
 
   const eligibleStaff = service.assignedStaffIds?.length
@@ -688,8 +697,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
           className="inline-flex items-center gap-1 text-[11px] font-semibold mb-2.5 cursor-pointer"
           style={{ color: msgDim }}
         >
-          <ChevronLeft className="w-3 h-3" /> Back
-        </button>
+          <ChevronLeft className="w-3 h-3" /> {translateUi("Back ")}</button>
       )}
 
       {step === "date" && (
@@ -702,7 +710,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
             className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: theme.accentColor, color: accentText }}
           >
-            {dateIsClosed ? "Salon closed — pick another date" : needsStaffStep ? "Choose your stylist" : "See available times"}
+            {dateIsClosed ? translateUi("Salon closed — pick another date") : needsStaffStep ? translateUi("Choose your stylist") : translateUi("See available times")}
           </button>
         </div>
       )}
@@ -710,12 +718,10 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
       {step === "staff" && (
         <div className="space-y-1.5">
           <p className="text-xs mb-1" style={{ color: msgDim }}>
-            {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} — who would you like to book with?
-          </p>
+            {new Date(`${date}T00:00:00`).toLocaleDateString(uiLocale, { weekday: "short", month: "short", day: "numeric" })} {translateUi("— who would you like to book with? ")}</p>
           {loadingDateSlots ? (
             <div className="flex items-center gap-2 text-xs py-2" style={{ color: msgDim }}>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking who's free…
-            </div>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> {translateUi("Checking who's free… ")}</div>
           ) : (
             <>
               <button
@@ -724,8 +730,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
                 className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
                 style={{ backgroundColor: `${theme.accentColor}10`, color: theme.accentColor, border: `1px solid ${theme.accentColor}30` }}
               >
-                Any available stylist
-              </button>
+                {translateUi("Any available stylist ")}</button>
               {staffAvailableToday.length > 0 ? (
                 staffAvailableToday.map((m) => (
                   <button
@@ -749,12 +754,12 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
                       )}
                     </div>
                     <span>
-                      {m.name} <span style={{ color: msgDim }}>· {STAFF_ROLE_LABEL[m.role] ?? m.role}</span>
+                      {m.name} <span style={{ color: msgDim }}>· {translateUi(STAFF_ROLE_LABEL[m.role] ?? m.role)}</span>
                     </span>
                   </button>
                 ))
               ) : (
-                <p className="text-xs py-1" style={{ color: msgDim }}>No one has open slots this day — try another date.</p>
+                <p className="text-xs py-1" style={{ color: msgDim }}>{translateUi("No one has open slots this day — try another date.")}</p>
               )}
             </>
           )}
@@ -764,19 +769,18 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
       {step === "time" && (
         <div className="space-y-3">
           <p className="text-xs font-semibold" style={{ color: msgText }}>
-            {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+            {new Date(`${date}T00:00:00`).toLocaleDateString(uiLocale, { weekday: "short", month: "short", day: "numeric" })}
           </p>
           {dateIsClosed && (
-            <p className="text-xs" style={{ color: msgDim }}>The salon is closed on this day — go back and pick another date.</p>
+            <p className="text-xs" style={{ color: msgDim }}>{translateUi("The salon is closed on this day — go back and pick another date.")}</p>
           )}
           {!dateIsClosed && loadingSlots && (
             <div className="flex items-center gap-2 text-xs py-2" style={{ color: msgDim }}>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking availability…
-            </div>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> {translateUi("Checking availability… ")}</div>
           )}
           {!dateIsClosed && slotsError && <p className="text-xs" style={{ color: "#EF4444" }}>{slotsError}</p>}
           {!dateIsClosed && !loadingSlots && !slotsError && timeOptions.length === 0 && (
-            <p className="text-xs" style={{ color: msgDim }}>No open times this day — try another date.</p>
+            <p className="text-xs" style={{ color: msgDim }}>{translateUi("No open times this day — try another date.")}</p>
           )}
           {!dateIsClosed && !loadingSlots && timeOptions.length > 0 && (
             <div className="grid grid-cols-3 gap-1.5">
@@ -799,24 +803,24 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
       {step === "contact" && slot && (
         <div className="space-y-2.5">
           <p className="text-xs font-semibold" style={{ color: msgText }}>
-            {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {fmt12(slot.startTime)}
+            {new Date(`${date}T00:00:00`).toLocaleDateString(uiLocale, { weekday: "short", month: "short", day: "numeric" })} · {fmt12(slot.startTime)}
           </p>
           <div>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name"
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={translateUi("Your name")} autoComplete="name"
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={inputStyle} />
             {nameError && <p className="text-[10px] mt-1 px-0.5" style={{ color: "#EF4444" }}>{nameError}</p>}
           </div>
           <div>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" autoComplete="email" inputMode="email"
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder={translateUi("Email")} type="email" autoComplete="email" inputMode="email"
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={inputStyle} />
             {emailError && <p className="text-[10px] mt-1 px-0.5" style={{ color: "#EF4444" }}>{emailError}</p>}
           </div>
           <div>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional if email given)" type="tel" autoComplete="tel" inputMode="tel"
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={translateUi("Phone (optional if email given)")} type="tel" autoComplete="tel" inputMode="tel"
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={inputStyle} />
             {phoneError && <p className="text-[10px] mt-1 px-0.5" style={{ color: "#EF4444" }}>{phoneError}</p>}
             {!hasContact && !emailError && !phoneError && (
-              <p className="text-[10px] mt-1 px-0.5" style={{ color: msgDim }}>Add an email or phone number so we can reach you.</p>
+              <p className="text-[10px] mt-1 px-0.5" style={{ color: msgDim }}>{translateUi("Add an email or phone number so we can reach you.")}</p>
             )}
           </div>
           <button
@@ -826,8 +830,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
             className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: theme.accentColor, color: accentText }}
           >
-            Review booking
-          </button>
+            {translateUi("Review booking ")}</button>
         </div>
       )}
 
@@ -837,8 +840,7 @@ export function BookingPickerCard({ salon, service, staff, tokens, initialStaffI
         className="w-full mt-2 px-3 py-1.5 rounded-lg text-[11px] font-medium cursor-pointer"
         style={{ color: msgDim }}
       >
-        Cancel
-      </button>
+        {translateUi("Cancel ")}</button>
     </CardShell>
   );
 }

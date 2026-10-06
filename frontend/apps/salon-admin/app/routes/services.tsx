@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { FixWithAi } from "~/components/FixWithAi";
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
@@ -65,12 +66,12 @@ function StaffToggle({ staff, ids, onChange }: {
   ids: string[];
   onChange: (ids: string[]) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   if (!staff.length) return null;
   return (
     <>
       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2 pb-2 border-b border-slate-100">
-        Assign Staff
-      </div>
+        {translateUi("Assign Staff ")}</div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-1.5 max-h-[150px] overflow-y-auto">
         {staff.map((m) => {
           const on = ids.includes(m.id.toString());
@@ -124,6 +125,7 @@ function AddServiceFlow({
   onSubmit: (f: ServiceFormFields) => void;
   busy: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [step, setStep] = useState<0 | 1>(0);
   const [showExtra, setShowExtra] = useState(false);
   const [f, setF] = useState<ServiceFormFields>({
@@ -142,7 +144,7 @@ function AddServiceFlow({
   if (step === 0) {
     return (
       <div>
-        <p className="text-sm text-slate-500 mb-4">Pick a category to get started.</p>
+        <p className="text-sm text-slate-500 mb-4">{translateUi("Pick a category to get started.")}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {SERVICE_CATEGORIES.map((cat) => (
             <button
@@ -153,7 +155,7 @@ function AddServiceFlow({
             >
               <span className="text-2xl leading-none">{CATEGORY_EMOJI[cat]}</span>
               <span className="text-xs font-semibold text-slate-600 group-hover:text-matcha-700 text-center leading-snug">
-                {CATEGORY_LABEL[cat]}
+                {translateUi(CATEGORY_LABEL[cat])}
               </span>
             </button>
           ))}
@@ -170,15 +172,14 @@ function AddServiceFlow({
           onClick={() => setStep(0)}
           className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
         >
-          ← Change
-        </button>
+          {translateUi("← Change ")}</button>
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-matcha-50 border border-matcha-200 text-xs font-semibold text-matcha-700">
-          {CATEGORY_EMOJI[f.category]} {CATEGORY_LABEL[f.category]}
+          {CATEGORY_EMOJI[f.category]} {translateUi(CATEGORY_LABEL[f.category])}
         </span>
       </div>
 
       <div className="mb-4">
-        <label className={fieldLabel}>Service name <span className="text-red-500">*</span></label>
+        <label className={fieldLabel}>{translateUi("Service name ")}<span className="text-red-500">*</span></label>
         <input
           autoFocus
           className={inputCls}
@@ -189,7 +190,7 @@ function AddServiceFlow({
       </div>
 
       <div className="mb-4">
-        <label className={fieldLabel}>Duration</label>
+        <label className={fieldLabel}>{translateUi("Duration")}</label>
         <div className="flex flex-wrap gap-2 items-center">
           {DURATION_PRESETS.map((d) => (
             <button
@@ -202,37 +203,36 @@ function AddServiceFlow({
                   : "bg-white text-slate-600 border-slate-200 hover:border-matcha-400 hover:text-matcha-700"
               }`}
             >
-              {d} min
-            </button>
+              {d} {translateUi("min ")}</button>
           ))}
           <input
             type="number"
             min="5"
             step="5"
-            placeholder="Custom"
+            placeholder={translateUi("Custom")}
             value={isCustomDuration ? f.durationMinutes : ""}
             onChange={(e) => setF((p) => ({ ...p, durationMinutes: e.target.value }))}
             className="w-20 px-2 py-1.5 rounded-lg border border-slate-200 text-xs outline-none focus:border-matcha-500 text-slate-700 placeholder:text-slate-300"
           />
-          <span className="text-xs text-slate-400">min</span>
+          <span className="text-xs text-slate-400">{translateUi("min")}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className={fieldLabel}>Price <span className="text-xs font-normal text-slate-400">(leave blank for pay as you go)</span></label>
+          <label className={fieldLabel}>{translateUi("Price ")}<span className="text-xs font-normal text-slate-400">{translateUi("(leave blank for pay as you go)")}</span></label>
           <input
             className={inputCls}
             type="number"
             min="0"
             step="0.01"
-            placeholder="Pay as you go"
+            placeholder={translateUi("Pay as you go")}
             value={f.price}
             onChange={(e) => setF((p) => ({ ...p, price: e.target.value }))}
           />
         </div>
         <div>
-          <label className={fieldLabel}>Currency</label>
+          <label className={fieldLabel}>{translateUi("Currency")}</label>
           <CurrencySelect currencies={currencies} value={f.currency} onChange={(v) => setF((p) => ({ ...p, currency: v }))} />
         </div>
       </div>
@@ -243,17 +243,17 @@ function AddServiceFlow({
         className="flex items-center gap-1 text-xs text-slate-400 hover:text-matcha-600 cursor-pointer transition-colors mb-3"
       >
         {showExtra ? <ChevronDown className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-        {showExtra ? "Hide options" : "Description & staff assignment"}
+        {showExtra ? translateUi("Hide options") : translateUi("Description & staff assignment")}
       </button>
       {showExtra && (
         <div className="mb-4 space-y-3">
           <div>
-            <label className={fieldLabel}>Description</label>
+            <label className={fieldLabel}>{translateUi("Description")}</label>
             <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
               <textarea
                 className={`${inputCls} resize-none`}
                 rows={2}
-                placeholder="Brief description shown to customers"
+                placeholder={translateUi("Brief description shown to customers")}
                 value={f.description}
                 onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
               />
@@ -273,7 +273,7 @@ function AddServiceFlow({
         onClick={() => onSubmit(f)}
         className="w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer mt-1"
       >
-        {busy ? "Adding…" : "Add Service →"}
+        {busy ? translateUi("Adding…") : translateUi("Add Service →")}
       </button>
     </div>
   );
@@ -287,52 +287,53 @@ function ServiceForm({ f, setF, staff, currencies }: {
   staff: StaffMember[];
   currencies: CurrencyOption[];
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <>
       <div className="mb-4">
-        <label className={fieldLabel}>Name <span className="text-red-500">*</span></label>
+        <label className={fieldLabel}>{translateUi("Name ")}<span className="text-red-500">*</span></label>
         <input
           className={inputCls}
-          placeholder="e.g. Haircut, Colour, Facial…"
+          placeholder={translateUi("e.g. Haircut, Colour, Facial…")}
           value={f.name}
           onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
         />
       </div>
       <div className="mb-4">
-        <label className={fieldLabel}>Description</label>
+        <label className={fieldLabel}>{translateUi("Description")}</label>
         <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
           <textarea
             className={`${inputCls} resize-none`}
             rows={3}
-            placeholder="Brief description shown to customers"
+            placeholder={translateUi("Brief description shown to customers")}
             value={f.description}
             onChange={(e) => setF((p) => ({ ...p, description: e.target.value }))}
           />
         </FixWithAi>
       </div>
       <div className="mb-4">
-        <label className={fieldLabel}>Category</label>
+        <label className={fieldLabel}>{translateUi("Category")}</label>
         <select className={inputCls} value={f.category} onChange={(e) => setF((p) => ({ ...p, category: e.target.value }))}>
-          {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+          {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{translateUi(CATEGORY_LABEL[c])}</option>)}
         </select>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div>
-          <label className={fieldLabel}>Price</label>
+          <label className={fieldLabel}>{translateUi("Price")}</label>
           <input
             className={inputCls}
             type="number" min="0" step="0.01"
-            placeholder="Pay as you go"
+            placeholder={translateUi("Pay as you go")}
             value={f.price}
             onChange={(e) => setF((p) => ({ ...p, price: e.target.value }))}
           />
         </div>
         <div>
-          <label className={fieldLabel}>Currency</label>
+          <label className={fieldLabel}>{translateUi("Currency")}</label>
           <CurrencySelect currencies={currencies} value={f.currency} onChange={(v) => setF((p) => ({ ...p, currency: v }))} />
         </div>
         <div>
-          <label className={fieldLabel}>Duration (min)</label>
+          <label className={fieldLabel}>{translateUi("Duration (min)")}</label>
           <input
             className={inputCls}
             type="number" min="5" step="5"
@@ -357,6 +358,7 @@ function defaultCurrencyCode(salonCountry: string | undefined, countries: Countr
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Services() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<LayoutContext>();
   const { services: init, staff, countries } = useLoaderData<typeof clientLoader>();
   const currencies = currenciesFromCountries(countries);
@@ -462,11 +464,9 @@ export default function Services() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Services</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Services")}</h1>
         <InfoBar id="services">
-          Define everything your salon offers — name, price, duration, category, and assigned staff.
-          Customers see these on your public website.
-        </InfoBar>
+          {translateUi("Define everything your salon offers — name, price, duration, category, and assigned staff. Customers see these on your public website. ")}</InfoBar>
       </div>
 
       {/* ── Setup alert (booking enabled, no services yet, not dismissed) ─ */}
@@ -476,7 +476,7 @@ export default function Services() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
           </span>
-          <span className="flex-1 leading-snug">Online booking won't work until you add at least one service.</span>
+          <span className="flex-1 leading-snug">{translateUi("Online booking won't work until you add at least one service.")}</span>
           <button
             type="button"
             onClick={() => {
@@ -484,7 +484,7 @@ export default function Services() {
               setAlertDismissed(true);
             }}
             className="shrink-0 text-amber-400 hover:text-amber-700 transition-colors cursor-pointer"
-            title="Ignore"
+            title={translateUi("Ignore")}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -500,8 +500,8 @@ export default function Services() {
                 <Scissors className="w-5 h-5 text-matcha-600" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-slate-800">What services do you offer?</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Pick a category to add your first service.</p>
+                <h2 className="text-sm font-bold text-slate-800">{translateUi("What services do you offer?")}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{translateUi("Pick a category to add your first service.")}</p>
               </div>
             </div>
             <div className="px-6 py-5">
@@ -518,7 +518,7 @@ export default function Services() {
       ) : (
         <>
           <p className="text-sm text-slate-500 font-medium mb-4">
-            {services.length} service{services.length !== 1 ? "s" : ""}
+            {services.length} {translateUi("service")}{services.length !== 1 ? translateUi("s") : ""}
           </p>
 
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
@@ -529,19 +529,17 @@ export default function Services() {
                     <span className="text-sm font-semibold text-slate-900 truncate">{sv.name}</span>
                     {!sv.active && (
                       <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 shrink-0">
-                        Inactive
-                      </span>
+                        {translateUi("Inactive ")}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-[0.67rem] font-semibold text-slate-500">
                       <Tag className="w-2.5 h-2.5" />
-                      {CATEGORY_LABEL[sv.category] ?? sv.category}
+                      {translateUi(CATEGORY_LABEL[sv.category] ?? sv.category)}
                     </span>
                     <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
                       <Clock className="w-2.5 h-2.5" />
-                      {sv.durationMinutes ?? 30} min
-                    </span>
+                      {sv.durationMinutes ?? 30} {translateUi("min ")}</span>
                     {sv.assignedStaffIds?.length ? (
                       <span className="inline-flex items-center gap-1 text-[0.67rem] text-slate-400">
                         <Users className="w-2.5 h-2.5" />
@@ -555,7 +553,7 @@ export default function Services() {
                 </div>
                 <div className="shrink-0 text-right hidden sm:block">
                   <span className={`font-extrabold tracking-tight ${sv.price != null ? "text-base text-matcha-600" : "text-base text-slate-400"}`}>
-                    {formatPrice(sv.price, sv.currency)}
+                    {formatPrice(sv.price, sv.currency, uiLocale)}
                   </span>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
@@ -563,7 +561,7 @@ export default function Services() {
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => openEdit(sv)}
                   >
-                    <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">Edit</span>
+                    <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">{translateUi("Edit")}</span>
                   </button>
                   <button
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
@@ -579,8 +577,7 @@ export default function Services() {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
                 onClick={openAdd}
               >
-                Add Service
-              </button>
+                {translateUi("Add Service ")}</button>
             </div>
           </div>
         </>
@@ -594,7 +591,7 @@ export default function Services() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Add Service</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Add Service")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("add")}>
                 <X className="w-5 h-5" />
               </button>
@@ -618,7 +615,7 @@ export default function Services() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Edit Service</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Edit Service")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("edit")}>
                 <X className="w-5 h-5" />
               </button>
@@ -631,21 +628,20 @@ export default function Services() {
                 checked={ef.active}
                 onChange={(e) => setEf((p) => ({ ...p, active: e.target.checked }))}
               />
-              <span className="text-sm font-medium text-slate-700">Active</span>
+              <span className="text-sm font-medium text-slate-700">{translateUi("Active")}</span>
             </label>
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                 onClick={() => closeModal("edit")}
               >
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 disabled={busy}
                 onClick={submitEdit}
               >
-                {busy ? "Saving…" : "Save changes"}
+                {busy ? translateUi("Saving…") : translateUi("Save changes")}
               </button>
             </div>
           </div>
@@ -660,27 +656,25 @@ export default function Services() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Remove Service</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Remove Service")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("del")}>
                 <X className="w-5 h-5" />
               </button>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Remove <strong className="text-slate-800">{target?.name}</strong> from the catalog?
-            </p>
+              {translateUi("Remove ")}<strong className="text-slate-800">{target?.name}</strong> {translateUi("from the catalog? ")}</p>
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                 onClick={() => closeModal("del")}
               >
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-red-500 text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 disabled={busy}
                 onClick={submitDel}
               >
-                <Trash2 className="w-3.5 h-3.5" /> {busy ? "Removing…" : "Remove"}
+                <Trash2 className="w-3.5 h-3.5" /> {busy ? translateUi("Removing…") : translateUi("Remove")}
               </button>
             </div>
           </div>

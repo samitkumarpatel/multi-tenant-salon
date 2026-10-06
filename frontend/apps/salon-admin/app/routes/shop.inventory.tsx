@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -18,6 +19,7 @@ const numCls =
   "w-20 px-2 py-1.5 border border-slate-200 rounded-md text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 bg-white text-slate-900";
 
 export default function ShopInventory() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { sid, rows: init } = useLoaderData<typeof clientLoader>();
   const [rows, setRows] = useState<ShopInventoryRow[]>(init);
@@ -72,8 +74,8 @@ export default function ShopInventory() {
         <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
           <Boxes className="w-5 h-5 text-matcha-600" />
         </div>
-        <h2 className="text-sm font-bold text-slate-800">Nothing to track yet</h2>
-        <p className="text-xs text-slate-500 mt-1">Add a product with variants and its stock shows up here.</p>
+        <h2 className="text-sm font-bold text-slate-800">{translateUi("Nothing to track yet")}</h2>
+        <p className="text-xs text-slate-500 mt-1">{translateUi("Add a product with variants and its stock shows up here.")}</p>
       </div>
     );
   }
@@ -85,8 +87,7 @@ export default function ShopInventory() {
       {lowCount > 0 && (
         <div className="mb-4 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          {lowCount} variant{lowCount !== 1 ? "s are" : " is"} at or below the reorder level.
-        </div>
+          {lowCount} {translateUi("variant")}{lowCount !== 1 ? translateUi("s are") : translateUi(" is")} {translateUi("at or below the reorder level. ")}</div>
       )}
 
       {/* ── Cards (below sm — a 7-column table has no room here and overflow-x-auto
@@ -99,15 +100,15 @@ export default function ShopInventory() {
             <div key={r.variantId} className={`rounded-xl border border-slate-200 px-4 py-3 ${low ? "bg-amber-50/40" : "bg-white"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-slate-800 truncate">{r.productName}</span>
-                <span className="text-slate-600 text-xs shrink-0">{formatPrice(r.price, r.currency)}</span>
+                <span className="text-slate-600 text-xs shrink-0">{formatPrice(r.price, r.currency, uiLocale)}</span>
               </div>
               <div className="text-xs text-slate-400 mt-0.5">
                 {r.label || "Standard"}{r.sku ? ` · ${r.sku}` : ""}
-                {!r.productActive && <span> · (product inactive)</span>}
+                {!r.productActive && <span> {translateUi("· (product inactive)")}</span>}
               </div>
               <div className="flex items-end gap-2 mt-2.5">
                 <label className="flex flex-col gap-1 flex-1 min-w-0">
-                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">In stock</span>
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">{translateUi("In stock")}</span>
                   <input
                     type="number"
                     min="0"
@@ -117,7 +118,7 @@ export default function ShopInventory() {
                   />
                 </label>
                 <label className="flex flex-col gap-1 flex-1 min-w-0">
-                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Reorder at</span>
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">{translateUi("Reorder at")}</span>
                   <input
                     type="number"
                     min="0"
@@ -131,8 +132,7 @@ export default function ShopInventory() {
                   onClick={() => save(r)}
                   className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <Check className="w-3 h-3" /> Save
-                </button>
+                  <Check className="w-3 h-3" /> {translateUi("Save ")}</button>
               </div>
             </div>
           );
@@ -144,12 +144,12 @@ export default function ShopInventory() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-              <th className="px-4 py-3">Product</th>
-              <th className="px-4 py-3">Variant</th>
-              <th className="px-4 py-3">SKU</th>
-              <th className="px-4 py-3">Price</th>
-              <th className="px-4 py-3">In stock</th>
-              <th className="px-4 py-3">Reorder at</th>
+              <th className="px-4 py-3">{translateUi("Product")}</th>
+              <th className="px-4 py-3">{translateUi("Variant")}</th>
+              <th className="px-4 py-3">{translateUi("SKU")}</th>
+              <th className="px-4 py-3">{translateUi("Price")}</th>
+              <th className="px-4 py-3">{translateUi("In stock")}</th>
+              <th className="px-4 py-3">{translateUi("Reorder at")}</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -161,11 +161,11 @@ export default function ShopInventory() {
                 <tr key={r.variantId} className={low ? "bg-amber-50/40" : ""}>
                   <td className="px-4 py-2.5">
                     <span className="font-medium text-slate-800">{r.productName}</span>
-                    {!r.productActive && <span className="ml-2 text-[10px] text-slate-400">(product inactive)</span>}
+                    {!r.productActive && <span className="ml-2 text-[10px] text-slate-400">{translateUi("(product inactive)")}</span>}
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">{r.label || "Standard"}</td>
                   <td className="px-4 py-2.5 text-slate-400">{r.sku || "—"}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{formatPrice(r.price, r.currency)}</td>
+                  <td className="px-4 py-2.5 text-slate-600">{formatPrice(r.price, r.currency, uiLocale)}</td>
                   <td className="px-4 py-2.5">
                     <input
                       type="number"
@@ -190,7 +190,7 @@ export default function ShopInventory() {
                       onClick={() => save(r)}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <Check className="w-3 h-3" /> {savingId === r.variantId ? "Saving…" : "Save"}
+                      <Check className="w-3 h-3" /> {savingId === r.variantId ? translateUi("Saving…") : translateUi("Save")}
                     </button>
                   </td>
                 </tr>

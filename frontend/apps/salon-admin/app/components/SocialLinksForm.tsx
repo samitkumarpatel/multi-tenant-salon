@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import type { ContactInfo, Salon } from "~/lib/types";
@@ -17,6 +18,7 @@ export function SocialLinksForm({ salon, onSaved, onCancel }: {
   /** Called after a successful save and when the user cancels — use it to leave edit mode. */
   onCancel: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [contact, setContact] = useState<ContactInfo>({ ...(salon.contact ?? {}) });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function SocialLinksForm({ salon, onSaved, onCancel }: {
           disabled={!dirty || saving}
           className="px-4 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? translateUi("Saving…") : translateUi("Save")}
         </button>
         <button
           type="button"
@@ -92,8 +94,7 @@ export function SocialLinksForm({ salon, onSaved, onCancel }: {
           disabled={saving}
           className="text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer disabled:opacity-50"
         >
-          Cancel
-        </button>
+          {translateUi("Cancel ")}</button>
         {error && <span className="text-xs text-red-600">{error}</span>}
       </div>
     </div>

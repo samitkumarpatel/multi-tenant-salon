@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
@@ -300,6 +301,7 @@ function AnimatedSalonName({ text, color }: { text: string; color: string }) {
 export function GenerativeUIWebsite({
   salon: salonProp, staff: staffProp, services: servicesProp, theme, context = "website", onSwitchToWizard,
 }: GenerativeUIWebsiteProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const isBooking = context === "booking";
   const font = { stack: fontStack(theme.fontFamily) };
   loadGoogleFont(theme.fontFamily);
@@ -940,7 +942,7 @@ export function GenerativeUIWebsite({
     if (component.type === "quick-actions") {
       if (actionButtons.length === 0) return null;
       return (
-        <CardShell title="Quick questions" icon={LayoutGrid} tokens={cardTokens}>
+        <CardShell title={translateUi("Quick questions")} icon={LayoutGrid} tokens={cardTokens}>
           <div className="space-y-1.5">
             {actionButtons.map((btn) => (
               <button
@@ -1131,15 +1133,14 @@ export function GenerativeUIWebsite({
       style={{ backgroundColor: theme.accentColor, color: accentText, boxShadow: `0 6px 16px -6px ${theme.accentColor}aa` }}
     >
       <CalendarCheck className="w-3.5 h-3.5" />
-      Book now →
-    </button>
+      {translateUi("Book now → ")}</button>
   ) : null;
 
   // ── Booking proposal card — the interactive "MCP-style" tool result ────
 
   function bookingCard(messageIndex: number, pb: PendingBookingUI) {
     if (pb.status === "dismissed") {
-      return <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>Booking request dismissed.</p>;
+      return <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>{translateUi("Booking request dismissed.")}</p>;
     }
 
     if (pb.status === "confirmed" && pb.confirmedBooking) {
@@ -1153,11 +1154,11 @@ export function GenerativeUIWebsite({
           <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: theme.accentColor }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: theme.accentColor }}>
-              {isPending ? "Booking request sent!" : "You're booked!"}
+              {isPending ? translateUi("Booking request sent!") : translateUi("You're booked!")}
             </p>
             <p className="text-xs mt-0.5" style={{ color: msgText }}>
-              {service?.name ?? "Appointment"} · {formatDateLabel(pb.appointmentDate)} at {pb.startTime}
-              {isPending ? " — the salon will confirm shortly." : ""}
+              {service?.name ?? "Appointment"} · {formatDateLabel(pb.appointmentDate)} {translateUi("at ")}{pb.startTime}
+              {isPending ? translateUi(" — the salon will confirm shortly.") : ""}
             </p>
           </div>
         </div>
@@ -1174,28 +1175,28 @@ export function GenerativeUIWebsite({
         style={{ border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow, backgroundColor: asBubbleBg, maxWidth: 380 }}
       >
         <div className="px-3.5 py-2.5 sm:px-4" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
-          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: theme.accentColor }}>Review your booking</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: theme.accentColor }}>{translateUi("Review your booking")}</p>
         </div>
         <div className="px-3.5 py-3 space-y-1.5 text-sm sm:px-4">
           <div className="flex justify-between gap-3">
-            <span style={{ color: msgDim }}>Service</span>
+            <span style={{ color: msgDim }}>{translateUi("Service")}</span>
             <span className="font-medium text-right" style={{ color: msgText }}>{service?.name ?? `Service #${pb.serviceId}`}</span>
           </div>
           <div className="flex justify-between gap-3">
-            <span style={{ color: msgDim }}>With</span>
+            <span style={{ color: msgDim }}>{translateUi("With")}</span>
             <span className="font-medium text-right" style={{ color: msgText }}>{staffMember?.name ?? "Any available stylist"}</span>
           </div>
           <div className="flex justify-between gap-3">
-            <span style={{ color: msgDim }}>When</span>
+            <span style={{ color: msgDim }}>{translateUi("When")}</span>
             <span className="font-medium text-right" style={{ color: msgText }}>{formatDateLabel(pb.appointmentDate)} · {pb.startTime}</span>
           </div>
           <div className="flex justify-between gap-3">
-            <span style={{ color: msgDim }}>Name</span>
+            <span style={{ color: msgDim }}>{translateUi("Name")}</span>
             <span className="font-medium text-right" style={{ color: msgText }}>{pb.customerName}</span>
           </div>
           {(pb.customerEmail || pb.customerPhone) && (
             <div className="flex justify-between gap-3">
-              <span style={{ color: msgDim }}>Contact</span>
+              <span style={{ color: msgDim }}>{translateUi("Contact")}</span>
               <span className="font-medium text-right truncate" style={{ color: msgText }}>{pb.customerEmail || pb.customerPhone}</span>
             </div>
           )}
@@ -1211,7 +1212,7 @@ export function GenerativeUIWebsite({
             style={{ backgroundColor: theme.accentColor, color: accentText, opacity: confirming ? 0.7 : 1 }}
           >
             {confirming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            {confirming ? "Booking…" : "Confirm booking"}
+            {confirming ? translateUi("Booking…") : translateUi("Confirm booking")}
           </button>
           <button
             onClick={() => dismissPendingBooking(messageIndex)}
@@ -1219,8 +1220,7 @@ export function GenerativeUIWebsite({
             className="px-3 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all disabled:cursor-not-allowed disabled:opacity-50"
             style={{ color: msgDim, border: `1px solid ${bubbleBorder}` }}
           >
-            Never mind
-          </button>
+            {translateUi("Never mind ")}</button>
         </div>
       </div>
     );
@@ -1281,8 +1281,7 @@ export function GenerativeUIWebsite({
                   // unresolved service) — don't leave the turn as a bare avatar with no content.
                   return (
                     <p className="text-xs italic mt-1.5" style={{ color: msgDim }}>
-                      Sorry — I couldn't pull that up just now. Please contact us directly and we'll help.
-                    </p>
+                      {translateUi("Sorry — I couldn't pull that up just now. Please contact us directly and we'll help. ")}</p>
                   );
                 }
                 return rendered.map((r, ci) => <React.Fragment key={ci}>{r}</React.Fragment>);
@@ -1320,8 +1319,8 @@ export function GenerativeUIWebsite({
     return (
       <button
         onClick={() => setIsFullscreen((v) => !v)}
-        title={isFullscreen ? "Exit fullscreen (Esc)" : "Expand to fullscreen"}
-        aria-label={isFullscreen ? "Exit fullscreen" : "Expand to fullscreen"}
+        title={isFullscreen ? translateUi("Exit fullscreen (Esc)") : translateUi("Expand to fullscreen")}
+        aria-label={isFullscreen ? translateUi("Exit fullscreen") : translateUi("Expand to fullscreen")}
         className={`hidden sm:flex shrink-0 w-8 h-8 rounded-lg items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${extra}`}
         style={{ backgroundColor: `${theme.accentColor}14`, color: theme.accentColor }}
       >
@@ -1348,8 +1347,8 @@ export function GenerativeUIWebsite({
           <AnimatedSalonName text={isBooking ? `Book at ${salon.name}` : salon.name} color={theme.accentColor} />
           <p className="text-sm mt-1.5" style={{ color: msgDim }}>
             {isBooking
-              ? "Tell me what you'd like, and I'll get it booked."
-              : "Ask me anything about services, hours, location, or booking."}
+              ? translateUi("Tell me what you'd like, and I'll get it booked.")
+              : translateUi("Ask me anything about services, hours, location, or booking.")}
           </p>
         </div>
       </div>
@@ -1384,24 +1383,22 @@ export function GenerativeUIWebsite({
               className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
               style={{ color: theme.accentColor, borderColor: theme.accentColor }}
             >
-              Beta
-            </span>
+              {translateUi("Beta ")}</span>
           </p>
           <p className="text-[11px]" style={{ color: topDim }}>
-            {thinking ? "Thinking…" : isOpenNow(salon) ? "Open now · AI Assistant" : "AI Assistant · Online"}
+            {thinking ? translateUi("Thinking…") : isOpenNow(salon) ? translateUi("Open now · AI Assistant") : translateUi("AI Assistant · Online")}
           </p>
         </div>
         {fullscreenToggle()}
         {started && (
           <button
             onClick={newChat}
-            title="Start a new conversation"
+            title={translateUi("Start a new conversation")}
             className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
             style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
           >
             <SquarePen className="w-3.5 h-3.5" />
-            Clear chat
-          </button>
+            {translateUi("Clear chat ")}</button>
         )}
       </div>
     </div>
@@ -1444,8 +1441,7 @@ export function GenerativeUIWebsite({
       </div>
       <div className="flex items-center justify-center gap-2 mt-2.5">
         <span className="text-[10px]" style={{ color: msgDim }}>
-          The assistant can make mistakes — please verify important details.
-        </span>
+          {translateUi("The assistant can make mistakes — please verify important details. ")}</span>
       </div>
     </div>
   );
@@ -1472,7 +1468,7 @@ export function GenerativeUIWebsite({
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: isOpenNow(salon) ? "#34D399" : msgDim }} />
           <span className="text-xs font-semibold" style={{ color: isOpenNow(salon) ? theme.accentColor : msgDim }}>
-            {isOpenNow(salon) ? "Open now" : todayHours(salon) ?? "Closed"}
+            {isOpenNow(salon) ? translateUi("Open now") : todayHours(salon) ?? "Closed"}
           </span>
         </div>
         {(salon.location?.address || salon.location?.city) && (
@@ -1492,7 +1488,7 @@ export function GenerativeUIWebsite({
       <div style={{ borderTop: `1px solid ${bubbleBorder}` }} />
 
       <div className="space-y-1.5 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: msgDim }}>Quick questions</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: msgDim }}>{translateUi("Quick questions")}</p>
         {actionButtons.map((btn) => (
           <button
             key={btn.label}
@@ -1515,8 +1511,7 @@ export function GenerativeUIWebsite({
           className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all hover:opacity-80"
           style={{ color: theme.accentColor, border: `1px solid ${bubbleBorder}` }}
         >
-          <SquarePen className="w-3.5 h-3.5" /> New conversation
-        </button>
+          <SquarePen className="w-3.5 h-3.5" /> {translateUi("New conversation ")}</button>
       )}
     </aside>
   );
@@ -1552,22 +1547,20 @@ export function GenerativeUIWebsite({
               style={{ backgroundColor: `${theme.accentColor}12`, border: `1.5px solid ${theme.accentColor}30` }}
             >
               <button
-                title="Book with GenAI (current)"
+                title={translateUi("Book with GenAI (current)")}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-default select-none"
                 style={{ backgroundColor: theme.accentColor, color: accentText, boxShadow: `0 2px 10px ${theme.accentColor}55` }}
               >
                 <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                Book with GenAI
-              </button>
+                {translateUi("Book with GenAI ")}</button>
               <button
                 onClick={onSwitchToWizard}
-                title="Switch to step-by-step booking wizard"
+                title={translateUi("Switch to step-by-step booking wizard")}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:opacity-80 cursor-pointer"
                 style={{ color: theme.accentColor }}
               >
                 <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
-                Book Now
-              </button>
+                {translateUi("Book Now ")}</button>
             </div>
           }
         />
@@ -1592,7 +1585,7 @@ export function GenerativeUIWebsite({
                 {followupsLoading ? (
                   <div className="flex items-center justify-start gap-1.5 px-1 py-1.5 text-[11px]" style={{ color: msgDim }}>
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    <span>Preparing suggestions…</span>
+                    <span>{translateUi("Preparing suggestions…")}</span>
                   </div>
                 ) : followupChips}
               </div>

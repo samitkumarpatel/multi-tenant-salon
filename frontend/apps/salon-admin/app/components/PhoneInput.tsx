@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Country } from "~/lib/types";
@@ -30,6 +31,7 @@ function resolveDefaultDialCode(countries: Country[], defaultCountry?: string): 
 }
 
 export default function PhoneInput({ value, onChange, countries, autoFocus, defaultCountry }: Props) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const parsed = parsePhone(value);
   const [dialCode, setDialCode]     = useState(() => parsed.dialCode || resolveDefaultDialCode(countries, defaultCountry));
   const [local, setLocal]           = useState(parsed.local);
@@ -160,7 +162,7 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
             setLocal(cleaned);
             emit(dialCode, cleaned);
           }}
-          placeholder="555 000 0000"
+          placeholder={"555 000 0000"}
           className="flex-1 min-w-0 px-4 py-3 text-sm outline-none text-stone-900 placeholder:text-stone-300 bg-white rounded-r-xl"
         />
       </div>
@@ -172,7 +174,7 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Select country code"
+            aria-label={translateUi("Select country code")}
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70vh]"
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
@@ -185,8 +187,8 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search country or dial code…"
-                aria-label="Search countries"
+                placeholder={translateUi("Search country or dial code…")}
+                aria-label={translateUi("Search countries")}
                 aria-controls="dialcode-listbox"
                 aria-activedescendant={highlighted >= 0 ? `dialcode-opt-${highlighted}` : undefined}
                 className="flex-1 text-sm outline-none text-stone-900 placeholder:text-stone-400"
@@ -206,7 +208,7 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
               id="dialcode-listbox"
               ref={listRef}
               role="listbox"
-              aria-label="Country dial codes"
+              aria-label={translateUi("Country dial codes")}
               className="overflow-y-auto flex-1 overscroll-contain"
             >
               {filtered.map((c, i) => (
@@ -229,13 +231,12 @@ export default function PhoneInput({ value, onChange, countries, autoFocus, defa
                 </li>
               ))}
               {filtered.length === 0 && (
-                <li className="py-12 text-center text-sm text-stone-400">No countries found</li>
+                <li className="py-12 text-center text-sm text-stone-400">{translateUi("No countries found")}</li>
               )}
             </ul>
 
             <p className="text-center text-[10px] text-stone-300 py-2 border-t border-stone-100 select-none">
-              ↑ ↓ navigate · Enter select · Esc close
-            </p>
+              {translateUi("↑ ↓ navigate · Enter select · Esc close ")}</p>
           </div>
         </>,
         document.body

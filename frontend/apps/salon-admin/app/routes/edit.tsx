@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useOutletContext, useLoaderData, useSearchParams, useRevalidator } from "react-router";
 import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached } from "~/lib/api";
@@ -26,6 +27,7 @@ const labelCls = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase tr
 const fieldCls = "mb-4";
 
 export default function Edit() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon, setSalon } = useOutletContext<LayoutContext>();
   const { countries }         = useLoaderData<typeof clientLoader>();
   const [searchParams]        = useSearchParams();
@@ -122,7 +124,7 @@ export default function Edit() {
               className={`${inputCls} text-lg font-semibold py-4 ${errors.name ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. The Modern Cut"
+              placeholder={translateUi("e.g. The Modern Cut")}
               onKeyDown={(e) => e.key === "Enter" && goNext()}
             />
             {errors.name && <p className="text-red-500 text-xs mt-2">{errors.name}</p>}
@@ -136,7 +138,7 @@ export default function Edit() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Country / Region</label>
+              <label className={labelCls}>{translateUi("Country / Region")}</label>
               <CountrySelect
                 value={location.country ?? ""}
                 onChange={(v) => { patchLoc({ country: v }); setBizRegId(""); setShowBizId(false); }}
@@ -144,24 +146,24 @@ export default function Edit() {
               />
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Address</label>
-              <input className={inputCls} value={location.address ?? ""} onChange={(e) => patchLoc({ address: e.target.value })} placeholder="123 Main St" />
+              <label className={labelCls}>{translateUi("Address")}</label>
+              <input className={inputCls} value={location.address ?? ""} onChange={(e) => patchLoc({ address: e.target.value })} placeholder={translateUi("123 Main St")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className={fieldCls}>
-                <label className={labelCls}>Postal code</label>
-                <input className={inputCls} value={location.zipCode ?? ""} onChange={(e) => patchLoc({ zipCode: e.target.value })} placeholder="94105" />
+                <label className={labelCls}>{translateUi("Postal code")}</label>
+                <input className={inputCls} value={location.zipCode ?? ""} onChange={(e) => patchLoc({ zipCode: e.target.value })} placeholder={"94105"} />
               </div>
               <div className={fieldCls}>
-                <label className={labelCls}>Town</label>
-                <input className={inputCls} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder="San Francisco" />
+                <label className={labelCls}>{translateUi("Town")}</label>
+                <input className={inputCls} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder={translateUi("San Francisco")} />
               </div>
             </div>
             {bizIdLabel && (
               <div className={fieldCls}>
                 <label className={labelCls}>
                   {bizIdLabel}{" "}
-                  <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span>
+                  <span className="text-stone-300 font-normal normal-case tracking-normal">{translateUi("optional")}</span>
                 </label>
                 <input
                   className={inputCls}
@@ -180,7 +182,7 @@ export default function Edit() {
                     >
                       <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${showBizId ? "translate-x-4" : "translate-x-0.5"}`} />
                     </button>
-                    <span className="text-xs text-stone-500">Show on public website</span>
+                    <span className="text-xs text-stone-500">{translateUi("Show on public website")}</span>
                   </label>
                 )}
               </div>
@@ -193,24 +195,22 @@ export default function Edit() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Phone</label>
+              <label className={labelCls}>{translateUi("Phone")}</label>
               <PhoneInput value={contact.phone ?? ""} onChange={(v) => patchCon({ phone: v })} countries={countries} />
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Email</label>
-              <input type="email" className={inputCls} value={contact.email ?? ""} onChange={(e) => patchCon({ email: e.target.value })} placeholder="hello@yoursalon.com" />
+              <label className={labelCls}>{translateUi("Email")}</label>
+              <input type="email" className={inputCls} value={contact.email ?? ""} onChange={(e) => patchCon({ email: e.target.value })} placeholder={"hello@yoursalon.com"} />
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Website</label>
-              <input className={inputCls} value={contact.website ?? ""} onChange={(e) => patchCon({ website: e.target.value })} placeholder="https://yoursalon.com" />
+              <label className={labelCls}>{translateUi("Website")}</label>
+              <input className={inputCls} value={contact.website ?? ""} onChange={(e) => patchCon({ website: e.target.value })} placeholder={"https://yoursalon.com"} />
             </div>
 
             <div className="pt-3 mt-1 border-t border-stone-100">
-              <label className={labelCls}>Social media</label>
+              <label className={labelCls}>{translateUi("Social media")}</label>
               <p className="text-xs text-stone-400 mb-3 -mt-0.5">
-                Turn a platform on to show its icon in your website footer. Add the link to make it clickable —
-                a visible platform with no link shows as a disabled icon.
-              </p>
+                {translateUi("Turn a platform on to show its icon in your website footer. Add the link to make it clickable — a visible platform with no link shows as a disabled icon. ")}</p>
               <div className="space-y-2.5">
                 {SOCIAL_PLATFORMS.map((p) => {
                   const on = contact[p.visibleKey] === true;
@@ -273,19 +273,16 @@ export default function Edit() {
       {/* Page intro */}
       <div className="mb-6 space-y-2">
         <Link to=".." relative="path" className="inline-flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-stone-600 no-underline">
-          ← Overview
-        </Link>
-        <h1 className="text-xl font-bold text-stone-900">Edit Salon</h1>
+          {translateUi("← Overview ")}</Link>
+        <h1 className="text-xl font-bold text-stone-900">{translateUi("Edit Salon")}</h1>
         <InfoBar id="edit-salon">
-          Update your salon's name, location, contact info, opening hours, and which features are active.
-          Enabling a feature here unlocks its dedicated section in the sidebar.
-        </InfoBar>
+          {translateUi("Update your salon's name, location, contact info, opening hours, and which features are active. Enabling a feature here unlocks its dedicated section in the sidebar. ")}</InfoBar>
       </div>
 
       {/* Step header */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-stone-800">{STEPS[step].title}</span>
+          <span className="text-sm font-semibold text-stone-800">{translateUi(STEPS[step].title)}</span>
           <span className="text-xs text-stone-400 tabular-nums">{step + 1} / {TOTAL}</span>
         </div>
 
@@ -320,7 +317,7 @@ export default function Edit() {
 
         {/* Hint strip */}
         <div className="px-6 pt-5 pb-4 border-b border-stone-100">
-          <p className="text-xs text-stone-400">{STEPS[step].hint}</p>
+          <p className="text-xs text-stone-400">{translateUi(STEPS[step].hint)}</p>
         </div>
 
         {/* Step content */}
@@ -332,8 +329,7 @@ export default function Edit() {
           )}
           {saved && (
             <div className="mb-4 px-4 py-3 bg-matcha-50 border border-matcha-200 rounded-xl text-sm text-matcha-700 font-medium">
-              Changes saved!
-            </div>
+              {translateUi("Changes saved! ")}</div>
           )}
           {renderStep()}
         </div>
@@ -345,8 +341,7 @@ export default function Edit() {
               onClick={goBack}
               className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-sm text-stone-600 hover:border-stone-400 hover:bg-stone-50 active:scale-[0.97] transition-all cursor-pointer"
             >
-              ← Back
-            </button>
+              {translateUi("← Back ")}</button>
           ) : <span />}
 
           <div className="flex items-center gap-2">
@@ -359,15 +354,14 @@ export default function Edit() {
                   : "border border-stone-200 bg-white text-stone-600 hover:border-matcha-400 hover:text-matcha-700"
               }`}
             >
-              {saving ? "Saving…" : "Save"}
+              {saving ? translateUi("Saving…") : translateUi("Save")}
             </button>
             {!isLast && (
               <button
                 onClick={goNext}
                 className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
               >
-                Next →
-              </button>
+                {translateUi("Next → ")}</button>
             )}
           </div>
         </div>

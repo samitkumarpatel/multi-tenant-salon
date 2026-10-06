@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router";
 import { Plus, Trash2, X, CalendarDays, AlertCircle } from "lucide-react";
@@ -20,6 +21,7 @@ const lbl = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase trackin
 const BLANK = { name:"", isRange:false, startDate:"", endDate:"", recurring:true };
 
 export default function SalonHolidays() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<SalonManageContext>();
   const sid = String(salon.id);
 
@@ -87,6 +89,7 @@ export default function SalonHolidays() {
   const pastOT      = oneTime.filter((h) => (h.year ?? 0) <  thisYear);
 
   function HolidayRow({ h }: { h: SalonHoliday }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
     return (
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
@@ -98,7 +101,7 @@ export default function SalonHolidays() {
         </div>
         {confirmDel === h.id ? (
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => removeHoliday(h.id)} className="text-xs text-red-600 hover:text-red-500 px-2 py-1 cursor-pointer">Confirm</button>
+            <button onClick={() => removeHoliday(h.id)} className="text-xs text-red-600 hover:text-red-500 px-2 py-1 cursor-pointer">{translateUi("Confirm")}</button>
             <button onClick={() => setConfirmDel(null)} className="text-stone-400 hover:text-stone-800 cursor-pointer p-1"><X className="w-3.5 h-3.5" /></button>
           </div>
         ) : (
@@ -112,13 +115,12 @@ export default function SalonHolidays() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-stone-900">Holidays</h1>
-          <p className="text-xs text-stone-400 mt-0.5">Days that block the booking calendar</p>
+          <h1 className="text-xl font-bold text-stone-900">{translateUi("Holidays")}</h1>
+          <p className="text-xs text-stone-400 mt-0.5">{translateUi("Days that block the booking calendar")}</p>
         </div>
         <button onClick={() => { setShowAdd(true); setFormErr(""); setForm({ ...BLANK }); }}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-sm font-semibold transition-colors cursor-pointer">
-          <Plus className="w-4 h-4" /> Add Holiday
-        </button>
+          <Plus className="w-4 h-4" /> {translateUi("Add Holiday ")}</button>
       </div>
 
       {err && <p className="text-red-600 text-xs mb-4">{err}</p>}
@@ -126,27 +128,26 @@ export default function SalonHolidays() {
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden max-w-lg">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-xs text-stone-400">
-            <div className="w-4 h-4 border-2 border-stone-200 border-t-matcha-500 rounded-full animate-spin" /> Loading…
-          </div>
+            <div className="w-4 h-4 border-2 border-stone-200 border-t-matcha-500 rounded-full animate-spin" /> {translateUi("Loading… ")}</div>
         ) : recurring.length === 0 && oneTime.length === 0 ? (
-          <p className="text-xs text-stone-400 px-5 py-8 text-center">No holidays configured yet.</p>
+          <p className="text-xs text-stone-400 px-5 py-8 text-center">{translateUi("No holidays configured yet.")}</p>
         ) : (
           <div className="divide-y divide-stone-200">
             {recurring.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-100">Recurring — every year</p>
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-100">{translateUi("Recurring — every year")}</p>
                 {recurring.map((h) => <HolidayRow key={h.id} h={h} />)}
               </>
             )}
             {upcomingOT.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-100">One-time — upcoming</p>
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-100">{translateUi("One-time — upcoming")}</p>
                 {upcomingOT.map((h) => <HolidayRow key={h.id} h={h} />)}
               </>
             )}
             {pastOT.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-100">One-time — past</p>
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-100">{translateUi("One-time — past")}</p>
                 <div className="opacity-50">{pastOT.map((h) => <HolidayRow key={h.id} h={h} />)}</div>
               </>
             )}
@@ -158,23 +159,23 @@ export default function SalonHolidays() {
         <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setShowAdd(false)}>
           <div className="bg-white border border-stone-200 rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200">
-              <h3 className="text-sm font-bold text-stone-900">Add Holiday</h3>
+              <h3 className="text-sm font-bold text-stone-900">{translateUi("Add Holiday")}</h3>
               <button onClick={() => setShowAdd(false)} className="text-stone-400 hover:text-stone-800 cursor-pointer p-1"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className={lbl}>Name <span className="text-red-500">*</span></label>
-                <input className={inp} placeholder="e.g. Christmas Break, New Year's Day"
+                <label className={lbl}>{translateUi("Name ")}<span className="text-red-500">*</span></label>
+                <input className={inp} placeholder={translateUi("e.g. Christmas Break, New Year's Day")}
                   value={form.name} onChange={(e) => { setFormErr(""); pf({ name: e.target.value }); }} />
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className={lbl}>Date{form.isRange ? "s" : ""} <span className="text-red-500">*</span></label>
+                  <label className={lbl}>{translateUi("Date")}{form.isRange ? translateUi("s") : ""} <span className="text-red-500">*</span></label>
                   <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5 gap-0.5">
                     {([false, true] as const).map((r) => (
                       <button key={String(r)} type="button" onClick={() => pf({ isRange: r, endDate: "" })}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors ${form.isRange === r ? "bg-matcha-600 text-white" : "text-stone-500 hover:text-stone-800"}`}>
-                        {r ? "Range" : "Single day"}
+                        {r ? translateUi("Range") : translateUi("Single day")}
                       </button>
                     ))}
                   </div>
@@ -182,12 +183,12 @@ export default function SalonHolidays() {
                 {form.isRange ? (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className={`${lbl} mb-1`}>Start</label>
+                      <label className={`${lbl} mb-1`}>{translateUi("Start")}</label>
                       <input type="date" className={inp} value={form.startDate}
                         onChange={(e) => { setFormErr(""); pf({ startDate: e.target.value }); }} />
                     </div>
                     <div>
-                      <label className={`${lbl} mb-1`}>End</label>
+                      <label className={`${lbl} mb-1`}>{translateUi("End")}</label>
                       <input type="date" className={inp} min={form.startDate} value={form.endDate}
                         onChange={(e) => { setFormErr(""); pf({ endDate: e.target.value }); }} />
                     </div>
@@ -196,15 +197,15 @@ export default function SalonHolidays() {
                   <input type="date" className={inp} value={form.startDate}
                     onChange={(e) => { setFormErr(""); pf({ startDate: e.target.value }); }} />
                 )}
-                {form.recurring && <p className="text-[11px] text-stone-400 mt-1">Year is ignored for recurring holidays.</p>}
+                {form.recurring && <p className="text-[11px] text-stone-400 mt-1">{translateUi("Year is ignored for recurring holidays.")}</p>}
               </div>
               <div>
-                <label className={lbl}>Repeats</label>
+                <label className={lbl}>{translateUi("Repeats")}</label>
                 <div className="flex gap-2">
                   {([true, false] as const).map((r) => (
                     <button key={String(r)} type="button" onClick={() => pf({ recurring: r })}
                       className={`flex-1 py-2 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${form.recurring === r ? "bg-matcha-600 border-matcha-600 text-white" : "border-stone-200 text-stone-500 hover:border-stone-300"}`}>
-                      {r ? "Every year" : "Specific year"}
+                      {r ? translateUi("Every year") : translateUi("Specific year")}
                     </button>
                   ))}
                 </div>
@@ -214,9 +215,9 @@ export default function SalonHolidays() {
               )}
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-stone-200">
-              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-stone-200 text-sm text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer">Cancel</button>
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-stone-200 text-sm text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer">{translateUi("Cancel")}</button>
               <button onClick={addHoliday} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-sm font-semibold cursor-pointer disabled:opacity-50">
-                <CalendarDays className="w-3.5 h-3.5" /> {saving ? "Saving…" : "Add"}
+                <CalendarDays className="w-3.5 h-3.5" /> {saving ? translateUi("Saving…") : translateUi("Add")}
               </button>
             </div>
           </div>

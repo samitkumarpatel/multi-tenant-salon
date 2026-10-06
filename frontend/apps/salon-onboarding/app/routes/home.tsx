@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail } from "lucide-react";
@@ -10,6 +11,7 @@ import { SiteFooter } from "~/components/SiteFooter";
 type CookieChoice = "all" | "essential";
 
 function CookieBanner() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [visible, setVisible] = useState(false);
   const [showPolicy, setShowPolicy] = useState(false);
 
@@ -35,13 +37,11 @@ function CookieBanner() {
             <div className="flex items-start gap-3 flex-1 min-w-0">
               <Cookie className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-stone-800 mb-0.5">We use cookies</p>
+                <p className="text-sm font-semibold text-stone-800 mb-0.5">{translateUi("We use cookies")}</p>
                 <p className="text-xs text-stone-500 leading-relaxed">
-                  We use essential cookies to make our site work, and optional analytics cookies to understand how you use it.
-                  See our{" "}
-                  <button type="button" onClick={() => setShowPolicy(true)} className="text-matcha-600 hover:underline cursor-pointer">cookie policy</button>{" "}
-                  for details. You can change your preferences at any time.
-                </p>
+                  {translateUi("We use essential cookies to make our site work, and optional analytics cookies to understand how you use it. See our")}{" "}
+                  <button type="button" onClick={() => setShowPolicy(true)} className="text-matcha-600 hover:underline cursor-pointer">{translateUi("cookie policy")}</button>{" "}
+                  {translateUi("for details. You can change your preferences at any time. ")}</p>
               </div>
             </div>
 
@@ -50,14 +50,12 @@ function CookieBanner() {
                 onClick={() => save("essential")}
                 className="flex-1 sm:flex-none text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 px-4 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
               >
-                Essential only
-              </button>
+                {translateUi("Essential only ")}</button>
               <button
                 onClick={() => save("all")}
                 className="flex-1 sm:flex-none text-xs font-semibold bg-matcha-600 hover:bg-matcha-700 text-white px-5 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
               >
-                Accept all cookies
-              </button>
+                {translateUi("Accept all cookies ")}</button>
             </div>
 
           </div>
@@ -65,13 +63,14 @@ function CookieBanner() {
       </div>
 
       {showPolicy && (
-        <LegalModal title="Privacy Policy" text={PRIVACY_TEXT} onClose={() => setShowPolicy(false)} />
+        <LegalModal title={translateUi("Privacy Policy")} text={PRIVACY_TEXT} onClose={() => setShowPolicy(false)} />
       )}
     </>
   );
 }
 
 export default function Home() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="min-h-[100dvh] bg-cream flex flex-col">
 
@@ -92,11 +91,9 @@ export default function Home() {
 
           <div className="mb-7 sm:mb-10 text-center">
             <h1 className="text-4xl sm:text-5xl font-bold text-stone-900 tracking-tight leading-[1.1]">
-              Book a visit.<br className="hidden sm:block" /> Or open your doors.
-            </h1>
+              {translateUi("Book a visit.")}<br className="hidden sm:block" /> {translateUi("Or open your doors. ")}</h1>
             <p className="text-stone-500 mt-4 text-base leading-relaxed max-w-sm mx-auto">
-              One platform for salon owners and the customers who love them.
-            </p>
+              {translateUi("One platform for salon owners and the customers who love them. ")}</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
@@ -108,12 +105,11 @@ export default function Home() {
               <div className="w-12 h-12 rounded-2xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-matcha-100 transition-colors">
                 <Building2 className="w-6 h-6 text-matcha-600" />
               </div>
-              <p className="text-2xl font-bold text-stone-900 mb-1">I'm an owner</p>
+              <p className="text-2xl font-bold text-stone-900 mb-1">{translateUi("I'm an owner")}</p>
               <p className="text-sm text-stone-500 leading-relaxed flex-1">
-                Register your salon, set up services and staff, and go live in minutes.
-              </p>
+                {translateUi("Register your salon, set up services and staff, and go live in minutes. ")}</p>
               <div className="flex items-center gap-1.5 mt-5 sm:mt-8 text-sm font-semibold text-matcha-600 group-hover:gap-2.5 transition-all">
-                Get started <ArrowRight className="w-4 h-4" />
+                {translateUi("Get started ")}<ArrowRight className="w-4 h-4" />
               </div>
             </Link>
 
@@ -121,13 +117,11 @@ export default function Home() {
               <div className="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center mb-4 sm:mb-6">
                 <Users className="w-6 h-6 text-stone-400" />
               </div>
-              <p className="text-2xl font-bold text-stone-400 mb-1">I'm a customer</p>
+              <p className="text-2xl font-bold text-stone-400 mb-1">{translateUi("I'm a customer")}</p>
               <p className="text-sm text-stone-400 leading-relaxed flex-1">
-                Find a salon near you, browse services and prices, and book your next appointment.
-              </p>
+                {translateUi("Find a salon near you, browse services and prices, and book your next appointment. ")}</p>
               <div className="flex items-center gap-1.5 mt-5 sm:mt-8 text-sm font-semibold text-stone-400">
-                Coming soon
-              </div>
+                {translateUi("Coming soon ")}</div>
             </div>
 
           </div>

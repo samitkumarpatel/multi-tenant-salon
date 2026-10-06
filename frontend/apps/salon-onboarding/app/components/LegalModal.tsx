@@ -1,6 +1,8 @@
+import { useI18n } from "@salon/i18n";
 import { X } from "lucide-react";
 
 export function LegalModal({ title, text, onClose }: { title: string; text: string; onClose: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div
       className="fixed inset-0 z-[100] bg-black/40 flex items-end sm:items-center justify-center animate-[fade-in_0.15s_ease]"
@@ -15,7 +17,7 @@ export function LegalModal({ title, text, onClose }: { title: string; text: stri
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={translateUi("Close")}
             className="text-stone-400 hover:text-stone-700 cursor-pointer p-1 -m-1 rounded-lg hover:bg-stone-100 transition-colors"
           >
             <X className="w-4 h-4" />

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { STAFF_PORTAL_API, apiFetch, uploadToPresignedUrl } from "~/lib/api";
 import type { PresignedUpload } from "~/lib/types";
 
@@ -20,9 +21,10 @@ export async function uploadWorkFile(staffId: number, file: File): Promise<strin
 
 /** Renders a work-gallery entry as a `<video>` or `<img>` depending on its URL. */
 export function WorkMedia({ url, className }: { url: string; className: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return isVideoUrl(url) ? (
     <video src={url} controls preload="metadata" className={`${className} bg-black`} />
   ) : (
-    <img src={url} alt="Work sample" className={className} loading="lazy" />
+    <img src={url} alt={translateUi("Work sample")} className={className} loading="lazy" />
   );
 }

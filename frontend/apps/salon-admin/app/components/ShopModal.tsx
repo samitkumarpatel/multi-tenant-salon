@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { X } from "lucide-react";
 
 export function Modal({
@@ -49,6 +50,7 @@ export function ModalActions({
   /** Shown below the save button when disabled, so the user knows what's missing. */
   validationHint?: string;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex flex-col gap-1.5 mt-5 pt-4 border-t border-slate-100">
       <div className="flex justify-end gap-2">
@@ -56,8 +58,7 @@ export function ModalActions({
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer"
           onClick={onCancel}
         >
-          Cancel
-        </button>
+          {translateUi("Cancel ")}</button>
         <button
           className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium text-white cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${
             danger ? "bg-red-600 hover:bg-red-700 border border-red-500" : "bg-matcha-600 hover:bg-matcha-700"
@@ -65,7 +66,7 @@ export function ModalActions({
           disabled={busy || disabled}
           onClick={onSave}
         >
-          {busy ? "Saving…" : saveLabel}
+          {busy ? translateUi("Saving…") : saveLabel}
         </button>
       </div>
       {disabled && !busy && validationHint && (

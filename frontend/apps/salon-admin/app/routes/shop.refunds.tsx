@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -39,13 +40,14 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function fmtDate(ts: string) {
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function fmtDate(ts: string, locale = "en") {
+  return new Date(ts).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function StatusMenu({
   value, counts, onPick,
 }: { value: ShopRefundStatus | "ALL"; counts: Partial<Record<string, number>>; onPick: (v: ShopRefundStatus | "ALL") => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [open, setOpen] = useState(false);
   const label = value === "ALL" ? "All refunds" : STATUS_LABEL[value] ?? value;
   const total = value === "ALL"
@@ -58,8 +60,8 @@ function StatusMenu({
         onClick={() => setOpen((v) => !v)}
         className={`${controlCls} inline-flex items-center gap-2 font-semibold cursor-pointer`}
       >
-        <span className="font-medium text-slate-400">Status</span>
-        {label}
+        <span className="font-medium text-slate-400">{translateUi("Status")}</span>
+        {translateUi(label)}
         <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
           {total}
         </span>
@@ -82,7 +84,7 @@ function StatusMenu({
                     <span className="w-3.5 flex justify-center shrink-0">
                       {active && <Check className="w-3.5 h-3.5 text-matcha-600" />}
                     </span>
-                    {s === "ALL" ? <span className="font-medium text-slate-700">All refunds</span> : <StatusBadge status={s} />}
+                    {s === "ALL" ? <span className="font-medium text-slate-700">{translateUi("All refunds")}</span> : <StatusBadge status={s} />}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400">{cnt}</span>
                 </button>
@@ -96,6 +98,7 @@ function StatusMenu({
 }
 
 export default function ShopRefunds() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { sid, orders: init } = useLoaderData<typeof clientLoader>();
   const [orders, setOrders] = useState<ShopOrder[]>(init);
@@ -168,8 +171,8 @@ export default function ShopRefunds() {
         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto mb-3">
           <RefreshCcw className="w-5 h-5 text-slate-400" />
         </div>
-        <h2 className="text-sm font-bold text-slate-800">No refunds yet</h2>
-        <p className="text-xs text-slate-500 mt-1">Refunds initiated from order details appear here.</p>
+        <h2 className="text-sm font-bold text-slate-800">{translateUi("No refunds yet")}</h2>
+        <p className="text-xs text-slate-500 mt-1">{translateUi("Refunds initiated from order details appear here.")}</p>
       </div>
     );
   }
@@ -183,7 +186,7 @@ export default function ShopRefunds() {
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Search refunds…"
+            placeholder={translateUi("Search refunds…")}
             className={`${controlCls} pl-8 pr-7 w-56`}
           />
           {draft && (
@@ -203,8 +206,8 @@ export default function ShopRefunds() {
           onChange={(e) => setSort(e.target.value === "oldest" ? "oldest" : "newest")}
           className={`${controlCls} cursor-pointer`}
         >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
+          <option value="newest">{translateUi("Newest first")}</option>
+          <option value="oldest">{translateUi("Oldest first")}</option>
         </select>
 
         {filtersActive && (
@@ -212,8 +215,7 @@ export default function ShopRefunds() {
             onClick={clearFilters}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" /> Clear
-          </button>
+            <X className="w-3.5 h-3.5" /> {translateUi("Clear ")}</button>
         )}
       </div>
 
@@ -221,7 +223,7 @@ export default function ShopRefunds() {
              on a table isn't a discoverable mobile gesture) ─────────────────── */}
       <div className="sm:hidden flex flex-col gap-2">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">No refunds match your filters.</div>
+          <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">{translateUi("No refunds match your filters.")}</div>
         ) : (
           filtered.map((o) => (
             <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -234,9 +236,9 @@ export default function ShopRefunds() {
               <div className="mt-1.5 text-xs text-slate-600">{o.customerName}</div>
               {o.refundReason && <div className="text-xs text-slate-500 mt-0.5">{o.refundReason}</div>}
               <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-400">
-                <span>{fmtDate(o.createdAt)}</span>
+                <span>{fmtDate(o.createdAt, uiLocale)}</span>
                 <span className="font-semibold text-slate-800">
-                  {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency) : "—"}
+                  {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency, uiLocale) : "—"}
                 </span>
               </div>
               {o.refundStatus === "PENDING" && (
@@ -246,15 +248,13 @@ export default function ShopRefunds() {
                     onClick={() => action(o, "approve")}
                     className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
                   >
-                    <Check className="w-3 h-3" /> Approve
-                  </button>
+                    <Check className="w-3 h-3" /> {translateUi("Approve ")}</button>
                   <button
                     disabled={busy === o.id}
                     onClick={() => action(o, "reject")}
                     className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40"
                   >
-                    <X className="w-3 h-3" /> Reject
-                  </button>
+                    <X className="w-3 h-3" /> {translateUi("Reject ")}</button>
                 </div>
               )}
               {o.refundStatus === "APPROVED" && (
@@ -263,8 +263,7 @@ export default function ShopRefunds() {
                   onClick={() => action(o, "accept")}
                   className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-blue-200 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 cursor-pointer disabled:opacity-40"
                 >
-                  <Check className="w-3 h-3" /> Accept
-                </button>
+                  <Check className="w-3 h-3" /> {translateUi("Accept ")}</button>
               )}
             </div>
           ))
@@ -274,17 +273,17 @@ export default function ShopRefunds() {
       {/* ── Table (sm and up) ────────────────────────────────────────────── */}
       <div className="hidden sm:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No refunds match your filters.</div>
+          <div className="p-8 text-center text-sm text-slate-500">{translateUi("No refunds match your filters.")}</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Reason</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">{translateUi("Order")}</th>
+                <th className="px-4 py-3">{translateUi("Customer")}</th>
+                <th className="px-4 py-3">{translateUi("Amount")}</th>
+                <th className="px-4 py-3">{translateUi("Reason")}</th>
+                <th className="px-4 py-3">{translateUi("Status")}</th>
+                <th className="px-4 py-3">{translateUi("Date")}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -301,13 +300,13 @@ export default function ShopRefunds() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-600">{o.customerName}</td>
                   <td className="px-4 py-3 font-semibold text-slate-800">
-                    {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency) : "—"}
+                    {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency, uiLocale) : "—"}
                   </td>
                   <td className="px-4 py-3 text-slate-500 max-w-xs truncate">{o.refundReason ?? "—"}</td>
                   <td className="px-4 py-3">
                     {o.refundStatus ? <StatusBadge status={o.refundStatus} /> : "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{fmtDate(o.createdAt)}</td>
+                  <td className="px-4 py-3 text-slate-400 text-xs">{fmtDate(o.createdAt, uiLocale)}</td>
                   <td className="px-4 py-3">
                     {o.refundStatus === "PENDING" && (
                       <div className="flex items-center gap-1.5 justify-end">
@@ -316,15 +315,13 @@ export default function ShopRefunds() {
                           onClick={() => action(o, "approve")}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
                         >
-                          <Check className="w-3 h-3" /> Approve
-                        </button>
+                          <Check className="w-3 h-3" /> {translateUi("Approve ")}</button>
                         <button
                           disabled={busy === o.id}
                           onClick={() => action(o, "reject")}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40"
                         >
-                          <X className="w-3 h-3" /> Reject
-                        </button>
+                          <X className="w-3 h-3" /> {translateUi("Reject ")}</button>
                       </div>
                     )}
                     {o.refundStatus === "APPROVED" && (
@@ -333,8 +330,7 @@ export default function ShopRefunds() {
                         onClick={() => action(o, "accept")}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-blue-200 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 cursor-pointer disabled:opacity-40"
                       >
-                        <Check className="w-3 h-3" /> Accept
-                      </button>
+                        <Check className="w-3 h-3" /> {translateUi("Accept ")}</button>
                     )}
                   </td>
                 </tr>
@@ -345,7 +341,7 @@ export default function ShopRefunds() {
       </div>
 
       <div className="text-xs text-slate-400 mt-2">
-        {filtered.length} of {orders.length} refund{orders.length === 1 ? "" : "s"}
+        {filtered.length} {translateUi("of ")}{orders.length} {translateUi("refund")}{orders.length === 1 ? "" : translateUi("s")}
       </div>
 
       <Toast toast={toast} />

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation, useNavigation } from "react-router";
@@ -5,7 +6,7 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle, Gauge } from "lucide-react";
+import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle, Gauge } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -153,6 +154,7 @@ function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onC
   controls: string; icon: React.ElementType; label: string; active: boolean; expanded: boolean;
   onClick: () => void; badge?: React.ReactNode;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <button
       type="button"
@@ -168,7 +170,7 @@ function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onC
       }`}
     >
       <Icon className="w-4 h-4 shrink-0" />
-      <span>{label}</span>
+      <span>{translateUi(label)}</span>
       {badge}
       <ChevronDown
         className={`${badge ? "ml-2" : "ml-auto"} w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
@@ -193,6 +195,7 @@ function SidebarSubLink({ to, active, onClick, children }: { to: string; active:
 }
 
 function SalonSwitcher({ current, salonId, onSalonEnabled }: { current: Salon; salonId: string; onSalonEnabled: (s: Salon) => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
   const session  = getAdminSession();
   const salons  = session?.salons ?? [];
@@ -255,12 +258,12 @@ function SalonSwitcher({ current, salonId, onSalonEnabled }: { current: Salon; s
           <div className="fixed inset-0 z-[59]" onClick={() => setOpen(false)} />
           <div
             role="listbox"
-            aria-label="Switch salon"
+            aria-label={translateUi("Switch salon")}
             style={{ position: "fixed", top: panelPos.top, right: panelPos.right }}
             className="z-[60] bg-white border border-slate-200 rounded-xl shadow-lg w-64 overflow-hidden"
           >
             <div className="px-3 py-2 border-b border-slate-100">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch salon</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{translateUi("Switch salon")}</p>
             </div>
             {salons.map((s) => {
               const isActive  = String(s.id) === currentId;
@@ -279,14 +282,14 @@ function SalonSwitcher({ current, salonId, onSalonEnabled }: { current: Salon; s
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-400 truncate line-through">{s.name}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Deleted</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{translateUi("Deleted")}</p>
                     </div>
                     <button
                       onClick={(e) => handleEnable(e, s)}
                       disabled={isEnabling}
                       className="shrink-0 text-[10px] font-semibold text-matcha-600 hover:text-matcha-700 border border-matcha-200 rounded px-1.5 py-0.5 bg-white hover:bg-matcha-50 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      {isEnabling ? "…" : "Restore"}
+                      {isEnabling ? "…" : translateUi("Restore")}
                     </button>
                   </div>
                 );
@@ -330,6 +333,7 @@ function SalonSwitcher({ current, salonId, onSalonEnabled }: { current: Salon; s
 // ── Error boundary ────────────────────────────────────────────────────────────
 
 export function ErrorBoundary() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const error    = useRouteError();
   const { pathname } = useLocation();
   const isPublic = pathname.endsWith("/website-preview");
@@ -361,29 +365,27 @@ export function ErrorBoundary() {
         <span className="text-2xl">{is403 ? "🔒" : "✂️"}</span>
       </div>
       <h1 className="text-lg font-bold text-slate-800 mb-2">
-        {is403 ? "You are not authorized" : is404 ? "Salon not found" : "Something went wrong"}
+        {is403 ? translateUi("You are not authorized") : is404 ? translateUi("Salon not found") : translateUi("Something went wrong")}
       </h1>
       <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-6">
         {is403
-          ? "You don't have permission to view this salon."
+          ? translateUi("You don't have permission to view this salon.")
           : is404
-          ? "This salon doesn't exist or the link is incorrect."
-          : "An error occurred while loading this page."}
+          ? translateUi("This salon doesn't exist or the link is incorrect.")
+          : translateUi("An error occurred while loading this page.")}
       </p>
       <div className="flex gap-3">
         <a
           href="/"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium no-underline hover:bg-slate-700 transition-colors"
         >
-          ← Go home
-        </a>
+          {translateUi("← Go home ")}</a>
         {!is404 && !is403 && (
           <button
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer"
           >
-            ↻ Retry
-          </button>
+            {translateUi("↻ Retry ")}</button>
         )}
       </div>
     </div>
@@ -393,6 +395,7 @@ export function ErrorBoundary() {
 // ── Admin layout ──────────────────────────────────────────────────────────────
 
 export default function Layout() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon: loaderSalon, salonId, pendingServices, pendingStaff, pendingWebsite } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -507,8 +510,7 @@ export default function Layout() {
           </div>
           <h1 className="text-lg font-bold text-slate-800 mb-2">{salon?.name}</h1>
           <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
-            This salon hasn't published a public website yet.
-          </p>
+            {translateUi("This salon hasn't published a public website yet. ")}</p>
         </div>
       );
     }
@@ -560,7 +562,7 @@ export default function Layout() {
         <button
           className="md:hidden min-h-11 min-w-11 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer"
           onClick={() => setSidebarOpen((v) => !v)}
-          aria-label="Toggle navigation"
+          aria-label={translateUi("Toggle navigation")}
           aria-expanded={sidebarOpen}
           aria-controls="admin-sidebar"
         >
@@ -591,7 +593,7 @@ export default function Layout() {
               className="shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <LogOut className="w-3 h-3" />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden sm:inline">{translateUi("Sign out")}</span>
             </button>
           </Tooltip>
         </div>
@@ -616,8 +618,8 @@ export default function Layout() {
         `}>
 
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 md:hidden">
-            <span className="text-xs font-semibold text-slate-500">Navigation</span>
-            <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} className="flex min-h-11 min-w-11 items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer">
+            <span className="text-xs font-semibold text-slate-500">{translateUi("Navigation")}</span>
+            <button aria-label={translateUi("Close navigation")} onClick={() => setSidebarOpen(false)} className="flex min-h-11 min-w-11 items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer">
               <XIcon className="w-4 h-4" />
             </button>
           </div>
@@ -631,15 +633,15 @@ export default function Layout() {
           </div>
 
           <nav className="flex-1 px-3 py-3 flex flex-col gap-0.5">
+            <NavLink to="languages" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+              <Globe className="w-4 h-4 shrink-0" /> {translateUi("Languages ")}</NavLink>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5">
-              Manage
-            </p>
+              {translateUi("Manage ")}</p>
 
             {(pendingServices || pendingStaff || pendingWebsite) && (
               <Tooltip content="Finish your onboarding checklist to prepare for your first customer.">
                 <NavLink to="setup" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                  <ListChecks className="w-4 h-4 shrink-0" /> Get started
-                  <span className="ml-auto relative flex h-2 w-2">
+                  <ListChecks className="w-4 h-4 shrink-0" /> {translateUi("Get started ")}<span className="ml-auto relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                   </span>
@@ -649,14 +651,12 @@ export default function Layout() {
 
             <Tooltip content="Your everyday tasks, salon details, and sharing links.">
               <NavLink to={`/${salonId}`} end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <LayoutDashboard className="w-4 h-4 shrink-0" /> Home
-              </NavLink>
+                <LayoutDashboard className="w-4 h-4 shrink-0" /> {translateUi("Home ")}</NavLink>
             </Tooltip>
 
             <Tooltip content="Build your booking menu — add treatments, set pricing, duration, and assign staff.">
               <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <Briefcase className="w-4 h-4 shrink-0" /> Services
-                {pendingServices && (
+                <Briefcase className="w-4 h-4 shrink-0" /> {translateUi("Services ")}{pendingServices && (
                   <span className="ml-auto relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
@@ -667,8 +667,7 @@ export default function Layout() {
 
             <Tooltip content="Add team members, set their roles and specializations, and control booking availability.">
               <NavLink to="staff" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <Users className="w-4 h-4 shrink-0" /> Staff
-                {pendingStaff && (
+                <Users className="w-4 h-4 shrink-0" /> {translateUi("Staff ")}{pendingStaff && (
                   <span className="ml-auto relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
@@ -680,22 +679,19 @@ export default function Layout() {
             {salon.features?.includes("BOOKING") && (
               <Tooltip content="Define recurring or one-time public holidays that block the booking calendar.">
                 <NavLink to="holiday" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                  <CalendarDays className="w-4 h-4 shrink-0" /> Holidays
-                </NavLink>
+                  <CalendarDays className="w-4 h-4 shrink-0" /> {translateUi("Holidays ")}</NavLink>
               </Tooltip>
             )}
 
             <Tooltip content="Connect Stripe and choose which salon features can accept card payments.">
               <NavLink to="payments" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <CreditCard className="w-4 h-4 shrink-0" /> Payments
-              </NavLink>
+                <CreditCard className="w-4 h-4 shrink-0" /> {translateUi("Payments ")}</NavLink>
             </Tooltip>
 
             {FEATURE_NAV.some((f) => salon.features?.includes(f.key)) && (
               <>
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5 mt-2">
-                  Features
-                </p>
+                  {translateUi("Features ")}</p>
                 {FEATURE_NAV.filter((f) => salon.features?.includes(f.key)).map((f) =>
                   f.key === "BOOKING" ? (
                     <div key={f.key}>
@@ -703,7 +699,7 @@ export default function Layout() {
                         <SidebarGroupHeader
                           controls="booking-navigation"
                           icon={f.icon}
-                          label={f.label}
+                          label={translateUi(f.label)}
                           active={isBookings}
                           expanded={openGroup === "booking"}
                           onClick={() => toggleGroup("booking", `/${salonId}/booking?section=appointments`)}
@@ -718,7 +714,7 @@ export default function Layout() {
                             active={isBookings && bookingSection === section.key}
                             onClick={() => setSidebarOpen(false)}
                           >
-                            {section.label}
+                            {translateUi(section.label)}
                           </SidebarSubLink>
                         ))}
                       </SidebarSubmenu>
@@ -729,7 +725,7 @@ export default function Layout() {
                         <SidebarGroupHeader
                           controls="website-navigation"
                           icon={f.icon}
-                          label={f.label}
+                          label={translateUi(f.label)}
                           active={isWebsite}
                           expanded={openGroup === "website"}
                           onClick={() => {
@@ -753,7 +749,7 @@ export default function Layout() {
                             active={isWebsite && websiteSection === section.key}
                             onClick={() => { setSidebarOpen(false); markWebsiteCoachSeen(); }}
                           >
-                            {section.label}
+                            {translateUi(section.label)}
                           </SidebarSubLink>
                         ))}
                       </SidebarSubmenu>
@@ -762,19 +758,17 @@ export default function Layout() {
                         <div className="mx-3 mt-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
-                              <Sparkles className="w-2.5 h-2.5" /> Tip
-                            </span>
+                              <Sparkles className="w-2.5 h-2.5" /> {translateUi("Tip ")}</span>
                             <button
                               onClick={markWebsiteCoachSeen}
                               className="text-amber-400 hover:text-amber-700 transition-colors cursor-pointer"
-                              title="Dismiss tip"
+                              title={translateUi("Dismiss tip")}
                             >
                               <XIcon className="w-3 h-3" />
                             </button>
                           </div>
                           <p className="text-[11px] text-amber-800 leading-snug">
-                            Choose how your public page looks — Static Website, Gen AI Receptionist, or you want to apply your own idea.
-                          </p>
+                            {translateUi("Choose how your public page looks — Static Website, Gen AI Receptionist, or you want to apply your own idea. ")}</p>
                         </div>
                       )}
                     </div>
@@ -782,9 +776,9 @@ export default function Layout() {
                     <Tooltip key={f.key} content={f.hint}>
                       <NavLink to={f.route} className={sideNavClass} onClick={() => setSidebarOpen(false)}>
                         <f.icon className="w-4 h-4 shrink-0" />
-                        {f.label}
+                        {translateUi(f.label)}
                         {f.route === "coming-soon" && (
-                          <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1">Soon</span>
+                          <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1">{translateUi("Soon")}</span>
                         )}
                       </NavLink>
                     </Tooltip>
@@ -792,8 +786,8 @@ export default function Layout() {
                     <Tooltip key={f.key} content={`${f.hint} Coming soon.`}>
                       <span className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-300 cursor-default select-none">
                         <f.icon className="w-4 h-4 shrink-0" />
-                        <span className="text-sm font-medium">{f.label}</span>
-                        <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">Soon</span>
+                        <span className="text-sm font-medium">{translateUi(f.label)}</span>
+                        <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">{translateUi("Soon")}</span>
                       </span>
                     </Tooltip>
                   )
@@ -805,16 +799,14 @@ export default function Layout() {
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
             <Tooltip content="Find documentation, FAQs, and ways to get in touch with support.">
               <NavLink to="help" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <HelpCircle className="w-4 h-4 shrink-0" /> Help &amp; Support
-              </NavLink>
+                <HelpCircle className="w-4 h-4 shrink-0" /> {translateUi("Help & Support ")}</NavLink>
             </Tooltip>
             <Tooltip content="Delete this salon. It will no longer accept bookings or appear publicly, but all data is preserved and it can be re-enabled later.">
               <button
                 onClick={() => { setSidebarOpen(false); setShowDeleteModal(true); }}
                 className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
               >
-                <Trash2 className="w-4 h-4 shrink-0" /> Delete salon
-              </button>
+                <Trash2 className="w-4 h-4 shrink-0" /> {translateUi("Delete salon ")}</button>
             </Tooltip>
           </div>
         </aside>
@@ -827,23 +819,22 @@ export default function Layout() {
                 <div className="w-14 h-14 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mb-5">
                   <AlertTriangle className="w-6 h-6 text-amber-500" />
                 </div>
-                <h2 className="text-lg font-bold text-slate-800 mb-2">This salon is disabled</h2>
+                <h2 className="text-lg font-bold text-slate-800 mb-2">{translateUi("This salon is disabled")}</h2>
                 <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-6">
-                  <strong className="text-slate-700">{salon.name}</strong> is currently disabled. It won't accept new bookings or appear publicly. All data is intact — enable it to restore full access.
-                </p>
+                  <strong className="text-slate-700">{salon.name}</strong> {translateUi("is currently disabled. It won't accept new bookings or appear publicly. All data is intact — enable it to restore full access. ")}</p>
                 <button
                   onClick={handleEnable}
                   disabled={enabling}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-matcha-600 hover:bg-matcha-700 text-white transition-colors cursor-pointer disabled:opacity-45"
                 >
                   <Power className="w-4 h-4" />
-                  {enabling ? "Enabling…" : "Enable salon"}
+                  {enabling ? translateUi("Enabling…") : translateUi("Enable salon")}
                 </button>
               </div>
             ) : pagePending ? (
               <div className="flex flex-col items-center justify-center gap-3 py-24" role="status" aria-live="polite">
                 <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-matcha-600" />
-                <p className="text-sm font-medium text-slate-400">Loading…</p>
+                <p className="text-sm font-medium text-slate-400">{translateUi("Loading…")}</p>
               </div>
             ) : (
               <Outlet context={ctx} />
@@ -867,10 +858,9 @@ export default function Layout() {
                 <Trash2 className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Delete salon</h2>
+                <h2 className="text-sm font-semibold text-slate-900">{translateUi("Delete salon")}</h2>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  <strong className="text-slate-700">{salon.name}</strong> will be deleted — it won't accept bookings or appear publicly. All data is preserved and you can restore it at any time.
-                </p>
+                  <strong className="text-slate-700">{salon.name}</strong> {translateUi("will be deleted — it won't accept bookings or appear publicly. All data is preserved and you can restore it at any time. ")}</p>
               </div>
             </div>
             {deleteError && (
@@ -882,15 +872,14 @@ export default function Layout() {
                 onClick={() => setShowDeleteModal(false)}
                 disabled={deleting}
               >
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-45"
                 onClick={handleDisable}
                 disabled={deleting}
               >
                 <Trash2 className="w-3 h-3" />
-                {deleting ? "Deleting…" : "Delete"}
+                {deleting ? translateUi("Deleting…") : translateUi("Delete")}
               </button>
             </div>
           </div>

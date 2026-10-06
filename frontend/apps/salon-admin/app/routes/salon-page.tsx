@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams } from "react-router";
@@ -58,6 +59,7 @@ const PRESET_COLORS = [
 function ColorPicker({ label, value, onChange }: {
   label: string; value: string; onChange: (v: string) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [open, setOpen]           = useState(false);
   const [draft, setDraft]         = useState(value);
   const [pos, setPos]             = useState({ top: 0, left: 0 });
@@ -118,7 +120,7 @@ function ColorPicker({ label, value, onChange }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">{label}</p>
+        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">{translateUi(label)}</p>
         <button
           onClick={handleUndo} disabled={!canUndo}
           className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-all cursor-pointer ${
@@ -127,14 +129,13 @@ function ColorPicker({ label, value, onChange }: {
               : "text-slate-300 opacity-0 pointer-events-none"
           }`}
         >
-          <RotateCcw className="w-2.5 h-2.5" /> Undo
-        </button>
+          <RotateCcw className="w-2.5 h-2.5" /> {translateUi("Undo ")}</button>
       </div>
       <div className="flex items-center gap-2">
         <button
           ref={btnRef} onClick={openPopover}
           className="w-9 h-9 rounded-lg border border-slate-300 shadow-sm cursor-pointer shrink-0 transition-all hover:scale-105 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-400"
-          style={{ backgroundColor: value }} title="Pick colour"
+          style={{ backgroundColor: value }} title={translateUi("Pick colour")}
         />
         <input
           type="text" value={draft}
@@ -142,7 +143,7 @@ function ColorPicker({ label, value, onChange }: {
           onBlur={(e) => commitDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && commitDraft(draft)}
           className="flex-1 font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/20"
-          placeholder="#000000" maxLength={7}
+          placeholder={"#000000"} maxLength={7}
         />
         <input
           ref={nativeRef} type="color" value={value}
@@ -157,7 +158,7 @@ function ColorPicker({ label, value, onChange }: {
           className="fixed z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl p-3"
           style={{ top: pos.top, left: pos.left, width: 232 }}
         >
-          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-0.5">{label}</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-0.5">{translateUi(label)}</p>
           <div className="grid grid-cols-8 gap-1 mb-3">
             {PRESET_COLORS.map((c) => (
               <button
@@ -181,15 +182,14 @@ function ColorPicker({ label, value, onChange }: {
                 onBlur={(e) => commitDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { commitDraft(draft); setOpen(false); } }}
                 className="flex-1 font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/20"
-                placeholder="#000000" maxLength={7}
+                placeholder={"#000000"} maxLength={7}
               />
             </div>
             <button
               onClick={() => { setOpen(false); setTimeout(() => nativeRef.current?.click(), 50); }}
               className="w-full text-xs text-slate-500 hover:text-slate-800 py-1.5 px-2 rounded-lg hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors border border-slate-100 hover:border-slate-200"
             >
-              <span className="text-sm leading-none">🎨</span> Open colour wheel…
-            </button>
+              <span className="text-sm leading-none">🎨</span> {translateUi("Open colour wheel… ")}</button>
           </div>
         </div>,
         document.body
@@ -207,6 +207,7 @@ function FontField({ value, onChange, accent }: {
   onChange: (v: string) => void;
   accent: "violet" | "amber";
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<GoogleFontCategory | "All">("All");
@@ -230,7 +231,7 @@ function FontField({ value, onChange, accent }: {
 
   return (
     <section>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Font</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">{translateUi("Font")}</p>
 
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(FONTS).map(([id, font]) => (
@@ -254,7 +255,7 @@ function FontField({ value, onChange, accent }: {
           }`}
           style={!isPreset ? { fontFamily: fontStack(value) } : undefined}
         >
-          <span className="truncate">{isPreset ? "More fonts — all of Google Fonts" : value}</span>
+          <span className="truncate">{isPreset ? translateUi("More fonts — all of Google Fonts") : value}</span>
           <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
 
@@ -263,7 +264,7 @@ function FontField({ value, onChange, accent }: {
             <div className="p-2 border-b border-slate-100 space-y-1.5">
               <input
                 autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${GOOGLE_FONTS.length.toLocaleString()} fonts…`}
+                placeholder={`Search ${GOOGLE_FONTS.length.toLocaleString(uiLocale)} fonts…`}
                 className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-slate-300"
               />
               <div className="flex flex-wrap gap-1">
@@ -280,7 +281,7 @@ function FontField({ value, onChange, accent }: {
               </div>
             </div>
             <div className="max-h-56 overflow-y-auto">
-              {matches.length === 0 && <p className="text-[11px] text-slate-400 px-3 py-3">No fonts match.</p>}
+              {matches.length === 0 && <p className="text-[11px] text-slate-400 px-3 py-3">{translateUi("No fonts match.")}</p>}
               {matches.map((f) => (
                 <button
                   key={f.family} type="button"
@@ -295,7 +296,7 @@ function FontField({ value, onChange, accent }: {
                 </button>
               ))}
               {matches.length === 60 && (
-                <p className="text-[10px] text-slate-400 px-3 py-2 border-t border-slate-100">Showing the first 60 — refine your search to see more.</p>
+                <p className="text-[10px] text-slate-400 px-3 py-2 border-t border-slate-100">{translateUi("Showing the first 60 — refine your search to see more.")}</p>
               )}
             </div>
           </div>
@@ -312,6 +313,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 function ThemePanel({ salonId, theme, onChange, onClose }: {
   salonId: string; theme: WebsiteTheme; onChange: (t: WebsiteTheme) => void; onClose: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const isGenUI = theme.websiteType === "GENERATIVE_UI";
 
@@ -357,7 +359,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
             : <Palette className="w-4 h-4 text-amber-500" />
           }
           <h2 className="text-sm font-bold text-slate-900">
-            {isGenUI ? "Chat Window Design" : "Website Design"}
+            {isGenUI ? translateUi("Chat Window Design") : translateUi("Website Design")}
           </h2>
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5 rounded hover:bg-slate-100">
@@ -370,16 +372,15 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
           // ── AI Receptionist palette — only what affects the chat shell ────
           <>
             <p className="text-[11px] text-slate-400 leading-relaxed bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5">
-              These settings style the <span className="font-semibold text-violet-700">chat window shell</span> your AI Receptionist greets visitors in.
-            </p>
+              {translateUi("These settings style the ")}<span className="font-semibold text-violet-700">{translateUi("chat window shell")}</span> {translateUi("your AI Receptionist greets visitors in. ")}</p>
 
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Colours</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{translateUi("Colours")}</p>
               <div className="space-y-4">
-                <ColorPicker label="Page Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
-                <ColorPicker label="Chat Background" value={theme.chatBg ?? theme.heroBg} onChange={(v) => onChange({ ...theme, chatBg: v })} />
-                <ColorPicker label="Accent Color" value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
-                <ColorPicker label="Avatar Color" value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
+                <ColorPicker label={translateUi("Page Background")} value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
+                <ColorPicker label={translateUi("Chat Background")} value={theme.chatBg ?? theme.heroBg} onChange={(v) => onChange({ ...theme, chatBg: v })} />
+                <ColorPicker label={translateUi("Accent Color")} value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
+                <ColorPicker label={translateUi("Avatar Color")} value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
               </div>
             </section>
 
@@ -390,7 +391,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
             />
 
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Layout</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">{translateUi("Layout")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {([
                   { id: "fullscreen", label: "Fullscreen", desc: "Fills the screen" },
@@ -406,7 +407,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
                           : "border-slate-200 hover:border-slate-300 text-slate-600"
                       }`}
                     >
-                      <span className="block text-xs font-semibold">{opt.label}</span>
+                      <span className="block text-xs font-semibold">{translateUi(opt.label)}</span>
                       <span className="block text-[10px] opacity-70">{opt.desc}</span>
                     </button>
                   );
@@ -418,11 +419,11 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
           // ── Static website palette — full controls ───────────────────────
           <>
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Hero Section</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{translateUi("Hero Section")}</p>
               <div className="space-y-4">
-                <ColorPicker label="Background" value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
-                <ColorPicker label="Text Color" value={theme.heroTextColor} onChange={(v) => onChange({ ...theme, heroTextColor: v })} />
-                <ColorPicker label="Accent / CTA" value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
+                <ColorPicker label={translateUi("Background")} value={theme.heroBg} onChange={(v) => onChange({ ...theme, heroBg: v })} />
+                <ColorPicker label={translateUi("Text Color")} value={theme.heroTextColor} onChange={(v) => onChange({ ...theme, heroTextColor: v })} />
+                <ColorPicker label={translateUi("Accent / CTA")} value={theme.accentColor} onChange={(v) => onChange({ ...theme, accentColor: v })} />
                 {(() => {
                   const suggested = contrastText(theme.heroBg);
                   const isOptimal = suggested.toLowerCase() === theme.heroTextColor.toLowerCase();
@@ -436,8 +437,8 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
                       }`}
                     >
                       {isOptimal
-                        ? <><Check className="w-3.5 h-3.5 shrink-0" /> Text contrast looks great</>
-                        : <><Wand2 className="w-3.5 h-3.5 shrink-0" /> Auto-fix text contrast for this background</>
+                        ? <><Check className="w-3.5 h-3.5 shrink-0" /> {translateUi("Text contrast looks great")}</>
+                        : <><Wand2 className="w-3.5 h-3.5 shrink-0" /> {translateUi("Auto-fix text contrast for this background")}</>
                       }
                     </button>
                   );
@@ -446,25 +447,25 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
             </section>
 
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Branding</p>
-              <ColorPicker label="Logo Background" value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{translateUi("Branding")}</p>
+              <ColorPicker label={translateUi("Logo Background")} value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
             </section>
 
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Header &amp; Footer</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{translateUi("Header & Footer")}</p>
               <div className="space-y-4">
-                <ColorPicker label="Header Background" value={theme.headerBg} onChange={(v) => onChange({ ...theme, headerBg: v })} />
-                <ColorPicker label="Footer Background" value={theme.footerBg} onChange={(v) => onChange({ ...theme, footerBg: v })} />
+                <ColorPicker label={translateUi("Header Background")} value={theme.headerBg} onChange={(v) => onChange({ ...theme, headerBg: v })} />
+                <ColorPicker label={translateUi("Footer Background")} value={theme.footerBg} onChange={(v) => onChange({ ...theme, footerBg: v })} />
                 <div>
-                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1.5">Maps link URL</p>
+                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1.5">{translateUi("Maps link URL")}</p>
                   <input
                     type="url"
                     className={`w-full font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:ring-1 ${accentRing}`}
-                    placeholder="https://maps.google.com/…"
+                    placeholder={"https://maps.google.com/…"}
                     value={theme.mapsUrl ?? ""}
                     onChange={(e) => onChange({ ...theme, mapsUrl: e.target.value || undefined })}
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Leave empty to use auto-generated Google Maps link.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{translateUi("Leave empty to use auto-generated Google Maps link.")}</p>
                 </div>
               </div>
             </section>
@@ -487,8 +488,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
           })}
           className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer hover:underline"
         >
-          Reset to defaults
-        </button>
+          {translateUi("Reset to defaults ")}</button>
       </div>
 
       <div className="px-4 py-4 border-t border-slate-100 bg-slate-50 shrink-0">
@@ -501,13 +501,13 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
           }`}
         >
           {saveState === "saving"
-            ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
-            : saveState === "saved" ? <><Check className="w-4 h-4" /> Saved!</>
-            : saveState === "error" ? <>Failed — try again</>
-            : <>Save Changes</>
+            ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {translateUi("Saving…")}</>
+            : saveState === "saved" ? <><Check className="w-4 h-4" /> {translateUi("Saved!")}</>
+            : saveState === "error" ? <>{translateUi("Failed — try again")}</>
+            : <>{translateUi("Save Changes")}</>
           }
         </button>
-        <p className="text-[10px] text-slate-400 text-center mt-2">Changes are applied immediately to the customer website.</p>
+        <p className="text-[10px] text-slate-400 text-center mt-2">{translateUi("Changes are applied immediately to the customer website.")}</p>
       </div>
     </div>
   );
@@ -518,6 +518,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
 function PreviewBanner({ handler, onDesign }: {
   handler: string; onDesign: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div
       className="bg-slate-950 text-white px-4 py-2.5 flex items-center justify-between gap-4 text-xs"
@@ -526,7 +527,7 @@ function PreviewBanner({ handler, onDesign }: {
       <div className="flex items-center gap-2 min-w-0">
         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shrink-0" />
         <span className="text-slate-400 truncate">
-          Admin preview — customers see this at{" "}
+          {translateUi("Admin preview — customers see this at")}{" "}
           <span className="text-white font-mono font-medium">{handler}.{SALON_DOMAIN}</span>
         </span>
       </div>
@@ -535,8 +536,7 @@ function PreviewBanner({ handler, onDesign }: {
           onClick={onDesign}
           className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer"
         >
-          <Palette className="w-3 h-3" /> Design
-        </button>
+          <Palette className="w-3 h-3" /> {translateUi("Design ")}</button>
       </div>
     </div>
   );

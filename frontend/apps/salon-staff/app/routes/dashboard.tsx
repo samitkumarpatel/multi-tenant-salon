@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { CalendarCheck, CalendarDays, Clock, ArrowRight, UserCircle } from "lucide-react";
@@ -24,13 +25,14 @@ function fmt12(t: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-function fmtDate(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+function fmtDate(dateStr: string, locale = "en") {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString(locale, {
     weekday: "short", month: "short", day: "numeric",
   });
 }
 
 export default function Dashboard() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const session = getStaffSession()!;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -59,11 +61,11 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Welcome back, {session.name.split(" ")[0]}</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Welcome back, ")}{session.name.split(" ")[0]}</h1>
         <p className="text-sm text-slate-500 mt-1">
           {session.salonName
-            ? <>Working at <span className="font-semibold text-matcha-700">{session.salonName}</span> · here's your schedule.</>
-            : "Here's your schedule at a glance."
+            ? <>{translateUi("Working at ")}<span className="font-semibold text-matcha-700">{session.salonName}</span> {translateUi("· here's your schedule.")}</>
+            : translateUi("Here's your schedule at a glance.")
           }
         </p>
       </div>
@@ -80,7 +82,7 @@ export default function Dashboard() {
               <Icon className="w-4 h-4" />
             </div>
             <p className="text-2xl font-bold text-slate-900">{loading ? "–" : value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{translateUi(label)}</p>
           </div>
         ))}
       </div>
@@ -89,24 +91,23 @@ export default function Dashboard() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-slate-800">Today's appointments</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{fmtDate(today)}</p>
+            <h2 className="text-sm font-semibold text-slate-800">{translateUi("Today's appointments")}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{fmtDate(today, uiLocale)}</p>
           </div>
           <Link
             to="/portal/appointments"
             className="inline-flex items-center gap-1 text-xs font-medium text-matcha-600 hover:text-matcha-700 transition-colors"
           >
-            View all <ArrowRight className="w-3 h-3" />
+            {translateUi("View all ")}<ArrowRight className="w-3 h-3" />
           </Link>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-400">
             <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
-            Loading…
-          </div>
+            {translateUi("Loading… ")}</div>
         ) : todayBookings.length === 0 ? (
-          <p className="text-xs text-slate-400 px-5 py-6 text-center">No appointments scheduled for today.</p>
+          <p className="text-xs text-slate-400 px-5 py-6 text-center">{translateUi("No appointments scheduled for today.")}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {todayBookings.map((b) => (
@@ -132,8 +133,8 @@ export default function Dashboard() {
       {!loading && upcoming.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">Upcoming appointments</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Next {upcoming.length} confirmed booking{upcoming.length !== 1 ? "s" : ""}</p>
+            <h2 className="text-sm font-semibold text-slate-800">{translateUi("Upcoming appointments")}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{translateUi("Next ")}{upcoming.length} {translateUi("confirmed booking")}{upcoming.length !== 1 ? translateUi("s") : ""}</p>
           </div>
           <div className="divide-y divide-slate-100">
             {upcoming.map((b) => (
@@ -141,7 +142,7 @@ export default function Dashboard() {
                 <div className="shrink-0">
                   <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex flex-col items-center justify-center">
                     <span className="text-[10px] font-bold text-slate-500 uppercase leading-none">
-                      {new Date(b.appointmentDate + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}
+                      {new Date(b.appointmentDate + "T00:00:00").toLocaleDateString(uiLocale, { month: "short" })}
                     </span>
                     <span className="text-sm font-bold text-slate-800 leading-none">
                       {new Date(b.appointmentDate + "T00:00:00").getDate()}
@@ -165,8 +166,7 @@ export default function Dashboard() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <p className="text-xs text-amber-700">
-            You have <span className="font-semibold">{pending} pending</span> appointment{pending !== 1 ? "s" : ""} awaiting confirmation by the admin.
-          </p>
+            {translateUi("You have ")}<span className="font-semibold">{pending} {translateUi("pending")}</span> {translateUi("appointment")}{pending !== 1 ? translateUi("s") : ""} {translateUi("awaiting confirmation by the admin. ")}</p>
         </div>
       )}
 
@@ -185,7 +185,7 @@ export default function Dashboard() {
               <Icon className="w-4 h-4 text-slate-400 group-hover:text-matcha-600 transition-colors" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-800">{label}</p>
+              <p className="text-sm font-semibold text-slate-800">{translateUi(label)}</p>
               <p className="text-xs text-slate-400">{desc}</p>
             </div>
             <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-matcha-500 ml-auto shrink-0 transition-colors" />

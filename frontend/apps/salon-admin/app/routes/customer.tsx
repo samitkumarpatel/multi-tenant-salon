@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useLoaderData } from "react-router";
 import { ONBOARDING_API as SALON_ONBOARDING_API, apiFetch } from "~/lib/api";
@@ -14,6 +15,7 @@ export async function clientLoader() {
 }
 
 function SalonCard({ salon: s }: { salon: Salon }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const hasBooking = s.features?.includes("BOOKING");
   const place = [s.location?.city, s.location?.country].filter(Boolean).join(", ");
 
@@ -28,7 +30,7 @@ function SalonCard({ salon: s }: { salon: Salon }) {
           <div className="flex flex-wrap gap-1.5 mt-3">
             {s.features.map((f) => (
               <span key={f} className="text-xs px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600">
-                {FEATURE_LABEL[f] ?? f}
+                {translateUi(FEATURE_LABEL[f] ?? f)}
               </span>
             ))}
           </div>
@@ -55,7 +57,7 @@ function SalonCard({ salon: s }: { salon: Salon }) {
           to={hasBooking ? `/${s.id}/book` : `/${s.id}`}
           className="block text-center w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors no-underline"
         >
-          {hasBooking ? "Book now" : "Visit salon"}
+          {hasBooking ? translateUi("Book now") : translateUi("Visit salon")}
         </Link>
       </div>
     </div>
@@ -63,6 +65,7 @@ function SalonCard({ salon: s }: { salon: Salon }) {
 }
 
 export default function Customer() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salons, error } = useLoaderData<typeof clientLoader>();
   const [query, setQuery] = useState("");
 
@@ -82,15 +85,14 @@ export default function Customer() {
           <Link to="/" className="text-stone-400 hover:text-stone-700 no-underline shrink-0 text-sm">←</Link>
           <input
             type="search"
-            placeholder="Search by name or city…"
+            placeholder={translateUi("Search by name or city…")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 px-4 py-2 rounded-xl border border-stone-200 text-sm bg-stone-50 placeholder:text-stone-400 outline-none focus:border-stone-400 transition-colors"
           />
           {query && (
             <button onClick={() => setQuery("")} className="text-stone-400 hover:text-stone-600 shrink-0 text-xs">
-              Clear
-            </button>
+              {translateUi("Clear ")}</button>
           )}
         </div>
       </header>
@@ -103,17 +105,16 @@ export default function Customer() {
         )}
 
         <p className="text-xs text-stone-400 mb-4">
-          {filtered.length} salon{filtered.length !== 1 ? "s" : ""}
+          {filtered.length} {translateUi("salon")}{filtered.length !== 1 ? translateUi("s") : ""}
           {query ? ` for "${query}"` : ""}
         </p>
 
         {filtered.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-stone-500 text-sm">{query ? "No results found" : "No salons yet"}</p>
+            <p className="text-stone-500 text-sm">{query ? translateUi("No results found") : translateUi("No salons yet")}</p>
             {!query && (
               <Link to="/new" className="inline-block mt-3 text-sm text-matcha-600 underline no-underline">
-                Register yours →
-              </Link>
+                {translateUi("Register yours → ")}</Link>
             )}
           </div>
         ) : (

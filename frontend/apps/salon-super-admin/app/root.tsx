@@ -1,3 +1,6 @@
+import { I18nProvider, LanguageSelector, useI18n, ALL_LANGUAGES } from "@salon/i18n";
+import type { LanguagePolicy } from "@salon/i18n";
+import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
 import { NavProgress, friendlyMessage } from "@salon/ui-shared";
@@ -14,6 +17,7 @@ export function links() {
 }
 
 export function HydrateFallback() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
@@ -33,17 +37,16 @@ export function HydrateFallback() {
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100dvh", gap: 16, padding: "0 24px", textAlign: "center", fontFamily: "system-ui, sans-serif", color: "#0f172a" }}>
             <p style={{ fontSize: 40, margin: 0 }}>⚠️</p>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Having trouble connecting</p>
-              <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.6 }}>The server isn't responding. Check your connection and try again.</p>
+              <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>{translateUi("Having trouble connecting")}</p>
+              <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.6 }}>{translateUi("The server isn't responding. Check your connection and try again.")}</p>
             </div>
             <button onClick={() => window.location.reload()} style={{ padding: "8px 18px", borderRadius: 8, background: "#0f172a", color: "#fff", border: "none", cursor: "pointer", fontSize: 13 }}>
-              ↻ Retry
-            </button>
+              {translateUi("↻ Retry ")}</button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100dvh", gap: 12, color: "#94a3b8", fontFamily: "system-ui, sans-serif" }}>
             <div style={{ width: 24, height: 24, border: "2px solid #e2e8f0", borderTopColor: "#0f172a", borderRadius: "50%", animation: "spin 0.75s linear infinite" }} />
-            <p style={{ fontSize: 14, margin: 0 }}>Loading…</p>
+            <p style={{ fontSize: 14, margin: 0 }}>{translateUi("Loading…")}</p>
           </div>
         )}
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -54,6 +57,7 @@ export function HydrateFallback() {
 }
 
 export function ErrorBoundary() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const error = useRouteError();
   const is404 = isRouteErrorResponse(error) && error.status === 404;
   const is403 =
@@ -68,28 +72,27 @@ export function ErrorBoundary() {
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{is403 ? "Not authorized" : is404 ? "Not found" : "Error"}</title>
+        <title>{is403 ? translateUi("Not authorized") : is404 ? translateUi("Not found") : translateUi("Error")}</title>
         <Links />
       </head>
       <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", background: "#f8fafc", color: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh" }}>
         <div style={{ textAlign: "center", maxWidth: 360, padding: "0 24px" }}>
           <p style={{ fontSize: 48, margin: "0 0 16px" }}>{is403 ? "🔒" : "⚙️"}</p>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>
-            {is403 ? "You are not authorized" : is404 ? "Page not found" : "Something went wrong"}
+            {is403 ? translateUi("You are not authorized") : is404 ? translateUi("Page not found") : translateUi("Something went wrong")}
           </h1>
           <p style={{ fontSize: 14, color: "#64748b", margin: "0 0 24px", lineHeight: 1.6 }}>
             {is403
-              ? "You don't have permission to view this page."
+              ? translateUi("You don't have permission to view this page.")
               : is404
-              ? "This page doesn't exist."
+              ? translateUi("This page doesn't exist.")
               : friendlyMessage(error)}
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-            <a href="/" style={{ padding: "10px 20px", borderRadius: 8, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14 }}>← Home</a>
+            <a href="/" style={{ padding: "10px 20px", borderRadius: 8, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14 }}>{translateUi("← Home")}</a>
             {!is404 && !is403 && (
               <button onClick={() => window.location.reload()} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontSize: 14 }}>
-                ↻ Retry
-              </button>
+                {translateUi("↻ Retry ")}</button>
             )}
           </div>
         </div>
@@ -99,11 +102,12 @@ export function ErrorBoundary() {
   );
 }
 
-export default function App() {
+function AppDocument() {
+  const { locale } = useI18n();
   const { state } = useNavigation();
 
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -113,10 +117,19 @@ export default function App() {
       </head>
       <body>
         <NavProgress loading={state !== "idle"} />
-        <Outlet />
+        <LanguageSelector /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
   );
+}
+
+export default function Root() {
+  const matches = useMatches();
+  const tenant = matches.map((match) => match.data as { languagePolicy?: LanguagePolicy; languageScope?: string } | undefined)
+    .find((data) => data?.languagePolicy);
+  return <I18nProvider scope={`super-admin:${tenant?.languageScope ?? "platform"}`} policy={tenant?.languagePolicy ?? ALL_LANGUAGES}>
+    <AppDocument />
+  </I18nProvider>;
 }

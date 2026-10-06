@@ -1,7 +1,9 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Info, X } from "lucide-react";
 
 export function InfoBar({ id, children }: { id?: string; children: React.ReactNode }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const storageKey = id ? `infobar-dismissed:${id}` : null;
   const [dismissed, setDismissed] = useState(() => {
     if (!storageKey) return false;
@@ -23,7 +25,7 @@ export function InfoBar({ id, children }: { id?: string; children: React.ReactNo
       <span>{children}</span>
       <button
         onClick={dismiss}
-        aria-label="Dismiss"
+        aria-label={translateUi("Dismiss")}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
       >
         <X className="w-3.5 h-3.5" />

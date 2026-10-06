@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Building2, MapPin, ArrowRight, LogOut, Power } from "lucide-react";
@@ -7,6 +8,7 @@ import { ADMIN_API, apiFetch } from "~/lib/api";
 import type { Salon } from "~/lib/types";
 
 export default function SalonPicker() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
   const [salons, setSalons] = useState<Salon[]>([]);
   const [email, setEmail]     = useState("");
@@ -84,7 +86,7 @@ export default function SalonPicker() {
             className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">Sign out</span>
+            <span className="hidden sm:inline">{translateUi("Sign out")}</span>
           </button>
         </div>
       </header>
@@ -96,11 +98,9 @@ export default function SalonPicker() {
             <div className="w-12 h-12 rounded-full bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-4">
               <Building2 className="w-6 h-6 text-matcha-600" />
             </div>
-            <h1 className="text-lg font-bold text-slate-900">Choose your salon</h1>
+            <h1 className="text-lg font-bold text-slate-900">{translateUi("Choose your salon")}</h1>
             <p className="text-xs text-slate-500 mt-1">
-              Multiple salons are linked to <span className="font-medium text-slate-700">{email}</span>.
-              Select one to continue.
-            </p>
+              {translateUi("Multiple salons are linked to ")}<span className="font-medium text-slate-700">{email}</span>{translateUi(". Select one to continue. ")}</p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -124,8 +124,7 @@ export default function SalonPicker() {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-slate-400 truncate line-through">{salon.name}</p>
                         <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-red-500 border border-red-200 rounded px-1.5 py-0.5 bg-red-50">
-                          Deleted
-                        </span>
+                          {translateUi("Deleted ")}</span>
                       </div>
                       {salon.location?.city && (
                         <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
@@ -142,7 +141,7 @@ export default function SalonPicker() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-matcha-700 border border-matcha-300 bg-white hover:bg-matcha-50 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <Power className="w-3 h-3" />
-                      {isEnabling ? "Restoring…" : "Restore"}
+                      {isEnabling ? translateUi("Restoring…") : translateUi("Restore")}
                     </button>
                   </div>
                 );
@@ -183,8 +182,7 @@ export default function SalonPicker() {
       <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
         <AppLogo size={16} textColor="#94a3b8" />
         <p className="text-[10px] text-slate-400 ml-auto">
-          © {new Date().getFullYear()} · All rights reserved.
-        </p>
+          © {new Date().getFullYear()} {translateUi("· All rights reserved. ")}</p>
       </footer>
 
       <Toast toast={toast} />

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { FixWithAi } from "~/components/FixWithAi";
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -98,6 +99,7 @@ function ScheduleEditor({
   operatingHours?: OperatingHours[];
   hint?: string;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const hasConfiguredHours = Boolean(operatingHours?.length);
 
   function update(idx: number, patch: Partial<ScheduleEntry>) {
@@ -107,8 +109,7 @@ function ScheduleEditor({
   return (
     <div>
       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 pb-2 border-b border-slate-100 flex items-center gap-1.5">
-        <Clock className="w-3.5 h-3.5" /> Calendar availability
-      </div>
+        <Clock className="w-3.5 h-3.5" /> {translateUi("Calendar availability ")}</div>
       {hint && (
         <p className="text-[11px] text-matcha-700 bg-matcha-50 border border-matcha-100 rounded-md px-2.5 py-1.5 mb-2.5">
           {hint}
@@ -147,7 +148,7 @@ function ScheduleEditor({
                 </span>
 
                 {salonClosed ? (
-                  <span className="text-xs text-slate-300 italic">Salon closed</span>
+                  <span className="text-xs text-slate-300 italic">{translateUi("Salon closed")}</span>
                 ) : entry.enabled ? (
                   <>
                     <input
@@ -177,14 +178,14 @@ function ScheduleEditor({
                     />
                   </>
                 ) : (
-                  <span className="text-xs text-slate-300 italic">Day off</span>
+                  <span className="text-xs text-slate-300 italic">{translateUi("Day off")}</span>
                 )}
               </div>
 
               {hasErr && (
                 <p className="flex items-center gap-1 text-[10px] font-medium text-amber-600 pl-[84px]">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
-                  Outside salon hours ({oh!.openTime} – {oh!.closeTime})
+                  {translateUi("Outside salon hours (")}{oh!.openTime} – {oh!.closeTime})
                 </p>
               )}
             </div>
@@ -198,6 +199,7 @@ function ScheduleEditor({
 // ── Camera capture modal ──────────────────────────────────────────────────────
 
 function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, file: File) => void; onClose: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -267,7 +269,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-xs flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <span className="text-sm font-semibold text-slate-800">Take a photo</span>
+          <span className="text-sm font-semibold text-slate-800">{translateUi("Take a photo")}</span>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -284,8 +286,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
               onClick={onClose}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium text-slate-700 cursor-pointer transition-colors"
             >
-              Close
-            </button>
+              {translateUi("Close ")}</button>
           </div>
         ) : (
           <>
@@ -308,7 +309,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
                 type="button"
                 onClick={flipCamera}
                 className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors cursor-pointer backdrop-blur-sm"
-                title="Flip camera"
+                title={translateUi("Flip camera")}
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
@@ -322,12 +323,12 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
                 type="button"
                 onClick={capture}
                 disabled={!ready}
-                title="Capture photo"
+                title={translateUi("Capture photo")}
                 className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 hover:border-matcha-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center"
               >
                 <div className="w-10 h-10 rounded-full bg-slate-800 hover:bg-matcha-700 transition-colors" />
               </button>
-              <p className="text-[11px] text-slate-400">Click the button to capture</p>
+              <p className="text-[11px] text-slate-400">{translateUi("Click the button to capture")}</p>
             </div>
           </>
         )}
@@ -358,6 +359,7 @@ function PhotoPicker({
   onChange: (v: string | null) => void;
   onFileSelect?: (file: File | null) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const uploadRef      = useRef<HTMLInputElement>(null);
   const [showCam, setShowCam] = useState(false);
 
@@ -379,10 +381,10 @@ function PhotoPicker({
             type="button"
             onClick={() => uploadRef.current?.click()}
             className="w-20 h-20 rounded-full border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden hover:border-matcha-400 hover:bg-matcha-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-matcha-500/20"
-            title="Upload photo"
+            title={translateUi("Upload photo")}
           >
             {value ? (
-              <img src={value} alt="Staff photo preview" className="w-full h-full object-cover" />
+              <img src={value} alt={translateUi("Staff photo preview")} className="w-full h-full object-cover" />
             ) : (
               <UserCircle className="w-10 h-10 text-slate-300" />
             )}
@@ -391,7 +393,7 @@ function PhotoPicker({
           <button
             type="button"
             onClick={() => setShowCam(true)}
-            title="Take photo"
+            title={translateUi("Take photo")}
             className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-matcha-600 text-white flex items-center justify-center hover:bg-matcha-700 transition-colors cursor-pointer shadow-sm"
           >
             <Camera className="w-3 h-3" />
@@ -401,7 +403,7 @@ function PhotoPicker({
             <button
               type="button"
               onClick={() => { onChange(null); onFileSelect?.(null); }}
-              title="Remove photo"
+              title={translateUi("Remove photo")}
               className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer text-xs leading-none shadow-sm"
             >
               <X className="w-3 h-3" />
@@ -411,12 +413,10 @@ function PhotoPicker({
 
         <div className="flex items-center gap-3 text-xs text-slate-400">
           <button type="button" onClick={() => uploadRef.current?.click()} className="hover:text-matcha-600 transition-colors cursor-pointer">
-            Upload photo
-          </button>
+            {translateUi("Upload photo ")}</button>
           <span className="text-slate-200">·</span>
           <button type="button" onClick={() => setShowCam(true)} className="hover:text-matcha-600 transition-colors cursor-pointer">
-            Take photo
-          </button>
+            {translateUi("Take photo ")}</button>
         </div>
 
         <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
@@ -445,9 +445,10 @@ async function uploadWorkFile(apiBase: string, sid: string | number, staffId: nu
 }
 
 function WorkMedia({ url, className }: { url: string; className: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return isVideoUrl(url)
     ? <video src={url} controls preload="metadata" className={`${className} bg-black`} />
-    : <img src={url} alt="Work sample" className={className} loading="lazy" />;
+    : <img src={url} alt={translateUi("Work sample")} className={className} loading="lazy" />;
 }
 
 function WorkGalleryEditor({ urls, files, onChangeUrls, onChangeFiles }: {
@@ -456,6 +457,7 @@ function WorkGalleryEditor({ urls, files, onChangeUrls, onChangeFiles }: {
   onChangeUrls: (u: string[]) => void;
   onChangeFiles: (f: File[]) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const previews = files.map((f) => ({ src: URL.createObjectURL(f), video: f.type.startsWith("video/") }));
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.src)), [files]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -463,14 +465,13 @@ function WorkGalleryEditor({ urls, files, onChangeUrls, onChangeFiles }: {
   return (
     <div>
       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
-        Work gallery
-      </div>
-      <p className="text-[11px] text-slate-400 mb-2">Photos or short videos of this person's work — shown on the salon website.</p>
+        {translateUi("Work gallery ")}</div>
+      <p className="text-[11px] text-slate-400 mb-2">{translateUi("Photos or short videos of this person's work — shown on the salon website.")}</p>
       <div className="flex flex-wrap gap-2">
         {urls.map((url) => (
           <div key={url} className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200">
             <WorkMedia url={url} className="w-full h-full object-cover" />
-            <button type="button" title="Remove"
+            <button type="button" title={translateUi("Remove")}
               onClick={() => onChangeUrls(urls.filter((u) => u !== url))}
               className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm">
               <X className="w-3 h-3" />
@@ -481,8 +482,8 @@ function WorkGalleryEditor({ urls, files, onChangeUrls, onChangeFiles }: {
           <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-matcha-300">
             {p.video
               ? <video src={p.src} className="w-full h-full object-cover bg-black" />
-              : <img src={p.src} alt="Pending upload" className="w-full h-full object-cover" />}
-            <button type="button" title="Remove"
+              : <img src={p.src} alt={translateUi("Pending upload")} className="w-full h-full object-cover" />}
+            <button type="button" title={translateUi("Remove")}
               onClick={() => onChangeFiles(files.filter((_, j) => j !== i))}
               className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm">
               <X className="w-3 h-3" />
@@ -519,6 +520,7 @@ function AddStaffFlow({
   onSubmit: (fields: StaffFormFields, schedule: ScheduleEntry[]) => void;
   busy: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [f, setF] = useState<StaffFormFields>({
     name: "", email: "", phone: "", role: "STYLIST", specializations: [], photo: null, photoFile: null,
     bio: "", workUrls: [], workFiles: [],
@@ -540,18 +542,18 @@ function AddStaffFlow({
   return (
     <div>
       <div className="mb-5">
-        <label className={fieldLabel}>Full name <span className="text-red-500">*</span></label>
+        <label className={fieldLabel}>{translateUi("Full name ")}<span className="text-red-500">*</span></label>
         <input
           autoFocus
           className={inputCls}
-          placeholder="e.g. Anna Nguyen"
+          placeholder={translateUi("e.g. Anna Nguyen")}
           value={f.name}
           onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
         />
       </div>
 
       <div className="mb-5">
-        <label className={fieldLabel}>Role</label>
+        <label className={fieldLabel}>{translateUi("Role")}</label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {STAFF_ROLES.map((role) => (
             <button
@@ -566,7 +568,7 @@ function AddStaffFlow({
             >
               <span className="text-base shrink-0 leading-none">{ROLE_EMOJI[role]}</span>
               <span className={`text-xs font-semibold leading-tight ${f.role === role ? "text-matcha-700" : "text-slate-600"}`}>
-                {STAFF_ROLE_LABEL[role]}
+                {translateUi(STAFF_ROLE_LABEL[role])}
               </span>
             </button>
           ))}
@@ -574,11 +576,11 @@ function AddStaffFlow({
       </div>
 
       <div className="mb-4">
-        <label className={fieldLabel}>Email <span className="text-red-500">*</span></label>
+        <label className={fieldLabel}>{translateUi("Email ")}<span className="text-red-500">*</span></label>
         <input
           className={inputCls}
           type="email"
-          placeholder="staff@salon.com"
+          placeholder={"staff@salon.com"}
           value={f.email}
           onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
         />
@@ -590,13 +592,13 @@ function AddStaffFlow({
         className="flex items-center gap-1 text-xs text-slate-400 hover:text-matcha-600 cursor-pointer transition-colors mb-3"
       >
         {showAdvanced ? <ChevronDown className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-        {showAdvanced ? "Hide advanced options" : "Phone, specializations, work media & availability"}
+        {showAdvanced ? translateUi("Hide advanced options") : translateUi("Phone, specializations, work media & availability")}
       </button>
       {showAdvanced && (
         <div className="mb-4 space-y-4">
           <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} onFileSelect={(file) => setF((p) => ({ ...p, photoFile: file }))} />
           <div>
-            <label className={fieldLabel}>Phone</label>
+            <label className={fieldLabel}>{translateUi("Phone")}</label>
             <PhoneInput
               value={f.phone}
               onChange={(v) => setF((p) => ({ ...p, phone: v }))}
@@ -606,8 +608,7 @@ function AddStaffFlow({
           </div>
           <div>
             <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
-              Specializations
-            </div>
+              {translateUi("Specializations ")}</div>
             <TileGrid
               options={SPECIALIZATION_OPTIONS}
               labels={CATEGORY_LABEL}
@@ -616,14 +617,14 @@ function AddStaffFlow({
             />
           </div>
           <div>
-            <label className={fieldLabel}>About me</label>
+            <label className={fieldLabel}>{translateUi("About me")}</label>
             <FixWithAi context="STAFF_BIO" value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
               <textarea
                 className={`${inputCls} resize-none`}
                 rows={3}
                 value={f.bio}
                 onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
-                placeholder="A short introduction shown on the salon website…"
+                placeholder={translateUi("A short introduction shown on the salon website…")}
               />
             </FixWithAi>
           </div>
@@ -639,7 +640,7 @@ function AddStaffFlow({
             operatingHours={operatingHours}
             hint={
               operatingHours?.some((h) => !h.closed)
-                ? "Pre-filled from your salon's opening hours. Times are capped to salon operating hours."
+                ? translateUi("Pre-filled from your salon's opening hours. Times are capped to salon operating hours.")
                 : undefined
             }
           />
@@ -649,11 +650,11 @@ function AddStaffFlow({
       <button
         type="button"
         disabled={!canSubmit || busy}
-        title={scheduleHasErrors ? "Fix schedule hours before saving" : undefined}
+        title={scheduleHasErrors ? translateUi("Fix schedule hours before saving") : undefined}
         onClick={() => onSubmit(f, schedule)}
         className="w-full py-2.5 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
       >
-        {busy ? "Adding…" : "Add Team Member →"}
+        {busy ? translateUi("Adding…") : translateUi("Add Team Member →")}
       </button>
     </div>
   );
@@ -667,26 +668,27 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
   countries: Country[];
   defaultCountry?: string;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <>
       <PhotoPicker value={f.photo} onChange={(v) => setF((p) => ({ ...p, photo: v }))} onFileSelect={(file) => setF((p) => ({ ...p, photoFile: file }))} />
 
       <div className="mb-4">
-        <label className={fieldLabel}>Name <span className="text-red-500">*</span></label>
+        <label className={fieldLabel}>{translateUi("Name ")}<span className="text-red-500">*</span></label>
         <input
           className={inputCls}
-          placeholder="Full name"
+          placeholder={translateUi("Full name")}
           value={f.name}
           onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
         />
       </div>
 
       <div className="mb-4">
-        <label className={fieldLabel}>Email <span className="text-red-500">*</span></label>
+        <label className={fieldLabel}>{translateUi("Email ")}<span className="text-red-500">*</span></label>
         <input
           className={inputCls}
           type="email"
-          placeholder="staff@salon.com"
+          placeholder={"staff@salon.com"}
           value={f.email}
           onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
         />
@@ -694,7 +696,7 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
-          <label className={fieldLabel}>Phone</label>
+          <label className={fieldLabel}>{translateUi("Phone")}</label>
           <PhoneInput
             value={f.phone}
             onChange={(v) => setF((p) => ({ ...p, phone: v }))}
@@ -703,20 +705,19 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
           />
         </div>
         <div>
-          <label className={fieldLabel}>Role</label>
+          <label className={fieldLabel}>{translateUi("Role")}</label>
           <select
             className={inputCls}
             value={f.role}
             onChange={(e) => setF((p) => ({ ...p, role: e.target.value }))}
           >
-            {STAFF_ROLES.map((r) => <option key={r} value={r}>{STAFF_ROLE_LABEL[r]}</option>)}
+            {STAFF_ROLES.map((r) => <option key={r} value={r}>{translateUi(STAFF_ROLE_LABEL[r])}</option>)}
           </select>
         </div>
       </div>
 
       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
-        Specializations
-      </div>
+        {translateUi("Specializations ")}</div>
       <TileGrid
         options={SPECIALIZATION_OPTIONS}
         labels={CATEGORY_LABEL}
@@ -725,14 +726,14 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
       />
 
       <div className="mt-4 mb-4">
-        <label className={fieldLabel}>About me</label>
+        <label className={fieldLabel}>{translateUi("About me")}</label>
         <FixWithAi context="STAFF_BIO" value={f.bio} onApply={(text) => setF((p) => ({ ...p, bio: text }))}>
           <textarea
             className={`${inputCls} resize-none`}
             rows={3}
             value={f.bio}
             onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))}
-            placeholder="A short introduction shown on the salon website…"
+            placeholder={translateUi("A short introduction shown on the salon website…")}
           />
         </FixWithAi>
       </div>
@@ -749,6 +750,7 @@ function StaffForm({ f, setF, countries, defaultCountry }: {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Staff() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<LayoutContext>();
   const { staff: init, countries } = useLoaderData<typeof clientLoader>();
   const [staff,  setStaff]  = useState<StaffMember[]>(init);
@@ -868,11 +870,9 @@ export default function Staff() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Staff</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Staff")}</h1>
         <InfoBar id="staff">
-          Add and manage the people working at your salon — their roles, contact details, and service specializations.
-          Staff members can be assigned to specific services.
-        </InfoBar>
+          {translateUi("Add and manage the people working at your salon — their roles, contact details, and service specializations. Staff members can be assigned to specific services. ")}</InfoBar>
       </div>
 
       {/* ── Setup alert (booking enabled, insufficient staff, not dismissed) */}
@@ -884,8 +884,8 @@ export default function Staff() {
           </span>
           <span className="flex-1 leading-snug">
             {staff.length === 0
-              ? "Add a team member — booking needs someone to assign appointments to."
-              : "Add at least one more team member so appointments can be assigned to your staff."}
+              ? translateUi("Add a team member — booking needs someone to assign appointments to.")
+              : translateUi("Add at least one more team member so appointments can be assigned to your staff.")}
           </span>
           <button
             type="button"
@@ -894,7 +894,7 @@ export default function Staff() {
               setAlertDismissed(true);
             }}
             className="shrink-0 text-amber-400 hover:text-amber-700 transition-colors cursor-pointer"
-            title="Ignore"
+            title={translateUi("Ignore")}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -910,8 +910,8 @@ export default function Staff() {
                 <UserCircle className="w-5 h-5 text-violet-500" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-slate-800">Who's on your team?</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Add the first team member to get started.</p>
+                <h2 className="text-sm font-bold text-slate-800">{translateUi("Who's on your team?")}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{translateUi("Add the first team member to get started.")}</p>
               </div>
             </div>
             <div className="px-6 py-5">
@@ -928,7 +928,7 @@ export default function Staff() {
       ) : (
         <>
           <p className="text-sm text-slate-500 font-medium mb-4">
-            {staff.length} staff member{staff.length !== 1 ? "s" : ""}
+            {staff.length} {translateUi("staff member")}{staff.length !== 1 ? translateUi("s") : ""}
           </p>
 
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
@@ -954,19 +954,17 @@ export default function Staff() {
                     <span className="text-sm font-semibold text-slate-900 truncate">{m.name}</span>
                     {m.isOwner && (
                       <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
-                        <Crown className="w-2.5 h-2.5" /> Owner
-                      </span>
+                        <Crown className="w-2.5 h-2.5" /> {translateUi("Owner ")}</span>
                     )}
                     <span className="text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wide shrink-0">
-                      {STAFF_ROLE_LABEL[m.role] ?? m.role}
+                      {translateUi(STAFF_ROLE_LABEL[m.role] ?? m.role)}
                     </span>
                     <span className="text-[0.62rem] text-slate-400 shrink-0">
-                      {STAFF_STATUS_LABEL[m.status] ?? m.status}
+                      {translateUi(STAFF_STATUS_LABEL[m.status] ?? m.status)}
                     </span>
                     {m.availableForBooking === false && (
                       <span className="inline-flex items-center gap-0.5 text-[0.62rem] text-slate-400 shrink-0">
-                        <CalendarOff className="w-2.5 h-2.5" /> Not bookable
-                      </span>
+                        <CalendarOff className="w-2.5 h-2.5" /> {translateUi("Not bookable ")}</span>
                     )}
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5 truncate">
@@ -976,7 +974,7 @@ export default function Staff() {
                     <div className="flex flex-wrap gap-1 mt-1">
                       {m.specializations.map((s) => (
                         <span key={s} className="text-[0.6rem] font-semibold bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded-full border border-slate-200">
-                          {CATEGORY_LABEL[s] ?? s}
+                          {translateUi(CATEGORY_LABEL[s] ?? s)}
                         </span>
                       ))}
                     </div>
@@ -995,7 +993,7 @@ export default function Staff() {
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => openEdit(m)}
                   >
-                    <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">Edit</span>
+                    <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">{translateUi("Edit")}</span>
                   </button>
                   {!m.isOwner && (
                     <button
@@ -1013,8 +1011,7 @@ export default function Staff() {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer"
                 onClick={openAdd}
               >
-                Add Team Member
-              </button>
+                {translateUi("Add Team Member ")}</button>
             </div>
           </div>
         </>
@@ -1028,7 +1025,7 @@ export default function Staff() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Add Team Member</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Add Team Member")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("add")}>
                 <X className="w-5 h-5" />
               </button>
@@ -1052,20 +1049,20 @@ export default function Staff() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Edit Staff</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Edit Staff")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("edit")}>
                 <X className="w-5 h-5" />
               </button>
             </div>
             <StaffForm f={ef} setF={setEf as React.Dispatch<React.SetStateAction<StaffFormFields>>} countries={countries} defaultCountry={salon.location?.country} />
             <div className="mt-4 mb-2">
-              <label className={fieldLabel}>Status</label>
+              <label className={fieldLabel}>{translateUi("Status")}</label>
               <select
                 className={inputCls}
                 value={ef.status}
                 onChange={(e) => setEf((p) => ({ ...p, status: e.target.value }))}
               >
-                {STAFF_STATUSES.map((s) => <option key={s} value={s}>{STAFF_STATUS_LABEL[s]}</option>)}
+                {STAFF_STATUSES.map((s) => <option key={s} value={s}>{translateUi(STAFF_STATUS_LABEL[s])}</option>)}
               </select>
             </div>
             <label className="flex items-center gap-3 mt-4 cursor-pointer select-none">
@@ -1076,11 +1073,11 @@ export default function Staff() {
                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${ef.availableForBooking ? "translate-x-4" : "translate-x-0"}`} />
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-700">Available for booking</p>
+                <p className="text-sm font-medium text-slate-700">{translateUi("Available for booking")}</p>
                 <p className="text-xs text-slate-400">
                   {ef.availableForBooking
-                    ? "Customers can book appointments with this staff member."
-                    : "This staff member will not appear in the booking calendar."}
+                    ? translateUi("Customers can book appointments with this staff member.")
+                    : translateUi("This staff member will not appear in the booking calendar.")}
                 </p>
               </div>
             </label>
@@ -1089,14 +1086,13 @@ export default function Staff() {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                 onClick={() => closeModal("edit")}
               >
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 disabled={busy}
                 onClick={submitEdit}
               >
-                {busy ? "Saving…" : "Save changes"}
+                {busy ? translateUi("Saving…") : translateUi("Save changes")}
               </button>
             </div>
           </div>
@@ -1111,27 +1107,25 @@ export default function Staff() {
         >
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Remove Staff</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Remove Staff")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("del")}>
                 <X className="w-5 h-5" />
               </button>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Remove <strong className="text-slate-800">{target?.name}</strong> from this salon?
-            </p>
+              {translateUi("Remove ")}<strong className="text-slate-800">{target?.name}</strong> {translateUi("from this salon? ")}</p>
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                 onClick={() => closeModal("del")}
               >
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-red-500 text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 disabled={busy}
                 onClick={submitDel}
               >
-                <Trash2 className="w-3.5 h-3.5" /> {busy ? "Removing…" : "Remove"}
+                <Trash2 className="w-3.5 h-3.5" /> {busy ? translateUi("Removing…") : translateUi("Remove")}
               </button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useOutletContext } from "react-router";
 import { useLoaderData } from "react-router";
@@ -54,6 +55,7 @@ const QUICK_LINKS = [
 ];
 
 function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (h: OperatingHours[]) => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const ensured = DAYS.map(
     (day) => hours.find((h) => h.day === day) ?? { day, openTime: "09:00", closeTime: "18:00", closed: false }
   );
@@ -64,7 +66,7 @@ function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (
     <div className="space-y-2">
       {ensured.map((h, idx) => (
         <div key={h.day} className="flex items-center gap-3">
-          <span className="w-8 text-xs font-medium text-stone-500 shrink-0">{DAY_SHORT[h.day]}</span>
+          <span className="w-8 text-xs font-medium text-stone-500 shrink-0">{translateUi(DAY_SHORT[h.day])}</span>
           <button
             type="button"
             onClick={() => update(idx, { closed: !h.closed })}
@@ -81,7 +83,7 @@ function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (
                 className="flex-1 px-2 py-1 text-xs border border-stone-200 rounded-md bg-stone-50 text-stone-800 outline-none focus:border-matcha-500" />
             </>
           ) : (
-            <span className="text-xs text-stone-400 italic">Closed</span>
+            <span className="text-xs text-stone-400 italic">{translateUi("Closed")}</span>
           )}
         </div>
       ))}
@@ -105,6 +107,7 @@ interface EditableCardProps {
 }
 
 function EditableCard({ title, isEditing, saving, error, onEdit, onCancel, onSave, display, form, className = "" }: EditableCardProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className={`bg-white border rounded-xl overflow-hidden transition-colors ${isEditing ? "border-matcha-300 shadow-sm" : "border-stone-200"} ${className}`}>
       <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100">
@@ -114,15 +117,13 @@ function EditableCard({ title, isEditing, saving, error, onEdit, onCancel, onSav
             onClick={onCancel}
             className="inline-flex items-center gap-1 text-xs text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
           >
-            <X className="w-3 h-3" /> Cancel
-          </button>
+            <X className="w-3 h-3" /> {translateUi("Cancel ")}</button>
         ) : (
           <button
             onClick={onEdit}
             className="inline-flex items-center gap-1 text-xs text-stone-400 hover:text-matcha-600 transition-colors cursor-pointer"
           >
-            <Pencil className="w-3 h-3" /> Edit
-          </button>
+            <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
         )}
       </div>
       <div className="px-5 py-4">
@@ -136,7 +137,7 @@ function EditableCard({ title, isEditing, saving, error, onEdit, onCancel, onSav
             disabled={saving}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40"
           >
-            {saving ? "Saving…" : <><Check className="w-3 h-3" /> Save</>}
+            {saving ? translateUi("Saving…") : <><Check className="w-3 h-3" /> {translateUi("Save")}</>}
           </button>
         </div>
       )}
@@ -145,6 +146,7 @@ function EditableCard({ title, isEditing, saving, error, onEdit, onCancel, onSav
 }
 
 export default function SalonOverview() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon, setSalon } = useOutletContext<SalonManageContext>();
   const { countries } = useLoaderData<typeof clientLoader>();
 
@@ -252,7 +254,7 @@ export default function SalonOverview() {
             className="flex flex-col items-center gap-1.5 px-3 py-3 bg-white border border-stone-200 rounded-xl hover:border-matcha-300 hover:bg-stone-50 transition-all text-center group"
           >
             <Icon className="w-4 h-4 text-stone-400 group-hover:text-matcha-500 transition-colors" />
-            <span className="text-xs font-medium text-stone-500 group-hover:text-stone-800 transition-colors">{label}</span>
+            <span className="text-xs font-medium text-stone-500 group-hover:text-stone-800 transition-colors">{translateUi(label)}</span>
           </Link>
         ))}
       </div>
@@ -262,7 +264,7 @@ export default function SalonOverview() {
 
         {/* Salon name */}
         <EditableCard
-          title="Salon name"
+          title={translateUi("Salon name")}
           isEditing={editing === "name"}
           saving={saving}
           error={editing === "name" ? saveErr : null}
@@ -274,13 +276,13 @@ export default function SalonOverview() {
           }
           form={
             <div>
-              <label className={lbl}>Name <span className="text-red-500">*</span></label>
+              <label className={lbl}>{translateUi("Name ")}<span className="text-red-500">*</span></label>
               <input
                 autoFocus
                 className={inp}
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
-                placeholder="e.g. The Modern Cut"
+                placeholder={translateUi("e.g. The Modern Cut")}
               />
             </div>
           }
@@ -288,7 +290,7 @@ export default function SalonOverview() {
 
         {/* Owner */}
         <EditableCard
-          title="Ownership"
+          title={translateUi("Ownership")}
           isEditing={editing === "owner"}
           saving={saving}
           error={editing === "owner" ? saveErr : null}
@@ -300,57 +302,57 @@ export default function SalonOverview() {
               {salon.owner?.name && (
                 <div className="flex items-start gap-3">
                   <User className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">Name</p><p className="text-sm text-stone-800">{salon.owner.name}</p></div>
+                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">{translateUi("Name")}</p><p className="text-sm text-stone-800">{salon.owner.name}</p></div>
                 </div>
               )}
               {salon.owner?.email && (
                 <div className="flex items-start gap-3">
                   <Mail className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">Email</p><p className="text-sm text-stone-800">{salon.owner.email}</p></div>
+                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">{translateUi("Email")}</p><p className="text-sm text-stone-800">{salon.owner.email}</p></div>
                 </div>
               )}
               {salon.owner?.phone && (
                 <div className="flex items-start gap-3">
                   <Phone className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">Phone</p><p className="text-sm text-stone-800">{salon.owner.phone}</p></div>
+                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">{translateUi("Phone")}</p><p className="text-sm text-stone-800">{salon.owner.phone}</p></div>
                 </div>
               )}
               {!salon.owner?.name && !salon.owner?.email && (
-                <p className="text-sm text-stone-400 italic">No owner info</p>
+                <p className="text-sm text-stone-400 italic">{translateUi("No owner info")}</p>
               )}
             </div>
           }
           form={
             <div className="space-y-3">
               <div>
-                <label className={lbl}>Full name <span className="text-red-500">*</span></label>
+                <label className={lbl}>{translateUi("Full name ")}<span className="text-red-500">*</span></label>
                 <input
                   autoFocus
                   className={inp}
                   value={ownerDraft.name}
                   onChange={(e) => setOwnerDraft((o) => ({ ...o, name: e.target.value }))}
-                  placeholder="Jane Smith"
+                  placeholder={translateUi("Jane Smith")}
                 />
               </div>
               <div>
-                <label className={lbl}>Email <span className="text-red-500">*</span></label>
+                <label className={lbl}>{translateUi("Email ")}<span className="text-red-500">*</span></label>
                 <input
                   type="email"
                   className={inp}
                   value={ownerDraft.email}
                   onChange={(e) => setOwnerDraft((o) => ({ ...o, email: e.target.value }))}
-                  placeholder="owner@salon.com"
+                  placeholder={"owner@salon.com"}
                 />
-                <p className="text-xs text-stone-400 mt-1">Changing this affects owner login access.</p>
+                <p className="text-xs text-stone-400 mt-1">{translateUi("Changing this affects owner login access.")}</p>
               </div>
               <div>
-                <label className={lbl}>Phone</label>
+                <label className={lbl}>{translateUi("Phone")}</label>
                 <input
                   type="tel"
                   className={inp}
                   value={ownerDraft.phone ?? ""}
                   onChange={(e) => setOwnerDraft((o) => ({ ...o, phone: e.target.value }))}
-                  placeholder="+1 555 000 0000"
+                  placeholder={"+1 555 000 0000"}
                 />
               </div>
             </div>
@@ -363,7 +365,7 @@ export default function SalonOverview() {
 
         {/* Location */}
         <EditableCard
-          title="Location"
+          title={translateUi("Location")}
           isEditing={editing === "location"}
           saving={saving}
           error={editing === "location" ? saveErr : null}
@@ -383,42 +385,42 @@ export default function SalonOverview() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-stone-400 italic">No location set</p>
+                <p className="text-sm text-stone-400 italic">{translateUi("No location set")}</p>
               )}
             </div>
           }
           form={
             <div className="space-y-3">
               <div>
-                <label className={lbl}>Country</label>
+                <label className={lbl}>{translateUi("Country")}</label>
                 <select
                   value={locDraft.country ?? ""}
                   onChange={(e) => setLocDraft((l) => ({ ...l, country: e.target.value }))}
                   className={`${inp} appearance-none`}
                 >
-                  <option value="">Select country…</option>
+                  <option value="">{translateUi("Select country…")}</option>
                   {countries.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className={lbl}>Address</label>
-                <input className={inp} value={locDraft.address ?? ""} onChange={(e) => setLocDraft((l) => ({ ...l, address: e.target.value }))} placeholder="123 Main St" />
+                <label className={lbl}>{translateUi("Address")}</label>
+                <input className={inp} value={locDraft.address ?? ""} onChange={(e) => setLocDraft((l) => ({ ...l, address: e.target.value }))} placeholder={translateUi("123 Main St")} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className={lbl}>Postal code</label>
-                  <input className={inp} value={locDraft.zipCode ?? ""} onChange={(e) => setLocDraft((l) => ({ ...l, zipCode: e.target.value }))} placeholder="94105" />
+                  <label className={lbl}>{translateUi("Postal code")}</label>
+                  <input className={inp} value={locDraft.zipCode ?? ""} onChange={(e) => setLocDraft((l) => ({ ...l, zipCode: e.target.value }))} placeholder={"94105"} />
                 </div>
                 <div>
-                  <label className={lbl}>City</label>
-                  <input className={inp} value={locDraft.city ?? ""} onChange={(e) => setLocDraft((l) => ({ ...l, city: e.target.value }))} placeholder="San Francisco" />
+                  <label className={lbl}>{translateUi("City")}</label>
+                  <input className={inp} value={locDraft.city ?? ""} onChange={(e) => setLocDraft((l) => ({ ...l, city: e.target.value }))} placeholder={translateUi("San Francisco")} />
                 </div>
               </div>
               {bizIdLabel && (
                 <div>
                   <label className={lbl}>{bizIdLabel}</label>
                   <input className={`${inp} opacity-60`} value={salon.businessRegistrationId ?? ""} readOnly placeholder={selectedCountry?.businessIdPlaceholder ?? ""} />
-                  <p className="text-xs text-stone-400 mt-1">Edit business registration ID via the full Edit Details form.</p>
+                  <p className="text-xs text-stone-400 mt-1">{translateUi("Edit business registration ID via the full Edit Details form.")}</p>
                 </div>
               )}
             </div>
@@ -427,7 +429,7 @@ export default function SalonOverview() {
 
         {/* Contact */}
         <EditableCard
-          title="Contact info"
+          title={translateUi("Contact info")}
           isEditing={editing === "contact"}
           saving={saving}
           error={editing === "contact" ? saveErr : null}
@@ -439,39 +441,39 @@ export default function SalonOverview() {
               {salon.contact?.phone && (
                 <div className="flex items-start gap-3">
                   <Phone className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">Phone</p><p className="text-sm text-stone-800">{salon.contact.phone}</p></div>
+                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">{translateUi("Phone")}</p><p className="text-sm text-stone-800">{salon.contact.phone}</p></div>
                 </div>
               )}
               {salon.contact?.email && (
                 <div className="flex items-start gap-3">
                   <Mail className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">Email</p><p className="text-sm text-stone-800">{salon.contact.email}</p></div>
+                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">{translateUi("Email")}</p><p className="text-sm text-stone-800">{salon.contact.email}</p></div>
                 </div>
               )}
               {salon.contact?.website && (
                 <div className="flex items-start gap-3">
                   <Globe className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">Website</p><p className="text-sm text-stone-800 break-all">{salon.contact.website}</p></div>
+                  <div><p className="text-[10px] text-stone-400 uppercase tracking-wide">{translateUi("Website")}</p><p className="text-sm text-stone-800 break-all">{salon.contact.website}</p></div>
                 </div>
               )}
               {!salon.contact?.phone && !salon.contact?.email && !salon.contact?.website && (
-                <p className="text-sm text-stone-400 italic">No contact info</p>
+                <p className="text-sm text-stone-400 italic">{translateUi("No contact info")}</p>
               )}
             </div>
           }
           form={
             <div className="space-y-3">
               <div>
-                <label className={lbl}>Phone</label>
-                <input type="tel" className={inp} value={contactDraft.phone ?? ""} onChange={(e) => setContactDraft((c) => ({ ...c, phone: e.target.value }))} placeholder="+1 555 000 0000" />
+                <label className={lbl}>{translateUi("Phone")}</label>
+                <input type="tel" className={inp} value={contactDraft.phone ?? ""} onChange={(e) => setContactDraft((c) => ({ ...c, phone: e.target.value }))} placeholder={"+1 555 000 0000"} />
               </div>
               <div>
-                <label className={lbl}>Email</label>
-                <input type="email" className={inp} value={contactDraft.email ?? ""} onChange={(e) => setContactDraft((c) => ({ ...c, email: e.target.value }))} placeholder="hello@salon.com" />
+                <label className={lbl}>{translateUi("Email")}</label>
+                <input type="email" className={inp} value={contactDraft.email ?? ""} onChange={(e) => setContactDraft((c) => ({ ...c, email: e.target.value }))} placeholder={"hello@salon.com"} />
               </div>
               <div>
-                <label className={lbl}>Website</label>
-                <input className={inp} value={contactDraft.website ?? ""} onChange={(e) => setContactDraft((c) => ({ ...c, website: e.target.value }))} placeholder="https://salon.com" />
+                <label className={lbl}>{translateUi("Website")}</label>
+                <input className={inp} value={contactDraft.website ?? ""} onChange={(e) => setContactDraft((c) => ({ ...c, website: e.target.value }))} placeholder={"https://salon.com"} />
               </div>
             </div>
           }
@@ -480,7 +482,7 @@ export default function SalonOverview() {
 
       {/* Features (full width) */}
       <EditableCard
-        title="Active Features"
+        title={translateUi("Active Features")}
         isEditing={editing === "features"}
         saving={saving}
         error={editing === "features" ? saveErr : null}
@@ -492,12 +494,12 @@ export default function SalonOverview() {
             <div className="flex flex-wrap gap-2">
               {salon.features.map((f) => (
                 <span key={f} className={`text-xs font-semibold px-2.5 py-1 rounded border flex items-center gap-1.5 ${FEATURE_COLOR[f] ?? "bg-stone-100 text-stone-600 border-stone-200"}`}>
-                  <Zap className="w-3 h-3" /> {FEATURE_LABEL[f] ?? f}
+                  <Zap className="w-3 h-3" /> {translateUi(FEATURE_LABEL[f] ?? f)}
                 </span>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-stone-400 italic">No features enabled</p>
+            <p className="text-sm text-stone-400 italic">{translateUi("No features enabled")}</p>
           )
         }
         form={
@@ -516,7 +518,7 @@ export default function SalonOverview() {
                   <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${on ? "bg-matcha-600 border-matcha-500" : "border-stone-300"}`}>
                     {on && <Check className="w-2.5 h-2.5 text-white" />}
                   </div>
-                  <span className="text-sm font-medium">{FEATURE_LABEL[f]}</span>
+                  <span className="text-sm font-medium">{translateUi(FEATURE_LABEL[f])}</span>
                 </button>
               );
             })}
@@ -526,7 +528,7 @@ export default function SalonOverview() {
 
       {/* Operating Hours (full width) */}
       <EditableCard
-        title="Opening hours"
+        title={translateUi("Opening hours")}
         isEditing={editing === "hours"}
         saving={saving}
         error={editing === "hours" ? saveErr : null}
@@ -538,9 +540,9 @@ export default function SalonOverview() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {salon.operatingHours.map((h) => (
                 <div key={h.day} className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-stone-400 w-8">{DAY_SHORT[h.day] ?? h.day}</span>
+                  <span className="text-xs font-semibold text-stone-400 w-8">{translateUi(DAY_SHORT[h.day] ?? h.day)}</span>
                   {h.closed ? (
-                    <span className="text-xs text-stone-300">Closed</span>
+                    <span className="text-xs text-stone-300">{translateUi("Closed")}</span>
                   ) : (
                     <span className="text-xs text-stone-500">{h.openTime}–{h.closeTime}</span>
                   )}
@@ -548,7 +550,7 @@ export default function SalonOverview() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-stone-400 italic">No hours set</p>
+            <p className="text-sm text-stone-400 italic">{translateUi("No hours set")}</p>
           )
         }
         form={<HoursEditor hours={hoursDraft} onChange={setHoursDraft} />}
@@ -557,7 +559,7 @@ export default function SalonOverview() {
       {/* Footer */}
       <div className="flex items-center gap-2 text-xs text-stone-400">
         <Clock className="w-3 h-3" />
-        Salon ID: <span className="font-mono">{salon.id}</span>
+        {translateUi("Salon ID: ")}<span className="font-mono">{salon.id}</span>
       </div>
     </div>
   );

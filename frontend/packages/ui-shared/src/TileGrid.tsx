@@ -1,3 +1,5 @@
+import { useI18n } from "@salon/i18n";
+
 interface Props {
   options: readonly string[];
   labels: Record<string, string>;
@@ -12,6 +14,7 @@ function toggle(list: string[], val: string): string[] {
 }
 
 export function TileGrid({ options, labels, selected, onChange, descriptions }: Props) {
+  const { t } = useI18n();
   const hasDescriptions = !!descriptions && options.some((f) => descriptions[f]);
   return (
     <div className={hasDescriptions ? "grid grid-cols-1 sm:grid-cols-2 gap-2.5" : "grid grid-cols-2 sm:grid-cols-3 gap-2.5"}>
@@ -44,10 +47,10 @@ export function TileGrid({ options, labels, selected, onChange, descriptions }: 
               )}
             </div>
             <span className="min-w-0">
-              <span className="block text-sm font-medium leading-tight">{labels[f] ?? f}</span>
+              <span className="block text-sm font-medium leading-tight">{t(labels[f] ?? f)}</span>
               {desc && (
                 <span className={`block mt-1 text-xs leading-snug ${on ? "text-matcha-600" : "text-stone-500"}`}>
-                  {desc}
+                  {t(desc)}
                 </span>
               )}
             </span>

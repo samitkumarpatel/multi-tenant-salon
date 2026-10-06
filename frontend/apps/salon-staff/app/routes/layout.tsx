@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResponse, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState, useRef, useEffect } from "react";
@@ -24,6 +25,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs) {
 }
 
 export function ErrorBoundary() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const error = useRouteError();
   const is404 =
     isRouteErrorResponse(error)
@@ -45,29 +47,27 @@ export function ErrorBoundary() {
         <span className="text-2xl">{is403 ? "🔒" : "✂️"}</span>
       </div>
       <h1 className="text-lg font-bold text-slate-800 mb-2">
-        {is403 ? "You are not authorized" : is404 ? "Page not found" : "Something went wrong"}
+        {is403 ? translateUi("You are not authorized") : is404 ? translateUi("Page not found") : translateUi("Something went wrong")}
       </h1>
       <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-6">
         {is403
-          ? "You don't have permission to view this page."
+          ? translateUi("You don't have permission to view this page.")
           : is404
-          ? "This page doesn't exist."
-          : "An error occurred while loading this page."}
+          ? translateUi("This page doesn't exist.")
+          : translateUi("An error occurred while loading this page.")}
       </p>
       <div className="flex gap-3">
         <a
           href="/portal"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium no-underline"
         >
-          ← Go to dashboard
-        </a>
+          {translateUi("← Go to dashboard ")}</a>
         {!is404 && !is403 && (
           <button
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium cursor-pointer"
           >
-            ↻ Retry
-          </button>
+            {translateUi("↻ Retry ")}</button>
         )}
       </div>
     </div>
@@ -90,6 +90,7 @@ const STATUS_DOT: Record<string, string> = {
 // different account, so we swap the session and reload the portal fresh.
 
 function StaffSwitcher({ session }: { session: StaffSession }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const accounts = session.accounts ?? [];
   const [open, setOpen] = useState(false);
   const [panelPos, setPanelPos] = useState({ top: 0, right: 0 });
@@ -138,12 +139,12 @@ function StaffSwitcher({ session }: { session: StaffSession }) {
           <div className="fixed inset-0 z-[59]" onClick={() => setOpen(false)} />
           <div
             role="listbox"
-            aria-label="Switch salon"
+            aria-label={translateUi("Switch salon")}
             style={{ position: "fixed", top: panelPos.top, right: panelPos.right }}
             className="z-[60] bg-white border border-slate-200 rounded-xl shadow-lg w-64 overflow-hidden"
           >
             <div className="px-3 py-2 border-b border-slate-100">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch salon</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{translateUi("Switch salon")}</p>
             </div>
             {accounts.map((m) => {
               const isActive = m.id === session.staffId;
@@ -179,6 +180,7 @@ function StaffSwitcher({ session }: { session: StaffSession }) {
 }
 
 export default function Layout() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
   const { toast, notify } = useToast();
   const { staff } = useLoaderData<typeof clientLoader>();
@@ -231,7 +233,7 @@ export default function Layout() {
         <button
           className="md:hidden p-1.5 rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer"
           onClick={() => setSidebarOpen((v) => !v)}
-          aria-label="Toggle navigation"
+          aria-label={translateUi("Toggle navigation")}
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -246,7 +248,7 @@ export default function Layout() {
         </div>
 
         <div className="hidden sm:flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Staff Portal</span>
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">{translateUi("Staff Portal")}</span>
           {session.salonName && (session.accounts?.length ?? 0) <= 1 && (
             <>
               <span className="text-slate-200 select-none">·</span>
@@ -270,7 +272,7 @@ export default function Layout() {
             className="shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">Sign out</span>
+            <span className="hidden sm:inline">{translateUi("Sign out")}</span>
           </button>
         </div>
       </header>
@@ -294,7 +296,7 @@ export default function Layout() {
         `}>
 
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 md:hidden">
-            <span className="text-xs font-semibold text-slate-500">Navigation</span>
+            <span className="text-xs font-semibold text-slate-500">{translateUi("Navigation")}</span>
             <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
               <XIcon className="w-4 h-4" />
             </button>
@@ -331,28 +333,22 @@ export default function Layout() {
 
           <nav className="flex-1 px-3 py-3 flex flex-col gap-0.5">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5">
-              My Portal
-            </p>
+              {translateUi("My Portal ")}</p>
 
             <NavLink to="/portal" end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <LayoutDashboard className="w-4 h-4 shrink-0" /> Dashboard
-            </NavLink>
+              <LayoutDashboard className="w-4 h-4 shrink-0" /> {translateUi("Dashboard ")}</NavLink>
 
             <NavLink to="/portal/profile" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <UserCircle className="w-4 h-4 shrink-0" /> My Profile
-            </NavLink>
+              <UserCircle className="w-4 h-4 shrink-0" /> {translateUi("My Profile ")}</NavLink>
 
             <NavLink to="/portal/media" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <Images className="w-4 h-4 shrink-0" /> My Work Media
-            </NavLink>
+              <Images className="w-4 h-4 shrink-0" /> {translateUi("My Work Media ")}</NavLink>
 
             <NavLink to="/portal/appointments" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <CalendarCheck className="w-4 h-4 shrink-0" /> My Appointments
-            </NavLink>
+              <CalendarCheck className="w-4 h-4 shrink-0" /> {translateUi("My Appointments ")}</NavLink>
 
             <NavLink to="/portal/holidays" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <CalendarDays className="w-4 h-4 shrink-0" /> My Holidays
-            </NavLink>
+              <CalendarDays className="w-4 h-4 shrink-0" /> {translateUi("My Holidays ")}</NavLink>
           </nav>
 
           <div className="px-3 py-3 border-t border-slate-100">
@@ -360,8 +356,7 @@ export default function Layout() {
               onClick={() => { setSidebarOpen(false); handleLogout(); }}
               className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer w-full text-left"
             >
-              <LogOut className="w-4 h-4 shrink-0" /> Sign out
-            </button>
+              <LogOut className="w-4 h-4 shrink-0" /> {translateUi("Sign out ")}</button>
           </div>
         </aside>
 

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router";
 import {
@@ -49,6 +50,7 @@ interface DrawerProps {
 }
 
 function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [features, setFeatures] = useState<SalonFeature[]>(salon.features ?? []);
   const [saving, setSaving]     = useState(false);
   const [saveErr, setSaveErr]   = useState<string | null>(null);
@@ -141,8 +143,7 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
               <ExternalLink className="w-3 h-3" />
-              Manage
-            </Link>
+              {translateUi("Manage ")}</Link>
             <button
               onClick={onClose}
               className="text-stone-400 hover:text-stone-800 transition-colors cursor-pointer p-1"
@@ -159,8 +160,8 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
             <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-red-500">Salon is disabled</p>
-                <p className="text-[11px] text-red-500 mt-0.5">Not accepting bookings or visible publicly.</p>
+                <p className="text-xs font-semibold text-red-500">{translateUi("Salon is disabled")}</p>
+                <p className="text-[11px] text-red-500 mt-0.5">{translateUi("Not accepting bookings or visible publicly.")}</p>
               </div>
               <button
                 onClick={handleEnable}
@@ -168,47 +169,44 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
                 className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Power className="w-3 h-3" />
-                {enabling ? "Enabling…" : "Enable"}
+                {enabling ? translateUi("Enabling…") : translateUi("Enable")}
               </button>
             </div>
           )}
 
           {/* Salon info */}
           <section>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">Details</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">{translateUi("Details")}</h3>
             <dl className="space-y-2">
               {salon.owner?.name && (
                 <div className="flex items-center gap-3">
                   <dt className="flex items-center gap-1.5 text-xs text-stone-400 min-w-[80px]">
-                    <User className="w-3 h-3" /> Owner
-                  </dt>
+                    <User className="w-3 h-3" /> {translateUi("Owner ")}</dt>
                   <dd className="text-xs text-stone-600">{salon.owner.name}</dd>
                 </div>
               )}
               {salon.owner?.email && (
                 <div className="flex items-center gap-3">
                   <dt className="flex items-center gap-1.5 text-xs text-stone-400 min-w-[80px]">
-                    <Mail className="w-3 h-3" /> Email
-                  </dt>
+                    <Mail className="w-3 h-3" /> {translateUi("Email ")}</dt>
                   <dd className="text-xs text-stone-600 font-mono">{salon.owner.email}</dd>
                 </div>
               )}
               {(salon.location?.city || salon.location?.country) && (
                 <div className="flex items-center gap-3">
                   <dt className="flex items-center gap-1.5 text-xs text-stone-400 min-w-[80px]">
-                    <MapPin className="w-3 h-3" /> Location
-                  </dt>
+                    <MapPin className="w-3 h-3" /> {translateUi("Location ")}</dt>
                   <dd className="text-xs text-stone-600">
                     {[salon.location?.city, salon.location?.country].filter(Boolean).join(", ")}
                   </dd>
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <dt className="text-xs text-stone-400 min-w-[80px]">Salon ID</dt>
+                <dt className="text-xs text-stone-400 min-w-[80px]">{translateUi("Salon ID")}</dt>
                 <dd className="text-xs text-stone-400 font-mono truncate">{salon.id}</dd>
               </div>
               <div className="flex items-center gap-3">
-                <dt className="text-xs text-stone-400 min-w-[80px]">Created</dt>
+                <dt className="text-xs text-stone-400 min-w-[80px]">{translateUi("Created")}</dt>
                 <dd className="text-xs text-stone-500">{formatDate(salon.createdAt)}</dd>
               </div>
             </dl>
@@ -218,8 +216,7 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
           <section>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
-                <Zap className="w-3 h-3" /> Features
-              </h3>
+                <Zap className="w-3 h-3" /> {translateUi("Features ")}</h3>
               {statusMsg && (
                 <span className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
                   <Check className="w-3 h-3" /> {statusMsg}
@@ -244,7 +241,7 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
                     }`}>
                       {enabled && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
-                    <span className="text-sm font-medium">{FEATURE_LABEL[f]}</span>
+                    <span className="text-sm font-medium">{translateUi(FEATURE_LABEL[f])}</span>
                   </button>
                 );
               })}
@@ -257,42 +254,39 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
               disabled={saving}
               className="mt-3 w-full py-2.5 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40"
             >
-              {saving ? "Saving…" : "Save features"}
+              {saving ? translateUi("Saving…") : translateUi("Save features")}
             </button>
           </section>
 
           {/* Danger zone */}
           {!isDisabled && (
             <section>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-red-600/70 mb-3">Danger zone</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-red-600/70 mb-3">{translateUi("Danger zone")}</h3>
               {!confirmDelete ? (
                 <button
                   onClick={() => setConfirmDelete(true)}
                   className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-red-800/40 bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 hover:border-red-300 transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4 shrink-0" />
-                  Disable salon
-                </button>
+                  {translateUi("Disable salon ")}</button>
               ) : (
                 <div className="border border-red-200 rounded-xl bg-red-50 p-4 space-y-3">
                   <p className="text-xs text-red-500 leading-relaxed">
-                    This will disable <strong className="text-red-700">{salon.name}</strong>. It will stop accepting bookings and be hidden publicly. All data is preserved and can be re-enabled.
-                  </p>
+                    {translateUi("This will disable ")}<strong className="text-red-700">{salon.name}</strong>{translateUi(". It will stop accepting bookings and be hidden publicly. All data is preserved and can be re-enabled. ")}</p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setConfirmDelete(false)}
                       disabled={deleting}
                       className="flex-1 py-2 rounded-lg border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer disabled:opacity-40"
                     >
-                      Cancel
-                    </button>
+                      {translateUi("Cancel ")}</button>
                     <button
                       onClick={handleDelete}
                       disabled={deleting}
                       className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5"
                     >
                       <Trash2 className="w-3 h-3" />
-                      {deleting ? "Disabling…" : "Disable"}
+                      {deleting ? translateUi("Disabling…") : translateUi("Disable")}
                     </button>
                   </div>
                 </div>
@@ -308,6 +302,7 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 export default function SuperAdminHome() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
   const session = getSession();
   const [salons, setSalons]   = useState<Salon[]>([]);
@@ -399,8 +394,7 @@ export default function SuperAdminHome() {
           <AppLogo size={24} showText={false} />
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded hidden sm:inline">
-          Super Admin
-        </span>
+          {translateUi("Super Admin ")}</span>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {session && (
             <div className="hidden md:flex">
@@ -410,7 +404,7 @@ export default function SuperAdminHome() {
           <button
             onClick={() => loadSalons(search, statusFilter)}
             className="shrink-0 p-1.5 rounded-md text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"
-            title="Refresh"
+            title={translateUi("Refresh")}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -419,7 +413,7 @@ export default function SuperAdminHome() {
             className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">Sign out</span>
+            <span className="hidden sm:inline">{translateUi("Sign out")}</span>
           </button>
         </div>
       </header>
@@ -431,12 +425,10 @@ export default function SuperAdminHome() {
           <div>
             <h1 className="text-xl font-bold text-stone-900 flex items-center gap-2">
               <Shield className="w-5 h-5 text-matcha-500" />
-              All Salons
-            </h1>
+              {translateUi("All Salons ")}</h1>
             {!loading && !error && (
               <p className="text-xs text-stone-400 mt-1">
-                {salons.length} total · {activeCount} active · {disabledCount} disabled
-              </p>
+                {salons.length} {translateUi("total · ")}{activeCount} {translateUi("active · ")}{disabledCount} {translateUi("disabled ")}</p>
             )}
           </div>
         </div>
@@ -465,7 +457,7 @@ export default function SuperAdminHome() {
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search by name, owner, email, phone, location…"
+              placeholder={translateUi("Search by name, owner, email, phone, location…")}
               className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 placeholder:text-stone-400 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-600/20 transition"
             />
           </div>
@@ -482,7 +474,7 @@ export default function SuperAdminHome() {
                       : "text-stone-500 hover:text-stone-800"
                   }`}
                 >
-                  {s === "ALL" ? "All" : s === "ACTIVE" ? "Active" : "Disabled"}
+                  {s === "ALL" ? translateUi("All") : s === "ACTIVE" ? translateUi("Active") : translateUi("Disabled")}
                 </button>
               ))}
             </div>
@@ -490,14 +482,14 @@ export default function SuperAdminHome() {
               <button
                 onClick={() => setViewMode("list")}
                 className={`p-1.5 rounded-md transition-colors cursor-pointer ${viewMode === "list" ? "bg-stone-200 text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
-                title="List view"
+                title={translateUi("List view")}
               >
                 <List className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-1.5 rounded-md transition-colors cursor-pointer ${viewMode === "grid" ? "bg-stone-200 text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
-                title="Grid view"
+                title={translateUi("Grid view")}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
               </button>
@@ -509,7 +501,7 @@ export default function SuperAdminHome() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <div className="w-6 h-6 border-2 border-stone-200 border-t-matcha-500 rounded-full animate-spin" />
-            <p className="text-sm text-stone-400">Loading salons…</p>
+            <p className="text-sm text-stone-400">{translateUi("Loading salons…")}</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -517,21 +509,20 @@ export default function SuperAdminHome() {
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-stone-800">Failed to load</p>
+              <p className="text-sm font-semibold text-stone-800">{translateUi("Failed to load")}</p>
               <p className="text-xs text-stone-400 mt-1">{error}</p>
             </div>
             <button
               onClick={() => loadSalons(search, statusFilter)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-sm text-stone-800 font-medium transition-colors cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Retry
-            </button>
+              <RefreshCw className="w-3.5 h-3.5" /> {translateUi("Retry ")}</button>
           </div>
         ) : salons.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
             <Building2 className="w-10 h-10 text-stone-300" />
             <p className="text-sm text-stone-500">
-              {search || statusFilter !== "ALL" ? "No salons match your filters." : "No salons registered yet."}
+              {search || statusFilter !== "ALL" ? translateUi("No salons match your filters.") : translateUi("No salons registered yet.")}
             </p>
           </div>
         ) : viewMode === "grid" ? (
@@ -556,11 +547,11 @@ export default function SuperAdminHome() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-left">
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400">Salon</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden sm:table-cell">Owner</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden md:table-cell">Location</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden lg:table-cell">Features</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400">Status</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400">{translateUi("Salon")}</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden sm:table-cell">{translateUi("Owner")}</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden md:table-cell">{translateUi("Location")}</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400 hidden lg:table-cell">{translateUi("Features")}</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-400">{translateUi("Status")}</th>
                   <th className="px-4 py-3 w-10" />
                 </tr>
               </thead>
@@ -597,7 +588,7 @@ export default function SuperAdminHome() {
                       <div className="flex flex-wrap gap-1">
                         {(s.features ?? []).slice(0, 3).map((f: SalonFeature) => (
                           <span key={f} className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${FEATURE_COLOR[f]}`}>
-                            {FEATURE_LABEL[f]}
+                            {translateUi(FEATURE_LABEL[f])}
                           </span>
                         ))}
                         {(s.features?.length ?? 0) > 3 && (
@@ -637,6 +628,7 @@ export default function SuperAdminHome() {
 // ── Salon card (grid view) ───────────────────────────────────────────────────
 
 function SalonCard({ salon, onClick }: { salon: Salon; onClick: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const isDisabled = salon.status === "DISABLED";
 
   return (
@@ -691,12 +683,12 @@ function SalonCard({ salon, onClick }: { salon: Salon; onClick: () => void }) {
               key={f}
               className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${FEATURE_COLOR[f]}`}
             >
-              {FEATURE_LABEL[f]}
+              {translateUi(FEATURE_LABEL[f])}
             </span>
           ))}
         </div>
       ) : (
-        <p className="text-[11px] text-stone-400 italic">No features enabled</p>
+        <p className="text-[11px] text-stone-400 italic">{translateUi("No features enabled")}</p>
       )}
 
       <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between">
@@ -708,6 +700,7 @@ function SalonCard({ salon, onClick }: { salon: Salon; onClick: () => void }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <span
       className={`shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
@@ -716,7 +709,7 @@ function StatusBadge({ status }: { status: string }) {
           : "bg-red-50 text-red-600 border-red-200"
       }`}
     >
-      {status === "ACTIVE" ? "Active" : "Disabled"}
+      {status === "ACTIVE" ? translateUi("Active") : translateUi("Disabled")}
     </span>
   );
 }

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { FixWithAi } from "~/components/FixWithAi";
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
@@ -27,6 +28,7 @@ interface FormFields {
 const blank = (): FormFields => ({ name: "", description: "", active: true });
 
 export default function ShopCategories() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { sid, categories: init } = useLoaderData<typeof clientLoader>();
   const [categories, setCategories] = useState<ShopCategory[]>(init);
@@ -110,14 +112,13 @@ export default function ShopCategories() {
           <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
             <Layers className="w-5 h-5 text-matcha-600" />
           </div>
-          <h2 className="text-sm font-bold text-slate-800">No categories yet</h2>
-          <p className="text-xs text-slate-500 mt-1 mb-4">Organise the shop so customers can browse by type.</p>
+          <h2 className="text-sm font-bold text-slate-800">{translateUi("No categories yet")}</h2>
+          <p className="text-xs text-slate-500 mt-1 mb-4">{translateUi("Organise the shop so customers can browse by type.")}</p>
           <button
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
             onClick={openAdd}
           >
-            <Plus className="w-4 h-4" /> Add Category
-          </button>
+            <Plus className="w-4 h-4" /> {translateUi("Add Category ")}</button>
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
@@ -131,8 +132,7 @@ export default function ShopCategories() {
                   <span className="text-sm font-semibold text-slate-900 truncate">{c.name}</span>
                   {!c.active && (
                     <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
-                      Inactive
-                    </span>
+                      {translateUi("Inactive ")}</span>
                   )}
                 </div>
                 {c.description && <p className="text-xs text-slate-400 truncate max-w-md">{c.description}</p>}
@@ -158,22 +158,21 @@ export default function ShopCategories() {
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
               onClick={openAdd}
             >
-              <Plus className="w-4 h-4" /> Add Category
-            </button>
+              <Plus className="w-4 h-4" /> {translateUi("Add Category ")}</button>
           </div>
         </div>
       )}
 
       {modal && modal.kind !== "del" && (
-        <Modal title={modal.kind === "add" ? "Add Category" : "Edit Category"} onClose={close}>
+        <Modal title={modal.kind === "add" ? translateUi("Add Category") : translateUi("Edit Category")} onClose={close}>
           <div className="mb-4">
             <label className={fieldLabel}>
-              Name <span className="text-red-500">*</span>
+              {translateUi("Name ")}<span className="text-red-500">*</span>
             </label>
             <input autoFocus className={inputCls} value={f.name} onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))} />
           </div>
           <div className="mb-4">
-            <label className={fieldLabel}>Description</label>
+            <label className={fieldLabel}>{translateUi("Description")}</label>
             <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
               <input
                 className={inputCls}
@@ -190,7 +189,7 @@ export default function ShopCategories() {
                 checked={f.active}
                 onChange={(e) => setF((p) => ({ ...p, active: e.target.checked }))}
               />
-              <span className="text-sm font-medium text-slate-700">Active</span>
+              <span className="text-sm font-medium text-slate-700">{translateUi("Active")}</span>
             </label>
           )}
           <ModalActions
@@ -203,11 +202,9 @@ export default function ShopCategories() {
       )}
 
       {modal?.kind === "del" && (
-        <Modal title="Remove Category" onClose={close} narrow>
+        <Modal title={translateUi("Remove Category")} onClose={close} narrow>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Remove <strong className="text-slate-800">{target?.name}</strong>? Products keep their other details; their
-            category is simply cleared.
-          </p>
+            {translateUi("Remove ")}<strong className="text-slate-800">{target?.name}</strong>{translateUi("? Products keep their other details; their category is simply cleared. ")}</p>
           <ModalActions busy={busy} onCancel={close} onSave={submitDel} saveLabel="Remove" danger />
         </Modal>
       )}

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useEffect, useState } from "react";
 import { CalendarDays, Clock, ListChecks, Loader2, MousePointerClick } from "lucide-react";
 import { CardShell, MiniCalendar, fmt12, EMAIL_PATTERN, PHONE_PATTERN, type CardTokens } from "./GenerativeUICards";
@@ -45,6 +46,7 @@ function asNum(v: unknown): number | undefined {
 // doesn't work.
 
 export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswer }: GenUIInteractiveProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, accentText, msgDim } = tokens;
   const staffId = asNum(props.staffId);
   const today = startOfDay(new Date());
@@ -89,7 +91,7 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
   }, [staffSchedule, closedDateRanges]);
 
   return (
-    <CardShell title="Pick a day" icon={CalendarDays} tokens={tokens}>
+    <CardShell title={translateUi("Pick a day")} icon={CalendarDays} tokens={tokens}>
       <div className="space-y-3">
         <MiniCalendar
           value={date} onChange={setDate} minDate={today} maxDate={maxDate}
@@ -102,12 +104,12 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
           className="w-full px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: theme.accentColor, color: accentText }}
         >
-          {dateClosed ? "Closed that day — pick another" : "Check this day"}
+          {dateClosed ? translateUi("Closed that day — pick another") : translateUi("Check this day")}
         </button>
         <p className="text-[10px] text-center" style={{ color: msgDim }}>
           {staffId != null
-            ? "Days the salon or this stylist is closed are greyed out."
-            : "Days the salon is closed are greyed out."}
+            ? translateUi("Days the salon or this stylist is closed are greyed out.")
+            : translateUi("Days the salon is closed are greyed out.")}
         </p>
       </div>
     </CardShell>
@@ -119,6 +121,7 @@ export function DatePickerCard({ props, tokens, salon, closedDateRanges, onAnswe
 // time sends it back as the visitor's message so the assistant can start/continue a booking.
 
 export function TimeSlotPickerCard({ props, tokens, salon, closedDateRanges, onAnswer }: GenUIInteractiveProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim } = tokens;
   const serviceId = asNum(props.serviceId);
   const staffId = asNum(props.staffId);
@@ -163,19 +166,18 @@ export function TimeSlotPickerCard({ props, tokens, salon, closedDateRanges, onA
   })();
 
   return (
-    <CardShell title="Available times" icon={Clock} tokens={tokens}>
+    <CardShell title={translateUi("Available times")} icon={Clock} tokens={tokens}>
       {date && <p className="text-xs font-semibold mb-2.5" style={{ color: msgText }}>{longDate(date)}</p>}
       {loading && (
         <div className="flex items-center gap-2 text-xs py-2" style={{ color: msgDim }}>
-          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking availability…
-        </div>
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> {translateUi("Checking availability… ")}</div>
       )}
       {!loading && error && <p className="text-xs" style={{ color: "#EF4444" }}>{error}</p>}
       {!loading && !error && dateClosed && (
-        <p className="text-xs" style={{ color: msgDim }}>The salon is closed on this day — try another date.</p>
+        <p className="text-xs" style={{ color: msgDim }}>{translateUi("The salon is closed on this day — try another date.")}</p>
       )}
       {!loading && !error && !dateClosed && times.length === 0 && (
-        <p className="text-xs" style={{ color: msgDim }}>No open times that day — try another date.</p>
+        <p className="text-xs" style={{ color: msgDim }}>{translateUi("No open times that day — try another date.")}</p>
       )}
       {!loading && !error && !dateClosed && times.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5">
@@ -291,6 +293,7 @@ type Choice = { label: string; value: string };
 export function ChoiceCard({
   props, tokens, onAnswer, variant,
 }: GenUIInteractiveProps & { variant: "button-group" | "radio-group" | "checkbox-group" | "option-list" }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { theme, msgText, msgDim, bubbleBorder, accentText } = tokens;
   const prompt = typeof props.prompt === "string" ? props.prompt : undefined;
   const choices: Choice[] = Array.isArray(props.choices)
@@ -373,8 +376,7 @@ export function ChoiceCard({
               className="w-full mt-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ backgroundColor: theme.accentColor, color: accentText }}
             >
-              Continue
-            </button>
+              {translateUi("Continue ")}</button>
           )}
         </div>
       )}

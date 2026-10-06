@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import type { AiPolishResponse } from "@salon/ui-shared";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -53,6 +54,7 @@ function dataUrlToFile(dataUrl: string, filename: string, type: string): File {
 }
 
 function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, file: File) => void; onClose: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -119,7 +121,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-xs flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <span className="text-sm font-semibold text-slate-800">Take a photo</span>
+          <span className="text-sm font-semibold text-slate-800">{translateUi("Take a photo")}</span>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -133,8 +135,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
             <p className="text-sm text-slate-600 leading-relaxed">{error}</p>
             <button type="button" onClick={onClose}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium text-slate-700 cursor-pointer transition-colors">
-              Close
-            </button>
+              {translateUi("Close ")}</button>
           </div>
         ) : (
           <>
@@ -150,7 +151,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
               )}
               <button type="button" onClick={flipCamera}
                 className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors cursor-pointer backdrop-blur-sm"
-                title="Flip camera">
+                title={translateUi("Flip camera")}>
                 <RefreshCw className="w-4 h-4" />
               </button>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -158,11 +159,11 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string, fi
               </div>
             </div>
             <div className="flex flex-col items-center gap-2 py-5 bg-slate-50">
-              <button type="button" onClick={capture} disabled={!ready} title="Capture photo"
+              <button type="button" onClick={capture} disabled={!ready} title={translateUi("Capture photo")}
                 className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 hover:border-matcha-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center">
                 <div className="w-10 h-10 rounded-full bg-slate-800 hover:bg-matcha-700 transition-colors" />
               </button>
-              <p className="text-[11px] text-slate-400">Click the button to capture</p>
+              <p className="text-[11px] text-slate-400">{translateUi("Click the button to capture")}</p>
             </div>
           </>
         )}
@@ -184,6 +185,7 @@ function PhotoPicker({
   onChange: (v: string | null) => void;
   onFileSelect?: (file: File | null) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const uploadRef = useRef<HTMLInputElement>(null);
   const [showCamera, setShowCamera] = useState(false);
 
@@ -210,10 +212,10 @@ function PhotoPicker({
           type="button"
           onClick={() => uploadRef.current?.click()}
           className="w-20 h-20 rounded-full border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden hover:border-matcha-400 hover:bg-matcha-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-matcha-500/20"
-          title="Upload photo"
+          title={translateUi("Upload photo")}
         >
           {value ? (
-            <img src={value} alt="Staff photo preview" className="w-full h-full object-cover" />
+            <img src={value} alt={translateUi("Staff photo preview")} className="w-full h-full object-cover" />
           ) : (
             <UserCircle className="w-10 h-10 text-slate-300" />
           )}
@@ -222,7 +224,7 @@ function PhotoPicker({
         <button
           type="button"
           onClick={() => setShowCamera(true)}
-          title="Take photo"
+          title={translateUi("Take photo")}
           className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-matcha-600 text-white flex items-center justify-center hover:bg-matcha-700 transition-colors cursor-pointer shadow-sm"
         >
           <Camera className="w-3 h-3" />
@@ -232,7 +234,7 @@ function PhotoPicker({
           <button
             type="button"
             onClick={() => { onChange(null); onFileSelect?.(null); }}
-            title="Remove photo"
+            title={translateUi("Remove photo")}
             className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer text-xs leading-none shadow-sm"
           >
             <X className="w-3 h-3" />
@@ -242,8 +244,7 @@ function PhotoPicker({
 
       <div className="flex items-center gap-3 text-xs text-slate-400">
         <button type="button" onClick={() => uploadRef.current?.click()} className="hover:text-matcha-600 transition-colors cursor-pointer">
-          Upload photo
-        </button>
+          {translateUi("Upload photo ")}</button>
       </div>
 
       <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
@@ -258,6 +259,7 @@ function PhotoPicker({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Profile() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { member: init, countries } = useLoaderData<typeof clientLoader>();
   const [member, setMember] = useState<StaffMember>(init);
   const [editing, setEditing] = useState(false);
@@ -323,10 +325,9 @@ export default function Profile() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">My Profile</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("My Profile")}</h1>
         <InfoBar>
-          View and update your staff profile. Contact your salon manager to change your email, role, or status.
-        </InfoBar>
+          {translateUi("View and update your staff profile. Contact your salon manager to change your email, role, or status. ")}</InfoBar>
       </div>
 
       <div className="max-w-lg space-y-4">
@@ -344,8 +345,7 @@ export default function Profile() {
                 <span className="text-sm font-semibold text-slate-900 truncate">{member.name}</span>
                 {member.isOwner && (
                   <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
-                    <Crown className="w-2.5 h-2.5" /> Owner
-                  </span>
+                    <Crown className="w-2.5 h-2.5" /> {translateUi("Owner ")}</span>
                 )}
                 <span className="text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 uppercase tracking-wide shrink-0">
                   {ROLE_LABEL[member.role] ?? member.role}
@@ -355,8 +355,7 @@ export default function Profile() {
                 </span>
                 {member.availableForBooking === false && (
                   <span className="inline-flex items-center gap-0.5 text-[0.62rem] text-slate-400 shrink-0">
-                    <CalendarOff className="w-2.5 h-2.5" /> Not bookable
-                  </span>
+                    <CalendarOff className="w-2.5 h-2.5" /> {translateUi("Not bookable ")}</span>
                 )}
               </div>
               <div className="text-xs text-slate-400 mt-0.5 truncate">
@@ -376,32 +375,31 @@ export default function Profile() {
               onClick={openEdit}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
             >
-              <Pencil className="w-3 h-3" /> Edit
-            </button>
+              <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
           </div>
 
           <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Email</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{translateUi("Email")}</p>
               <p className="text-sm text-slate-800 break-all">{member.email}</p>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Phone</p>
-              <p className="text-sm text-slate-800">{member.phone || <span className="text-slate-300 italic text-xs">Not set</span>}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{translateUi("Phone")}</p>
+              <p className="text-sm text-slate-800">{member.phone || <span className="text-slate-300 italic text-xs">{translateUi("Not set")}</span>}</p>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Role</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{translateUi("Role")}</p>
               <p className="text-sm text-slate-800">{ROLE_LABEL[member.role] ?? member.role}</p>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Status</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{translateUi("Status")}</p>
               <p className="text-sm text-slate-800">{STATUS_LABEL[member.status] ?? member.status}</p>
             </div>
             {member.createdAt && (
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Member since</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{translateUi("Member since")}</p>
                 <p className="text-sm text-slate-800">
-                  {new Date(member.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  {new Date(member.createdAt).toLocaleDateString(uiLocale, { month: "long", year: "numeric" })}
                 </p>
               </div>
             )}
@@ -411,20 +409,19 @@ export default function Profile() {
             <div className="px-5 pb-4 pt-1 border-t border-slate-100 space-y-3">
               {member.bio && (
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">About me</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">{translateUi("About me")}</p>
                   <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{member.bio}</p>
                 </div>
               )}
               {(member.workMedia?.length ?? 0) > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">My work</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{translateUi("My work")}</p>
                     <Link
                       to="/portal/media"
                       className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-600 hover:underline"
                     >
-                      <Images className="w-3 h-3" /> Manage
-                    </Link>
+                      <Images className="w-3 h-3" /> {translateUi("Manage ")}</Link>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {member.workMedia!.map((url) => (
@@ -438,8 +435,7 @@ export default function Profile() {
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-500">
-          <strong className="text-slate-600">Want to change your role or email?</strong> These fields are managed by your salon administrator. Please reach out to them directly.
-        </div>
+          <strong className="text-slate-600">{translateUi("Want to change your role or email?")}</strong> {translateUi("These fields are managed by your salon administrator. Please reach out to them directly. ")}</div>
       </div>
 
       {/* ── Edit modal ── */}
@@ -452,7 +448,7 @@ export default function Profile() {
 
             {/* Header */}
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Edit Staff</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Edit Staff")}</span>
               <button
                 className="text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
                 disabled={saving}
@@ -471,26 +467,26 @@ export default function Profile() {
 
             {/* Name */}
             <div className="mb-4">
-              <label className={fieldLabel}>Name <span className="text-red-500">*</span></label>
+              <label className={fieldLabel}>{translateUi("Name ")}<span className="text-red-500">*</span></label>
               <input
                 className={inputCls}
                 autoFocus
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Full name"
+                placeholder={translateUi("Full name")}
               />
             </div>
 
             {/* Email (read-only) */}
             <div className="mb-4">
-              <label className={fieldLabel}>Email <span className="text-red-500">*</span></label>
+              <label className={fieldLabel}>{translateUi("Email ")}<span className="text-red-500">*</span></label>
               <input className={inputDisabledCls} value={member.email} disabled readOnly />
             </div>
 
             {/* Phone + Role */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <div>
-                <label className={fieldLabel}>Phone</label>
+                <label className={fieldLabel}>{translateUi("Phone")}</label>
                 <PhoneInput
                   value={form.phone}
                   onChange={(v) => setForm((p) => ({ ...p, phone: v }))}
@@ -498,7 +494,7 @@ export default function Profile() {
                 />
               </div>
               <div>
-                <label className={fieldLabel}>Role</label>
+                <label className={fieldLabel}>{translateUi("Role")}</label>
                 <select className={inputDisabledCls} value={member.role} disabled>
                   {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </select>
@@ -507,8 +503,7 @@ export default function Profile() {
 
             {/* Specializations */}
             <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
-              Specializations
-            </div>
+              {translateUi("Specializations ")}</div>
             <div className="mb-4">
               <TileGrid
                 options={SPECIALIZATION_OPTIONS}
@@ -520,10 +515,9 @@ export default function Profile() {
 
             {/* About me */}
             <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 pb-2 border-b border-slate-100">
-              About me
-            </div>
+              {translateUi("About me ")}</div>
             <div className="mb-4">
-              <label className={fieldLabel}>About me</label>
+              <label className={fieldLabel}>{translateUi("About me")}</label>
               <AiPolishButton value={form.bio} onApply={(text) => setForm((p) => ({ ...p, bio: text }))}
                 polish={(text) => apiFetch<AiPolishResponse>(`${STAFF_PORTAL_API}/ai/polish`, {
                   method: "POST", body: JSON.stringify({ text, context: "STAFF_BIO" }),
@@ -533,21 +527,19 @@ export default function Profile() {
                   rows={3}
                   value={form.bio}
                   onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
-                  placeholder="A short introduction shown on the salon website…"
+                  placeholder={translateUi("A short introduction shown on the salon website…")}
                 />
               </AiPolishButton>
               <p className="text-xs text-slate-400 mt-1.5">
-                Manage your work photos &amp; videos on the{" "}
+                {translateUi("Manage your work photos & videos on the")}{" "}
                 <Link to="/portal/media" className="text-matcha-600 font-medium hover:underline">
-                  My Work Media
-                </Link>{" "}
-                page.
-              </p>
+                  {translateUi("My Work Media ")}</Link>{" "}
+                {translateUi("page. ")}</p>
             </div>
 
             {/* Status (read-only) */}
             <div className="mb-4">
-              <label className={fieldLabel}>Status</label>
+              <label className={fieldLabel}>{translateUi("Status")}</label>
               <select className={inputDisabledCls} value={member.status} disabled>
                 {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
               </select>
@@ -562,11 +554,11 @@ export default function Profile() {
                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${form.availableForBooking ? "translate-x-4" : "translate-x-0"}`} />
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-700">Available for booking</p>
+                <p className="text-sm font-medium text-slate-700">{translateUi("Available for booking")}</p>
                 <p className="text-xs text-slate-400">
                   {form.availableForBooking
-                    ? "Customers can book appointments with this staff member."
-                    : "This staff member will not appear in the booking calendar."}
+                    ? translateUi("Customers can book appointments with this staff member.")
+                    : translateUi("This staff member will not appear in the booking calendar.")}
                 </p>
               </div>
             </label>
@@ -578,14 +570,13 @@ export default function Profile() {
                 onClick={() => setEditing(false)}
                 disabled={saving}
               >
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 disabled={saving || !form.name.trim()}
                 onClick={saveProfile}
               >
-                {saving ? "Saving…" : "Save changes"}
+                {saving ? translateUi("Saving…") : translateUi("Save changes")}
               </button>
             </div>
           </div>

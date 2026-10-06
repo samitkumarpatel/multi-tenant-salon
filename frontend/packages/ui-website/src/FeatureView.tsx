@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { ArrowLeft, ShoppingBag, BadgeCheck, Gift, CalendarCheck, type LucideIcon } from "lucide-react";
 import { fontStack, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -39,6 +40,7 @@ export function FeatureView({
   getPagePath?: (page: string) => string;
   onNavigate?: (page: string) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const page = FEATURE_VIEWS[pageKey] ?? FEATURE_VIEWS.shop;
   const Icon = page.icon;
   const hasBooking = salon.features?.includes("BOOKING");
@@ -76,8 +78,7 @@ export function FeatureView({
               backgroundColor: heroLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.08)",
             }}
           >
-            Coming soon
-          </p>
+            {translateUi("Coming soon ")}</p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             {hasBooking && (
               <a
@@ -86,8 +87,7 @@ export function FeatureView({
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}
               >
-                <CalendarCheck className="w-4 h-4" /> Book an appointment
-              </a>
+                <CalendarCheck className="w-4 h-4" /> {translateUi("Book an appointment ")}</a>
             )}
             <button
               onClick={onBack}
@@ -97,7 +97,7 @@ export function FeatureView({
                 borderColor: heroLight ? "rgba(15,23,42,0.15)" : "rgba(255,255,255,0.2)",
               }}
             >
-              <ArrowLeft className="w-4 h-4" /> Back to {salon.name}
+              <ArrowLeft className="w-4 h-4" /> {translateUi("Back to ")}{salon.name}
             </button>
           </div>
         </div>

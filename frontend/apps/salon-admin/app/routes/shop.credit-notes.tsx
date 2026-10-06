@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -21,6 +22,7 @@ const CN_STATUS_STYLE: Record<string, string> = {
 };
 
 export default function ShopCreditNotes() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { sid, orders: init } = useLoaderData<typeof clientLoader>();
   const [orders, setOrders] = useState<ShopOrder[]>(init);
@@ -49,8 +51,8 @@ export default function ShopCreditNotes() {
         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto mb-3">
           <Receipt className="w-5 h-5 text-slate-400" />
         </div>
-        <h2 className="text-sm font-bold text-slate-800">No credit notes yet</h2>
-        <p className="text-xs text-slate-500 mt-1">Credit notes appear here once a refund is accepted.</p>
+        <h2 className="text-sm font-bold text-slate-800">{translateUi("No credit notes yet")}</h2>
+        <p className="text-xs text-slate-500 mt-1">{translateUi("Credit notes appear here once a refund is accepted.")}</p>
       </div>
     );
   }
@@ -75,7 +77,7 @@ export default function ShopCreditNotes() {
             <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-400">
               <span>{o.creditNoteAt ? relativeTime(o.creditNoteAt) : relativeTime(o.createdAt)}</span>
               <span className="font-semibold text-slate-800">
-                {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency) : "—"}
+                {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency, uiLocale) : "—"}
               </span>
             </div>
             {(o.creditNoteStatus === "PENDING" || !o.creditNoteStatus) && (
@@ -84,8 +86,7 @@ export default function ShopCreditNotes() {
                 onClick={() => payCreditNote(o)}
                 className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
               >
-                <Banknote className="w-3 h-3" /> Pay back
-              </button>
+                <Banknote className="w-3 h-3" /> {translateUi("Pay back ")}</button>
             )}
           </div>
         ))}
@@ -95,12 +96,12 @@ export default function ShopCreditNotes() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              <th className="px-4 py-3">Order</th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Reference</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">{translateUi("Order")}</th>
+              <th className="px-4 py-3">{translateUi("Customer")}</th>
+              <th className="px-4 py-3">{translateUi("Reference")}</th>
+              <th className="px-4 py-3">{translateUi("Amount")}</th>
+              <th className="px-4 py-3">{translateUi("Status")}</th>
+              <th className="px-4 py-3">{translateUi("Date")}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -118,7 +119,7 @@ export default function ShopCreditNotes() {
                 <td className="px-4 py-3 text-xs text-slate-600">{o.customerName}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs font-mono">{o.creditNoteRef ?? "—"}</td>
                 <td className="px-4 py-3 font-semibold text-slate-800">
-                  {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency) : "—"}
+                  {o.refundAmount != null ? formatPrice(o.refundAmount, o.currency, uiLocale) : "—"}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${CN_STATUS_STYLE[o.creditNoteStatus ?? "PENDING"] ?? ""}`}>
@@ -135,8 +136,7 @@ export default function ShopCreditNotes() {
                       onClick={() => payCreditNote(o)}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
                     >
-                      <Banknote className="w-3 h-3" /> Pay back
-                    </button>
+                      <Banknote className="w-3 h-3" /> {translateUi("Pay back ")}</button>
                   )}
                 </td>
               </tr>

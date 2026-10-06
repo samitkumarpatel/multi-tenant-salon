@@ -1,3 +1,6 @@
+import { I18nProvider, LanguageSelector, useI18n, ENGLISH_POLICY } from "@salon/i18n";
+import type { LanguagePolicy } from "@salon/i18n";
+import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
 import { NavProgress } from "@salon/ui-shared";
@@ -5,6 +8,7 @@ import { friendlyMessage } from "@salon/ui-website";
 import "./app.css";
 
 export function HydrateFallback() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
@@ -25,17 +29,16 @@ export function HydrateFallback() {
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100dvh", gap: 16, padding: "0 24px", textAlign: "center", fontFamily: "system-ui, sans-serif", color: "#1c1917" }}>
             <p style={{ fontSize: 40, margin: 0 }}>⚠️</p>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Having trouble connecting</p>
-              <p style={{ fontSize: 12, color: "#78716c", margin: 0, lineHeight: 1.6 }}>The server isn't responding. Check your connection and try again.</p>
+              <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>{translateUi("Having trouble connecting")}</p>
+              <p style={{ fontSize: 12, color: "#78716c", margin: 0, lineHeight: 1.6 }}>{translateUi("The server isn't responding. Check your connection and try again.")}</p>
             </div>
             <button onClick={() => window.location.reload()} style={{ padding: "8px 18px", borderRadius: 10, background: "#567330", color: "#fff", border: "none", cursor: "pointer", fontSize: 13 }}>
-              ↻ Retry
-            </button>
+              {translateUi("↻ Retry ")}</button>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
             <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
-            <p className="text-sm">Loading…</p>
+            <p className="text-sm">{translateUi("Loading…")}</p>
           </div>
         )}
         <Scripts />
@@ -45,6 +48,7 @@ export function HydrateFallback() {
 }
 
 export function ErrorBoundary() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const error = useRouteError();
   const is404 = isRouteErrorResponse(error) && error.status === 404;
 
@@ -53,21 +57,20 @@ export function ErrorBoundary() {
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{is404 ? "Not found" : "Error"}</title>
+        <title>{is404 ? translateUi("Not found") : translateUi("Error")}</title>
         <Links />
       </head>
       <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", background: "#faf9f7", color: "#1c1917", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh" }}>
         <div style={{ textAlign: "center", maxWidth: 360, padding: "0 24px" }}>
           <p style={{ fontSize: 48, margin: "0 0 16px" }}>✂️</p>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{is404 ? "Salon not found" : "Something went wrong"}</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{is404 ? translateUi("Salon not found") : translateUi("Something went wrong")}</h1>
           <p style={{ fontSize: 14, color: "#78716c", margin: "0 0 24px", lineHeight: 1.6 }}>
-            {is404 ? "This salon page doesn't exist or the link is incorrect." : friendlyMessage(error)}
+            {is404 ? translateUi("This salon page doesn't exist or the link is incorrect.") : friendlyMessage(error)}
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
             {!is404 && (
               <button onClick={() => window.location.reload()} style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #d6d3d1", background: "white", cursor: "pointer", fontSize: 14 }}>
-                ↻ Retry
-              </button>
+                {translateUi("↻ Retry ")}</button>
             )}
           </div>
         </div>
@@ -77,11 +80,12 @@ export function ErrorBoundary() {
   );
 }
 
-export default function App() {
+function AppDocument() {
+  const { locale } = useI18n();
   const { state } = useNavigation();
 
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -91,10 +95,19 @@ export default function App() {
       </head>
       <body>
         <NavProgress loading={state !== "idle"} />
-        <Outlet />
+        <LanguageSelector /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
   );
+}
+
+export default function Root() {
+  const matches = useMatches();
+  const tenant = matches.map((match) => match.data as { languagePolicy?: LanguagePolicy; languageScope?: string } | undefined)
+    .find((data) => data?.languagePolicy);
+  return <I18nProvider scope={`public-website:${tenant?.languageScope ?? "platform"}`} policy={tenant?.languagePolicy ?? ENGLISH_POLICY}>
+    <AppDocument />
+  </I18nProvider>;
 }

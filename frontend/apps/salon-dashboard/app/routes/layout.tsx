@@ -1,3 +1,5 @@
+import { useI18n } from "@salon/i18n";
+import type { SalonLanguages } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigate } from "react-router";
@@ -53,20 +55,22 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   // trip; the result is only used when the DASHBOARD feature is on.
   const settingsRequest = apiFetch<{ bookingManagementEnabled: boolean; cashierEnabled: boolean }>(`${ADMIN_API}/${params.salonId}/dashboard/settings`)
     .then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
-  const [salon, theme, settingsResult] = await Promise.all([
+  const [salon, theme, settingsResult, languages] = await Promise.all([
     apiFetch<Salon>(`${ADMIN_API}/${params.salonId}`),
     apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${params.salonId}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
     settingsRequest,
+    apiFetch<SalonLanguages>(`${API_BASE}/api/salon/${params.salonId}/languages`),
   ]);
   let settings = { bookingManagementEnabled: false, cashierEnabled: false };
   if (salon.features?.includes("DASHBOARD")) {
     if (!settingsResult.value) throw settingsResult.error;
     settings = settingsResult.value;
   }
-  return { salon, settings, theme: { ...DEFAULT_THEME, ...theme } };
+  return { salon, settings, languagePolicy: languages.dashboard, languageScope: String(salon.id), theme: { ...DEFAULT_THEME, ...theme } };
 }
 
 export default function DashboardLayout() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const data = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,10 +130,10 @@ export default function DashboardLayout() {
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: theme.logoBgColor }}>
           <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
         </div>
-        <div className="ml-5 border-l border-slate-200 pl-5"><p className="text-xs font-semibold text-slate-800">{salon.name}</p><p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Salon desk</p></div>
+        <div className="ml-5 border-l border-slate-200 pl-5"><p className="text-xs font-semibold text-slate-800">{salon.name}</p><p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{translateUi("Salon desk")}</p></div>
         <div className="ml-auto flex items-center gap-2">
           {session && <div className="hidden md:flex"><SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} /></div>}
-          <button onClick={() => logout(navigate)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
+          <button onClick={() => logout(navigate)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={translateUi("Sign out")}><LogOut className="h-4 w-4" /></button>
         </div>
       </div>
     </header>
@@ -137,14 +141,14 @@ export default function DashboardLayout() {
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-48 shrink-0 px-4 py-6 md:flex md:flex-col">
         <nav className="space-y-1">
           {navItems.map(({ key, label, icon: Icon }) => <div key={key}>
-            <Link to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`flex items-center gap-3 rounded-md px-2 py-2.5 text-sm font-semibold no-underline transition-colors ${activeView === key ? "text-matcha-800" : "text-slate-500 hover:text-slate-800"}`}><Icon className={`h-4 w-4 ${activeView === key ? "text-matcha-600" : ""}`} />{label}<ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>
+            <Link to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`flex items-center gap-3 rounded-md px-2 py-2.5 text-sm font-semibold no-underline transition-colors ${activeView === key ? "text-matcha-800" : "text-slate-500 hover:text-slate-800"}`}><Icon className={`h-4 w-4 ${activeView === key ? "text-matcha-600" : ""}`} />{translateUi(label)}<ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>
             {key === "appointments" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
-              <Link to="?view=appointments&appointmentsView=today&todayView=day" className={`block rounded px-2 py-1.5 text-xs no-underline ${requestedAppointmentsView !== "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}>Overview</Link>
-              <Link to="?view=appointments&appointmentsView=new" className={`my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}>Book</Link>
+              <Link to="?view=appointments&appointmentsView=today&todayView=day" className={`block rounded px-2 py-1.5 text-xs no-underline ${requestedAppointmentsView !== "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}>{translateUi("Overview")}</Link>
+              <Link to="?view=appointments&appointmentsView=new" className={`my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}>{translateUi("Book")}</Link>
             </AnimatedSubmenu>}
             {key === "cashier" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
-              <Link to="?view=cashier&cashierView=pos" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView !== "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ShoppingCart className="h-3.5 w-3.5" />Till / POS</Link>
-              <Link to="?view=cashier&cashierView=invoices" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Receipt className="h-3.5 w-3.5" />Invoices</Link>
+              <Link to="?view=cashier&cashierView=pos" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView !== "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ShoppingCart className="h-3.5 w-3.5" />{translateUi("Till / POS")}</Link>
+              <Link to="?view=cashier&cashierView=invoices" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Receipt className="h-3.5 w-3.5" />{translateUi("Invoices")}</Link>
             </AnimatedSubmenu>}
           </div>)}
         </nav>
@@ -152,15 +156,15 @@ export default function DashboardLayout() {
       <div className="min-w-0 flex-1">
         <nav className="border-b border-slate-200 bg-white px-4 py-2 md:hidden">
           <div className="flex gap-2 overflow-x-auto">
-            {navItems.map(({ key, label, icon: Icon }) => <Link key={key} to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold no-underline ${activeView === key ? "bg-matcha-50 text-matcha-700" : "text-slate-500"}`}><Icon className="h-4 w-4" />{label}<ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>)}
+            {navItems.map(({ key, label, icon: Icon }) => <Link key={key} to={key === "cashier" ? "?view=cashier&cashierView=pos" : `?view=${key}`} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold no-underline ${activeView === key ? "bg-matcha-50 text-matcha-700" : "text-slate-500"}`}><Icon className="h-4 w-4" />{translateUi(label)}<ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>)}
           </div>
           <AnimatedSubmenu open={activeView === "appointments"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">
-            <Link to="?view=appointments&appointmentsView=today&todayView=day" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedAppointmentsView !== "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>Overview</Link>
-            <Link to="?view=appointments&appointmentsView=new" className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-600"}`}>Book</Link>
+            <Link to="?view=appointments&appointmentsView=today&todayView=day" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedAppointmentsView !== "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Overview")}</Link>
+            <Link to="?view=appointments&appointmentsView=new" className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-600"}`}>{translateUi("Book")}</Link>
           </AnimatedSubmenu>
           <AnimatedSubmenu open={activeView === "cashier"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">
-            <Link to="?view=cashier&cashierView=pos" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView !== "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>Till / POS</Link>
-            <Link to="?view=cashier&cashierView=invoices" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>Invoices</Link>
+            <Link to="?view=cashier&cashierView=pos" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView !== "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Till / POS")}</Link>
+            <Link to="?view=cashier&cashierView=invoices" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Invoices")}</Link>
           </AnimatedSubmenu>
         </nav>
         <main className="px-4 py-6 sm:px-7"><div className="mx-auto w-full max-w-5xl"><Outlet /></div></main>

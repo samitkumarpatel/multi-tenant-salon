@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
@@ -150,6 +151,7 @@ function BookingDetailModal({
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const member  = staffMap.get(booking.staffId);
   const service = serviceMap.get(booking.serviceId);
   const isPast  = new Date(booking.appointmentDate) < new Date(new Date().toDateString());
@@ -179,8 +181,8 @@ function BookingDetailModal({
           </div>
           {service && (
             <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-[0.65rem] font-bold uppercase shrink-0">Svc</span>
-              <span>{service.name} ({service.durationMinutes} min · {formatPrice(service.price, service.currency)})</span>
+              <span className="text-slate-400 text-[0.65rem] font-bold uppercase shrink-0">{translateUi("Svc")}</span>
+              <span>{service.name} ({service.durationMinutes} {translateUi("min · ")}{formatPrice(service.price, service.currency, uiLocale)})</span>
             </div>
           )}
           {member && (
@@ -196,7 +198,7 @@ function BookingDetailModal({
                   />
                 )}
               </div>
-              <span>{member.name} · {STAFF_ROLE_LABEL[member.role] ?? member.role}</span>
+              <span>{member.name} · {translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</span>
             </div>
           )}
           {booking.notes && <p className="text-xs text-slate-400 italic">{booking.notes}</p>}
@@ -207,31 +209,26 @@ function BookingDetailModal({
             {booking.status === "PENDING" && (
               <button onClick={() => onAction(booking.id, "confirm")}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 cursor-pointer">
-                <Check className="w-3 h-3" /> Confirm
-              </button>
+                <Check className="w-3 h-3" /> {translateUi("Confirm ")}</button>
             )}
             {(booking.status === "PENDING" || booking.status === "CONFIRMED") && (
               <>
                 <button onClick={() => onReschedule(booking)}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer">
-                  <RefreshCw className="w-3 h-3" /> Reschedule
-                </button>
+                  <RefreshCw className="w-3 h-3" /> {translateUi("Reschedule ")}</button>
                 <button onClick={() => onAction(booking.id, "cancel")}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer">
-                  <Ban className="w-3 h-3" /> Cancel
-                </button>
+                  <Ban className="w-3 h-3" /> {translateUi("Cancel ")}</button>
               </>
             )}
             {booking.status === "CONFIRMED" && (
               <>
                 <button onClick={() => onAction(booking.id, "complete")}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-green-600 text-white hover:bg-green-700 cursor-pointer">
-                  <CheckCircle className="w-3 h-3" /> Complete
-                </button>
+                  <CheckCircle className="w-3 h-3" /> {translateUi("Complete ")}</button>
                 <button onClick={() => onAction(booking.id, "no-show")}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-amber-200 text-amber-700 hover:bg-amber-50 cursor-pointer">
-                  <AlertCircle className="w-3 h-3" /> No-show
-                </button>
+                  <AlertCircle className="w-3 h-3" /> {translateUi("No-show ")}</button>
               </>
             )}
           </div>
@@ -239,8 +236,7 @@ function BookingDetailModal({
 
         <button onClick={() => onDelete(booking)}
           className="flex items-center gap-1 text-[0.65rem] font-medium text-slate-400 hover:text-red-500 cursor-pointer">
-          <Trash2 className="w-3 h-3" /> Delete booking
-        </button>
+          <Trash2 className="w-3 h-3" /> {translateUi("Delete booking ")}</button>
       </div>
     </div>
   );
@@ -259,6 +255,7 @@ function BookingRow({
   onDelete: (b: Booking) => void;
   showDate?: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const member  = staffMap.get(booking.staffId);
   const service = serviceMap.get(booking.serviceId);
   const isPast  = new Date(booking.appointmentDate) < new Date(new Date().toDateString());
@@ -268,7 +265,7 @@ function BookingRow({
       <div className="shrink-0 w-[4.5rem] text-right border-r border-slate-100 pr-3">
         {showDate && (
           <p className="text-[10px] font-semibold text-slate-500 tabular-nums">
-            {new Date(booking.appointmentDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            {new Date(booking.appointmentDate + "T12:00:00").toLocaleDateString(uiLocale, { day: "numeric", month: "short" })}
           </p>
         )}
         <p className="text-sm font-bold text-slate-800">{fmt12(booking.startTime)}</p>
@@ -288,7 +285,7 @@ function BookingRow({
       {service && (
         <div className="hidden sm:block min-w-0 w-36 shrink-0">
           <p className="text-xs font-medium text-slate-700 truncate">{service.name}</p>
-          <p className="text-[10px] text-slate-400">{service.durationMinutes} min · {formatPrice(service.price, service.currency)}</p>
+          <p className="text-[10px] text-slate-400">{service.durationMinutes} {translateUi("min · ")}{formatPrice(service.price, service.currency, uiLocale)}</p>
         </div>
       )}
       {member && (
@@ -306,7 +303,7 @@ function BookingRow({
           </div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-700 truncate">{member.name}</p>
-            <p className="text-[10px] text-slate-400">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+            <p className="text-[10px] text-slate-400">{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</p>
           </div>
         </div>
       )}
@@ -317,8 +314,7 @@ function BookingRow({
               <Tooltip content="Confirm this appointment and notify the customer" side="top">
                 <button onClick={() => onAction(booking.id, "confirm")}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer transition-colors">
-                  <Check className="w-3 h-3" /> Confirm
-                </button>
+                  <Check className="w-3 h-3" /> {translateUi("Confirm ")}</button>
               </Tooltip>
             )}
             {booking.status === "CONFIRMED" && (
@@ -326,8 +322,7 @@ function BookingRow({
                 <Tooltip content="Mark this appointment as completed" side="top">
                   <button onClick={() => onAction(booking.id, "complete")}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-green-600 text-white hover:bg-green-700 cursor-pointer transition-colors">
-                    <CheckCircle className="w-3 h-3" /> Done
-                  </button>
+                    <CheckCircle className="w-3 h-3" /> {translateUi("Done ")}</button>
                 </Tooltip>
                 <Tooltip content="Customer didn't show up for their appointment" side="top">
                   <button onClick={() => onAction(booking.id, "no-show")}
@@ -383,6 +378,7 @@ function TimelineGrid({
   onCreate: (date: string, time: string, staffId: number) => void;
   dayOh: OperatingHours | null;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const totalH = (calEnd - calStart) * HOUR_H;
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -431,13 +427,12 @@ function TimelineGrid({
                 <p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
                 {paused && (
                   <span className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold border border-amber-200">
-                    <Ban className="w-2.5 h-2.5" /> Paused
-                  </span>
+                    <Ban className="w-2.5 h-2.5" /> {translateUi("Paused ")}</span>
                 )}
               </div>
               <p className="text-[10px] text-slate-400 truncate">
-                {STAFF_ROLE_LABEL[s.role] ?? s.role}
-                {count > 0 && <span className="ml-1 text-matcha-600 font-semibold">{count} appt</span>}
+                {translateUi(STAFF_ROLE_LABEL[s.role] ?? s.role)}
+                {count > 0 && <span className="ml-1 text-matcha-600 font-semibold">{count} {translateUi("appt")}</span>}
               </p>
             </div>
           );
@@ -469,7 +464,7 @@ function TimelineGrid({
                     onClick={() => onCreate(date, time, s.id)}
                     className="group absolute inset-x-0 cursor-pointer bg-transparent hover:bg-matcha-500/10 focus-visible:bg-matcha-500/15 focus-visible:outline-none"
                     style={{ top: (totalMinutes - calStart * 60) / 60 * HOUR_H, height: HOUR_H / 2 }}>
-                    <span className="pointer-events-none absolute right-2 top-1 hidden rounded bg-matcha-600 px-1.5 py-0.5 text-[9px] font-semibold text-white group-hover:block group-focus-visible:block">Book</span>
+                    <span className="pointer-events-none absolute right-2 top-1 hidden rounded bg-matcha-600 px-1.5 py-0.5 text-[9px] font-semibold text-white group-hover:block group-focus-visible:block">{translateUi("Book")}</span>
                   </button>;
                 }))}
                 {/* Closed-day overlay */}
@@ -518,8 +513,8 @@ function TimelineGrid({
           })}
       </div>
     </div>
-    {canScrollLeft && <button type="button" onClick={() => gridRef.current?.scrollBy({ left: -Math.max(280, gridRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to previous stylists" title="Scroll to previous stylists" className="absolute left-2 top-1/2 z-40 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
-    {canScrollRight && <button type="button" onClick={() => gridRef.current?.scrollBy({ left: Math.max(280, gridRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to more stylists" title="Scroll to more stylists" className="absolute right-2 top-1/2 z-40 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
+    {canScrollLeft && <button type="button" onClick={() => gridRef.current?.scrollBy({ left: -Math.max(280, gridRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to previous stylists")} title={translateUi("Scroll to previous stylists")} className="absolute left-2 top-1/2 z-40 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
+    {canScrollRight && <button type="button" onClick={() => gridRef.current?.scrollBy({ left: Math.max(280, gridRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to more stylists")} title={translateUi("Scroll to more stylists")} className="absolute right-2 top-1/2 z-40 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
     </div>
   );
 }
@@ -574,6 +569,7 @@ function WeekTimelineGrid({
   maxHeight: number | undefined;
   onSelect: (b: Booking) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [hover, setHover] = useState<{ booking: Booking; x: number; y: number } | null>(null);
   const totalH = (calEnd - calStart) * HOUR_H;
   const now = new Date();
@@ -604,9 +600,9 @@ function WeekTimelineGrid({
                 {d.getDate()}
               </p>
               {count > 0 && (
-                <p className={`text-[9px] font-semibold ${isToday ? "text-matcha-500" : "text-slate-400"}`}>{count} appt</p>
+                <p className={`text-[9px] font-semibold ${isToday ? "text-matcha-500" : "text-slate-400"}`}>{count} {translateUi("appt")}</p>
               )}
-              {isClosed && <p className="text-[9px] text-slate-300">Closed</p>}
+              {isClosed && <p className="text-[9px] text-slate-300">{translateUi("Closed")}</p>}
             </div>
           );
         })}
@@ -810,7 +806,7 @@ function WeekTimelineGrid({
               {svc && (
                 <div className="pt-2 border-t border-slate-100">
                   <p className="text-xs font-semibold text-slate-700 truncate">{svc.name}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{svc.durationMinutes} min · {formatPrice(svc.price, svc.currency)}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{svc.durationMinutes} {translateUi("min · ")}{formatPrice(svc.price, svc.currency, uiLocale)}</p>
                 </div>
               )}
 
@@ -831,7 +827,7 @@ function WeekTimelineGrid({
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-700 leading-none truncate">{member.name}</p>
-                    <p className="text-[9px] text-slate-400 mt-0.5">{STAFF_ROLE_LABEL[member.role] ?? member.role}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</p>
                   </div>
                 </div>
               )}
@@ -844,7 +840,7 @@ function WeekTimelineGrid({
 
             {/* Footer hint */}
             <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100">
-              <p className="text-[9px] text-slate-400">Click to manage this booking</p>
+              <p className="text-[9px] text-slate-400">{translateUi("Click to manage this booking")}</p>
             </div>
           </div>
         );
@@ -866,6 +862,7 @@ function MonthGrid({
   filterStaffId: number;
   onSelectDate: (d: string) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const d = new Date(viewDate + "T12:00:00");
   const year  = d.getFullYear();
   const month = d.getMonth();
@@ -946,7 +943,7 @@ function MonthGrid({
                         </div>
                       );
                     })}
-                    {extra > 0 && <p className="text-[8px] text-slate-400 pl-1">+{extra} more</p>}
+                    {extra > 0 && <p className="text-[8px] text-slate-400 pl-1">+{extra} {translateUi("more")}</p>}
                   </div>
                 </button>
               );
@@ -974,6 +971,7 @@ function BookingsPanel({
   onRefresh: () => Promise<void>;
   onCreate: (date: string, time: string, staffId: number) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const todayStr = new Date().toISOString().split("T")[0];
   const [viewDate, setViewDate]         = useState(todayStr);
   const [viewMode, setViewMode]         = useState<"day" | "week" | "month" | "list">("day");
@@ -1082,15 +1080,15 @@ function BookingsPanel({
     setViewDate(d.toISOString().split("T")[0]);
   }
 
-  const formattedDate = new Date(viewDate + "T12:00:00").toLocaleDateString("en-GB", {
+  const formattedDate = new Date(viewDate + "T12:00:00").toLocaleDateString(uiLocale, {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
   const weekLabel = [
-    new Date(weekDates[0] + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    new Date(weekDates[0] + "T12:00:00").toLocaleDateString(uiLocale, { day: "numeric", month: "short" }),
     "–",
-    new Date(weekDates[6] + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+    new Date(weekDates[6] + "T12:00:00").toLocaleDateString(uiLocale, { day: "numeric", month: "short", year: "numeric" }),
   ].join(" ");
-  const monthLabel = new Date(viewDate + "T12:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const monthLabel = new Date(viewDate + "T12:00:00").toLocaleDateString(uiLocale, { month: "long", year: "numeric" });
   const periodLabel = viewMode === "week" ? weekLabel : viewMode === "month" ? monthLabel : formattedDate;
 
   const showTodayBtn = viewMode === "day" ? !isToday : viewMode === "week" ? !weekInclToday : !monthInclToday;
@@ -1105,6 +1103,7 @@ function BookingsPanel({
 
   // Shared nav bar — includes view toggle so both inline and expanded share one row
   function NavBar({ onClose }: { onClose?: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
     const VIEW_TABS = [
       { mode: "day"   as const, icon: <CalendarCheck className="w-3.5 h-3.5" />, label: "Day"   },
       { mode: "week"  as const, icon: <CalendarDays  className="w-3.5 h-3.5" />, label: "Week"  },
@@ -1148,7 +1147,7 @@ function BookingsPanel({
                       i > 0 ? "border-l border-slate-200" : ""
                     } ${viewMode === mode ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
                     {icon}
-                    <span className="hidden sm:inline">{label}</span>
+                    <span className="hidden sm:inline">{translateUi(label)}</span>
                   </button>
                 </Tooltip>
               );
@@ -1189,10 +1188,11 @@ function BookingsPanel({
   }
 
   function ViewContent({ forExpanded }: { forExpanded: boolean }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
     const mh = forExpanded ? undefined : 520;
     if (viewMode === "day") {
       if (activeStaff.length === 0) {
-        return <div className="text-center py-20 text-slate-400 text-sm">No active staff — onboard staff first.</div>;
+        return <div className="text-center py-20 text-slate-400 text-sm">{translateUi("No active staff — onboard staff first.")}</div>;
       }
       return (
         <>
@@ -1209,7 +1209,7 @@ function BookingsPanel({
           </div>
           {dayBookings.length === 0 && (
             <p className="text-center text-xs text-slate-400">
-              No appointments {isToday ? "today" : `on ${formattedDate}`}.
+              {translateUi("No appointments ")}{isToday ? translateUi("today") : `on ${formattedDate}`}.
             </p>
           )}
         </>
@@ -1218,7 +1218,7 @@ function BookingsPanel({
     // Staff filter pill bar shared by week + month
     const staffPills = activeStaff.length > 1 ? (
       <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-0.5 shrink-0">Stylist</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-0.5 shrink-0">{translateUi("Stylist")}</span>
         <button
           onClick={() => setFilterStaffWeek(0)}
           className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer ${
@@ -1226,8 +1226,7 @@ function BookingsPanel({
               ? "bg-slate-800 text-white border-slate-800"
               : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
           }`}>
-          All
-        </button>
+          {translateUi("All ")}</button>
         {activeStaff.map((s) => {
           const color   = staffColorMap.get(s.id)!;
           const isActive = filterStaffWeek === s.id;
@@ -1295,20 +1294,19 @@ function BookingsPanel({
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSearchResults(null); }}
             onKeyDown={(e) => { if (e.key === "Enter") runBookingSearch(); }}
-            placeholder="Find booking by ID, customer email, or phone — e.g. #42 or jane@example.com"
+            placeholder={translateUi("Find booking by ID, customer email, or phone — e.g. #42 or jane@example.com")}
             className="flex-1 min-w-0 text-sm outline-none placeholder:text-slate-400"
           />
           {searchQuery && (
             <button onClick={() => { setSearchQuery(""); setSearchResults(null); }}
-              className="text-slate-300 hover:text-slate-500 cursor-pointer shrink-0" aria-label="Clear search">
+              className="text-slate-300 hover:text-slate-500 cursor-pointer shrink-0" aria-label={translateUi("Clear search")}>
               <X className="w-3.5 h-3.5" />
             </button>
           )}
           {searchQuery && (
             <button onClick={runBookingSearch}
               className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-white hover:bg-slate-900 cursor-pointer shrink-0">
-              Go
-            </button>
+              {translateUi("Go ")}</button>
           )}
         </div>
       </div>
@@ -1345,7 +1343,7 @@ function BookingsPanel({
                 isActive ? "border-matcha-400 ring-1 ring-matcha-200 bg-matcha-50/30" : "border-slate-200 hover:border-slate-300"
               }`}>
               <p className={`text-xl sm:text-2xl font-bold leading-none ${colorCls}`}>{value}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1.5">{label}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1.5">{translateUi(label)}</p>
             </button>
           );
         })}
@@ -1386,7 +1384,7 @@ function BookingsPanel({
                   <span className={`text-[9px] font-semibold uppercase tracking-wide ${
                     isSelected ? "text-white/70" : isToday ? "text-matcha-500" : oh?.closed ? "text-slate-300" : "text-slate-400"
                   }`}>
-                    {DAY_SHORT[dayName]}
+                    {translateUi(DAY_SHORT[dayName])}
                   </span>
                   <span className={`text-xs font-bold mt-0.5 ${
                     isSelected ? "text-white" : isToday ? "text-matcha-700" : oh?.closed ? "text-slate-300" : "text-slate-700"
@@ -1417,7 +1415,7 @@ function BookingsPanel({
         <div className="space-y-3">
           <div className="flex items-center gap-2 flex-wrap bg-white border border-slate-200 rounded-xl px-4 py-2.5">
             <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1 shrink-0">Status</span>
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1 shrink-0">{translateUi("Status")}</span>
             <div className="flex flex-wrap gap-1.5 flex-1">
               {(["ALL", ...ALL_STATUSES] as (BookingStatus | "ALL")[]).map((s) => (
                 <button key={s} onClick={() => setFilterStatus(s)}
@@ -1426,7 +1424,7 @@ function BookingsPanel({
                       ? "bg-slate-800 text-white border-slate-800"
                       : "border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
                   }`}>
-                  {s === "ALL" ? "All" : STATUS_LABEL[s]}
+                  {s === "ALL" ? translateUi("All") : STATUS_LABEL[s]}
                 </button>
               ))}
             </div>
@@ -1434,7 +1432,7 @@ function BookingsPanel({
               <div className="relative shrink-0">
                 <select value={filterStaff} onChange={(e) => setFilterStaff(Number(e.target.value))}
                   className="appearance-none border border-slate-200 rounded-lg pl-3 pr-7 py-1 text-xs text-slate-700 outline-none focus:border-matcha-500 cursor-pointer bg-white">
-                  <option value={0}>All staff</option>
+                  <option value={0}>{translateUi("All staff")}</option>
                   {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
@@ -1446,7 +1444,7 @@ function BookingsPanel({
             <div className="text-center py-12 text-slate-400 text-sm">
               {dayBookings.length === 0
                 ? `No appointments ${isToday ? "today" : `on ${formattedDate}`}.`
-                : "No bookings match the selected filters."}
+                : translateUi("No bookings match the selected filters.")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -1496,6 +1494,7 @@ const DEFAULT_SCHEDULE: StaffAvailability[] = DAYS.map((day) => ({
 }));
 
 function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string; staff: StaffMember[]; operatingHours?: OperatingHours[] }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [selectedStaff, setSelectedStaff] = useState<number>(staff[0]?.id ?? 0);
   const [schedule, setSchedule] = useState<StaffAvailability[]>(DEFAULT_SCHEDULE);
   const [overrides, setOverrides] = useState<StaffAvailabilityOverride[]>([]);
@@ -1591,7 +1590,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
   }
 
   if (!staff.length) return (
-    <div className="text-center py-20 text-slate-400 text-sm">No staff members yet — onboard staff first.</div>
+    <div className="text-center py-20 text-slate-400 text-sm">{translateUi("No staff members yet — onboard staff first.")}</div>
   );
 
   const currentStaff = staff.find((s) => s.id === selectedStaff);
@@ -1608,7 +1607,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 relative z-10">
-        <label className="text-sm font-medium text-slate-700 shrink-0">Staff member</label>
+        <label className="text-sm font-medium text-slate-700 shrink-0">{translateUi("Staff member")}</label>
         <div className="relative">
           <select className={`${inputCls} pr-8 w-auto`} value={selectedStaff}
             onChange={(e) => setSelectedStaff(Number(e.target.value))}>
@@ -1617,15 +1616,15 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
         </div>
         {currentStaff && (
-          <span className="text-xs text-slate-400">{STAFF_ROLE_LABEL[currentStaff.role] ?? currentStaff.role}</span>
+          <span className="text-xs text-slate-400">{translateUi(STAFF_ROLE_LABEL[currentStaff.role] ?? currentStaff.role)}</span>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-800">Weekly schedule</h3>
-          <p className="text-xs text-slate-400 mt-0.5">The default repeating hours for this staff member. Toggle a day off to mark them unavailable every week on that day.</p>
+          <h3 className="text-sm font-semibold text-slate-800">{translateUi("Weekly schedule")}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">{translateUi("The default repeating hours for this staff member. Toggle a day off to mark them unavailable every week on that day.")}</p>
         </div>
         <div className="divide-y divide-slate-100">
           {schedule.map((s) => {
@@ -1638,7 +1637,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
               <div key={s.dayOfWeek} className="px-4 py-2.5">
                 <div className="flex items-center gap-3">
                   <span className={`text-xs font-semibold w-8 ${salonClosed ? "text-slate-300" : "text-slate-500"}`}>
-                    {DAY_SHORT[s.dayOfWeek]}
+                    {translateUi(DAY_SHORT[s.dayOfWeek])}
                   </span>
                   <button onClick={() => !salonClosed && toggleDay(s.dayOfWeek)}
                     disabled={!!salonClosed}
@@ -1648,7 +1647,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
                     <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition-transform duration-200 ${s.available && !salonClosed ? "translate-x-4" : "translate-x-0"}`} />
                   </button>
                   {salonClosed ? (
-                    <span className="text-xs text-slate-300 italic ml-1">Salon closed</span>
+                    <span className="text-xs text-slate-300 italic ml-1">{translateUi("Salon closed")}</span>
                   ) : s.available ? (
                     <div className="flex items-center gap-2 ml-1">
                       <input type="time" value={s.startTime}
@@ -1672,13 +1671,13 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
                         }`} />
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-400 ml-1">Unavailable</span>
+                    <span className="text-xs text-slate-400 ml-1">{translateUi("Unavailable")}</span>
                   )}
                 </div>
                 {hasErr && (
                   <p className="flex items-center gap-1 text-[10px] font-medium text-amber-600 mt-1 pl-[76px]">
                     <AlertCircle className="w-3 h-3 shrink-0" />
-                    Outside salon hours ({oh!.openTime} – {oh!.closeTime})
+                    {translateUi("Outside salon hours (")}{oh!.openTime} – {oh!.closeTime})
                   </p>
                 )}
               </div>
@@ -1689,7 +1688,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
           <Tooltip content={scheduleHasErrors ? "Fix hours that exceed salon operating hours before saving" : "Save the recurring weekly availability for this staff member"} side="top">
             <button onClick={saveSchedule} disabled={saving || scheduleHasErrors}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
-              {saving ? "Saving…" : "Save schedule"}
+              {saving ? translateUi("Saving…") : translateUi("Save schedule")}
             </button>
           </Tooltip>
         </div>
@@ -1698,19 +1697,18 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Date overrides</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Override the weekly schedule for a specific date — e.g. vacation, public holiday, sick leave, or different hours on a particular day.</p>
+            <h3 className="text-sm font-semibold text-slate-800">{translateUi("Date overrides")}</h3>
+            <p className="text-xs text-slate-400 mt-0.5">{translateUi("Override the weekly schedule for a specific date — e.g. vacation, public holiday, sick leave, or different hours on a particular day.")}</p>
           </div>
           <Tooltip content="Add a one-off exception — vacation, sick day, or different hours on a specific date" side="left">
             <button onClick={() => setAddOverride(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-              <Plus className="w-3 h-3" /> Add override
-            </button>
+              <Plus className="w-3 h-3" /> {translateUi("Add override ")}</button>
           </Tooltip>
         </div>
 
         {overrides.length === 0 ? (
-          <p className="text-xs text-slate-400 px-4 py-5 text-center">No overrides yet. Add one to block off a vacation, holiday, or adjust hours on a specific date.</p>
+          <p className="text-xs text-slate-400 px-4 py-5 text-center">{translateUi("No overrides yet. Add one to block off a vacation, holiday, or adjust hours on a specific date.")}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {overrides.map((o) => (
@@ -1720,7 +1718,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
                   <p className="text-xs text-slate-400">
                     {o.available
                       ? `Available ${fmt12(o.startTime!)} – ${fmt12(o.endTime!)}`
-                      : "Unavailable (blocked)"}
+                      : translateUi("Unavailable (blocked)")}
                     {o.reason && ` · ${o.reason}`}
                   </p>
                 </div>
@@ -1742,17 +1740,17 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
           onClick={(e) => e.target === e.currentTarget && setAddOverride(false)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Add date override</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Add date override")}</span>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setAddOverride(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
-              <div><label className={fieldLabel}>Date <span className="text-red-500">*</span></label>
+              <div><label className={fieldLabel}>{translateUi("Date ")}<span className="text-red-500">*</span></label>
                 <input type="date" className={inputCls} value={overrideForm.overrideDate}
                   min={new Date().toISOString().split("T")[0]}
                   onChange={(e) => setOverrideForm((p) => ({ ...p, overrideDate: e.target.value }))} />
               </div>
               <div className="flex items-center gap-3">
-                <label className="text-sm font-medium text-slate-700">Available on this day?</label>
+                <label className="text-sm font-medium text-slate-700">{translateUi("Available on this day?")}</label>
                 <button onClick={() => setOverrideForm((p) => ({ ...p, available: !p.available }))}
                   className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${overrideForm.available ? "bg-matcha-600" : "bg-slate-200"}`}>
                   <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${overrideForm.available ? "translate-x-4" : "translate-x-0"}`} />
@@ -1760,27 +1758,27 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
               </div>
               {overrideForm.available && (
                 <div className="flex items-center gap-2">
-                  <div className="flex-1"><label className={fieldLabel}>Start</label>
+                  <div className="flex-1"><label className={fieldLabel}>{translateUi("Start")}</label>
                     <input type="time" className={inputCls} value={overrideForm.startTime}
                       onChange={(e) => setOverrideForm((p) => ({ ...p, startTime: e.target.value }))} />
                   </div>
-                  <div className="flex-1"><label className={fieldLabel}>End</label>
+                  <div className="flex-1"><label className={fieldLabel}>{translateUi("End")}</label>
                     <input type="time" className={inputCls} value={overrideForm.endTime}
                       onChange={(e) => setOverrideForm((p) => ({ ...p, endTime: e.target.value }))} />
                   </div>
                 </div>
               )}
-              <div><label className={fieldLabel}>Reason (optional)</label>
-                <input className={inputCls} placeholder="e.g. Vacation, Public holiday, Training day" value={overrideForm.reason}
+              <div><label className={fieldLabel}>{translateUi("Reason (optional)")}</label>
+                <input className={inputCls} placeholder={translateUi("e.g. Vacation, Public holiday, Training day")} value={overrideForm.reason}
                   onChange={(e) => setOverrideForm((p) => ({ ...p, reason: e.target.value }))} />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button onClick={() => setAddOverride(false)}
-                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">Cancel</button>
+                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">{translateUi("Cancel")}</button>
               <button onClick={saveOverride} disabled={saving || !overrideForm.overrideDate}
                 className="px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer disabled:opacity-50">
-                {saving ? "Saving…" : "Add override"}
+                {saving ? translateUi("Saving…") : translateUi("Add override")}
               </button>
             </div>
           </div>
@@ -1795,6 +1793,7 @@ function AvailabilityPanel({ salonId, staff, operatingHours }: { salonId: string
 // ── Closures panel ────────────────────────────────────────────────────────────
 
 function ClosuresPanel({ salonId }: { salonId: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [closures, setClosures] = useState<SalonClosure[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -1843,7 +1842,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
   }
 
   function fmtDate(iso: string) {
-    return new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(iso + "T12:00:00").toLocaleDateString(uiLocale, { day: "numeric", month: "short", year: "numeric" });
   }
   function fmtRange(start: string, end: string) {
     if (start === end) return fmtDate(start);
@@ -1861,35 +1860,30 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Salon closures</h3>
+            <h3 className="text-sm font-semibold text-slate-800">{translateUi("Salon closures")}</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Mark days or date ranges when the salon won't accept any bookings — public holidays, vacation, emergencies, or special occasions.
-            </p>
+              {translateUi("Mark days or date ranges when the salon won't accept any bookings — public holidays, vacation, emergencies, or special occasions. ")}</p>
           </div>
           <Tooltip content="Add a day or date range when no bookings can be made" side="left">
             <button onClick={() => { setShowAdd(true); setFormErr(""); }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0">
-              <Plus className="w-3 h-3" /> Add closure
-            </button>
+              <Plus className="w-3 h-3" /> {translateUi("Add closure ")}</button>
           </Tooltip>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-400">
             <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
-            Loading…
-          </div>
+            {translateUi("Loading… ")}</div>
         ) : upcoming.length === 0 && past.length === 0 ? (
           <p className="text-xs text-slate-400 px-5 py-6 text-center">
-            No closures yet. Add one for vacations, emergencies, or any period when the salon cannot accept bookings.
-          </p>
+            {translateUi("No closures yet. Add one for vacations, emergencies, or any period when the salon cannot accept bookings. ")}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {upcoming.length > 0 && (
               <>
                 <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50/70">
-                  Upcoming
-                </p>
+                  {translateUi("Upcoming ")}</p>
                 {upcoming.map((c) => (
                   <div key={c.id} className="flex items-center justify-between px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -1904,7 +1898,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                             {c.holidayId ? (c.reason ?? fmtRange(c.startDate, c.endDate)) : fmtRange(c.startDate, c.endDate)}
                           </p>
                           {c.holidayId && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">Holiday</span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">{translateUi("Holiday")}</span>
                           )}
                         </div>
                         <p className="text-xs text-slate-400">
@@ -1933,8 +1927,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
             {past.length > 0 && (
               <>
                 <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50/70">
-                  Past
-                </p>
+                  {translateUi("Past ")}</p>
                 {past.map((c) => (
                   <div key={c.id} className="flex items-center justify-between px-5 py-3 opacity-50">
                     <div className="flex items-center gap-3">
@@ -1949,7 +1942,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                             {c.holidayId ? (c.reason ?? fmtRange(c.startDate, c.endDate)) : fmtRange(c.startDate, c.endDate)}
                           </p>
                           {c.holidayId && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Holiday</span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">{translateUi("Holiday")}</span>
                           )}
                         </div>
                         <p className="text-xs text-slate-400">
@@ -1986,7 +1979,7 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                 <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
                   <CalendarOff className="w-3.5 h-3.5 text-orange-600" />
                 </div>
-                <span className="text-base font-bold text-slate-900">Add closure</span>
+                <span className="text-base font-bold text-slate-900">{translateUi("Add closure")}</span>
               </div>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setShowAdd(false)}>
                 <X className="w-5 h-5" />
@@ -1995,14 +1988,14 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={fieldLabel}>Start date <span className="text-red-500">*</span></label>
+                  <label className={fieldLabel}>{translateUi("Start date ")}<span className="text-red-500">*</span></label>
                   <input type="date" className={inputCls}
                     min={today}
                     value={form.startDate}
                     onChange={(e) => { setFormErr(""); setForm((p) => ({ ...p, startDate: e.target.value, endDate: p.endDate < e.target.value ? e.target.value : p.endDate })); }} />
                 </div>
                 <div>
-                  <label className={fieldLabel}>End date <span className="text-red-500">*</span></label>
+                  <label className={fieldLabel}>{translateUi("End date ")}<span className="text-red-500">*</span></label>
                   <input type="date" className={inputCls}
                     min={form.startDate || today}
                     value={form.endDate}
@@ -2010,8 +2003,8 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
                 </div>
               </div>
               <div>
-                <label className={fieldLabel}>Reason (optional)</label>
-                <input className={inputCls} placeholder="e.g. Annual vacation, Bank holiday, Staff training"
+                <label className={fieldLabel}>{translateUi("Reason (optional)")}</label>
+                <input className={inputCls} placeholder={translateUi("e.g. Annual vacation, Bank holiday, Staff training")}
                   value={form.reason}
                   onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))} />
               </div>
@@ -2024,12 +2017,11 @@ function ClosuresPanel({ salonId }: { salonId: string }) {
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button onClick={() => setShowAdd(false)}
                 className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer">
-                Cancel
-              </button>
+                {translateUi("Cancel ")}</button>
               <button onClick={addClosure} disabled={saving}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 cursor-pointer disabled:opacity-50">
                 <CalendarOff className="w-3.5 h-3.5" />
-                {saving ? "Saving…" : "Add closure"}
+                {saving ? translateUi("Saving…") : translateUi("Add closure")}
               </button>
             </div>
           </div>
@@ -2068,6 +2060,7 @@ function CreateBookingModal({
     customerPhone: string; appointmentDate: string; startTime: string; notes: string;
   }) => Promise<void>;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [serviceId, setServiceId] = useState(services[0]?.id ?? 0);
   const [staffId, setStaffId] = useState(draft.staffId);
   const [customerName, setCustomerName] = useState("");
@@ -2101,20 +2094,20 @@ function CreateBookingModal({
       <form onSubmit={submit} className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div>
-            <h2 className="font-bold text-slate-900">New appointment</h2>
-            <p className="mt-1 text-sm text-slate-500">{draft.date} at {fmt12(draft.time)}</p>
+            <h2 className="font-bold text-slate-900">{translateUi("New appointment")}</h2>
+            <p className="mt-1 text-sm text-slate-500">{draft.date} {translateUi("at ")}{fmt12(draft.time)}</p>
           </div>
-          <button type="button" aria-label="Close" onClick={onClose} className="cursor-pointer text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+          <button type="button" aria-label={translateUi("Close")} onClick={onClose} className="cursor-pointer text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={fieldLabel}>Service</label>
+            <label className={fieldLabel}>{translateUi("Service")}</label>
             <select className={inputCls} required value={serviceId} onChange={(e) => setServiceId(Number(e.target.value))}>
-              {services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.durationMinutes} min</option>)}
+              {services.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.durationMinutes} {translateUi("min")}</option>)}
             </select>
           </div>
           <div>
-            <label className={fieldLabel}>Stylist</label>
+            <label className={fieldLabel}>{translateUi("Stylist")}</label>
             <select className={inputCls} required value={staffId} onChange={(e) => setStaffId(Number(e.target.value))}>
               {staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
             </select>
@@ -2128,8 +2121,8 @@ function CreateBookingModal({
         />
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button type="submit" disabled={saving || !services.length || !staff.length || !customerName.trim() || !contactValid} className="rounded-md bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Creating…" : "Create appointment"}</button>
+          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">{translateUi("Cancel")}</button>
+          <button type="submit" disabled={saving || !services.length || !staff.length || !customerName.trim() || !contactValid} className="rounded-md bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? translateUi("Creating…") : translateUi("Create appointment")}</button>
         </div>
       </form>
     </div>
@@ -2162,6 +2155,7 @@ function BookingSettingsPanel({
   onSaved: (days: number, requiresConfirmation: boolean) => void;
   onError: (msg: string) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [days, setDays] = useState(salon.bookingAdvanceDays ?? 60);
   const [requiresConfirmation, setRequiresConfirmation] = useState(salon.bookingRequiresConfirmation ?? false);
   const [saving, setSaving] = useState(false);
@@ -2190,21 +2184,19 @@ function BookingSettingsPanel({
       {/* Booking confirmation */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-800">Booking confirmation</h3>
+          <h3 className="text-sm font-semibold text-slate-800">{translateUi("Booking confirmation")}</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            When enabled, new bookings are created as <strong>Pending</strong> and must be manually confirmed by an admin. When disabled, bookings are auto-confirmed immediately.
-          </p>
+            {translateUi("When enabled, new bookings are created as ")}<strong>{translateUi("Pending")}</strong> {translateUi("and must be manually confirmed by an admin. When disabled, bookings are auto-confirmed immediately. ")}</p>
         </div>
         <button type="button" onClick={() => setRequiresConfirmation((v) => !v)}
           className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors cursor-pointer">
           <div>
             <p className={`text-sm font-semibold ${requiresConfirmation ? "text-matcha-800" : "text-slate-700"}`}>
-              Require manual confirmation
-            </p>
+              {translateUi("Require manual confirmation ")}</p>
             <p className="text-xs text-slate-400 mt-0.5">
               {requiresConfirmation
-                ? "New bookings will stay Pending until you confirm them."
-                : "New bookings are confirmed automatically — no action needed."}
+                ? translateUi("New bookings will stay Pending until you confirm them.")
+                : translateUi("New bookings are confirmed automatically — no action needed.")}
             </p>
           </div>
           <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${requiresConfirmation ? "bg-matcha-600" : "bg-slate-200"}`}>
@@ -2216,17 +2208,16 @@ function BookingSettingsPanel({
       {/* Advance booking window */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-800">Advance booking window</h3>
+          <h3 className="text-sm font-semibold text-slate-800">{translateUi("Advance booking window")}</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            How far in advance customers can book an appointment. Dates beyond this window will not be shown in the booking calendar.
-          </p>
+            {translateUi("How far in advance customers can book an appointment. Dates beyond this window will not be shown in the booking calendar. ")}</p>
         </div>
         <div className="divide-y divide-slate-100">
           {ADVANCE_OPTIONS.map((opt) => (
             <button key={opt.days} type="button" onClick={() => setDays(opt.days)}
               className={`w-full flex items-center justify-between px-5 py-3.5 text-left transition-colors cursor-pointer ${days === opt.days ? "bg-matcha-50" : "hover:bg-slate-50"}`}>
               <div>
-                <p className={`text-sm font-semibold ${days === opt.days ? "text-matcha-800" : "text-slate-700"}`}>{opt.label}</p>
+                <p className={`text-sm font-semibold ${days === opt.days ? "text-matcha-800" : "text-slate-700"}`}>{translateUi(opt.label)}</p>
                 <p className="text-xs text-slate-400">{opt.desc}</p>
               </div>
               <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${days === opt.days ? "border-matcha-600 bg-matcha-600" : "border-slate-300"}`}>
@@ -2237,17 +2228,16 @@ function BookingSettingsPanel({
         </div>
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60">
           <p className="text-xs text-slate-400">
-            Currently <strong className="text-slate-600">{days} days</strong> — customers can book up to{" "}
-            <strong className="text-slate-600">{ADVANCE_OPTIONS.find((o) => o.days === days)?.label ?? `${days} days`}</strong> ahead.
-          </p>
+            {translateUi("Currently ")}<strong className="text-slate-600">{days} {translateUi("days")}</strong> {translateUi("— customers can book up to")}{" "}
+            <strong className="text-slate-600">{ADVANCE_OPTIONS.find((o) => o.days === days)?.label ?? `${days} days`}</strong> {translateUi("ahead. ")}</p>
         </div>
       </div>
 
       <div className="flex justify-end">
-        <Link to={`/${salon.id}/payments`} className="mr-auto inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 no-underline hover:bg-slate-50">Payment setup</Link>
+        <Link to={`/${salon.id}/payments`} className="mr-auto inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 no-underline hover:bg-slate-50">{translateUi("Payment setup")}</Link>
         <button onClick={save} disabled={saving}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
-          {saved ? <><Check className="w-3 h-3" /> Saved!</> : saving ? "Saving…" : "Save settings"}
+          {saved ? <><Check className="w-3 h-3" /> {translateUi("Saved!")}</> : saving ? translateUi("Saving…") : translateUi("Save settings")}
         </button>
       </div>
     </div>
@@ -2255,6 +2245,7 @@ function BookingSettingsPanel({
 }
 
 export default function BookingPage() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon, setSalon } = useOutletContext<LayoutContext>();
   const { bookings: init, staff, services, countries } = useLoaderData<typeof clientLoader>();
   const [bookings, setBookings] = useState<Booking[]>(init);
@@ -2368,7 +2359,7 @@ export default function BookingPage() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Bookings</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Bookings")}</h1>
         <p className="text-sm text-slate-500">{sectionMeta.label}</p>
         <InfoBar id={`booking-${section}`}>
           {sectionMeta.description}
@@ -2419,15 +2410,15 @@ export default function BookingPage() {
           onClick={(e) => e.target === e.currentTarget && setRescheduleTarget(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Reschedule booking</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Reschedule booking")}</span>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setRescheduleTarget(null)}><X className="w-5 h-5" /></button>
             </div>
-            <p className="text-xs text-slate-500 mb-4">Customer: <strong>{rescheduleTarget.customerName}</strong></p>
+            <p className="text-xs text-slate-500 mb-4">{translateUi("Customer: ")}<strong>{rescheduleTarget.customerName}</strong></p>
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={fieldLabel}>New date</label>
+                  <label className={fieldLabel}>{translateUi("New date")}</label>
                   <input type="date" className={inputCls} value={rsForm.appointmentDate}
                     min={new Date().toISOString().split("T")[0]}
                     onChange={(e) => {
@@ -2436,14 +2427,14 @@ export default function BookingPage() {
                     }} />
                 </div>
                 <div>
-                  <label className={fieldLabel}>Staff member</label>
+                  <label className={fieldLabel}>{translateUi("Staff member")}</label>
                   <div className="relative">
                     <select className={`${inputCls} pr-7`} value={rsForm.staffId}
                       onChange={(e) => {
                         setRsSelectedSlot(null);
                         setRsForm((p) => ({ ...p, staffId: Number(e.target.value), startTime: "" }));
                       }}>
-                      <option value={0}>Any available</option>
+                      <option value={0}>{translateUi("Any available")}</option>
                       {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -2453,20 +2444,17 @@ export default function BookingPage() {
 
               <div>
                 <label className={fieldLabel}>
-                  Available times
-                  {rsSelectedSlot && (
+                  {translateUi("Available times ")}{rsSelectedSlot && (
                     <span className="ml-2 font-semibold text-matcha-600">
-                      · {fmt12(rsSelectedSlot.startTime)} – {fmt12(rsSelectedSlot.endTime)} selected
-                    </span>
+                      · {fmt12(rsSelectedSlot.startTime)} – {fmt12(rsSelectedSlot.endTime)} {translateUi("selected ")}</span>
                   )}
                 </label>
                 {!rsForm.appointmentDate ? (
-                  <p className="text-xs text-slate-400 py-2">Select a date to see availability.</p>
+                  <p className="text-xs text-slate-400 py-2">{translateUi("Select a date to see availability.")}</p>
                 ) : rsSlotsLoading ? (
                   <div className="flex items-center gap-2 py-4 text-xs text-slate-400">
                     <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
-                    Loading availability…
-                  </div>
+                    {translateUi("Loading availability… ")}</div>
                 ) : (() => {
                   let displaySlots: AvailableSlot[];
                   if (rsForm.staffId) {
@@ -2480,7 +2468,7 @@ export default function BookingPage() {
                     displaySlots = [...map.values()].sort((a, b) => a.startTime.localeCompare(b.startTime));
                   }
                   return displaySlots.length === 0 ? (
-                    <p className="text-xs text-slate-400 py-2">No slots available for this date.</p>
+                    <p className="text-xs text-slate-400 py-2">{translateUi("No slots available for this date.")}</p>
                   ) : (
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-44 overflow-y-auto pr-1">
                       {displaySlots.map((s) => {
@@ -2515,8 +2503,8 @@ export default function BookingPage() {
               </div>
 
               <div>
-                <label className={fieldLabel}>Notes</label>
-                <input className={inputCls} placeholder="Optional note" value={rsForm.notes}
+                <label className={fieldLabel}>{translateUi("Notes")}</label>
+                <input className={inputCls} placeholder={translateUi("Optional note")} value={rsForm.notes}
                   onChange={(e) => setRsForm((p) => ({ ...p, notes: e.target.value }))} />
               </div>
             </div>
@@ -2525,17 +2513,15 @@ export default function BookingPage() {
               <button type="button" disabled
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-violet-200 text-violet-400 bg-violet-50 cursor-not-allowed opacity-75">
                 <Sparkles className="w-3.5 h-3.5" />
-                Assist with AI
-                <span className="ml-0.5 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-500">
-                  Coming soon
-                </span>
+                {translateUi("Assist with AI ")}<span className="ml-0.5 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-500">
+                  {translateUi("Coming soon ")}</span>
               </button>
               <div className="flex gap-2">
                 <button onClick={() => setRescheduleTarget(null)}
-                  className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
+                  className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">{translateUi("Cancel")}</button>
                 <button onClick={submitReschedule} disabled={busy || !rsForm.appointmentDate || !rsForm.startTime}
                   className="px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer disabled:opacity-50">
-                  {busy ? "Saving…" : "Reschedule"}
+                  {busy ? translateUi("Saving…") : translateUi("Reschedule")}
                 </button>
               </div>
             </div>
@@ -2549,18 +2535,18 @@ export default function BookingPage() {
           onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-              <span className="text-base font-bold text-slate-900">Delete booking</span>
+              <span className="text-base font-bold text-slate-900">{translateUi("Delete booking")}</span>
               <button className="text-slate-400 hover:text-slate-600 cursor-pointer" onClick={() => setDeleteTarget(null)}><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-slate-600">
-              Remove the booking for <strong>{deleteTarget.customerName}</strong> on {deleteTarget.appointmentDate}?
+              {translateUi("Remove the booking for ")}<strong>{deleteTarget.customerName}</strong> {translateUi("on ")}{deleteTarget.appointmentDate}?
             </p>
             <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
               <button onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
+                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">{translateUi("Cancel")}</button>
               <button onClick={submitDelete} disabled={busy}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-red-500 text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer disabled:opacity-50">
-                <Trash2 className="w-3.5 h-3.5" /> {busy ? "Deleting…" : "Delete"}
+                <Trash2 className="w-3.5 h-3.5" /> {busy ? translateUi("Deleting…") : translateUi("Delete")}
               </button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Loader2, Minus, Plus, Search, ShoppingBag, SlidersHorizontal, Trash2, User, X,
@@ -24,6 +25,7 @@ export interface ShopViewProps {
 type Step = "browse" | "checkout" | "done";
 
 export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: ShopViewProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const theme = themeProp;
   const fontStackCss = fontStack(theme.fontFamily);
   const heroLight = isLightColor(theme.heroBg);
@@ -211,10 +213,9 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           <Check className="w-8 h-8" style={{ color: theme.accentColor }} />
         </div>
         <h1 className="text-3xl font-black tracking-tight mb-2" style={{ color: theme.heroTextColor }}>
-          Order placed
-        </h1>
+          {translateUi("Order placed ")}</h1>
         <p className="text-sm mb-1" style={{ color: sub }}>
-          {placed.paymentStatus === "PENDING" ? "Payment received. We’re confirming your order." : `Thanks, ${placed.customerName.split(" ")[0]}! Your order number is`}
+          {placed.paymentStatus === "PENDING" ? translateUi("Payment received. We’re confirming your order.") : `Thanks, ${placed.customerName.split(" ")[0]}! Your order number is`}
         </p>
         <p className="text-lg font-bold mb-6" style={{ color: theme.heroTextColor }}>{placed.orderNumber}</p>
         <div
@@ -227,12 +228,12 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
                 {l.quantity} × {l.productName}
                 {l.variantLabel ? ` · ${l.variantLabel}` : ""}
               </span>
-              <span>{formatPrice(l.lineTotal, placed.currency)}</span>
+              <span>{formatPrice(l.lineTotal, placed.currency, uiLocale)}</span>
             </div>
           ))}
           <div className="border-t mt-2 pt-2 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
-            <span>{placed.paymentStatus === "PENDING" ? "Total" : "Total paid"}</span>
-            <span>{formatPrice(placed.subtotal, placed.currency)}</span>
+            <span>{placed.paymentStatus === "PENDING" ? translateUi("Total") : translateUi("Total paid")}</span>
+            <span>{formatPrice(placed.subtotal, placed.currency, uiLocale)}</span>
           </div>
         </div>
         <button
@@ -240,7 +241,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
           style={{ backgroundColor: theme.accentColor, color: accentText }}
         >
-          <ArrowLeft className="w-4 h-4" /> Back to {salon.name}
+          <ArrowLeft className="w-4 h-4" /> {translateUi("Back to ")}{salon.name}
         </button>
       </div>,
     );
@@ -305,7 +306,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           </button>
           <input
             type="search"
-            placeholder="Search products…"
+            placeholder={translateUi("Search products…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 min-w-0 sm:min-w-[140px] px-4 py-3 text-base sm:text-sm outline-none bg-transparent"
@@ -317,7 +318,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         <div className="flex flex-col sm:contents">
           {brands.length > 0 && (
             <FilterSelect
-              label="Brand" value={activeBrandId != null ? String(activeBrandId) : ""}
+              label={translateUi("Brand")} value={activeBrandId != null ? String(activeBrandId) : ""}
               sub={sub} border={cardBorder} text={theme.heroTextColor} menuBg={menuBg} menuHover={menuHover}
               options={[{ value: "", label: "All" }, ...brands.map((b) => ({ value: String(b.id), label: b.name }))]}
               onChange={(v) => setActiveBrandId(v ? Number(v) : null)}
@@ -326,7 +327,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
 
           {categories.length > 0 && (
             <FilterSelect
-              label="Category" value={activeCategoryId != null ? String(activeCategoryId) : ""}
+              label={translateUi("Category")} value={activeCategoryId != null ? String(activeCategoryId) : ""}
               sub={sub} border={cardBorder} text={theme.heroTextColor} menuBg={menuBg} menuHover={menuHover}
               options={[{ value: "", label: "All" }, ...categories.map((c) => ({ value: String(c.id), label: c.name }))]}
               onChange={(v) => setActiveCategoryId(v ? Number(v) : null)}
@@ -334,7 +335,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           )}
 
           <FilterSelect
-            label="Sort" value={sort}
+            label={translateUi("Sort")} value={sort}
             sub={sub} border={cardBorder} text={theme.heroTextColor} menuBg={menuBg} menuHover={menuHover}
             options={[
               { value: "default", label: "Default" },
@@ -356,7 +357,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           >
             <div className="flex-1 min-w-[220px]">
               <div className="flex items-center justify-between text-xs font-medium mb-2.5">
-                <span style={{ color: sub }}>Price range</span>
+                <span style={{ color: sub }}>{translateUi("Price range")}</span>
                 <span style={{ color: theme.heroTextColor }}>{formatPrice(sliderMin)} – {formatPrice(sliderMax)}</span>
               </div>
               <PriceRangeSlider
@@ -378,8 +379,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
                 className="w-3.5 h-3.5 cursor-pointer"
                 style={{ accentColor: theme.accentColor }}
               />
-              Only available
-            </label>
+              {translateUi("Only available ")}</label>
 
             {activeFilterCount > 0 && (
               <button
@@ -388,8 +388,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
                 className="text-xs font-semibold shrink-0 cursor-pointer pb-1.5 self-start sm:self-auto"
                 style={{ color: theme.accentColor }}
               >
-                Clear filters
-              </button>
+                {translateUi("Clear filters ")}</button>
             )}
           </div>
         )}
@@ -401,7 +400,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         <div className="flex justify-end mb-5 -mt-3">
           <div
             role="group"
-            aria-label="Card size"
+            aria-label={translateUi("Card size")}
             className="inline-flex rounded-lg border overflow-hidden"
             style={{ borderColor: cardBorder }}
           >
@@ -418,7 +417,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
                   color: density === option ? accentText : sub,
                 }}
               >
-                {option === "comfortable" ? "Large" : "Compact"}
+                {option === "comfortable" ? translateUi("Large") : translateUi("Compact")}
               </button>
             ))}
           </div>
@@ -446,8 +445,8 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}
         >
           <ShoppingBag className="w-8 h-8 mx-auto mb-3" style={{ color: sub }} />
-          <p className="text-sm font-semibold" style={{ color: theme.heroTextColor }}>No products yet</p>
-          <p className="text-xs mt-1" style={{ color: sub }}>Check back soon — the shop is being stocked.</p>
+          <p className="text-sm font-semibold" style={{ color: theme.heroTextColor }}>{translateUi("No products yet")}</p>
+          <p className="text-xs mt-1" style={{ color: sub }}>{translateUi("Check back soon — the shop is being stocked.")}</p>
         </div>
       )}
 
@@ -457,8 +456,8 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
           style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}
         >
           <Search className="w-8 h-8 mx-auto mb-3" style={{ color: sub }} />
-          <p className="text-sm font-semibold" style={{ color: theme.heroTextColor }}>No matches</p>
-          <p className="text-xs mt-1" style={{ color: sub }}>Try a different search, brand, or category.</p>
+          <p className="text-sm font-semibold" style={{ color: theme.heroTextColor }}>{translateUi("No matches")}</p>
+          <p className="text-xs mt-1" style={{ color: sub }}>{translateUi("Try a different search, brand, or category.")}</p>
         </div>
       )}
 
@@ -560,6 +559,7 @@ function PriceRangeSlider({
   accent: string;
   track: string;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const span = Math.max(1, bounds.max - bounds.min);
   const minPct = ((min - bounds.min) / span) * 100;
   const maxPct = ((max - bounds.min) / span) * 100;
@@ -588,12 +588,12 @@ function PriceRangeSlider({
       <input
         type="range" min={bounds.min} max={bounds.max} value={min}
         onChange={(e) => onChangeMin(Number(e.target.value))}
-        className={thumbClass} style={thumbStyle} aria-label="Minimum price"
+        className={thumbClass} style={thumbStyle} aria-label={translateUi("Minimum price")}
       />
       <input
         type="range" min={bounds.min} max={bounds.max} value={max}
         onChange={(e) => onChangeMax(Number(e.target.value))}
-        className={thumbClass} style={thumbStyle} aria-label="Maximum price"
+        className={thumbClass} style={thumbStyle} aria-label={translateUi("Maximum price")}
       />
     </div>
   );
@@ -618,6 +618,7 @@ function FilterSelect({
   menuBg: string;
   menuHover: string;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value) ?? options[0];
@@ -643,7 +644,7 @@ function FilterSelect({
       style={{ borderColor: border }}
     >
       <span className="text-[10px] font-bold uppercase tracking-widest shrink-0 w-16 sm:w-auto" style={{ color: sub }}>
-        {label}
+        {translateUi(label)}
       </span>
       <button
         type="button"
@@ -707,6 +708,7 @@ function ProductCard({
   wished?: boolean;
   onToggleWish?: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
   const sub = heroLight ? "#6B7280" : "#94A3B8";
@@ -770,8 +772,7 @@ function ProductCard({
             className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
             style={{ backgroundColor: "rgba(15,23,42,0.70)", color: "#FFFFFF" }}
           >
-            Sold
-          </div>
+            {translateUi("Sold ")}</div>
         )}
 
         {/* Favourite — a sibling of the full-bleed "view details" button above, so it still
@@ -782,7 +783,7 @@ function ProductCard({
             onClick={(e) => { e.stopPropagation(); onToggleWish(); }}
             aria-pressed={wished}
             aria-label={wished ? `Remove ${product.name} from favourites` : `Save ${product.name} to favourites`}
-            title={wished ? "Remove from favourites" : "Save to favourites"}
+            title={wished ? translateUi("Remove from favourites") : translateUi("Save to favourites")}
             className={`absolute top-2.5 right-2.5 flex items-center justify-center rounded-full transition-colors cursor-pointer ${compact ? "w-7 h-7" : "w-8 h-8"}`}
             style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.55)" }}
           >
@@ -833,7 +834,7 @@ function ProductCard({
                   key={v.id}
                   onClick={() => !soldOut && onSelectVariant(v.id)}
                   disabled={soldOut}
-                  title={soldOut ? "Out of stock" : v.label || "Standard"}
+                  title={soldOut ? translateUi("Out of stock") : v.label || "Standard"}
                   className="text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all cursor-pointer disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: isSelected ? theme.accentColor : `${theme.accentColor}15`,
@@ -855,14 +856,14 @@ function ProductCard({
           <div className="flex flex-col">
             {hasCompareAt && !compact && (
               <span className="text-[11px] line-through" style={{ color: sub }}>
-                {formatPrice(variant!.compareAtPrice!, variant!.currency)}
+                {formatPrice(variant!.compareAtPrice!, variant!.currency, uiLocale)}
               </span>
             )}
             <span
               className={`font-extrabold tracking-tight ${compact ? "text-sm" : "text-base"}`}
               style={{ color: outOfStock ? sub : hasCompareAt ? "#DC2626" : theme.accentColor }}
             >
-              {variant ? formatPrice(variant.price, variant.currency) : "—"}
+              {variant ? formatPrice(variant.price, variant.currency, uiLocale) : "—"}
             </span>
           </div>
           <button
@@ -870,7 +871,7 @@ function ProductCard({
             onClick={() => variant && onAdd(variant)}
             className={`rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 shrink-0 ${compact ? "w-7 h-7" : "w-9 h-9"}`}
             style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor, border: `1.5px solid ${theme.accentColor}44` }}
-            title={outOfStock ? "Out of stock" : "Add to cart"}
+            title={outOfStock ? translateUi("Out of stock") : translateUi("Add to cart")}
           >
             <ShoppingBag className={compact ? "w-3.5 h-3.5" : "w-4 h-4"} />
           </button>
@@ -892,6 +893,7 @@ function ProductDetailModal({
   onAdd: (variant: ShopVariant) => void;
   onClose: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
   const sub = heroLight ? "#475569" : "#94A3B8";
@@ -946,7 +948,7 @@ function ProductDetailModal({
           onClick={onClose}
           className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
           style={{ backgroundColor: heroLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.12)", color: sub }}
-          aria-label="Close"
+          aria-label={translateUi("Close")}
         >
           <X className="w-4 h-4" />
         </button>
@@ -968,15 +970,14 @@ function ProductDetailModal({
                   className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
                   style={{ backgroundColor: "rgba(15,23,42,0.70)", color: "#FFFFFF" }}
                 >
-                  Sold
-                </div>
+                  {translateUi("Sold ")}</div>
               )}
               {gallery.length > 1 && (
                 <>
                   <button
                     type="button"
                     onClick={() => setImgIdx((i) => (i - 1 + gallery.length) % gallery.length)}
-                    aria-label="Previous image"
+                    aria-label={translateUi("Previous image")}
                     className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
                     style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.65)", color: sub }}
                   >
@@ -985,7 +986,7 @@ function ProductDetailModal({
                   <button
                     type="button"
                     onClick={() => setImgIdx((i) => (i + 1) % gallery.length)}
-                    aria-label="Next image"
+                    aria-label={translateUi("Next image")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
                     style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.65)", color: sub }}
                   >
@@ -1008,7 +1009,7 @@ function ProductDetailModal({
                       backgroundColor: heroLight ? "#FFFFFF" : "rgba(255,255,255,0.06)",
                     }}
                   >
-                    <img src={src} alt="" className="w-full h-full object-contain p-1" />
+                    <img src={src} alt={""} className="w-full h-full object-contain p-1" />
                   </button>
                 ))}
               </div>
@@ -1054,8 +1055,7 @@ function ProductDetailModal({
             {product.variants.length > 1 && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: sub }}>
-                  Options
-                </p>
+                  {translateUi("Options ")}</p>
                 <div className="flex flex-wrap gap-2">
                   {product.variants.map((v) => {
                     const isSelected = v.id === (variant?.id);
@@ -1066,7 +1066,7 @@ function ProductDetailModal({
                         key={v.id}
                         onClick={() => !soldOut && onSelectVariant(v.id)}
                         disabled={soldOut}
-                        title={soldOut ? "Out of stock" : v.label || "Standard"}
+                        title={soldOut ? translateUi("Out of stock") : v.label || "Standard"}
                         className="flex flex-col items-start px-3 py-2 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
                         style={{
                           backgroundColor: isSelected ? theme.accentColor : pillBg,
@@ -1081,11 +1081,11 @@ function ProductDetailModal({
                         <span className="text-[10px] mt-0.5 flex items-center gap-1">
                           {vHasCompare && (
                             <span style={{ textDecoration: "line-through", opacity: 0.6 }}>
-                              {formatPrice(v.compareAtPrice!, v.currency)}
+                              {formatPrice(v.compareAtPrice!, v.currency, uiLocale)}
                             </span>
                           )}
                           <span style={{ color: isSelected ? accentText : vHasCompare ? "#DC2626" : "inherit" }}>
-                            {formatPrice(v.price, v.currency)}
+                            {formatPrice(v.price, v.currency, uiLocale)}
                           </span>
                         </span>
                       </button>
@@ -1100,22 +1100,21 @@ function ProductDetailModal({
               <div className="flex flex-col">
                 {hasCompareAt && (
                   <span className="text-sm line-through" style={{ color: sub }}>
-                    {formatPrice(variant!.compareAtPrice!, variant!.currency)}
+                    {formatPrice(variant!.compareAtPrice!, variant!.currency, uiLocale)}
                   </span>
                 )}
                 <span
                   className="text-2xl font-black tracking-tight"
                   style={{ color: allSold ? sub : hasCompareAt ? "#DC2626" : theme.accentColor }}
                 >
-                  {variant ? formatPrice(variant.price, variant.currency) : "—"}
+                  {variant ? formatPrice(variant.price, variant.currency, uiLocale) : "—"}
                 </span>
               </div>
 
               {/* Stock note */}
               {!allSold && variant && variant.quantityOnHand > 0 && variant.quantityOnHand <= 5 && (
                 <span className="text-xs mb-1" style={{ color: "#F59E0B" }}>
-                  Only {variant.quantityOnHand} left
-                </span>
+                  {translateUi("Only ")}{variant.quantityOnHand} {translateUi("left ")}</span>
               )}
             </div>
 
@@ -1127,7 +1126,7 @@ function ProductDetailModal({
               style={{ backgroundColor: theme.accentColor, color: accentText }}
             >
               <ShoppingBag className="w-4 h-4" />
-              {allSold ? "Sold out" : outOfStock ? "This option is out of stock" : "Add to cart"}
+              {allSold ? translateUi("Sold out") : outOfStock ? translateUi("This option is out of stock") : translateUi("Add to cart")}
             </button>
           </div>
         </div>
@@ -1147,6 +1146,7 @@ function CartDrawer({
   cart: ReturnType<typeof useCart>;
   onCheckout: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
   const sub = heroLight ? "#475569" : "#94A3B8";
@@ -1164,7 +1164,7 @@ function CartDrawer({
       >
         <div className="flex items-center justify-between px-4 h-14 border-b" style={{ borderColor: border }}>
           <span className="text-sm font-bold" style={{ color: theme.heroTextColor }}>
-            Your cart ({cart.count})
+            {translateUi("Your cart (")}{cart.count})
           </span>
           <button onClick={onClose} className="cursor-pointer" style={{ color: sub }}>
             <X className="w-5 h-5" />
@@ -1173,7 +1173,7 @@ function CartDrawer({
 
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {cart.lines.length === 0 && (
-            <p className="text-sm text-center py-10" style={{ color: sub }}>Your cart is empty.</p>
+            <p className="text-sm text-center py-10" style={{ color: sub }}>{translateUi("Your cart is empty.")}</p>
           )}
           {cart.lines.map((l) => (
             <div key={l.variantId} className="flex gap-3">
@@ -1182,7 +1182,7 @@ function CartDrawer({
                 style={{ backgroundColor: `${theme.accentColor}14` }}
               >
                 {l.imageUrl ? (
-                  <img src={l.imageUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={l.imageUrl} alt={""} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-2xl select-none" aria-hidden="true">{DEFAULT_PRODUCT_EMOJI}</span>
                 )}
@@ -1190,7 +1190,7 @@ function CartDrawer({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate" style={{ color: theme.heroTextColor }}>{l.productName}</p>
                 {l.variantLabel && <p className="text-[11px]" style={{ color: sub }}>{l.variantLabel}</p>}
-                <p className="text-xs mt-0.5" style={{ color: sub }}>{formatPrice(l.unitPrice, l.currency)} each</p>
+                <p className="text-xs mt-0.5" style={{ color: sub }}>{formatPrice(l.unitPrice, l.currency, uiLocale)} {translateUi("each")}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                   <button
                     onClick={() => cart.setQty(l.variantId, l.quantity - 1)}
@@ -1218,7 +1218,7 @@ function CartDrawer({
                 </div>
               </div>
               <span className="text-sm font-semibold shrink-0" style={{ color: theme.heroTextColor }}>
-                {formatPrice(l.unitPrice * l.quantity, l.currency)}
+                {formatPrice(l.unitPrice * l.quantity, l.currency, uiLocale)}
               </span>
             </div>
           ))}
@@ -1226,8 +1226,8 @@ function CartDrawer({
 
         <div className="border-t px-4 py-4" style={{ borderColor: border }}>
           <div className="flex items-center justify-between text-sm font-bold mb-3" style={{ color: theme.heroTextColor }}>
-            <span>Subtotal</span>
-            <span>{formatPrice(cart.subtotal, cart.currency)}</span>
+            <span>{translateUi("Subtotal")}</span>
+            <span>{formatPrice(cart.subtotal, cart.currency, uiLocale)}</span>
           </div>
           <button
             disabled={cart.lines.length === 0}
@@ -1235,8 +1235,7 @@ function CartDrawer({
             className="w-full text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: theme.accentColor, color: accentText }}
           >
-            Proceed to checkout
-          </button>
+            {translateUi("Proceed to checkout ")}</button>
         </div>
       </aside>
     </div>
@@ -1257,6 +1256,7 @@ function CheckoutForm({
   onCancel: () => void;
   onPlaced: (order: ShopOrder) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
   const sub = heroLight ? "#475569" : "#94A3B8";
@@ -1306,10 +1306,9 @@ function CheckoutForm({
   if (lines.length === 0) {
     return (
       <div className="max-w-md mx-auto px-6 py-20 text-center">
-        <p className="text-sm mb-4" style={{ color: sub }}>Your cart is empty.</p>
+        <p className="text-sm mb-4" style={{ color: sub }}>{translateUi("Your cart is empty.")}</p>
         <button onClick={onCancel} className="text-sm font-semibold cursor-pointer" style={{ color: theme.accentColor }}>
-          ← Back to shop
-        </button>
+          {translateUi("← Back to shop ")}</button>
       </div>
     );
   }
@@ -1352,21 +1351,19 @@ function CheckoutForm({
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
       <button onClick={onCancel} className="text-xs font-semibold mb-5 inline-flex items-center gap-1.5 cursor-pointer" style={{ color: sub }}>
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to shop
-      </button>
+        <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("Back to shop ")}</button>
       <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-6" style={{ color: theme.heroTextColor }}>
-        Checkout
-      </h1>
+        {translateUi("Checkout ")}</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6">
         <div className="flex flex-col gap-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>Your details</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>{translateUi("Your details")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Full name */}
               <div className="flex flex-col">
                 <label className="text-xs" style={labelStyle}>
-                  Full name <span style={{ color: errorColor }}>*</span>
+                  {translateUi("Full name ")}<span style={{ color: errorColor }}>*</span>
                   <input
                     className={inputCls}
                     style={inputStyle("customerName")}
@@ -1384,7 +1381,7 @@ function CheckoutForm({
               {/* Email */}
               <div className="flex flex-col">
                 <label className="text-xs" style={labelStyle}>
-                  Email <span style={{ color: errorColor }}>*</span>
+                  {translateUi("Email ")}<span style={{ color: errorColor }}>*</span>
                   <input
                     className={inputCls}
                     style={inputStyle("customerEmail")}
@@ -1402,7 +1399,7 @@ function CheckoutForm({
 
               {/* Phone */}
               <div className="text-xs sm:col-span-2" style={labelStyle}>
-                Phone <span className="text-[10px]" style={{ color: sub }}>(optional)</span>
+                {translateUi("Phone ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
                 <div className="mt-1">
                   <PhoneInput
                     value={f.customerPhone}
@@ -1416,27 +1413,22 @@ function CheckoutForm({
           </div>
 
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>Shipping address <span className="text-[10px] font-normal normal-case tracking-normal" style={{ color: sub }}>(optional)</span></p>
+            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>{translateUi("Shipping address ")}<span className="text-[10px] font-normal normal-case tracking-normal" style={{ color: sub }}>{translateUi("(optional)")}</span></p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="text-xs sm:col-span-2" style={labelStyle}>
-                Address line 1
-                <input className={inputCls} style={inputStyle("line1")} value={f.line1} onChange={set("line1")} autoComplete="address-line1" />
+                {translateUi("Address line 1 ")}<input className={inputCls} style={inputStyle("line1")} value={f.line1} onChange={set("line1")} autoComplete="address-line1" />
               </label>
               <label className="text-xs sm:col-span-2" style={labelStyle}>
-                Address line 2
-                <input className={inputCls} style={inputStyle("line2")} value={f.line2} onChange={set("line2")} autoComplete="address-line2" />
+                {translateUi("Address line 2 ")}<input className={inputCls} style={inputStyle("line2")} value={f.line2} onChange={set("line2")} autoComplete="address-line2" />
               </label>
               <label className="text-xs" style={labelStyle}>
-                City
-                <input className={inputCls} style={inputStyle("city")} value={f.city} onChange={set("city")} autoComplete="address-level2" />
+                {translateUi("City ")}<input className={inputCls} style={inputStyle("city")} value={f.city} onChange={set("city")} autoComplete="address-level2" />
               </label>
               <label className="text-xs" style={labelStyle}>
-                State / region
-                <input className={inputCls} style={inputStyle("state")} value={f.state} onChange={set("state")} autoComplete="address-level1" />
+                {translateUi("State / region ")}<input className={inputCls} style={inputStyle("state")} value={f.state} onChange={set("state")} autoComplete="address-level1" />
               </label>
               <label className="text-xs" style={labelStyle}>
-                Country
-                {countries.length > 0 ? (
+                {translateUi("Country ")}{countries.length > 0 ? (
                   <select
                     className={inputCls}
                     style={inputStyle("country")}
@@ -1444,7 +1436,7 @@ function CheckoutForm({
                     onChange={set("country")}
                     autoComplete="country-name"
                   >
-                    <option value="">— Select country —</option>
+                    <option value="">{translateUi("— Select country —")}</option>
                     {countries.map((c) => (
                       <option key={c.code} value={c.name}>{c.name}</option>
                     ))}
@@ -1454,8 +1446,7 @@ function CheckoutForm({
                 )}
               </label>
               <label className="text-xs" style={labelStyle}>
-                ZIP / postcode
-                <input className={inputCls} style={inputStyle("zipCode")} value={f.zipCode} onChange={set("zipCode")} autoComplete="postal-code" />
+                {translateUi("ZIP / postcode ")}<input className={inputCls} style={inputStyle("zipCode")} value={f.zipCode} onChange={set("zipCode")} autoComplete="postal-code" />
               </label>
             </div>
           </div>
@@ -1463,8 +1454,7 @@ function CheckoutForm({
           {/* Communication preference */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>
-              Order notifications
-            </p>
+              {translateUi("Order notifications ")}</p>
             <div className="flex flex-col gap-2">
               {(["IMPORTANT_ONLY", "ALL"] as const).map((opt) => {
                 const selected = f.communicationPreference === opt;
@@ -1489,12 +1479,12 @@ function CheckoutForm({
                     </span>
                     <span>
                       <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>
-                        {opt === "IMPORTANT_ONLY" ? "Important only" : "All updates"}
+                        {opt === "IMPORTANT_ONLY" ? translateUi("Important only") : translateUi("All updates")}
                       </span>
                       <span className="text-[11px]" style={{ color: sub }}>
                         {opt === "IMPORTANT_ONLY"
-                          ? "Shipping, invoice, refund & credit notifications"
-                          : "Every status change and activity on your order"}
+                          ? translateUi("Shipping, invoice, refund & credit notifications")
+                          : translateUi("Every status change and activity on your order")}
                       </span>
                     </span>
                   </button>
@@ -1508,7 +1498,7 @@ function CheckoutForm({
           className="rounded-2xl p-4 h-fit"
           style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}
         >
-          <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: theme.accentColor }}>Order summary</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: theme.accentColor }}>{translateUi("Order summary")}</p>
           <div className="flex flex-col gap-2 mb-3">
             {lines.map((l) => (
               <div key={l.variantId} className="flex items-start justify-between text-xs" style={{ color: theme.heroTextColor }}>
@@ -1516,13 +1506,13 @@ function CheckoutForm({
                   {l.quantity} × {l.productName}
                   {l.variantLabel ? ` · ${l.variantLabel}` : ""}
                 </span>
-                <span>{formatPrice(l.unitPrice * l.quantity, l.currency)}</span>
+                <span>{formatPrice(l.unitPrice * l.quantity, l.currency, uiLocale)}</span>
               </div>
             ))}
           </div>
           <div className="border-t pt-3 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
-            <span>Total</span>
-            <span>{formatPrice(subtotal, currency)}</span>
+            <span>{translateUi("Total")}</span>
+            <span>{formatPrice(subtotal, currency, uiLocale)}</span>
           </div>
 
           {submitError && (
@@ -1538,12 +1528,11 @@ function CheckoutForm({
             style={{ backgroundColor: theme.accentColor, color: accentText }}
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {busy ? "Processing…" : `Pay ${formatPrice(subtotal, currency)}`}
+            {busy ? translateUi("Processing…") : `Pay ${formatPrice(subtotal, currency, uiLocale)}`}
           </button>
 
           <p className="text-[10px] text-center mt-2" style={{ color: sub }}>
-            Payment is simulated — no card is charged.
-          </p>
+            {translateUi("Payment is simulated — no card is charged. ")}</p>
         </div>
       </div>
     </div>
@@ -1559,6 +1548,7 @@ function UserAccountPanel({
   onClose: () => void;
   theme: WebsiteTheme;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const heroLight = isLightColor(theme.heroBg);
   const sub = heroLight ? "#475569" : "#94A3B8";
   const panelBg = heroLight ? "#FFFFFF" : "#0F172A";
@@ -1593,8 +1583,7 @@ function UserAccountPanel({
           <div className="flex items-center gap-2">
             <User className="w-4 h-4" style={{ color: theme.accentColor }} />
             <span className="text-sm font-bold" style={{ color: heroLight ? "#0F172A" : "#F8FAFC" }}>
-              My Account
-            </span>
+              {translateUi("My Account ")}</span>
           </div>
           <button onClick={onClose} className="cursor-pointer" style={{ color: sub }}>
             <X className="w-5 h-5" />
@@ -1613,22 +1602,20 @@ function UserAccountPanel({
             }}
           >
             <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-semibold">Customer accounts — coming soon</span>
+            <span className="font-semibold">{translateUi("Customer accounts — coming soon")}</span>
           </div>
 
           <p className="text-xs leading-relaxed" style={{ color: sub }}>
-            Sign in with your email or mobile number to track orders, manage returns, and save your details for faster checkout.
-          </p>
+            {translateUi("Sign in with your email or mobile number to track orders, manage returns, and save your details for faster checkout. ")}</p>
 
           {/* Email input */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: sub }}>
-              Email
-            </label>
+              {translateUi("Email ")}</label>
             <input
               type="email"
               disabled
-              placeholder="your@email.com"
+              placeholder={"your@email.com"}
               className="w-full text-sm rounded-lg px-3 py-2.5 outline-none cursor-not-allowed opacity-50"
               style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, color: heroLight ? "#0F172A" : "#F8FAFC" }}
             />
@@ -1636,19 +1623,18 @@ function UserAccountPanel({
 
           <div className="flex items-center gap-2" style={{ color: sub }}>
             <div className="flex-1 h-px" style={{ backgroundColor: border }} />
-            <span className="text-[10px] font-medium">or</span>
+            <span className="text-[10px] font-medium">{translateUi("or")}</span>
             <div className="flex-1 h-px" style={{ backgroundColor: border }} />
           </div>
 
           {/* Mobile input */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: sub }}>
-              Mobile number
-            </label>
+              {translateUi("Mobile number ")}</label>
             <input
               type="tel"
               disabled
-              placeholder="+1 (555) 000-0000"
+              placeholder={"+1 (555) 000-0000"}
               className="w-full text-sm rounded-lg px-3 py-2.5 outline-none cursor-not-allowed opacity-50"
               style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, color: heroLight ? "#0F172A" : "#F8FAFC" }}
             />
@@ -1660,8 +1646,7 @@ function UserAccountPanel({
             className="w-full text-sm font-semibold px-4 py-3 rounded-xl opacity-40 cursor-not-allowed"
             style={{ backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) }}
           >
-            Continue
-          </button>
+            {translateUi("Continue ")}</button>
         </div>
       </aside>
     </div>

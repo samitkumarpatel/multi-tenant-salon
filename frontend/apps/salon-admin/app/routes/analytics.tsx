@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useState, type ElementType } from "react";
 import { useOutletContext } from "react-router";
 import { BarChart2, CalendarCheck, Eye, MessageCircle, MessageSquare, MousePointerClick, TrendingUp } from "lucide-react";
@@ -56,6 +57,7 @@ const RANGE_OPTIONS = [
 ];
 
 export default function Analytics() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<LayoutContext>();
   const [days, setDays] = useState(7);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -97,7 +99,7 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-xl font-bold text-slate-900">Analytics</h1>
+          <h1 className="text-xl font-bold text-slate-900">{translateUi("Analytics")}</h1>
           <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
             {RANGE_OPTIONS.map((opt) => (
               <button
@@ -107,14 +109,13 @@ export default function Analytics() {
                   days === opt.days ? "bg-matcha-600 text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                 }`}
               >
-                {opt.label}
+                {translateUi(opt.label)}
               </button>
             ))}
           </div>
         </div>
         <InfoBar id="analytics-overview">
-          Visits and clicks captured from your public website. Nothing is tracked unless Analytics is enabled for this salon.
-        </InfoBar>
+          {translateUi("Visits and clicks captured from your public website. Nothing is tracked unless Analytics is enabled for this salon. ")}</InfoBar>
       </div>
 
       {error && (
@@ -122,21 +123,21 @@ export default function Analytics() {
       )}
 
       {loading ? (
-        <div className="py-16 text-center text-sm text-slate-400">Loading analytics…</div>
+        <div className="py-16 text-center text-sm text-slate-400">{translateUi("Loading analytics…")}</div>
       ) : summary ? (
         <>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-            <StatTile icon={Eye} label="Page views" value={summary.totalViews} />
-            <StatTile icon={MousePointerClick} label="Clicks tracked" value={summary.totalClicks} />
+            <StatTile icon={Eye} label={translateUi("Page views")} value={summary.totalViews} />
+            <StatTile icon={MousePointerClick} label={translateUi("Clicks tracked")} value={summary.totalClicks} />
           </div>
 
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
               <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Visits over time</span>
+              <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Visits over time")}</span>
             </div>
             {chartData.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-8 text-center">No visits recorded yet in this range.</p>
+              <p className="text-xs text-slate-400 italic py-8 text-center">{translateUi("No visits recorded yet in this range.")}</p>
             ) : (
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
@@ -160,12 +161,12 @@ export default function Analytics() {
 
           <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
             <TopList
-              title="Top pages"
+              title={translateUi("Top pages")}
               emptyLabel="No page views yet"
               items={summary.topPages.map((p) => ({ key: p.path, label: p.path, count: p.count }))}
             />
             <TopList
-              title="Top clicks"
+              title={translateUi("Top clicks")}
               emptyLabel="No clicks tracked yet"
               items={summary.topClicks.map((c) => ({ key: c.label, label: c.label, count: c.count }))}
             />
@@ -174,10 +175,9 @@ export default function Analytics() {
       ) : null}
 
       <div className="space-y-4 pt-2">
-        <h2 className="text-lg font-bold text-slate-900">AI Receptionist chat</h2>
+        <h2 className="text-lg font-bold text-slate-900">{translateUi("AI Receptionist chat")}</h2>
         <InfoBar id="analytics-genui">
-          How visitors are using the AI Receptionist on your website and booking page.
-        </InfoBar>
+          {translateUi("How visitors are using the AI Receptionist on your website and booking page. ")}</InfoBar>
       </div>
 
       {genUiError && (
@@ -185,25 +185,25 @@ export default function Analytics() {
       )}
 
       {genUiLoading ? (
-        <div className="py-16 text-center text-sm text-slate-400">Loading chat usage…</div>
+        <div className="py-16 text-center text-sm text-slate-400">{translateUi("Loading chat usage…")}</div>
       ) : genUi ? (
         <>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-            <StatTile icon={MessageCircle} label="Chat sessions" value={genUi.totalSessions} />
-            <StatTile icon={MessageSquare} label="Messages sent" value={genUi.totalMessages} />
-            <StatTile icon={CalendarCheck} label="Bookings proposed via chat" value={genUi.totalBookingsProposed} />
+            <StatTile icon={MessageCircle} label={translateUi("Chat sessions")} value={genUi.totalSessions} />
+            <StatTile icon={MessageSquare} label={translateUi("Messages sent")} value={genUi.totalMessages} />
+            <StatTile icon={CalendarCheck} label={translateUi("Bookings proposed via chat")} value={genUi.totalBookingsProposed} />
           </div>
 
           <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
             <TopList
-              title="Top components shown"
+              title={translateUi("Top components shown")}
               emptyLabel="No chat activity yet"
               items={genUi.topComponents.map((c) => ({
                 key: c.type, label: GENUI_COMPONENT_LABEL[c.type] ?? c.type, count: c.count,
               }))}
             />
             <TopList
-              title="Top tools invoked"
+              title={translateUi("Top tools invoked")}
               emptyLabel="No chat activity yet"
               items={genUi.topTools.map((t) => ({
                 key: t.tool, label: GENUI_TOOL_LABEL[t.tool] ?? t.tool, count: t.count,
@@ -217,6 +217,7 @@ export default function Analytics() {
 }
 
 function StatTile({ icon: Icon, label, value }: { icon: ElementType; label: string; value: number }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
       <div className="flex items-center gap-2 mb-2">
@@ -224,13 +225,14 @@ function StatTile({ icon: Icon, label, value }: { icon: ElementType; label: stri
           <Icon className="w-4 h-4 text-matcha-600" />
         </div>
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value.toLocaleString()}</p>
-      <p className="text-xs text-slate-400 mt-0.5">{label}</p>
+      <p className="text-2xl font-bold text-slate-900">{value.toLocaleString(uiLocale)}</p>
+      <p className="text-xs text-slate-400 mt-0.5">{translateUi(label)}</p>
     </div>
   );
 }
 
 function TopList({ title, emptyLabel, items }: { title: string; emptyLabel: string; items: { key: string; label: string; count: number }[] }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
@@ -245,7 +247,7 @@ function TopList({ title, emptyLabel, items }: { title: string; emptyLabel: stri
           {items.map((item) => (
             <div key={item.key} className="space-y-1">
               <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-slate-600 truncate">{item.label}</span>
+                <span className="text-slate-600 truncate">{translateUi(item.label)}</span>
                 <span className="text-slate-400 font-medium shrink-0">{item.count}</span>
               </div>
               <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">

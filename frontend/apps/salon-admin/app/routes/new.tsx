@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect } from "react";
 import { Link, useLoaderData, useSearchParams } from "react-router";
 import { Check, Copy, Scissors, Loader2, AlertCircle } from "lucide-react";
@@ -75,6 +76,7 @@ function FieldError({ msg }: { msg: string }) {
 
 // ── Review step ─────────────────────────────────────────────────────────────
 function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: React.ReactNode }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
@@ -83,8 +85,7 @@ function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () 
           onClick={onEdit}
           className="text-xs text-matcha-600 hover:text-matcha-700 cursor-pointer font-medium px-2 py-0.5 rounded-lg hover:bg-matcha-50 transition-colors"
         >
-          Edit
-        </button>
+          {translateUi("Edit ")}</button>
       </div>
       {children}
     </div>
@@ -92,6 +93,7 @@ function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () 
 }
 
 function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const url      = previewUrl(form.name);
   const openDays = form.hours.filter((h) => !h.closed).map((h) => DAY_SHORT[h.day] ?? h.day).join(", ");
   const hasLoc   = form.location.address || form.location.city || form.location.country;
@@ -99,19 +101,19 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
 
   return (
     <div className="flex flex-col gap-3">
-      <ReviewSection title="Salon" onEdit={() => onEdit(0)}>
+      <ReviewSection title={translateUi("Salon")} onEdit={() => onEdit(0)}>
         <p className="font-semibold text-stone-900">{form.name}</p>
         {url && <p className="text-matcha-600 text-xs mt-0.5">{url}</p>}
       </ReviewSection>
 
-      <ReviewSection title="Owner" onEdit={() => onEdit(1)}>
+      <ReviewSection title={translateUi("Owner")} onEdit={() => onEdit(1)}>
         <p className="font-medium text-stone-900 text-sm">{form.owner.name}</p>
         <p className="text-stone-500 text-xs">{form.owner.email}</p>
         {form.owner.phone && <p className="text-stone-500 text-xs">{form.owner.phone}</p>}
       </ReviewSection>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <ReviewSection title="Location" onEdit={() => onEdit(2)}>
+        <ReviewSection title={translateUi("Location")} onEdit={() => onEdit(2)}>
           {hasLoc ? (
             <div className="text-sm text-stone-600 space-y-0.5">
               {form.location.country && <p>{form.location.country}</p>}
@@ -119,11 +121,11 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
               <p>{[form.location.zipCode, form.location.city].filter(Boolean).join(" ")}</p>
             </div>
           ) : (
-            <p className="text-stone-400 text-sm">Not specified</p>
+            <p className="text-stone-400 text-sm">{translateUi("Not specified")}</p>
           )}
         </ReviewSection>
 
-        <ReviewSection title="Contact" onEdit={() => onEdit(3)}>
+        <ReviewSection title={translateUi("Contact")} onEdit={() => onEdit(3)}>
           {hasCon ? (
             <div className="text-sm text-stone-600 space-y-0.5">
               {form.contact.phone   && <p>{form.contact.phone}</p>}
@@ -131,34 +133,34 @@ function ReviewStep({ form, onEdit }: { form: FormState; onEdit: (s: number) => 
               {form.contact.website && <p className="truncate">{form.contact.website}</p>}
             </div>
           ) : (
-            <p className="text-stone-400 text-sm">Not specified</p>
+            <p className="text-stone-400 text-sm">{translateUi("Not specified")}</p>
           )}
         </ReviewSection>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <ReviewSection title="Features" onEdit={() => onEdit(4)}>
+        <ReviewSection title={translateUi("Features")} onEdit={() => onEdit(4)}>
           {form.features.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 mt-1">
               {form.features.map((f) => (
                 <span key={f} className="text-xs px-2.5 py-0.5 rounded-full bg-stone-200 text-stone-700">
-                  {FEATURE_LABEL[f] ?? f}
+                  {translateUi(FEATURE_LABEL[f] ?? f)}
                 </span>
               ))}
             </div>
           ) : (
-            <p className="text-stone-400 text-sm">None selected</p>
+            <p className="text-stone-400 text-sm">{translateUi("None selected")}</p>
           )}
         </ReviewSection>
 
-        <ReviewSection title="Hours" onEdit={() => onEdit(5)}>
+        <ReviewSection title={translateUi("Hours")} onEdit={() => onEdit(5)}>
           {openDays ? (
             <>
-              <p className="text-stone-700 text-sm font-medium">{form.hours.filter((h) => !h.closed).length} days / week</p>
+              <p className="text-stone-700 text-sm font-medium">{form.hours.filter((h) => !h.closed).length} {translateUi("days / week")}</p>
               <p className="text-stone-400 text-xs mt-0.5">{openDays}</p>
             </>
           ) : (
-            <p className="text-stone-400 text-sm">All days closed</p>
+            <p className="text-stone-400 text-sm">{translateUi("All days closed")}</p>
           )}
         </ReviewSection>
       </div>
@@ -180,6 +182,7 @@ const STEP_DURATION = 900; // ms per step
 type CopyKey = "adminId" | "adminHandler";
 
 function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; handler: string; ownerEmail: string; salonName: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [completedSteps, setCompletedSteps] = useState(0);
   const [ready, setReady]                   = useState(false);
   const [copied, setCopied]                 = useState<CopyKey | null>(null);
@@ -200,11 +203,12 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
   }
 
   function CopyBtn({ text, copyKey }: { text: string; copyKey: CopyKey }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
     return (
       <button
         onClick={() => copy(text, copyKey)}
         className="shrink-0 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer active:scale-90"
-        title="Copy"
+        title={translateUi("Copy")}
       >
         {copied === copyKey
           ? <Check className="w-4 h-4 text-matcha-600" />
@@ -230,9 +234,9 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
           </div>
 
           <h1 className="text-lg font-bold text-stone-900 text-center mb-1">
-            Setting up <span className="text-matcha-700">{salonName}</span>
+            {translateUi("Setting up ")}<span className="text-matcha-700">{salonName}</span>
           </h1>
-          <p className="text-stone-400 text-sm text-center mb-7">This will only take a moment…</p>
+          <p className="text-stone-400 text-sm text-center mb-7">{translateUi("This will only take a moment…")}</p>
 
           {/* Progress bar */}
           <div className="mb-6">
@@ -263,7 +267,7 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
                         : <span className="w-1.5 h-1.5 rounded-full bg-stone-300 block" />}
                   </div>
                   <span className={`text-sm transition-colors duration-300 ${done ? "text-stone-700" : active ? "text-stone-500" : "text-stone-300"}`}>
-                    {label}
+                    {translateUi(label)}
                   </span>
                 </div>
               );
@@ -283,27 +287,26 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
           <div className="w-14 h-14 rounded-full bg-matcha-100 border-2 border-matcha-400 flex items-center justify-center mb-4">
             <Check className="w-7 h-7 text-matcha-600" />
           </div>
-          <h1 className="text-xl font-bold text-stone-900 text-center">You're all set!</h1>
+          <h1 className="text-xl font-bold text-stone-900 text-center">{translateUi("You're all set!")}</h1>
           <p className="text-stone-500 text-sm text-center mt-1.5 leading-relaxed">
-            <strong className="text-stone-700">{salonName}</strong> is ready.<br />
-            Sign in to your admin panel to start managing it.
-          </p>
+            <strong className="text-stone-700">{salonName}</strong> {translateUi("is ready.")}<br />
+            {translateUi("Sign in to your admin panel to start managing it. ")}</p>
         </div>
 
         <div className="flex flex-col gap-3">
           {/* Admin URLs */}
           <div className="bg-white border border-stone-200 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">Your admin panel</p>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">{translateUi("Your admin panel")}</p>
             <div className="flex flex-col gap-3">
               <div>
-                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By name</p>
+                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">{translateUi("By name")}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminHandlerUrl}</span>
                   <CopyBtn text={adminHandlerUrl} copyKey="adminHandler" />
                 </div>
               </div>
               <div className="border-t border-stone-100 pt-2">
-                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">By ID</p>
+                <p className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">{translateUi("By ID")}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-stone-700 flex-1 truncate font-mono">{adminIdUrl}</span>
                   <CopyBtn text={adminIdUrl} copyKey="adminId" />
@@ -311,7 +314,7 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
               </div>
             </div>
             <p className="text-xs text-stone-400 mt-3 pt-2 border-t border-stone-100">
-              Sign in with <span className="font-mono text-stone-600">{ownerEmail}</span>
+              {translateUi("Sign in with ")}<span className="font-mono text-stone-600">{ownerEmail}</span>
             </p>
           </div>
 
@@ -320,12 +323,10 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
             to={`/${id}`}
             className="block text-center py-3 rounded-xl bg-matcha-600 text-white text-sm font-semibold hover:bg-matcha-700 active:scale-[0.97] transition-all no-underline"
           >
-            Go to admin panel &amp; sign in →
-          </Link>
+            {translateUi("Go to admin panel & sign in → ")}</Link>
 
           <p className="text-center text-xs text-stone-400">
-            Bookmark both URLs — either one takes you to your dashboard.
-          </p>
+            {translateUi("Bookmark both URLs — either one takes you to your dashboard. ")}</p>
         </div>
       </div>
     </div>
@@ -334,6 +335,7 @@ function SuccessScreen({ id, handler, ownerEmail, salonName }: { id: string; han
 
 // ── Main wizard ──────────────────────────────────────────────────────────────
 export default function NewSalon() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { countries, countriesError } = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
   const [step,      setStep]      = useState(0);
@@ -462,14 +464,14 @@ export default function NewSalon() {
               className={`${inputCls} text-lg font-semibold py-4 ${errors.name ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. The Modern Cut"
+              placeholder={translateUi("e.g. The Modern Cut")}
               onKeyDown={(e) => e.key === "Enter" && goNext()}
             />
             {errors.name
               ? <FieldError msg={errors.name} />
               : form.name && (
                 <p className="text-stone-400 text-xs mt-2">
-                  Your URL: <span className="text-matcha-600 font-medium">{previewUrl(form.name) ?? "…"}</span>
+                  {translateUi("Your URL: ")}<span className="text-matcha-600 font-medium">{previewUrl(form.name) ?? "…"}</span>
                 </p>
               )
             }
@@ -480,17 +482,17 @@ export default function NewSalon() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Full name <span className="text-red-400">*</span></label>
-              <input autoFocus className={`${inputCls} ${errors.ownerName ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.name} onChange={(e) => setOwner({ name: e.target.value })} placeholder="Jane Doe" />
+              <label className={labelCls}>{translateUi("Full name ")}<span className="text-red-400">*</span></label>
+              <input autoFocus className={`${inputCls} ${errors.ownerName ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.name} onChange={(e) => setOwner({ name: e.target.value })} placeholder={translateUi("Jane Doe")} />
               {errors.ownerName && <FieldError msg={errors.ownerName} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Email <span className="text-red-400">*</span></label>
-              <input type="email" className={`${inputCls} ${errors.ownerEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.email} onChange={(e) => setOwner({ email: e.target.value })} placeholder="jane@example.com" />
+              <label className={labelCls}>{translateUi("Email ")}<span className="text-red-400">*</span></label>
+              <input type="email" className={`${inputCls} ${errors.ownerEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.owner.email} onChange={(e) => setOwner({ email: e.target.value })} placeholder={"jane@example.com"} />
               {errors.ownerEmail && <FieldError msg={errors.ownerEmail} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Phone <span className="text-stone-300 font-normal normal-case tracking-normal">optional</span></label>
+              <label className={labelCls}>{translateUi("Phone ")}<span className="text-stone-300 font-normal normal-case tracking-normal">{translateUi("optional")}</span></label>
               <PhoneInput
                 value={form.owner.phone ?? ""}
                 onChange={(v) => {
@@ -514,7 +516,7 @@ export default function NewSalon() {
         return (
           <div>
             <div className={fieldCls}>
-              <label className={labelCls}>Country / Region <span className="text-red-400">*</span></label>
+              <label className={labelCls}>{translateUi("Country / Region ")}<span className="text-red-400">*</span></label>
               <CountrySelect
                 value={form.location.country ?? ""}
                 onChange={(v) => setLocation({ country: v })}
@@ -524,17 +526,17 @@ export default function NewSalon() {
               {errors.locationCountry && <FieldError msg={errors.locationCountry} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Address</label>
-              <input className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder="123 Main St" />
+              <label className={labelCls}>{translateUi("Address")}</label>
+              <input className={inputCls} value={form.location.address ?? ""} onChange={(e) => setLocation({ address: e.target.value })} placeholder={translateUi("123 Main St")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className={fieldCls}>
-                <label className={labelCls}>Postal code</label>
-                <input className={inputCls} value={form.location.zipCode ?? ""} onChange={(e) => setLocation({ zipCode: e.target.value })} placeholder="94105" />
+                <label className={labelCls}>{translateUi("Postal code")}</label>
+                <input className={inputCls} value={form.location.zipCode ?? ""} onChange={(e) => setLocation({ zipCode: e.target.value })} placeholder={"94105"} />
               </div>
               <div className={fieldCls}>
-                <label className={labelCls}>City</label>
-                <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder="San Francisco" />
+                <label className={labelCls}>{translateUi("City")}</label>
+                <input className={inputCls} value={form.location.city ?? ""} onChange={(e) => setLocation({ city: e.target.value })} placeholder={translateUi("San Francisco")} />
               </div>
             </div>
           </div>
@@ -546,8 +548,7 @@ export default function NewSalon() {
             {/* Reuse owner details prompt */}
             <div className="mb-5 p-4 bg-stone-50 border border-stone-100 rounded-xl">
               <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
-                Same phone & email as the owner?
-              </p>
+                {translateUi("Same phone & email as the owner? ")}</p>
               <div className="flex gap-2">
                 {([true, false] as const).map((opt) => (
                   <button
@@ -560,14 +561,14 @@ export default function NewSalon() {
                         : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"
                     }`}
                   >
-                    {opt ? "Yes, use owner's" : "No, enter new"}
+                    {opt ? translateUi("Yes, use owner's") : translateUi("No, enter new")}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className={fieldCls}>
-              <label className={labelCls}>Phone</label>
+              <label className={labelCls}>{translateUi("Phone")}</label>
               <PhoneInput
                 key={`contact-phone-${reuseOwnerContact}`}
                 autoFocus
@@ -588,13 +589,13 @@ export default function NewSalon() {
               {errors.contactPhone && <FieldError msg={errors.contactPhone} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Email</label>
-              <input type="email" className={`${inputCls} ${errors.contactEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.email ?? ""} onChange={(e) => setContact({ email: e.target.value })} placeholder="hello@yoursalon.com" />
+              <label className={labelCls}>{translateUi("Email")}</label>
+              <input type="email" className={`${inputCls} ${errors.contactEmail ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.email ?? ""} onChange={(e) => setContact({ email: e.target.value })} placeholder={"hello@yoursalon.com"} />
               {errors.contactEmail && <FieldError msg={errors.contactEmail} />}
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Website</label>
-              <input className={`${inputCls} ${errors.contactWebsite ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.website ?? ""} onChange={(e) => setContact({ website: e.target.value })} placeholder="https://yoursalon.com" />
+              <label className={labelCls}>{translateUi("Website")}</label>
+              <input className={`${inputCls} ${errors.contactWebsite ? "border-red-400 bg-red-50/40 focus:border-red-400 focus:ring-red-400/10" : ""}`} value={form.contact.website ?? ""} onChange={(e) => setContact({ website: e.target.value })} placeholder={"https://yoursalon.com"} />
               {errors.contactWebsite && <FieldError msg={errors.contactWebsite} />}
             </div>
           </div>
@@ -635,7 +636,7 @@ export default function NewSalon() {
           ) : (
             <Link to="/" className="text-stone-400 hover:text-stone-700 no-underline text-sm shrink-0 transition-colors">←</Link>
           )}
-          <span className="text-sm font-semibold text-stone-800 flex-1">{STEPS[step].title}</span>
+          <span className="text-sm font-semibold text-stone-800 flex-1">{translateUi(STEPS[step].title)}</span>
           <span className="text-xs text-stone-400 shrink-0 tabular-nums">{step + 1} / {TOTAL}</span>
         </div>
 
@@ -672,7 +673,7 @@ export default function NewSalon() {
 
             {/* Hint strip */}
             <div className="px-6 pt-5 pb-4 border-b border-stone-100">
-              <p className="text-xs text-stone-400">{STEPS[step].hint}</p>
+              <p className="text-xs text-stone-400">{translateUi(STEPS[step].hint)}</p>
             </div>
 
             {/* Step content — keyed so it fades in on each transition */}
@@ -681,7 +682,7 @@ export default function NewSalon() {
                 <div className="mb-4 flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl animate-[fade-in_0.2s_ease]">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                   <p className="text-sm text-red-700 leading-snug">
-                    Country &amp; phone-code list unavailable: {countriesError}
+                    {translateUi("Country & phone-code list unavailable: ")}{countriesError}
                   </p>
                 </div>
               )}
@@ -695,8 +696,7 @@ export default function NewSalon() {
                   onClick={goBack}
                   className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-sm text-stone-600 hover:border-stone-400 hover:bg-stone-50 active:scale-[0.97] transition-all cursor-pointer"
                 >
-                  ← Back
-                </button>
+                  {translateUi("← Back ")}</button>
               ) : <span />}
 
               {step < TOTAL - 1 ? (
@@ -704,15 +704,14 @@ export default function NewSalon() {
                   onClick={goNext}
                   className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm"
                 >
-                  Next →
-                </button>
+                  {translateUi("Next → ")}</button>
               ) : (
                 <button
                   onClick={handleCreate}
                   disabled={saving}
                   className="px-6 py-2 rounded-xl bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-700 active:scale-[0.97] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {saving ? "Launching…" : "Launch salon"}
+                  {saving ? translateUi("Launching…") : translateUi("Launch salon")}
                 </button>
               )}
             </div>

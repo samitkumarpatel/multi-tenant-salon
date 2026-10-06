@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { FixWithAi } from "~/components/FixWithAi";
 import { useEffect, useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
@@ -115,6 +116,7 @@ function stockInfo(p: ShopProduct): { total: number; low: boolean; out: boolean 
 }
 
 function StockBadge({ p }: { p: ShopProduct }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { total, low, out } = stockInfo(p);
   const cls = out
     ? "bg-red-50 text-red-700 border-red-200"
@@ -131,7 +133,7 @@ function StockBadge({ p }: { p: ShopProduct }) {
       className={`inline-flex items-center gap-1 text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full border shrink-0 ${cls}`}
     >
       <Package className="w-3 h-3" />
-      {out ? "Out of stock" : `${total} in stock${low ? " · low" : ""}`}
+      {out ? translateUi("Out of stock") : `${total} in stock${low ? " · low" : ""}`}
     </span>
   );
 }
@@ -183,6 +185,7 @@ function buildPayload(f: ProductForm) {
 }
 
 export default function ShopProducts() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<ShopOutletContext>();
   const { sid, products: init, brands: initBrands, categories: initCategories, countries } =
     useLoaderData<typeof clientLoader>();
@@ -484,14 +487,13 @@ export default function ShopProducts() {
           <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
             <Package className="w-5 h-5 text-matcha-600" />
           </div>
-          <h2 className="text-sm font-bold text-slate-800">No products yet</h2>
-          <p className="text-xs text-slate-500 mt-1 mb-4">Add your first product — with one or more variants and stock.</p>
+          <h2 className="text-sm font-bold text-slate-800">{translateUi("No products yet")}</h2>
+          <p className="text-xs text-slate-500 mt-1 mb-4">{translateUi("Add your first product — with one or more variants and stock.")}</p>
           <button
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
             onClick={openAdd}
           >
-            <Plus className="w-4 h-4" /> Add Product
-          </button>
+            <Plus className="w-4 h-4" /> {translateUi("Add Product ")}</button>
         </div>
       ) : (
         <>
@@ -500,7 +502,7 @@ export default function ShopProducts() {
             <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
               <button
                 onClick={() => setView("list")}
-                title="List view"
+                title={translateUi("List view")}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   view === "list"
                     ? "bg-white text-slate-800 shadow-sm border border-slate-200"
@@ -508,11 +510,11 @@ export default function ShopProducts() {
                 }`}
               >
                 <List className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">List</span>
+                <span className="hidden sm:inline">{translateUi("List")}</span>
               </button>
               <button
                 onClick={() => setView("card")}
-                title="Card view"
+                title={translateUi("Card view")}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   view === "card"
                     ? "bg-white text-slate-800 shadow-sm border border-slate-200"
@@ -520,20 +522,19 @@ export default function ShopProducts() {
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Cards</span>
+                <span className="hidden sm:inline">{translateUi("Cards")}</span>
               </button>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 hidden sm:inline">
-                {products.length} product{products.length !== 1 ? "s" : ""}
+                {products.length} {translateUi("product")}{products.length !== 1 ? translateUi("s") : ""}
               </span>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
                 onClick={openAdd}
               >
-                <Plus className="w-4 h-4" /> Add Product
-              </button>
+                <Plus className="w-4 h-4" /> {translateUi("Add Product ")}</button>
             </div>
           </div>
 
@@ -554,7 +555,7 @@ export default function ShopProducts() {
                   {/* Thumbnail */}
                   <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                     {p.imageUrl ? (
-                      <img src={p.imageUrl} alt="" className="w-full h-full object-contain p-1" />
+                      <img src={p.imageUrl} alt={""} className="w-full h-full object-contain p-1" />
                     ) : (
                       <Package className="w-4 h-4 text-slate-300" />
                     )}
@@ -568,15 +569,14 @@ export default function ShopProducts() {
                         <span className="text-sm font-semibold text-slate-900 truncate">{p.name}</span>
                         {!p.active && (
                           <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 shrink-0">
-                            Inactive
-                          </span>
+                            {translateUi("Inactive ")}</span>
                         )}
                         <StockBadge p={p} />
                       </div>
                       <div className="flex items-center gap-2 text-[0.67rem] text-slate-400 mt-0.5 flex-wrap">
                         {brandName(p.brandId) && <span className="font-medium text-slate-500">{brandName(p.brandId)}</span>}
                         {categoryName(p.categoryId) && <span>· {categoryName(p.categoryId)}</span>}
-                        <span>· {p.variants.length} variant{p.variants.length !== 1 ? "s" : ""}</span>
+                        <span>· {p.variants.length} {translateUi("variant")}{p.variants.length !== 1 ? translateUi("s") : ""}</span>
                       </div>
                     </div>
 
@@ -592,8 +592,7 @@ export default function ShopProducts() {
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); openEdit(p); }}
                         >
-                          <Pencil className="w-3 h-3" /> Edit
-                        </button>
+                          <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
                         <button
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); openDel(p); }}
@@ -626,14 +625,13 @@ export default function ShopProducts() {
                       <span className="text-sm font-semibold text-slate-900 truncate flex-1">{p.name}</span>
                       {!p.active && (
                         <span className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
-                          Inactive
-                        </span>
+                          {translateUi("Inactive ")}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-[0.67rem] text-slate-500 flex-wrap">
                       {brandName(p.brandId) && <span className="font-semibold">{brandName(p.brandId)}</span>}
                       {categoryName(p.categoryId) && <span>· {categoryName(p.categoryId)}</span>}
-                      <span>· {p.variants.length} variant{p.variants.length !== 1 ? "s" : ""}</span>
+                      <span>· {p.variants.length} {translateUi("variant")}{p.variants.length !== 1 ? translateUi("s") : ""}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-sm font-extrabold text-matcha-600">{priceRange(p)}</span>
@@ -644,8 +642,7 @@ export default function ShopProducts() {
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
                         onClick={() => openEdit(p)}
                       >
-                        <Pencil className="w-3 h-3" /> Edit
-                      </button>
+                        <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
                       <button
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
                         onClick={() => openDel(p)}
@@ -662,12 +659,12 @@ export default function ShopProducts() {
       )}
 
       {modal && modal.kind !== "del" && (
-        <Modal title={modal.kind === "add" ? "Add Product" : "Edit Product"} onClose={close}>
+        <Modal title={modal.kind === "add" ? translateUi("Add Product") : translateUi("Edit Product")} onClose={close}>
           {/* Name & Description */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div className="sm:col-span-2">
               <label className={fieldLabel}>
-                Name <span className="text-red-500">*</span>
+                {translateUi("Name ")}<span className="text-red-500">*</span>
               </label>
               <input
                 autoFocus
@@ -677,7 +674,7 @@ export default function ShopProducts() {
               />
             </div>
             <div className="sm:col-span-2">
-              <label className={fieldLabel}>Description</label>
+              <label className={fieldLabel}>{translateUi("Description")}</label>
               <FixWithAi value={f.description} onApply={(text) => setF((p) => ({ ...p, description: text }))}>
                 <input
                   className={inputCls}
@@ -691,13 +688,13 @@ export default function ShopProducts() {
           {/* Brand */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
-              <label className={fieldLabel}>Brand</label>
+              <label className={fieldLabel}>{translateUi("Brand")}</label>
               {showNewBrand ? (
                 <div className="flex gap-2">
                   <input
                     autoFocus
                     className={inputCls}
-                    placeholder="Brand name"
+                    placeholder={translateUi("Brand name")}
                     value={newBrandName}
                     onChange={(e) => setNewBrandName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && createBrandInline()}
@@ -708,7 +705,7 @@ export default function ShopProducts() {
                     className="px-3 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 disabled:opacity-40 cursor-pointer shrink-0"
                     onClick={createBrandInline}
                   >
-                    {creatingBrand ? "…" : "Create"}
+                    {creatingBrand ? "…" : translateUi("Create")}
                   </button>
                 </div>
               ) : (
@@ -717,7 +714,7 @@ export default function ShopProducts() {
                   value={f.brandId}
                   onChange={(e) => setF((p) => ({ ...p, brandId: e.target.value }))}
                 >
-                  <option value="">— None —</option>
+                  <option value="">{translateUi("— None —")}</option>
                   {brands.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
@@ -731,19 +728,19 @@ export default function ShopProducts() {
                   setNewBrandName("");
                 }}
               >
-                {showNewBrand ? "← Pick existing" : "+ New brand"}
+                {showNewBrand ? translateUi("← Pick existing") : translateUi("+ New brand")}
               </button>
             </div>
 
             {/* Category */}
             <div>
-              <label className={fieldLabel}>Category</label>
+              <label className={fieldLabel}>{translateUi("Category")}</label>
               {showNewCat ? (
                 <div className="flex gap-2">
                   <input
                     autoFocus
                     className={inputCls}
-                    placeholder="Category name"
+                    placeholder={translateUi("Category name")}
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && createCategoryInline()}
@@ -754,7 +751,7 @@ export default function ShopProducts() {
                     className="px-3 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 disabled:opacity-40 cursor-pointer shrink-0"
                     onClick={createCategoryInline}
                   >
-                    {creatingCat ? "…" : "Create"}
+                    {creatingCat ? "…" : translateUi("Create")}
                   </button>
                 </div>
               ) : (
@@ -763,7 +760,7 @@ export default function ShopProducts() {
                   value={f.categoryId}
                   onChange={(e) => setF((p) => ({ ...p, categoryId: e.target.value }))}
                 >
-                  <option value="">— None —</option>
+                  <option value="">{translateUi("— None —")}</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -777,17 +774,16 @@ export default function ShopProducts() {
                   setNewCatName("");
                 }}
               >
-                {showNewCat ? "← Pick existing" : "+ New category"}
+                {showNewCat ? translateUi("← Pick existing") : translateUi("+ New category")}
               </button>
             </div>
           </div>
 
           {/* Images */}
           <div className="mb-4">
-            <label className={fieldLabel}>Images</label>
+            <label className={fieldLabel}>{translateUi("Images")}</label>
             <p className="text-[11px] text-slate-400 mb-2 -mt-0.5">
-              The first image is the cover shown in listings. Drag thumbnails to reorder.
-            </p>
+              {translateUi("The first image is the cover shown in listings. Drag thumbnails to reorder. ")}</p>
             <div className="flex flex-wrap gap-2">
               {f.gallery.map((item, i) => (
                 <div
@@ -805,16 +801,15 @@ export default function ShopProducts() {
                     dragIdx === i ? "opacity-40 border-matcha-400" : "border-slate-200"
                   }`}
                 >
-                  <img src={item.url} alt="" className="w-full h-full object-contain p-1" />
+                  <img src={item.url} alt={""} className="w-full h-full object-contain p-1" />
                   {i === 0 && (
                     <span className="absolute inset-x-0 bottom-0 bg-matcha-600/90 text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">
-                      Cover
-                    </span>
+                      {translateUi("Cover ")}</span>
                   )}
                   <button
                     type="button"
                     onClick={() => removeImage(item.key)}
-                    aria-label="Remove image"
+                    aria-label={translateUi("Remove image")}
                     className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-red-500 hover:border-red-300 cursor-pointer opacity-0 group-hover/thumb:opacity-100 transition-opacity"
                   >
                     <X className="w-3 h-3" />
@@ -823,7 +818,7 @@ export default function ShopProducts() {
               ))}
               <label className="w-20 h-20 rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-400 hover:border-matcha-400 hover:text-matcha-600 cursor-pointer shrink-0 transition-colors">
                 <ImagePlus className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Add</span>
+                <span className="text-[10px] font-medium">{translateUi("Add")}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -840,19 +835,18 @@ export default function ShopProducts() {
 
           {/* Variants */}
           <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2 pb-2 border-b border-slate-100">
-            Variants
-          </div>
+            {translateUi("Variants ")}</div>
           <div className="flex flex-col gap-3">
             {f.variants.map((v, i) => (
               <div key={i} className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {/* Label = value + unit */}
                   <div className="sm:col-span-2">
-                    <label className="text-[11px] font-medium text-slate-500">Label</label>
+                    <label className="text-[11px] font-medium text-slate-500">{translateUi("Label")}</label>
                     <div className="flex gap-2">
                       <input
                         className={inputCls}
-                        placeholder="e.g. 250"
+                        placeholder={translateUi("e.g. 250")}
                         value={v.labelValue}
                         onChange={(e) => setVariant(i, { labelValue: e.target.value })}
                       />
@@ -871,14 +865,13 @@ export default function ShopProducts() {
                   {/* SKU: auto-generated, editable */}
                   <div>
                     <label className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                      SKU
-                      {!v.skuManual && v.sku && (
-                        <span className="text-[9px] text-matcha-600 font-bold uppercase tracking-wide">auto</span>
+                      {translateUi("SKU ")}{!v.skuManual && v.sku && (
+                        <span className="text-[9px] text-matcha-600 font-bold uppercase tracking-wide">{translateUi("auto")}</span>
                       )}
                     </label>
                     <input
                       className={inputCls}
-                      placeholder="Auto"
+                      placeholder={translateUi("Auto")}
                       value={v.sku}
                       onChange={(e) => setVariant(i, { sku: e.target.value.toUpperCase(), skuManual: e.target.value !== "" })}
                       onBlur={(e) => {
@@ -894,7 +887,7 @@ export default function ShopProducts() {
                   {/* Price */}
                   <div>
                     <label className="text-[11px] font-medium text-slate-500">
-                      Price <span className="text-red-500">*</span>
+                      {translateUi("Price ")}<span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -908,13 +901,13 @@ export default function ShopProducts() {
 
                   {/* Compare-at (was) price */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500">Was price (optional)</label>
+                    <label className="text-[11px] font-medium text-slate-500">{translateUi("Was price (optional)")}</label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       className={inputCls}
-                      placeholder="Original price"
+                      placeholder={translateUi("Original price")}
                       value={v.compareAtPrice}
                       onChange={(e) => setVariant(i, { compareAtPrice: e.target.value })}
                     />
@@ -922,7 +915,7 @@ export default function ShopProducts() {
 
                   {/* Currency */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500">Currency</label>
+                    <label className="text-[11px] font-medium text-slate-500">{translateUi("Currency")}</label>
                     <select
                       className={inputCls}
                       value={v.currency}
@@ -940,7 +933,7 @@ export default function ShopProducts() {
 
                   {/* In stock */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500">In stock</label>
+                    <label className="text-[11px] font-medium text-slate-500">{translateUi("In stock")}</label>
                     <input
                       type="number"
                       min="0"
@@ -952,7 +945,7 @@ export default function ShopProducts() {
 
                   {/* Reorder at */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500">Reorder at</label>
+                    <label className="text-[11px] font-medium text-slate-500">{translateUi("Reorder at")}</label>
                     <input
                       type="number"
                       min="0"
@@ -969,8 +962,7 @@ export default function ShopProducts() {
                       className="text-[11px] text-slate-400 hover:text-red-500 inline-flex items-center gap-1 cursor-pointer"
                       onClick={() => removeVariant(i)}
                     >
-                      <Trash2 className="w-3 h-3" /> Remove variant
-                    </button>
+                      <Trash2 className="w-3 h-3" /> {translateUi("Remove variant ")}</button>
                   </div>
                 )}
               </div>
@@ -980,8 +972,7 @@ export default function ShopProducts() {
               onClick={addVariant}
               className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-matcha-700 hover:text-matcha-800 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> Add another variant
-            </button>
+              <Plus className="w-3.5 h-3.5" /> {translateUi("Add another variant ")}</button>
           </div>
 
           {modal.kind === "edit" && (
@@ -992,7 +983,7 @@ export default function ShopProducts() {
                 checked={f.active}
                 onChange={(e) => setF((p) => ({ ...p, active: e.target.checked }))}
               />
-              <span className="text-sm font-medium text-slate-700">Active (visible in the shop)</span>
+              <span className="text-sm font-medium text-slate-700">{translateUi("Active (visible in the shop)")}</span>
             </label>
           )}
 
@@ -1016,11 +1007,9 @@ export default function ShopProducts() {
       )}
 
       {modal?.kind === "del" && (
-        <Modal title="Remove Product" onClose={close} narrow>
+        <Modal title={translateUi("Remove Product")} onClose={close} narrow>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Remove <strong className="text-slate-800">{target?.name}</strong> and its variants? Past orders keep their
-            line details.
-          </p>
+            {translateUi("Remove ")}<strong className="text-slate-800">{target?.name}</strong> {translateUi("and its variants? Past orders keep their line details. ")}</p>
           <ModalActions busy={busy} onCancel={close} onSave={submitDel} saveLabel="Remove" danger />
         </Modal>
       )}

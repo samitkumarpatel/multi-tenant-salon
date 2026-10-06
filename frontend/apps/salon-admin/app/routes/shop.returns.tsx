@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -15,6 +16,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
 }
 
 export default function ShopReturns() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { sid, orders: init } = useLoaderData<typeof clientLoader>();
   const [orders, setOrders] = useState<ShopOrder[]>(init);
@@ -43,8 +45,8 @@ export default function ShopReturns() {
         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto mb-3">
           <RotateCcw className="w-5 h-5 text-slate-400" />
         </div>
-        <h2 className="text-sm font-bold text-slate-800">No returns yet</h2>
-        <p className="text-xs text-slate-500 mt-1">Return requests from customers appear here.</p>
+        <h2 className="text-sm font-bold text-slate-800">{translateUi("No returns yet")}</h2>
+        <p className="text-xs text-slate-500 mt-1">{translateUi("Return requests from customers appear here.")}</p>
       </div>
     );
   }
@@ -78,15 +80,13 @@ export default function ShopReturns() {
                   onClick={() => updateStatus(o, "APPROVED")}
                   className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
                 >
-                  <Check className="w-3 h-3" /> Approve
-                </button>
+                  <Check className="w-3 h-3" /> {translateUi("Approve ")}</button>
                 <button
                   disabled={busy === o.id}
                   onClick={() => updateStatus(o, "REJECTED")}
                   className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40"
                 >
-                  <X className="w-3 h-3" /> Reject
-                </button>
+                  <X className="w-3 h-3" /> {translateUi("Reject ")}</button>
               </div>
             )}
             {o.returnStatus === "APPROVED" && (
@@ -95,8 +95,7 @@ export default function ShopReturns() {
                 onClick={() => updateStatus(o, "RECEIVED")}
                 className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer disabled:opacity-40"
               >
-                Mark Received
-              </button>
+                {translateUi("Mark Received ")}</button>
             )}
             {o.returnStatus === "RECEIVED" && (
               <button
@@ -104,8 +103,7 @@ export default function ShopReturns() {
                 onClick={() => updateStatus(o, "ACCEPTED")}
                 className="w-full mt-2.5 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
               >
-                <Check className="w-3 h-3" /> Accept Return
-              </button>
+                <Check className="w-3 h-3" /> {translateUi("Accept Return ")}</button>
             )}
           </div>
         ))}
@@ -115,11 +113,11 @@ export default function ShopReturns() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              <th className="px-4 py-3">Order</th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Reason</th>
-              <th className="px-4 py-3">Updated</th>
+              <th className="px-4 py-3">{translateUi("Order")}</th>
+              <th className="px-4 py-3">{translateUi("Customer")}</th>
+              <th className="px-4 py-3">{translateUi("Status")}</th>
+              <th className="px-4 py-3">{translateUi("Reason")}</th>
+              <th className="px-4 py-3">{translateUi("Updated")}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -154,15 +152,13 @@ export default function ShopReturns() {
                         onClick={() => updateStatus(o, "APPROVED")}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
                       >
-                        <Check className="w-3 h-3" /> Approve
-                      </button>
+                        <Check className="w-3 h-3" /> {translateUi("Approve ")}</button>
                       <button
                         disabled={busy === o.id}
                         onClick={() => updateStatus(o, "REJECTED")}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40"
                       >
-                        <X className="w-3 h-3" /> Reject
-                      </button>
+                        <X className="w-3 h-3" /> {translateUi("Reject ")}</button>
                     </div>
                   )}
                   {o.returnStatus === "APPROVED" && (
@@ -171,8 +167,7 @@ export default function ShopReturns() {
                       onClick={() => updateStatus(o, "RECEIVED")}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer disabled:opacity-40"
                     >
-                      Mark Received
-                    </button>
+                      {translateUi("Mark Received ")}</button>
                   )}
                   {o.returnStatus === "RECEIVED" && (
                     <button
@@ -180,8 +175,7 @@ export default function ShopReturns() {
                       onClick={() => updateStatus(o, "ACCEPTED")}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-green-200 text-xs font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40"
                     >
-                      <Check className="w-3 h-3" /> Accept Return
-                    </button>
+                      <Check className="w-3 h-3" /> {translateUi("Accept Return ")}</button>
                   )}
                 </td>
               </tr>

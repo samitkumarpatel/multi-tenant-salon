@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React from "react";
 import {
   ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, MapPin, Phone, ShoppingCart, User,
@@ -34,13 +35,13 @@ function initials(name: string) {
 
 /** Small pill flagging a feature (or the whole site) as still in beta. */
 function BetaBadge({ color }: { color: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <span
       className="hidden sm:inline-block shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
       style={{ color, borderColor: color }}
     >
-      Beta
-    </span>
+      {translateUi("Beta ")}</span>
   );
 }
 
@@ -64,6 +65,7 @@ export function SiteHeader({
   /** When in shop, show an avatar icon (future: account panel) */
   onAvatarOpen?: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const open        = isOpenNow(salon.operatingHours);
   const hasBooking  = salon.features?.includes("BOOKING");
   const accentText  = contrastText(theme.accentColor);
@@ -107,7 +109,7 @@ export function SiteHeader({
           {!standalone && (
             <button
               onClick={onBack}
-              aria-label="Back to website"
+              aria-label={translateUi("Back to website")}
               className="sm:hidden shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer"
               style={{
                 backgroundColor: headerIsLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.10)",
@@ -139,7 +141,7 @@ export function SiteHeader({
               className="hidden sm:flex no-underline transition-colors font-medium text-slate-500 hover:text-slate-900 cursor-pointer items-center gap-1.5 shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to website</span>
+              <span>{translateUi("Back to website")}</span>
             </button>
             {featurePages.map((fp) => (
               <a
@@ -148,7 +150,7 @@ export function SiteHeader({
                 className="hidden md:inline no-underline transition-colors font-medium text-slate-500 hover:text-slate-900"
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}
               >
-                {fp.label}
+                {translateUi(fp.label)}
               </a>
             ))}
           </nav>
@@ -162,14 +164,14 @@ export function SiteHeader({
                   : "bg-slate-50 text-slate-400 border-slate-200"
               }`}>
                 {open && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-                {open ? "Open now" : "Closed"}
+                {open ? translateUi("Open now") : translateUi("Closed")}
               </span>
             )}
             {current === "shop" && onCartOpen ? (
               <>
                 <button
                   onClick={onAvatarOpen}
-                  aria-label="Account"
+                  aria-label={translateUi("Account")}
                   className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer"
                   style={{
                     backgroundColor: headerIsLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.10)",
@@ -185,7 +187,7 @@ export function SiteHeader({
                   style={{ backgroundColor: theme.accentColor, color: accentText }}
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  <span className="hidden sm:inline">Cart</span>
+                  <span className="hidden sm:inline">{translateUi("Cart")}</span>
                   {(cartCount ?? 0) > 0 && (
                     <span
                       className="min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center"
@@ -201,15 +203,14 @@ export function SiteHeader({
                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0"
                 style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor }}
               >
-                <CalendarCheck className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Book appointment</span>
+                <CalendarCheck className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{translateUi("Book appointment")}</span>
               </span>
             ) : hasBooking ? (
               <a href={getPagePath ? getPagePath("book") : "/book"}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
-                Book now
-              </a>
+                {translateUi("Book now ")}</a>
             ) : null}
           </div>
         </div>
@@ -229,6 +230,7 @@ export function SiteFooter({
   /** Hide "Back to website" link — use when there is no website to return to */
   standalone?: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const accentText = contrastText(theme.accentColor);
   const isScrollable = useIsScrollable();
   const hasBooking = salon.features?.includes("BOOKING");
@@ -290,8 +292,7 @@ export function SiteFooter({
               className="inline-flex items-center gap-1.5 text-[11px] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
               style={{ color: theme.accentColor }}
             >
-              <ArrowLeft className="w-3 h-3" /> Back to website
-            </button>
+              <ArrowLeft className="w-3 h-3" /> {translateUi("Back to website ")}</button>
           )}
         </div>
       </footer>
@@ -319,16 +320,14 @@ export function SiteFooter({
               <SocialLinksRow contact={salon.contact} color={footerText} />
               {current === "book" && (
                 <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity cursor-pointer" style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back to website
-                </button>
+                  <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("Back to website ")}</button>
               )}
             </div>
 
             {salon.location && (salon.location.address || salon.location.city) && (
               <div className="min-w-0 lg:order-4">
                 <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                  <MapPin className="w-3.5 h-3.5" /> Find us
-                </h3>
+                  <MapPin className="w-3.5 h-3.5" /> {translateUi("Find us ")}</h3>
                 <address className="not-italic flex flex-col gap-0.5 text-xs">
                   {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
                   {(salon.location.zipCode || salon.location.city) && (
@@ -341,8 +340,8 @@ export function SiteFooter({
                 </address>
                 {salon.location.address && (
                   <span className="mt-3 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
-                    Open in Maps <ChevronRight className="w-3 h-3" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">soon</span>
+                    {translateUi("Open in Maps ")}<ChevronRight className="w-3 h-3" />
+                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">{translateUi("soon")}</span>
                   </span>
                 )}
                 <div className="lg:hidden pt-3">
@@ -356,16 +355,15 @@ export function SiteFooter({
           {openHours.length > 0 && (
             <div className="min-w-0 lg:order-2">
               <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                <Clock className="w-3.5 h-3.5" /> Opening hours
-              </h3>
+                <Clock className="w-3.5 h-3.5" /> {translateUi("Opening hours ")}</h3>
               <div className="space-y-1">
                 {openHours.map((h) => {
                   const isToday = h.day === todayName;
                   return (
                     <div key={h.day} className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
-                      <span className="w-8 shrink-0">{DAY_SHORT[h.day] ?? h.day}</span>
+                      <span className="w-8 shrink-0">{translateUi(DAY_SHORT[h.day] ?? h.day)}</span>
                       <span className="font-mono">{h.openTime}–{h.closeTime}</span>
-                      {isToday && <span className="text-[9px] font-bold uppercase tracking-wider">today</span>}
+                      {isToday && <span className="text-[9px] font-bold uppercase tracking-wider">{translateUi("today")}</span>}
                     </div>
                   );
                 })}
@@ -376,11 +374,10 @@ export function SiteFooter({
 
         <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
           <p className="text-[11px]" style={{ color: footerDim }}>
-            © {new Date().getFullYear()} {salon.name} · All rights reserved.
-          </p>
+            © {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved. ")}</p>
           {isScrollable && (
             <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
-              Back to top <ArrowUp className="w-3 h-3" />
+              {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
             </button>
           )}
         </div>

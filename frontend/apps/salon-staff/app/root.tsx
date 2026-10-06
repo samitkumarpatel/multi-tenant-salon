@@ -1,3 +1,6 @@
+import { I18nProvider, LanguageSelector, useI18n, ALL_LANGUAGES } from "@salon/i18n";
+import type { LanguagePolicy } from "@salon/i18n";
+import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "react-router";
 import { NavProgress } from "@salon/ui-shared";
@@ -20,6 +23,7 @@ export function links() {
 const FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23567330'/><text x='16' y='22' font-family='system-ui,sans-serif' font-size='16' font-weight='700' fill='white' text-anchor='middle'>S</text></svg>";
 
 export function HydrateFallback() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
@@ -38,18 +42,17 @@ export function HydrateFallback() {
       <body className="bg-slate-50 text-slate-900 min-h-screen font-sans antialiased">
         {timedOut ? (
           <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
-            <p className="text-sm font-semibold text-slate-800">Having trouble connecting</p>
+            <p className="text-sm font-semibold text-slate-800">{translateUi("Having trouble connecting")}</p>
             <button
               onClick={() => window.location.reload()}
               className="px-4 py-2 rounded-lg bg-matcha-600 text-white text-sm font-medium cursor-pointer"
             >
-              ↻ Retry
-            </button>
+              {translateUi("↻ Retry ")}</button>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
             <div className="w-6 h-6 border-2 border-slate-200 border-t-matcha-600 rounded-full animate-spin" />
-            <p className="text-sm">Loading…</p>
+            <p className="text-sm">{translateUi("Loading…")}</p>
           </div>
         )}
         <Scripts />
@@ -58,11 +61,12 @@ export function HydrateFallback() {
   );
 }
 
-export default function Root() {
+function AppDocument() {
+  const { locale } = useI18n();
   const { state } = useNavigation();
 
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -72,10 +76,19 @@ export default function Root() {
       </head>
       <body className="bg-slate-50 text-slate-900 min-h-screen font-sans antialiased">
         <NavProgress loading={state !== "idle"} />
-        <Outlet />
+        <LanguageSelector /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
   );
+}
+
+export default function Root() {
+  const matches = useMatches();
+  const tenant = matches.map((match) => match.data as { languagePolicy?: LanguagePolicy; languageScope?: string } | undefined)
+    .find((data) => data?.languagePolicy);
+  return <I18nProvider scope={`staff:${tenant?.languageScope ?? "platform"}`} policy={tenant?.languagePolicy ?? ALL_LANGUAGES}>
+    <AppDocument />
+  </I18nProvider>;
 }

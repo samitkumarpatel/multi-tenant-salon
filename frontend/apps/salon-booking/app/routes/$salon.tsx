@@ -1,3 +1,5 @@
+import { useI18n } from "@salon/i18n";
+import type { SalonLanguages, LanguagePolicy } from "@salon/i18n";
 import React, { useEffect, useState } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -10,6 +12,8 @@ const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 type LoaderOk = {
   status: "ok";
+  languagePolicy: LanguagePolicy;
+  languageScope: string;
   salon: Salon;
   services: ServiceItem[];
   staff: StaffMember[];
@@ -34,18 +38,21 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs): Promis
       return { status: "booking_disabled", salonName: salon.name };
     }
 
-    const [services, staff, theme, countries, ratings] = await Promise.all([
+    const [services, staff, theme, countries, ratings, languages] = await Promise.all([
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
       apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`).catch((): Country[] => []),
       apiFetch<{ salon: { average: number | null; count: number }; staff: Record<string, { average: number | null; count: number }> }>(`${API_BASE}/api/salon/${salon.id}/ratings`).catch(() => null),
+      apiFetch<SalonLanguages>(`${API_BASE}/api/salon/${salon.id}/languages`),
     ]);
 
     const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
     return {
       status: "ok",
       salon: ratedSalon,
+      languagePolicy: languages.booking,
+      languageScope: String(salon.id),
       services: services.filter((s) => s.active),
       staff: staff.filter((s) => s.status === "ACTIVE").map((s) => ({ ...s, rating: ratings?.staff[String(s.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(s.id)]?.count ?? 0 })),
       theme: { ...DEFAULT_THEME, ...theme },
@@ -81,6 +88,7 @@ function buildFaviconHref(name: string, bgColor: string): string {
 // ── booking-disabled page ─────────────────────────────────────────────────────
 
 function BookingUnavailablePage({ salonName }: { salonName?: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div
       className="min-h-[100dvh] relative flex flex-col items-center justify-center px-6 text-center overflow-hidden select-none"
@@ -97,11 +105,10 @@ function BookingUnavailablePage({ salonName }: { salonName?: string }) {
         <div className="sc-sway text-6xl leading-none">📵</div>
       </div>
       <h1 className="text-2xl sm:text-3xl font-black text-white mb-3 leading-snug">
-        {salonName ? `${salonName} isn't taking online bookings` : "Online booking unavailable"}
+        {salonName ? `${salonName} isn't taking online bookings` : translateUi("Online booking unavailable")}
       </h1>
       <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
-        This salon hasn't enabled online booking yet. Please contact them directly to make an appointment.
-      </p>
+        {translateUi("This salon hasn't enabled online booking yet. Please contact them directly to make an appointment. ")}</p>
       <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">{SALON_DOMAIN}</p>
     </div>
   );

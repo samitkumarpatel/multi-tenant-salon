@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import React, { useEffect, useState } from "react";
 import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
@@ -55,6 +56,7 @@ interface ModeCardProps {
 }
 
 function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, isLive, description, features, disabled, children }: ModeCardProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const selected = active === id;
   const a = ACCENT[accent];
 
@@ -70,8 +72,7 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, i
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <h2 className="text-base font-bold text-slate-900">{title}</h2>
                 <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-slate-100 text-slate-400 border-slate-200">
-                  Coming Soon
-                </span>
+                  {translateUi("Coming Soon ")}</span>
               </div>
               <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
               <ul className="mt-3 space-y-1">
@@ -103,16 +104,14 @@ function ModeCard({ id, active, onSelect, accent, icon, title, badge, betaTag, i
               </span>
               {isLive && (
                 <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
-                  Live
-                </span>
+                  {translateUi("Live ")}</span>
               )}
               {betaTag && (
                 <span className="text-[9px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full text-white"
                   style={{ background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)" }}>
-                  Beta
-                </span>
+                  {translateUi("Beta ")}</span>
               )}
-              {selected && <span className="ml-auto text-[10px] font-semibold text-slate-400">Selected ✓</span>}
+              {selected && <span className="ml-auto text-[10px] font-semibold text-slate-400">{translateUi("Selected ✓")}</span>}
             </div>
             <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
             {!selected && (
@@ -156,6 +155,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
 }
 
 export default function WebsiteManagement() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon, setWebsiteMode: persistMode } = useOutletContext<LayoutContext>();
   const { initialWebsiteMode, domains: initialDomains, sid } = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
@@ -179,10 +179,9 @@ export default function WebsiteManagement() {
     <div className="max-w-2xl">
       <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Website</h1>
+          <h1 className="text-xl font-bold text-slate-900">{translateUi("Website")}</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Choose how to present <span className="font-medium text-slate-700">{salon.name}</span> to visitors online.
-          </p>
+            {translateUi("Choose how to present ")}<span className="font-medium text-slate-700">{salon.name}</span> {translateUi("to visitors online. ")}</p>
         </div>
         {salon.handler && (
           <a
@@ -192,8 +191,7 @@ export default function WebsiteManagement() {
             className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors no-underline"
           >
             <Eye className="w-3 h-3" />
-            Preview site
-          </a>
+            {translateUi("Preview site ")}</a>
         )}
       </div>
 
@@ -210,10 +208,10 @@ export default function WebsiteManagement() {
           onSelect={setMode}
           accent="amber"
           icon={<Monitor className="w-5 h-5 text-amber-600" />}
-          title="Static Website"
+          title={translateUi("Static Website")}
           badge="Standard"
           isLive={mode === "STATIC_WEBSITE"}
-          description="A clean, customisable page with your salon's services, team, hours, and contact details."
+          description={translateUi("A clean, customisable page with your salon's services, team, hours, and contact details.")}
           features={[
             "Showcases your services, pricing & team",
             "Displays location, hours & contact details",
@@ -227,27 +225,22 @@ export default function WebsiteManagement() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors no-underline"
             >
-              <ExternalLink className="w-3.5 h-3.5" /> Open &amp; Customise
-            </a>
+              <ExternalLink className="w-3.5 h-3.5" /> {translateUi("Open & Customise ")}</a>
             <a
               href={liveUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-slate-400 hover:text-slate-600 hover:underline no-underline"
             >
-              View live page ↗
-            </a>
+              {translateUi("View live page ↗ ")}</a>
           </div>
           <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-            Customise colours, fonts, and branding — the same design settings apply to your receptionist's chat window.
-          </p>
+            {translateUi("Customise colours, fonts, and branding — the same design settings apply to your receptionist's chat window. ")}</p>
           <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
             <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-slate-100 text-slate-400 border-slate-200">
-              Coming Soon
-            </span>
+              {translateUi("Coming Soon ")}</span>
             <span>
-              Choose from multiple page layouts — hero banners, grid galleries, minimal lists — so your website matches your salon's personality, not just a template.
-            </span>
+              {translateUi("Choose from multiple page layouts — hero banners, grid galleries, minimal lists — so your website matches your salon's personality, not just a template. ")}</span>
           </div>
         </ModeCard>
 
@@ -258,10 +251,10 @@ export default function WebsiteManagement() {
           accent="violet"
           betaTag
           icon={<BotMessageSquare className="w-5 h-5 text-violet-600" />}
-          title="AI Receptionist"
+          title={translateUi("AI Receptionist")}
           badge="AI Chat Agent"
           isLive={mode === "GENERATIVE_UI"}
-          description="A generative AI chat agent that greets every visitor like your front-desk receptionist — answering questions, recommending services, and guiding them toward a booking using your salon's live data."
+          description={translateUi("A generative AI chat agent that greets every visitor like your front-desk receptionist — answering questions, recommending services, and guiding them toward a booking using your salon's live data.")}
           features={[
             "Chats with visitors like a live receptionist",
             "Answers questions on services, pricing & hours",
@@ -275,27 +268,22 @@ export default function WebsiteManagement() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors no-underline"
             >
-              <ExternalLink className="w-3.5 h-3.5" /> Open &amp; Customise
-            </a>
+              <ExternalLink className="w-3.5 h-3.5" /> {translateUi("Open & Customise ")}</a>
             <a
               href={liveUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-slate-400 hover:text-slate-600 hover:underline no-underline"
             >
-              View live page ↗
-            </a>
+              {translateUi("View live page ↗ ")}</a>
           </div>
           <p className="mt-3 text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2 leading-relaxed">
-            Customise colours, fonts, and branding — the same design settings apply to your receptionist's chat window.
-          </p>
+            {translateUi("Customise colours, fonts, and branding — the same design settings apply to your receptionist's chat window. ")}</p>
           <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
             <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border bg-slate-100 text-slate-400 border-slate-200">
-              Coming Soon
-            </span>
+              {translateUi("Coming Soon ")}</span>
             <span>
-              An MCP server with MCP tools, so your salon's services, hours &amp; booking data can be used by any other Generative Chat Agent — not just this one.
-            </span>
+              {translateUi("An MCP server with MCP tools, so your salon's services, hours & booking data can be used by any other Generative Chat Agent — not just this one. ")}</span>
           </div>
         </ModeCard>
 
@@ -306,9 +294,9 @@ export default function WebsiteManagement() {
           accent="matcha"
           disabled
           icon={<Handshake className="w-5 h-5 text-matcha-600" />}
-          title="Contact Us"
+          title={translateUi("Contact Us")}
           badge="Bespoke"
-          description="Have a specific vision in mind? Tell us what you need and our team will design and build a website crafted exactly to your expectations — no templates, no compromises."
+          description={translateUi("Have a specific vision in mind? Tell us what you need and our team will design and build a website crafted exactly to your expectations — no templates, no compromises.")}
           features={[
             "Dedicated design consultation",
             "Custom layout & branding",
@@ -318,16 +306,14 @@ export default function WebsiteManagement() {
         >
           <div className="space-y-3">
             <p className="text-sm text-slate-600 leading-relaxed">
-              Share your ideas, inspirations, or requirements and we'll take it from there. One of our web specialists will reach out within one business day to get started.
-            </p>
+              {translateUi("Share your ideas, inspirations, or requirements and we'll take it from there. One of our web specialists will reach out within one business day to get started. ")}</p>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <a
                 href={`mailto:${CONTACT_EMAIL}?subject=Custom website enquiry`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-matcha-600 hover:bg-matcha-700 text-white text-sm font-semibold transition-colors no-underline"
               >
-                <Mail className="w-3.5 h-3.5" /> Send us a message
-              </a>
-              <span className="text-xs text-slate-400">We typically respond within 24 hours.</span>
+                <Mail className="w-3.5 h-3.5" /> {translateUi("Send us a message ")}</a>
+              <span className="text-xs text-slate-400">{translateUi("We typically respond within 24 hours.")}</span>
             </div>
           </div>
         </ModeCard>

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Country } from "@salon/ui-website";
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function CountrySelect({ value, onChange, countries, className = "", id, "aria-invalid": invalid, "aria-describedby": describedBy }: Props) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [open, setOpen]             = useState(false);
   const [query, setQuery]           = useState("");
   const [highlighted, setHighlight] = useState(-1);
@@ -143,7 +145,7 @@ export function CountrySelect({ value, onChange, countries, className = "", id, 
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Select country"
+            aria-label={translateUi("Select country")}
             className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70vh]"
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
@@ -156,8 +158,8 @@ export function CountrySelect({ value, onChange, countries, className = "", id, 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search country…"
-                aria-label="Search countries"
+                placeholder={translateUi("Search country…")}
+                aria-label={translateUi("Search countries")}
                 aria-controls="country-listbox"
                 aria-activedescendant={highlighted >= 0 ? `country-opt-${highlighted}` : undefined}
                 className="flex-1 text-sm outline-none text-stone-900 placeholder:text-stone-400"
@@ -177,7 +179,7 @@ export function CountrySelect({ value, onChange, countries, className = "", id, 
               id="country-listbox"
               ref={listRef}
               role="listbox"
-              aria-label="Countries"
+              aria-label={translateUi("Countries")}
               className="overflow-y-auto flex-1 overscroll-contain"
             >
               {filtered.map((c, i) => (
@@ -199,13 +201,12 @@ export function CountrySelect({ value, onChange, countries, className = "", id, 
                 </li>
               ))}
               {filtered.length === 0 && (
-                <li className="py-12 text-center text-sm text-stone-400">No countries found</li>
+                <li className="py-12 text-center text-sm text-stone-400">{translateUi("No countries found")}</li>
               )}
             </ul>
 
             <p className="text-center text-[10px] text-stone-300 py-2 border-t border-stone-100 select-none">
-              ↑ ↓ navigate · Enter select · Esc close
-            </p>
+              {translateUi("↑ ↓ navigate · Enter select · Esc close ")}</p>
           </div>
         </>,
         document.body

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { Mail, Phone, MessageCircle, ExternalLink, BookOpen, Lightbulb, Bug, Shield } from "lucide-react";
 import { InfoBar } from "@salon/ui-shared";
 import { SUPPORT_EMAIL } from "~/lib/config";
@@ -5,14 +6,14 @@ import { SUPPORT_EMAIL } from "~/lib/config";
 const SUPPORT_PHONE = "+1 (800) 123-4567";
 
 export default function Help() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="space-y-6">
 
       <div className="space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Help &amp; Support</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Help & Support")}</h1>
         <InfoBar id="help">
-          Need assistance? Reach out to our support team — we typically respond within one business day.
-        </InfoBar>
+          {translateUi("Need assistance? Reach out to our support team — we typically respond within one business day. ")}</InfoBar>
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
@@ -21,11 +22,10 @@ export default function Help() {
         <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
             <Mail className="w-3.5 h-3.5 text-matcha-600" />
-            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Email Support</span>
+            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Email Support")}</span>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed mb-4">
-            For general questions, billing, or account-related issues send us an email and we'll get back to you promptly.
-          </p>
+            {translateUi("For general questions, billing, or account-related issues send us an email and we'll get back to you promptly. ")}</p>
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
             className="inline-flex items-center gap-2 text-sm font-semibold text-matcha-600 hover:text-matcha-700 no-underline hover:underline"
@@ -38,11 +38,10 @@ export default function Help() {
         <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
             <Phone className="w-3.5 h-3.5 text-matcha-600" />
-            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Phone Support</span>
+            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Phone Support")}</span>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed mb-4">
-            Available Monday – Friday, 9 AM – 6 PM (EST). For urgent issues affecting your live booking or public website.
-          </p>
+            {translateUi("Available Monday – Friday, 9 AM – 6 PM (EST). For urgent issues affecting your live booking or public website. ")}</p>
           <a
             href={`tel:${SUPPORT_PHONE.replace(/\s|\(|\)|-/g, "")}`}
             className="inline-flex items-center gap-2 text-sm font-semibold text-matcha-600 hover:text-matcha-700 no-underline hover:underline"
@@ -55,12 +54,11 @@ export default function Help() {
         <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
             <MessageCircle className="w-3.5 h-3.5 text-matcha-600" />
-            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Live Chat</span>
-            <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">Soon</span>
+            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Live Chat")}</span>
+            <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1">{translateUi("Soon")}</span>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Real-time chat support is coming soon. In the meantime please use email or phone.
-          </p>
+            {translateUi("Real-time chat support is coming soon. In the meantime please use email or phone. ")}</p>
         </div>
 
       </div>
@@ -68,7 +66,7 @@ export default function Help() {
       {/* Quick links */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
-          <p className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">Quick Links</p>
+          <p className="text-[0.65rem] font-bold uppercase tracking-widest text-slate-400">{translateUi("Quick Links")}</p>
         </div>
         <div className="divide-y divide-slate-100">
           {[

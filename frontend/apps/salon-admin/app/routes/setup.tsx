@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
@@ -33,6 +34,7 @@ type Step = {
 };
 
 export default function Setup() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<LayoutContext>();
   const { staffCount, serviceCount, websiteType } = useLoaderData<typeof clientLoader>();
 
@@ -80,20 +82,20 @@ export default function Setup() {
         <div className="w-16 h-16 rounded-full bg-matcha-100 flex items-center justify-center mx-auto mb-5">
           <PartyPopper className="w-7 h-7 text-matcha-600" />
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-2">You're all set!</h1>
+        <h1 className="text-xl font-bold text-slate-900 mb-2">{translateUi("You're all set!")}</h1>
         <p className="text-sm text-slate-500 leading-relaxed mb-7">
-          You’ve completed the setup checklist for <span className="font-medium text-slate-700">{salon.name}</span>.
+          {translateUi("You’ve completed the setup checklist for ")}<span className="font-medium text-slate-700">{salon.name}</span>.
         </p>
         <Link
           to=".."
           relative="path"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-matcha-600 hover:bg-matcha-700 text-white text-sm font-semibold transition-colors no-underline"
         >
-          Go to Home <ArrowRight className="w-4 h-4" />
+          {translateUi("Go to Home ")}<ArrowRight className="w-4 h-4" />
         </Link>
 
         <div className="mt-8 text-left rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Get inspired — see live examples</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">{translateUi("Get inspired — see live examples")}</p>
           <div className="flex flex-col gap-2">
             <a
               href="https://bb.salonsaas.org/"
@@ -103,8 +105,8 @@ export default function Setup() {
             >
               <Monitor className="w-4 h-4 text-amber-500 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-700 group-hover:text-amber-700">Static Website example</p>
-                <p className="text-[10px] text-slate-400">bb.salonsaas.org</p>
+                <p className="text-xs font-semibold text-slate-700 group-hover:text-amber-700">{translateUi("Static Website example")}</p>
+                <p className="text-[10px] text-slate-400">{translateUi("bb.salonsaas.org")}</p>
               </div>
               <ExternalLink className="w-3 h-3 text-slate-300 shrink-0" />
             </a>
@@ -116,8 +118,8 @@ export default function Setup() {
             >
               <BotMessageSquare className="w-4 h-4 text-violet-500 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-700 group-hover:text-violet-700">AI Receptionist example</p>
-                <p className="text-[10px] text-slate-400">nan.salonsaas.org</p>
+                <p className="text-xs font-semibold text-slate-700 group-hover:text-violet-700">{translateUi("AI Receptionist example")}</p>
+                <p className="text-[10px] text-slate-400">{translateUi("nan.salonsaas.org")}</p>
               </div>
               <ExternalLink className="w-3 h-3 text-slate-300 shrink-0" />
             </a>
@@ -130,10 +132,9 @@ export default function Setup() {
   if (steps.length === 0) {
     return (
       <div className="max-w-md mx-auto py-14 text-center">
-        <p className="text-sm text-slate-400">No setup steps required for your current feature set.</p>
+        <p className="text-sm text-slate-400">{translateUi("No setup steps required for your current feature set.")}</p>
         <Link to=".." relative="path" className="mt-4 inline-flex items-center gap-1 text-sm text-matcha-600 hover:underline no-underline">
-          <ArrowRight className="w-4 h-4" /> Go to Home
-        </Link>
+          <ArrowRight className="w-4 h-4" /> {translateUi("Go to Home ")}</Link>
       </div>
     );
   }
@@ -142,9 +143,9 @@ export default function Setup() {
     <div className="max-w-xl">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-xl font-bold text-slate-900">Get started</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Get started")}</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Complete these steps to set up{" "}
+          {translateUi("Complete these steps to set up")}{" "}
           <span className="font-medium text-slate-700">{salon.name}</span>.
         </p>
 
@@ -157,8 +158,7 @@ export default function Setup() {
             />
           </div>
           <span className="text-[11px] font-semibold text-slate-500 shrink-0 tabular-nums">
-            {doneCount} / {steps.length} done
-          </span>
+            {doneCount} / {steps.length} {translateUi("done ")}</span>
         </div>
       </div>
 
@@ -213,7 +213,7 @@ export default function Setup() {
                           step.done ? "text-slate-400 line-through" : "text-slate-800"
                         }`}
                       >
-                        {step.title}
+                        {translateUi(step.title)}
                       </p>
                       {!step.done && (
                         <p className="text-xs text-slate-500 leading-snug mt-0.5">
@@ -234,19 +234,17 @@ export default function Setup() {
                       )}
                       {step.key === "website" && (
                         <p className="text-xs text-slate-400 leading-relaxed mt-2">
-                          Your website can look just like these —{" "}
-                          <a href="https://bb.salonsaas.org/" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline font-medium no-underline">Static Website</a>
-                          {" "}or{" "}
-                          <a href="https://nan.salonsaas.org/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline font-medium no-underline">AI Receptionist</a>
-                          {" "}— customised with your salon's colours, fonts, and branding.
-                        </p>
+                          {translateUi("Your website can look just like these —")}{" "}
+                          <a href="https://bb.salonsaas.org/" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline font-medium no-underline">{translateUi("Static Website")}</a>
+                          {" "}{translateUi("or")}{" "}
+                          <a href="https://nan.salonsaas.org/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline font-medium no-underline">{translateUi("AI Receptionist")}</a>
+                          {" "}{translateUi("— customised with your salon's colours, fonts, and branding. ")}</p>
                       )}
                     </div>
 
                     {step.done ? (
                       <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-matcha-600 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded-full">
-                        Done
-                      </span>
+                        {translateUi("Done ")}</span>
                     ) : (
                       <Link
                         to={`../${step.href}`}
@@ -265,10 +263,9 @@ export default function Setup() {
       </div>
 
       <p className="text-xs text-slate-400 mt-5">
-        You can always update these later from the sidebar.{" "}
+        {translateUi("You can always update these later from the sidebar.")}{" "}
         <Link to=".." relative="path" className="text-matcha-600 hover:underline no-underline">
-          Skip for now →
-        </Link>
+          {translateUi("Skip for now → ")}</Link>
       </p>
     </div>
   );

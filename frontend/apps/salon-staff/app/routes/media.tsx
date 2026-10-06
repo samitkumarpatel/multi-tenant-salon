@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useRef, useState } from "react";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
@@ -18,6 +19,7 @@ export async function clientLoader(_: ClientLoaderFunctionArgs) {
 }
 
 export default function Media() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { member: init } = useLoaderData<typeof clientLoader>();
   const [member, setMember] = useState<StaffMember>(init);
   const [pending, setPending] = useState(0);
@@ -86,21 +88,18 @@ export default function Media() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">My Work Media (photo or video)</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("My Work Media (photo or video)")}</h1>
         <InfoBar>
-          Photos and short videos of your work. These appear on your salon&rsquo;s public website and
-          booking page. Changes are saved automatically.
-        </InfoBar>
+          {translateUi("Photos and short videos of your work. These appear on your salon’s public website and booking page. Changes are saved automatically. ")}</InfoBar>
       </div>
 
       <div className="max-w-2xl space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Work gallery</p>
+              <p className="text-sm font-semibold text-slate-800">{translateUi("Work gallery")}</p>
               <p className="text-xs text-slate-400 mt-0.5">
-                {media.length} of {MAX_ITEMS} · images or short videos
-              </p>
+                {media.length} {translateUi("of ")}{MAX_ITEMS} {translateUi("· images or short videos ")}</p>
             </div>
             <button
               type="button"
@@ -109,8 +108,7 @@ export default function Media() {
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed shrink-0"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
-              Add media
-            </button>
+              {translateUi("Add media ")}</button>
           </div>
 
           {media.length === 0 && pending === 0 ? (
@@ -121,8 +119,8 @@ export default function Media() {
               className="w-full rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-10 flex flex-col items-center gap-2 text-slate-400 hover:border-matcha-400 hover:bg-matcha-50 hover:text-matcha-500 transition-colors cursor-pointer disabled:opacity-45"
             >
               <Film className="w-8 h-8" />
-              <span className="text-sm font-medium">Add your first photo or video</span>
-              <span className="text-xs">JPG, PNG, WebP, MP4, WebM · up to 25 MB each</span>
+              <span className="text-sm font-medium">{translateUi("Add your first photo or video")}</span>
+              <span className="text-xs">{translateUi("JPG, PNG, WebP, MP4, WebM · up to 25 MB each")}</span>
             </button>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -131,12 +129,11 @@ export default function Media() {
                   <WorkMedia url={url} className="w-full h-full object-cover" />
                   {isVideoUrl(url) && (
                     <span className="absolute bottom-1 left-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-black/55 text-white text-[10px] font-medium">
-                      <Film className="w-2.5 h-2.5" /> Video
-                    </span>
+                      <Film className="w-2.5 h-2.5" /> {translateUi("Video ")}</span>
                   )}
                   <button
                     type="button"
-                    title="Remove"
+                    title={translateUi("Remove")}
                     onClick={() => remove(url)}
                     disabled={busy}
                     className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer shadow-sm disabled:opacity-45 disabled:cursor-not-allowed"
@@ -167,9 +164,7 @@ export default function Media() {
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-500">
-          Your avatar is set on the <strong className="text-slate-600">My Profile</strong> page. This
-          page is only for your work gallery.
-        </div>
+          {translateUi("Your avatar is set on the ")}<strong className="text-slate-600">{translateUi("My Profile")}</strong> {translateUi("page. This page is only for your work gallery. ")}</div>
       </div>
 
       <Toast toast={toast} />

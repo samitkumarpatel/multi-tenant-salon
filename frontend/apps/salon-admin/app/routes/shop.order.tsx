@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -63,6 +64,7 @@ type ModalKind =
   | { kind: "create-return" };
 
 export default function ShopOrderDetail() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
   const { sid, order: init } = useLoaderData<typeof clientLoader>();
   const [order, setOrder] = useState<ShopOrder>(init);
@@ -227,13 +229,12 @@ export default function ShopOrderDetail() {
       <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
         <div>
           <Link to=".." className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 mb-2">
-            <ArrowLeft className="w-3.5 h-3.5" /> All orders
-          </Link>
+            <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("All orders ")}</Link>
           <h1 className="text-xl font-black text-slate-900 font-mono tracking-tight">{order.orderNumber}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {new Date(order.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+            {new Date(order.createdAt).toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}
             {order.paymentReference
-              ? <span> · ref <span className="font-mono">{order.paymentReference}</span></span>
+              ? <span> {translateUi("· ref ")}<span className="font-mono">{order.paymentReference}</span></span>
               : null}
           </p>
         </div>
@@ -242,7 +243,7 @@ export default function ShopOrderDetail() {
             {ORDER_STATUS_LABEL[order.status]}
           </span>
           <span className="text-[0.65rem] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-            {order.paymentStatus === "PAID" ? "Paid" : "Payment pending"}
+            {order.paymentStatus === "PAID" ? translateUi("Paid") : translateUi("Payment pending")}
           </span>
         </div>
       </div>
@@ -251,7 +252,7 @@ export default function ShopOrderDetail() {
 
         {/* ── Items ─────────────────────────────────────────────────────────── */}
         <Card>
-          <SectionHeader>Order items</SectionHeader>
+          <SectionHeader>{translateUi("Order items")}</SectionHeader>
           <div className="divide-y divide-slate-50">
             {order.lines.map((line) => (
               <div key={line.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
@@ -266,14 +267,14 @@ export default function ShopOrderDetail() {
                       : null}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {formatPrice(line.unitPrice, order.currency)} × {line.quantity}
+                    {formatPrice(line.unitPrice, order.currency, uiLocale)} × {line.quantity}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-semibold text-slate-800">{formatPrice(line.lineTotal, order.currency)}</span>
+                  <span className="text-sm font-semibold text-slate-800">{formatPrice(line.lineTotal, order.currency, uiLocale)}</span>
                   <button
                     disabled={busy}
-                    title="Notify customer about this item"
+                    title={translateUi("Notify customer about this item")}
                     onClick={() => {
                       setNotifyMsg(`Hi ${order.customerName.split(" ")[0]}, your item "${line.productName}" has an update.`);
                       setModal({ kind: "notify-line", lineId: line.id, productName: line.productName });
@@ -287,10 +288,10 @@ export default function ShopOrderDetail() {
             ))}
           </div>
           <div className="border-t border-slate-100 pt-3 mt-2 flex flex-col gap-1">
-            <Row label="Subtotal" value={formatPrice(order.subtotal, order.currency)} />
+            <Row label={translateUi("Subtotal")} value={formatPrice(order.subtotal, order.currency, uiLocale)} />
             <Row
-              label={<span className="font-bold text-slate-800">Total</span>}
-              value={<span className="font-bold text-slate-900 text-base">{formatPrice(order.subtotal, order.currency)}</span>}
+              label={<span className="font-bold text-slate-800">{translateUi("Total")}</span>}
+              value={<span className="font-bold text-slate-900 text-base">{formatPrice(order.subtotal, order.currency, uiLocale)}</span>}
             />
           </div>
         </Card>
@@ -298,7 +299,7 @@ export default function ShopOrderDetail() {
         {/* ── Customer + Ship-to ───────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card>
-            <SectionHeader className="flex items-center gap-1"><Mail className="w-3 h-3" /> Customer</SectionHeader>
+            <SectionHeader className="flex items-center gap-1"><Mail className="w-3 h-3" /> {translateUi("Customer")}</SectionHeader>
             <p className="text-sm font-semibold text-slate-900 mb-2">{order.customerName}</p>
             <div className="flex flex-col gap-1.5">
               <a href={`mailto:${order.customerEmail}`}
@@ -311,14 +312,13 @@ export default function ShopOrderDetail() {
                     <Phone className="w-3.5 h-3.5 shrink-0" /> {order.customerPhone}
                   </a>
                 : <span className="inline-flex items-center gap-2 text-xs text-slate-400">
-                    <Phone className="w-3.5 h-3.5 shrink-0" /> No phone
-                  </span>
+                    <Phone className="w-3.5 h-3.5 shrink-0" /> {translateUi("No phone ")}</span>
               }
             </div>
           </Card>
 
           <Card>
-            <SectionHeader className="flex items-center gap-1"><MapPin className="w-3 h-3" /> Ship to</SectionHeader>
+            <SectionHeader className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {translateUi("Ship to")}</SectionHeader>
             {hasAddr ? (
               <address className="not-italic text-xs text-slate-600 leading-relaxed">
                 {addr!.line1 && <div>{addr!.line1}</div>}
@@ -327,83 +327,83 @@ export default function ShopOrderDetail() {
                 {addr!.country && <div>{addr!.country}</div>}
               </address>
             ) : (
-              <p className="text-xs text-slate-400">No address provided.</p>
+              <p className="text-xs text-slate-400">{translateUi("No address provided.")}</p>
             )}
           </Card>
         </div>
 
         {/* ── Actions ───────────────────────────────────────────────────────── */}
         <Card>
-          <SectionHeader>Actions</SectionHeader>
+          <SectionHeader>{translateUi("Actions")}</SectionHeader>
           <div className="flex flex-col gap-4">
 
             {/* Order lifecycle */}
             {!isClosed && (
-              <ActionGroup label="Order Status">
+              <ActionGroup label={translateUi("Order Status")}>
                 {order.status === "NEW" && (
-                  <ActionBtn icon={<Check className="w-3.5 h-3.5" />} label="Confirm" disabled={busy} onClick={() => setStatus("CONFIRMED")} variant="success" />
+                  <ActionBtn icon={<Check className="w-3.5 h-3.5" />} label={translateUi("Confirm")} disabled={busy} onClick={() => setStatus("CONFIRMED")} variant="success" />
                 )}
                 {(order.status === "NEW" || order.status === "CONFIRMED") && (
-                  <ActionBtn icon={<RefreshCcw className="w-3.5 h-3.5" />} label="Mark Processing" disabled={busy} onClick={() => setStatus("PROCESSING")} />
+                  <ActionBtn icon={<RefreshCcw className="w-3.5 h-3.5" />} label={translateUi("Mark Processing")} disabled={busy} onClick={() => setStatus("PROCESSING")} />
                 )}
                 {order.status === "PROCESSING" && (
-                  <ActionBtn icon={<Package className="w-3.5 h-3.5" />} label="Ready to Ship" disabled={busy} onClick={() => setStatus("READY_TO_SHIP")} />
+                  <ActionBtn icon={<Package className="w-3.5 h-3.5" />} label={translateUi("Ready to Ship")} disabled={busy} onClick={() => setStatus("READY_TO_SHIP")} />
                 )}
                 {(order.status === "PROCESSING" || order.status === "READY_TO_SHIP") && (
-                  <ActionBtn icon={<Truck className="w-3.5 h-3.5" />} label="Mark Shipped" disabled={busy} onClick={() => setStatus("SHIPPED")} />
+                  <ActionBtn icon={<Truck className="w-3.5 h-3.5" />} label={translateUi("Mark Shipped")} disabled={busy} onClick={() => setStatus("SHIPPED")} />
                 )}
                 {order.status === "SHIPPED" && (
-                  <ActionBtn icon={<Check className="w-3.5 h-3.5" />} label="Mark Delivered" disabled={busy} onClick={() => setStatus("DELIVERED")} variant="success" />
+                  <ActionBtn icon={<Check className="w-3.5 h-3.5" />} label={translateUi("Mark Delivered")} disabled={busy} onClick={() => setStatus("DELIVERED")} variant="success" />
                 )}
                 {order.status === "DELIVERED" && (
-                  <ActionBtn icon={<CheckCheck className="w-3.5 h-3.5" />} label="Mark Fulfilled" disabled={busy} onClick={() => setStatus("FULFILLED")} variant="success" />
+                  <ActionBtn icon={<CheckCheck className="w-3.5 h-3.5" />} label={translateUi("Mark Fulfilled")} disabled={busy} onClick={() => setStatus("FULFILLED")} variant="success" />
                 )}
                 {order.status === "NEW" && (
-                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label="Put on Hold" disabled={busy} onClick={() => setStatus("ON_HOLD")} variant="warning" />
+                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label={translateUi("Put on Hold")} disabled={busy} onClick={() => setStatus("ON_HOLD")} variant="warning" />
                 )}
                 {!isShippedOrLater && order.status !== "FULFILLED" && (
-                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label="Cancel" disabled={busy} onClick={() => setStatus("CANCELLED")} variant="danger" />
+                  <ActionBtn icon={<X className="w-3.5 h-3.5" />} label={translateUi("Cancel")} disabled={busy} onClick={() => setStatus("CANCELLED")} variant="danger" />
                 )}
               </ActionGroup>
             )}
 
             {/* Fulfillment operations */}
-            <ActionGroup label="Fulfillment">
+            <ActionGroup label={translateUi("Fulfillment")}>
               <ActionBtn
                 icon={<Truck className="w-3.5 h-3.5" />}
                 label={hasTracking
                   ? `Shipping: ${order.trackingCarrier ?? ""}${order.trackingCarrier && order.trackingNumber ? " · " : ""}${order.trackingNumber ?? ""}`
-                  : "Update Shipping"}
+                  : translateUi("Update Shipping")}
                 disabled={busy}
                 onClick={() => setModal({ kind: "shipping" })}
               />
               {isDelivered && !order.returnStatus && (
-                <ActionBtn icon={<RotateCcw className="w-3.5 h-3.5" />} label="Request Return" disabled={busy}
+                <ActionBtn icon={<RotateCcw className="w-3.5 h-3.5" />} label={translateUi("Request Return")} disabled={busy}
                   onClick={() => setModal({ kind: "create-return" })} variant="warning" />
               )}
             </ActionGroup>
 
             {/* Communication */}
-            <ActionGroup label="Communication">
+            <ActionGroup label={translateUi("Communication")}>
               <ActionBtn
                 icon={<Bell className="w-3.5 h-3.5" />}
-                label="Notify Customer"
+                label={translateUi("Notify Customer")}
                 disabled={busy}
                 onClick={() => { setNotifyMsg(""); setModal({ kind: "notify" }); }}
               />
               <ActionBtn
                 icon={<FileText className="w-3.5 h-3.5" />}
-                label="Issue Invoice"
+                label={translateUi("Issue Invoice")}
                 disabled={busy}
                 onClick={sendInvoice}
               />
             </ActionGroup>
 
             {/* Financial */}
-            <ActionGroup label="Financial">
+            <ActionGroup label={translateUi("Financial")}>
               <ActionBtn
                 icon={<RefreshCcw className="w-3.5 h-3.5" />}
-                label="Refunds"
+                label={translateUi("Refunds")}
                 badge={pendingRefundCount}
                 disabled={busy}
                 onClick={() => setModal({ kind: "refunds" })}
@@ -426,7 +426,7 @@ export default function ShopOrderDetail() {
         {/* ── Return card ─────────────────────────────────────────────────────── */}
         {order.returnStatus && (
           <Card>
-            <SectionHeader className="flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Return</SectionHeader>
+            <SectionHeader className="flex items-center gap-1"><RotateCcw className="w-3 h-3" /> {translateUi("Return")}</SectionHeader>
             <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
               <div>
                 <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${RETURN_STATUS_STYLE[order.returnStatus] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
@@ -444,9 +444,9 @@ export default function ShopOrderDetail() {
 
         {/* ── Activity timeline ─────────────────────────────────────────────── */}
         <Card>
-          <SectionHeader>Activity</SectionHeader>
+          <SectionHeader>{translateUi("Activity")}</SectionHeader>
           {activities.length === 0 ? (
-            <p className="text-xs text-slate-400 pb-1">No activity yet.</p>
+            <p className="text-xs text-slate-400 pb-1">{translateUi("No activity yet.")}</p>
           ) : (
             <ol className="relative border-l-2 border-slate-100 ml-1 mb-4">
               {activities.map((a) => {
@@ -463,12 +463,11 @@ export default function ShopOrderDetail() {
                       </span>
                       {a.notified && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
-                          <Send className="w-2.5 h-2.5" /> Notified
-                        </span>
+                          <Send className="w-2.5 h-2.5" /> {translateUi("Notified ")}</span>
                       )}
                       {email && a.status && a.status !== "SENT" && (
                         <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5">
-                          {a.status === "LOGGED" ? "not sent (dev)" : a.status.toLowerCase()}
+                          {a.status === "LOGGED" ? translateUi("not sent (dev)") : a.status.toLowerCase()}
                         </span>
                       )}
                       <span className="text-[11px] text-slate-400">{relativeTime(a.createdAt)}</span>
@@ -485,12 +484,12 @@ export default function ShopOrderDetail() {
                           onClick={() => setOpenEmail(isOpen ? null : a.id)}
                           className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-700 hover:text-matcha-900 cursor-pointer"
                         >
-                          <Mail className="w-3 h-3" /> {isOpen ? "Hide email" : "View email"}
+                          <Mail className="w-3 h-3" /> {isOpen ? translateUi("Hide email") : translateUi("View email")}
                         </button>
                         {isOpen && (
                           <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                             <p className="text-[11px] text-slate-400">
-                              To <span className="font-medium text-slate-600">{order.customerEmail}</span>
+                              {translateUi("To ")}<span className="font-medium text-slate-600">{order.customerEmail}</span>
                               {email.channel ? ` · ${email.channel.toLowerCase()}` : ""}
                             </p>
                             {email.subject && <p className="font-semibold text-slate-800 mt-1">{email.subject}</p>}
@@ -507,7 +506,7 @@ export default function ShopOrderDetail() {
           <div className="flex gap-2 border-t border-slate-100 pt-3">
             <textarea
               rows={2}
-              placeholder="Add an internal note…"
+              placeholder={translateUi("Add an internal note…")}
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && e.metaKey && submitNote()}
@@ -518,8 +517,7 @@ export default function ShopOrderDetail() {
               onClick={submitNote}
               className="self-end px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
-              Add note
-            </button>
+              {translateUi("Add note ")}</button>
           </div>
         </Card>
       </div>
@@ -529,26 +527,26 @@ export default function ShopOrderDetail() {
       {/* Notify */}
       {(modal?.kind === "notify" || modal?.kind === "notify-line") && (
         <Modal
-          title={modal.kind === "notify-line" ? `Notify — ${modal.productName}` : "Notify customer"}
+          title={modal.kind === "notify-line" ? `Notify — ${modal.productName}` : translateUi("Notify customer")}
           icon={<Bell className="w-4 h-4 text-matcha-600" />}
           onClose={closeModal}
         >
           <p className="text-xs text-slate-500 mb-3">
-            Sending to <span className="font-medium text-slate-700">{order.customerEmail}</span>
+            {translateUi("Sending to ")}<span className="font-medium text-slate-700">{order.customerEmail}</span>
             {order.customerPhone ? ` · ${order.customerPhone}` : ""}.
           </p>
           <textarea autoFocus rows={4} className={`${inputCls} resize-none mb-4`}
-            placeholder="Your message…" value={notifyMsg} onChange={(e) => setNotifyMsg(e.target.value)} />
+            placeholder={translateUi("Your message…")} value={notifyMsg} onChange={(e) => setNotifyMsg(e.target.value)} />
           <ModalFooter>
             <ModalCancel onClick={closeModal} />
-            <ModalSave label="Send" icon={<Send className="w-3.5 h-3.5" />} disabled={busy || !notifyMsg.trim()} onClick={submitNotify} />
+            <ModalSave label={translateUi("Send")} icon={<Send className="w-3.5 h-3.5" />} disabled={busy || !notifyMsg.trim()} onClick={submitNotify} />
           </ModalFooter>
         </Modal>
       )}
 
       {/* Shipping */}
       {modal?.kind === "shipping" && (
-        <Modal title="Shipping & tracking" icon={<Truck className="w-4 h-4 text-teal-600" />} onClose={closeModal}>
+        <Modal title={translateUi("Shipping & tracking")} icon={<Truck className="w-4 h-4 text-teal-600" />} onClose={closeModal}>
           {hasTracking && (
             <div className="flex items-center gap-2 mb-4 p-2.5 rounded-lg bg-teal-50 border border-teal-100">
               <Truck className="w-3.5 h-3.5 text-teal-600 shrink-0" />
@@ -560,22 +558,22 @@ export default function ShopOrderDetail() {
           )}
           <div className="grid grid-cols-[140px_1fr] gap-3 mb-4">
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Carrier</label>
+              <label className="block text-xs text-slate-500 mb-1">{translateUi("Carrier")}</label>
               <select className={inputCls} value={trackingCarrier} onChange={(e) => setTrackingCarrier(e.target.value)}>
-                <option value="">— Select —</option>
+                <option value="">{translateUi("— Select —")}</option>
                 {CARRIERS.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Tracking number</label>
-              <input autoFocus className={inputCls} placeholder="e.g. 1Z999AA10123456784"
+              <label className="block text-xs text-slate-500 mb-1">{translateUi("Tracking number")}</label>
+              <input autoFocus className={inputCls} placeholder={translateUi("e.g. 1Z999AA10123456784")}
                 value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submitShipping()} />
             </div>
           </div>
           <ModalFooter>
             <ModalCancel onClick={closeModal} />
-            <ModalSave label="Save & notify" icon={<Send className="w-3.5 h-3.5" />}
+            <ModalSave label={translateUi("Save & notify")} icon={<Send className="w-3.5 h-3.5" />}
               disabled={busy || (!trackingCarrier.trim() && !trackingNumber.trim())}
               onClick={submitShipping} />
           </ModalFooter>
@@ -584,16 +582,16 @@ export default function ShopOrderDetail() {
 
       {/* Refunds */}
       {modal?.kind === "refunds" && (
-        <Modal title="Refund" icon={<RefreshCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal} wide>
+        <Modal title={translateUi("Refund")} icon={<RefreshCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal} wide>
           {/* Existing refund */}
           {hasRefund && (
             <div className="mb-5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Current refund</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{translateUi("Current refund")}</p>
               <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold text-slate-800">
-                      {order.refundAmount != null ? formatPrice(order.refundAmount, order.currency) : ""}
+                      {order.refundAmount != null ? formatPrice(order.refundAmount, order.currency, uiLocale) : ""}
                     </span>
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${REFUND_STATUS_STYLE[order.refundStatus!] ?? ""}`}>
                       {order.refundStatus}
@@ -604,19 +602,16 @@ export default function ShopOrderDetail() {
                       <>
                         <button disabled={busy} onClick={approveRefund}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-green-200 text-[11px] font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer disabled:opacity-40">
-                          <Check className="w-3 h-3" /> Approve
-                        </button>
+                          <Check className="w-3 h-3" /> {translateUi("Approve ")}</button>
                         <button disabled={busy} onClick={rejectRefund}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-200 text-[11px] font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer disabled:opacity-40">
-                          <X className="w-3 h-3" /> Reject
-                        </button>
+                          <X className="w-3 h-3" /> {translateUi("Reject ")}</button>
                       </>
                     )}
                     {order.refundStatus === "APPROVED" && (
                       <button disabled={busy} onClick={acceptRefund}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-blue-200 text-[11px] font-medium text-blue-700 bg-white hover:bg-blue-50 cursor-pointer disabled:opacity-40">
-                        <Check className="w-3 h-3" /> Accept
-                      </button>
+                        <Check className="w-3 h-3" /> {translateUi("Accept ")}</button>
                     )}
                   </div>
                 </div>
@@ -628,25 +623,25 @@ export default function ShopOrderDetail() {
           {/* Issue new refund */}
           {!hasRefund && (
             <div className={hasRefund ? "border-t border-slate-100 pt-4" : ""}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Issue refund</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">{translateUi("Issue refund")}</p>
               <p className="text-xs text-slate-500 mb-3">
-                Customer will be notified at <span className="font-medium text-slate-700">{order.customerEmail}</span>.
+                {translateUi("Customer will be notified at ")}<span className="font-medium text-slate-700">{order.customerEmail}</span>.
               </p>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Amount *</label>
+                  <label className="block text-xs text-slate-500 mb-1">{translateUi("Amount *")}</label>
                   <input type="number" min="0.01" step="0.01" max={order.subtotal}
-                    className={inputCls} placeholder={`Max ${formatPrice(order.subtotal, order.currency)}`}
+                    className={inputCls} placeholder={`Max ${formatPrice(order.subtotal, order.currency, uiLocale)}`}
                     value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Reason</label>
-                  <input className={inputCls} placeholder="e.g. Item damaged"
+                  <label className="block text-xs text-slate-500 mb-1">{translateUi("Reason")}</label>
+                  <input className={inputCls} placeholder={translateUi("e.g. Item damaged")}
                     value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
                 </div>
               </div>
               <div className="flex justify-end">
-                <ModalSave label="Issue refund" icon={<RefreshCcw className="w-3.5 h-3.5" />}
+                <ModalSave label={translateUi("Issue refund")} icon={<RefreshCcw className="w-3.5 h-3.5" />}
                   disabled={busy || !refundAmount || parseFloat(refundAmount) <= 0}
                   onClick={submitRefund} />
               </div>
@@ -657,12 +652,12 @@ export default function ShopOrderDetail() {
 
       {/* Credit Notes */}
       {modal?.kind === "credit-notes" && order.creditNoteRef && (
-        <Modal title="Credit Note" icon={<Receipt className="w-4 h-4 text-purple-600" />} onClose={closeModal}>
+        <Modal title={translateUi("Credit Note")} icon={<Receipt className="w-4 h-4 text-purple-600" />} onClose={closeModal}>
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 {order.refundAmount != null && (
-                  <span className="text-xs font-semibold text-slate-800">{formatPrice(order.refundAmount, order.currency)}</span>
+                  <span className="text-xs font-semibold text-slate-800">{formatPrice(order.refundAmount, order.currency, uiLocale)}</span>
                 )}
                 <span className="font-mono text-[10px] text-slate-400">{order.creditNoteRef}</span>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${CN_STATUS_STYLE[order.creditNoteStatus ?? "PENDING"] ?? ""}`}>
@@ -672,8 +667,7 @@ export default function ShopOrderDetail() {
               {order.creditNoteStatus === "PENDING" && (
                 <button disabled={busy} onClick={() => { payCreditNote(); closeModal(); }}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-purple-200 text-[11px] font-medium text-purple-700 bg-white hover:bg-purple-50 cursor-pointer disabled:opacity-40 shrink-0">
-                  <Banknote className="w-3 h-3" /> Pay back
-                </button>
+                  <Banknote className="w-3 h-3" /> {translateUi("Pay back ")}</button>
               )}
             </div>
             {order.refundReason && <p className="text-[11px] text-slate-500 mt-1">{order.refundReason}</p>}
@@ -683,17 +677,17 @@ export default function ShopOrderDetail() {
 
       {/* Create Return */}
       {modal?.kind === "create-return" && (
-        <Modal title="Request Return" icon={<RotateCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal}>
-          <p className="text-xs text-slate-500 mb-3">Describe why the customer is returning items.</p>
+        <Modal title={translateUi("Request Return")} icon={<RotateCcw className="w-4 h-4 text-orange-600" />} onClose={closeModal}>
+          <p className="text-xs text-slate-500 mb-3">{translateUi("Describe why the customer is returning items.")}</p>
           <div className="mb-4">
-            <label className="block text-xs text-slate-500 mb-1">Reason</label>
-            <input autoFocus className={inputCls} placeholder="e.g. Item damaged in transit"
+            <label className="block text-xs text-slate-500 mb-1">{translateUi("Reason")}</label>
+            <input autoFocus className={inputCls} placeholder={translateUi("e.g. Item damaged in transit")}
               value={returnReason} onChange={(e) => setReturnReason(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submitReturn()} />
           </div>
           <ModalFooter>
             <ModalCancel onClick={closeModal} />
-            <ModalSave label="Create return" icon={<RotateCcw className="w-3.5 h-3.5" />}
+            <ModalSave label={translateUi("Create return")} icon={<RotateCcw className="w-3.5 h-3.5" />}
               disabled={busy} onClick={submitReturn} />
           </ModalFooter>
         </Modal>
@@ -719,18 +713,20 @@ function SectionHeader({ children, className = "" }: { children: React.ReactNode
 }
 
 function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-slate-500">{label}</span>
+      <span className="text-slate-500">{typeof label === "string" ? translateUi(label) : label}</span>
       <span className="text-slate-800 text-right">{value}</span>
     </div>
   );
 }
 
 function ActionGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-300 mb-2">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-300 mb-2">{translateUi(label)}</p>
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
@@ -748,11 +744,12 @@ function ActionBtn({ icon, label, badge = 0, disabled, onClick, variant = "defau
   icon: React.ReactNode; label: string; badge?: number; disabled: boolean;
   onClick: () => void; variant?: BtnVariant;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <button disabled={disabled} onClick={onClick}
       className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${BTN_CLS[variant]}`}>
       {icon}
-      <span className="truncate max-w-[180px]">{label}</span>
+      <span className="truncate max-w-[180px]">{translateUi(label)}</span>
       {badge > 0 && (
         <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-red-500 text-white">
           {badge}
@@ -791,21 +788,22 @@ function ModalFooter({ children }: { children: React.ReactNode }) {
 }
 
 function ModalCancel({ onClick }: { onClick: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <button onClick={onClick}
       className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 cursor-pointer">
-      Cancel
-    </button>
+      {translateUi("Cancel ")}</button>
   );
 }
 
 function ModalSave({ label, icon, disabled, onClick }: {
   label: string; icon: React.ReactNode; disabled: boolean; onClick: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <button disabled={disabled} onClick={onClick}
       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-      {icon} {label}
+      {icon} {translateUi(label)}
     </button>
   );
 }

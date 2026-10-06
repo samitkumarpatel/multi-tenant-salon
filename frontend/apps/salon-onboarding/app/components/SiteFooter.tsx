@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Mail } from "lucide-react";
 import { CONTACT_EMAIL, SALON_DOMAIN, ADMIN_APP_URL, DOCS_URL } from "~/lib/config";
@@ -5,6 +6,7 @@ import { TERMS_TEXT, PRIVACY_TEXT } from "~/lib/legal";
 import { LegalModal } from "./LegalModal";
 
 export function SiteFooter() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [legal, setLegal] = useState<"terms" | "privacy" | null>(null);
 
   return (
@@ -25,38 +27,33 @@ export function SiteFooter() {
               rel="noopener noreferrer"
               className="text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors"
             >
-              Docs
-            </a>
+              {translateUi("Docs ")}</a>
             <button
               type="button"
               onClick={() => setLegal("terms")}
               className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
             >
-              Terms
-            </button>
+              {translateUi("Terms ")}</button>
             <button
               type="button"
               onClick={() => setLegal("privacy")}
               className="text-[11px] text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
             >
-              Privacy
-            </button>
+              {translateUi("Privacy ")}</button>
             <a
               href={ADMIN_APP_URL}
               className="text-[11px] text-stone-400 hover:text-stone-600 no-underline transition-colors"
             >
-              Already have a salon? Sign in
-            </a>
+              {translateUi("Already have a salon? Sign in ")}</a>
           </div>
           <p className="text-[11px] text-stone-400">
-            © {new Date().getFullYear()} {SALON_DOMAIN} · All rights reserved.
-          </p>
+            © {new Date().getFullYear()} {SALON_DOMAIN} {translateUi("· All rights reserved. ")}</p>
         </div>
       </div>
 
       {legal && (
         <LegalModal
-          title={legal === "terms" ? "Terms and Conditions" : "Privacy Policy"}
+          title={legal === "terms" ? translateUi("Terms and Conditions") : translateUi("Privacy Policy")}
           text={legal === "terms" ? TERMS_TEXT : PRIVACY_TEXT}
           onClose={() => setLegal(null)}
         />

@@ -1,3 +1,4 @@
+import type { SalonLanguages, LanguagePolicy } from "@salon/i18n";
 import { useEffect } from "react";
 import { Outlet, useLoaderData, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -36,7 +37,7 @@ export type TenantData = {
 };
 
 type LoaderData =
-  | ({ status: "ok"; canonicalOrigin: string } & TenantData)
+  | ({ status: "ok"; canonicalOrigin: string; languagePolicy: LanguagePolicy; languageScope: string } & TenantData)
   | { status: "disabled"; salonName?: string }
   | { status: "not_found" }
   | { status: "error" };
@@ -51,12 +52,13 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     if (salon.status === "DISABLED") {
       return { status: "disabled", salonName: salon.name };
     }
-    const [staff, services, theme, preferredDomain, ratings] = await Promise.all([
+    const [staff, services, theme, preferredDomain, ratings, languages] = await Promise.all([
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
       apiFetch<{ hostname: string | null }>(`${API_BASE}/api/salon/${salon.id}/website/domain`).catch(() => null),
       apiFetch<{ salon: { average: number | null; count: number }; staff: Record<string, { average: number | null; count: number }> }>(`${API_BASE}/api/salon/${salon.id}/ratings`).catch(() => null),
+      apiFetch<SalonLanguages>(`${API_BASE}/api/salon/${salon.id}/languages`),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
     if (!salon.features?.includes("STATIC_WEBSITE")) {
@@ -65,7 +67,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     const canonicalOrigin = preferredDomain?.hostname ? `https://${preferredDomain.hostname}` : new URL(request.url).origin;
     const ratedStaff = staff.map((member) => ({ ...member, rating: ratings?.staff[String(member.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(member.id)]?.count ?? 0 }));
     const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
-    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, canonicalOrigin };
+    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, canonicalOrigin, languagePolicy: languages.website, languageScope: String(salon.id) };
   } catch (err) {
     const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
     return { status: is404 ? "not_found" : "error" };

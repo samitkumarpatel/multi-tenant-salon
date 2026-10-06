@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 /**
  * Customer-facing booking wizard — themed by the salon's Design settings.
  * Shared by the /:salonId/book route and the salon website's #book hash view.
@@ -33,14 +34,13 @@ const CUSTOMER_API = `${API_BASE}/api/salon`;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function fmt12(t: string) {
+function fmt12(t: string, locale = "en") {
   const [h, m] = t.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
+  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(new Date(2000, 0, 1, h, m));
 }
 
-function fmtDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString(undefined, {
+function fmtDate(d: string, locale = "en") {
+  return new Date(`${d}T00:00:00`).toLocaleDateString(locale, {
     weekday: "short", month: "short", day: "numeric",
   });
 }
@@ -78,6 +78,7 @@ const backBtnCls =
 const STEP_LABELS = ["Service", "Date", "Time", "Details"];
 
 function StepBar({ current, accent }: { current: number; accent: Accent }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex items-center gap-1.5 justify-center mb-4">
       {STEP_LABELS.map((label, i) => {
@@ -103,7 +104,7 @@ function StepBar({ current, accent }: { current: number; accent: Accent }) {
                 className="text-[9px] font-semibold uppercase tracking-wider transition-colors duration-300"
                 style={{ color: active ? accent.color : done ? "#475569" : "#cbd5e1" }}
               >
-                {label}
+                {translateUi(label)}
               </span>
             </div>
             {n < STEP_LABELS.length && (
@@ -132,10 +133,11 @@ function SelectionSummary({
   staffName?: string;
   accent: Accent;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const chips = [
-    service && `${service.name} · ${formatPrice(service.price, service.currency)}`,
-    date && fmtDate(date),
-    slot && fmt12(slot.startTime),
+    service && `${service.name} · ${formatPrice(service.price, service.currency, uiLocale)}`,
+    date && fmtDate(date, uiLocale),
+    slot && fmt12(slot.startTime, uiLocale),
     staffName,
   ].filter(Boolean) as string[];
   if (chips.length === 0) return null;
@@ -165,6 +167,7 @@ function StepService({
   onSelect: (s: ServiceItem) => void;
   onNext: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [query, setQuery] = useState("");
 
   const single = services.length === 1;
@@ -184,11 +187,11 @@ function StepService({
 
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-900 mb-1">Choose a service</h2>
-      <p className="text-sm text-slate-500 mb-4">Select the service you'd like to book.</p>
+      <h2 className="text-lg font-bold text-slate-900 mb-1">{translateUi("Choose a service")}</h2>
+      <p className="text-sm text-slate-500 mb-4">{translateUi("Select the service you'd like to book.")}</p>
 
       {services.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-10">No services available yet.</p>
+        <p className="text-sm text-slate-400 text-center py-10">{translateUi("No services available yet.")}</p>
       ) : (
         <>
           {/* Search — only shown when more than 5 services */}
@@ -199,13 +202,13 @@ function StepService({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search services…"
+                placeholder={translateUi("Search services…")}
                 className={`${inputCls} pl-9`}
                 style={{ ["--tw-ring-color" as string]: `${accent.color}33` }}
               />
               {q && (
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400">
-                  {filtered.length} {filtered.length === 1 ? "match" : "matches"}
+                  {filtered.length} {filtered.length === 1 ? translateUi("match") : translateUi("matches")}
                 </span>
               )}
             </div>
@@ -213,7 +216,7 @@ function StepService({
 
           {filtered.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-10">
-              No services match "{query}".
+              {translateUi("No services match “{query}”.", { query })}
             </p>
           ) : (
             <div className="relative">
@@ -239,17 +242,16 @@ function StepService({
                           <div className="flex items-start justify-between gap-3">
                             <p className="font-semibold text-slate-900 text-sm">{s.name}</p>
                             <p className="font-bold text-sm shrink-0 tabular-nums" style={{ color: accent.color }}>
-                              {formatPrice(s.price, s.currency)}
+                              {formatPrice(s.price, s.currency, uiLocale)}
                             </p>
                           </div>
                           {s.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-2">{s.description}</p>}
                           <div className="flex items-center gap-3 mt-1.5">
                             <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {s.durationMinutes} min
-                            </span>
+                              <Clock className="w-3 h-3" /> {s.durationMinutes} {translateUi("min ")}</span>
                             <span className="inline-flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
                               <CategoryIcon category={s.category} className="w-3 h-3" />
-                              {CATEGORY_LABEL[s.category] ?? s.category}
+                              {translateUi(CATEGORY_LABEL[s.category] ?? s.category)}
                             </span>
                           </div>
                         </div>
@@ -275,10 +277,10 @@ function StepService({
           className={`w-full py-3 ${primaryBtnCls}`}
           style={primaryBtnStyle(accent, !!selected)}
         >
-          Next <ArrowRight className="w-4 h-4" />
+          {translateUi("Next ")}<ArrowRight className="w-4 h-4" />
         </button>
         {!selected && (
-          <p className="text-center text-[11px] text-slate-400 mt-2">Select a service above to continue</p>
+          <p className="text-center text-[11px] text-slate-400 mt-2">{translateUi("Select a service above to continue")}</p>
         )}
       </div>
     </div>
@@ -363,6 +365,7 @@ function WeekGrid({
   maxDate: Date;
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [weekStart, setWeekStart] = useState(() => mondayOf(date ? new Date(`${date}T00:00:00`) : today));
@@ -388,7 +391,7 @@ function WeekGrid({
   const fmtRange = (start: Date) => {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
-    return `${start.toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${end.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
+    return `${start.toLocaleDateString(uiLocale, { day: "numeric", month: "short" })} – ${end.toLocaleDateString(uiLocale, { day: "numeric", month: "short", year: "numeric" })}`;
   };
   // Every bookable week, from the current one to the week containing maxDate.
   const weekOptions: Date[] = [];
@@ -427,7 +430,7 @@ function WeekGrid({
           onClick={() => setWeekStart((w) => { const p = new Date(w); p.setDate(p.getDate() - 7); return p; })}
           disabled={!canPrev}
           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          aria-label="Previous week"
+          aria-label={translateUi("Previous week")}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
         </button>
@@ -442,12 +445,12 @@ function WeekGrid({
             aria-label={`Choose a week — week ${isoWeek(weekStart)}, ${fmtRange(weekStart)}`}
             className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-sm text-slate-900 transition-colors hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2"
           >
-            <span className="shrink-0 font-bold">Week {isoWeek(weekStart)}</span>
+            <span className="shrink-0 font-bold">{translateUi("Week ")}{isoWeek(weekStart)}</span>
             <span className="truncate font-normal text-slate-600">{fmtRange(weekStart)}</span>
             <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${weekMenuOpen ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
           {weekMenuOpen && (
-            <ul role="listbox" aria-label="Bookable weeks"
+            <ul role="listbox" aria-label={translateUi("Bookable weeks")}
               className="absolute left-1/2 top-full z-30 mt-1 max-h-64 w-max max-w-[calc(100vw-3rem)] -translate-x-1/2 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
               {weekOptions.map((w) => {
                 const isSel = w.getTime() === weekStart.getTime();
@@ -459,7 +462,7 @@ function WeekGrid({
                       className="flex w-full cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
                       style={isSel ? { backgroundColor: accent.tint } : undefined}
                     >
-                      <span className="w-16 shrink-0 font-bold" style={{ color: isSel ? accent.color : "#0f172a" }}>Week {isoWeek(w)}</span>
+                      <span className="w-16 shrink-0 font-bold" style={{ color: isSel ? accent.color : "#0f172a" }}>{translateUi("Week ")}{isoWeek(w)}</span>
                       <span className="font-normal text-slate-600">{fmtRange(w)}</span>
                     </button>
                   </li>
@@ -473,7 +476,7 @@ function WeekGrid({
           onClick={() => setWeekStart((w) => { const n = new Date(w); n.setDate(n.getDate() + 7); return n; })}
           disabled={!canNext}
           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          aria-label="Next week"
+          aria-label={translateUi("Next week")}
         >
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
@@ -506,10 +509,10 @@ function WeekGrid({
                     ? { backgroundColor: accent.tint }
                     : {}
                 }
-                title={clickable ? `Show times for ${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}` : undefined}
+                title={clickable ? `Show times for ${d.toLocaleDateString(uiLocale, { weekday: "long", month: "short", day: "numeric" })}` : undefined}
               >
                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  {d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2)}
+                  {d.toLocaleDateString(uiLocale, { weekday: "short" }).slice(0, 2)}
                 </span>
                 <span
                   className="text-sm font-bold"
@@ -519,7 +522,7 @@ function WeekGrid({
                 </span>
                 {/* Availability hint — times for the selected day show below */}
                 <span className="text-[9px] font-semibold mt-0.5" style={{ color: !clickable || loading ? "#e2e8f0" : available > 0 ? accent.color : "#cbd5e1" }}>
-                  {isClosed && !isPast ? "Closed" : isPast || isBeyond ? "—" : loading ? "·" : available > 0 ? `${available} free` : slots.length > 0 ? "Full" : "—"}
+                  {isClosed && !isPast ? translateUi("Closed") : isPast || isBeyond ? "—" : loading ? "·" : available > 0 ? translateUi("{count} free", { count: available }) : slots.length > 0 ? translateUi("Full") : "—"}
                 </span>
               </button>
             </div>
@@ -536,17 +539,17 @@ function WeekGrid({
       )}
       {error && <p className="text-xs text-red-500 text-center py-4">{error}</p>}
       {!loading && !error && !hasAny && (
-        <p className="text-xs text-slate-400 text-center py-4">No availability this week — try the next one.</p>
+        <p className="text-xs text-slate-400 text-center py-4">{translateUi("No availability this week — try the next one.")}</p>
       )}
 
       {/* Times for the clicked day */}
       {!loading && !error && date && slotsByDate[date] !== undefined && (
         <div className="mt-3 pt-3 border-t border-slate-100" key={date} style={{ animation: "fade-in 0.25s ease-out both" }}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-            Times · {fmtDate(date)}
+            {translateUi("Times · ")}{fmtDate(date, uiLocale)}
           </p>
           {(slotsByDate[date] ?? []).length === 0 ? (
-            <p className="text-xs text-slate-400">No available times on this day.</p>
+            <p className="text-xs text-slate-400">{translateUi("No available times on this day.")}</p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
               {dedupeByTime(slotsByDate[date] ?? []).map((s) => {
@@ -566,9 +569,9 @@ function WeekGrid({
                         ? { backgroundColor: accent.color, color: accent.text, borderColor: accent.color }
                         : { backgroundColor: accent.tint, color: accent.color, borderColor: "transparent" }
                     }
-                    title={isBooked ? `${fmt12(s.startTime)} – Booked` : `${fmt12(s.startTime)} – ${fmt12(s.endTime)}`}
+                    title={isBooked ? `${fmt12(s.startTime, uiLocale)} – Booked` : `${fmt12(s.startTime, uiLocale)} – ${fmt12(s.endTime, uiLocale)}`}
                   >
-                    {isBooked ? <span className="line-through opacity-60">{fmt12(s.startTime)}</span> : fmt12(s.startTime)}
+                    {isBooked ? <span className="line-through opacity-60">{fmt12(s.startTime, uiLocale)}</span> : fmt12(s.startTime, uiLocale)}
                   </button>
                 );
               })}
@@ -592,6 +595,7 @@ function MonthCalendar({
   closedDateRanges: ClosureRange[];
   maxDate: Date;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const sel = date ? new Date(`${date}T00:00:00`) : today;
@@ -609,19 +613,19 @@ function MonthCalendar({
           onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
           disabled={!canPrev}
           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          aria-label="Previous month"
+          aria-label={translateUi("Previous month")}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
         </button>
         <span className="text-sm font-bold text-slate-900">
-          {month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          {month.toLocaleDateString(uiLocale, { month: "long", year: "numeric" })}
         </span>
         <button
           type="button"
           onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
           disabled={!canNext}
           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          aria-label="Next month"
+          aria-label={translateUi("Next month")}
         >
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
@@ -687,6 +691,7 @@ function DesignerGrid({
   onPick: (date: string, slot: AvailableSlot) => void;
   onViewProfile: (member: StaffMember) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const today = toISODate(new Date());
   const limit = toISODate(maxDate);
   const [weekStart, setWeekStart] = useState(() => date && date >= today && date <= limit ? date : today);
@@ -768,10 +773,10 @@ function DesignerGrid({
   return (
     <div className="space-y-5 min-w-0">
       {staff.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">No stylists are available for this service.</p>
+        <p className="py-6 text-center text-sm text-slate-500">{translateUi("No stylists are available for this service.")}</p>
       ) : (
         <div className="relative">
-        <div ref={stylistRailRef} onScroll={updateRailState} tabIndex={0} aria-label="Choose a stylist; scroll horizontally to see everyone"
+        <div ref={stylistRailRef} onScroll={updateRailState} tabIndex={0} aria-label={translateUi("Choose a stylist; scroll horizontally to see everyone")}
           className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           style={{ scrollbarWidth: "thin", scrollbarColor: `${accent.color} #f1f5f9` }}>
           {staff.map((member) => {
@@ -786,21 +791,21 @@ function DesignerGrid({
               <button type="button" aria-pressed={selected} aria-label={`Choose ${member.name}`}
                 onClick={() => setStaffId(member.id)}
                 className="relative flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 pb-3 pt-3 text-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset">
-                {selected && <Check className="absolute left-2 top-2 h-3.5 w-3.5" style={{ color: accent.color }} aria-label="Selected stylist" />}
+                {selected && <Check className="absolute left-2 top-2 h-3.5 w-3.5" style={{ color: accent.color }} aria-label={translateUi("Selected stylist")} />}
                 <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-bold"
                   style={{ backgroundColor: accent.tint, color: accent.color }}>
                   {initials(member.name)}
-                  {staffAvatar(member) && <img src={staffAvatar(member)} alt="" loading="lazy"
+                  {staffAvatar(member) && <img src={staffAvatar(member)} alt={""} loading="lazy"
                     className="absolute inset-0 h-full w-full object-cover"
                     onError={(event) => { event.currentTarget.style.display = "none"; }} />}
                 </div>
                 <span className="w-full truncate text-xs font-semibold text-slate-800" title={member.name}>{member.name}</span>
-                <span className="w-full truncate text-[10px] text-slate-500">{STAFF_ROLE_LABEL[member.role] ?? member.role}</span>
+                <span className="w-full truncate text-[10px] text-slate-500">{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</span>
                 <span className="max-w-full truncate rounded-full px-2 py-1 text-[9px] font-semibold"
                   style={{ backgroundColor: next ? accent.tint : "#f1f5f9", color: next ? accent.color : "#64748b" }}>
-                  {loading ? "Checking times…" : error ? "Times unavailable" : next
-                    ? `Next: ${next.iso === today ? "Today" : fmtDate(next.iso)} · ${fmt12(next.slot.startTime)}`
-                    : "No times this week"}
+                  {loading ? translateUi("Checking times…") : error ? translateUi("Times unavailable") : next
+                    ? `Next: ${next.iso === today ? "Today" : fmtDate(next.iso, uiLocale)} · ${fmt12(next.slot.startTime, uiLocale)}`
+                    : translateUi("No times this week")}
                 </span>
               </button>
               <div className="flex items-center justify-between gap-1 border-t border-slate-100 px-2 py-2">
@@ -808,7 +813,7 @@ function DesignerGrid({
                   aria-label={`View ${member.name}'s profile`}
                   className="flex cursor-pointer items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                   style={{ color: accent.color }}>
-                  View profile <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+                  {translateUi("View profile ")}<ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                 </button>
                 {typeof member.rating === "number" && (member.reviewCount ?? 0) > 0 && (
                   <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-slate-600"
@@ -824,15 +829,15 @@ function DesignerGrid({
           })}
         </div>
         {railState.canScroll && <>
-          {!railState.atStart && <button type="button" onClick={() => scrollStylists(-1)} aria-label="Show previous stylists"
+          {!railState.atStart && <button type="button" onClick={() => scrollStylists(-1)} aria-label={translateUi("Show previous stylists")}
             className="absolute left-1 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-50">
             <ArrowLeft className="h-4 w-4" />
           </button>}
-          {!railState.atEnd && <button type="button" onClick={() => scrollStylists(1)} aria-label="Show more stylists"
+          {!railState.atEnd && <button type="button" onClick={() => scrollStylists(1)} aria-label={translateUi("Show more stylists")}
             className="absolute right-1 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-50">
             <ArrowRight className="h-4 w-4" />
           </button>}
-          <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-400"><MoveHorizontal className="h-3 w-3" aria-hidden="true" /> Scroll to see all stylists</p>
+          <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-400"><MoveHorizontal className="h-3 w-3" aria-hidden="true" /> {translateUi("Scroll to see all stylists")}</p>
         </>}
         </div>
       )}
@@ -840,22 +845,22 @@ function DesignerGrid({
       {staff.length > 0 && <>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => moveWeek(-1)} disabled={weekStart <= today} aria-label="Previous week"
+            <button type="button" onClick={() => moveWeek(-1)} disabled={weekStart <= today} aria-label={translateUi("Previous week")}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed">
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">{fmtDate(weekStart)} – {fmtDate(days[6].iso)}</span>
-            <button type="button" onClick={() => moveWeek(1)} disabled={days[6].iso >= limit} aria-label="Next week"
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">{fmtDate(weekStart, uiLocale)} – {fmtDate(days[6].iso, uiLocale)}</span>
+            <button type="button" onClick={() => moveWeek(1)} disabled={days[6].iso >= limit} aria-label={translateUi("Next week")}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed">
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
-          {selectedStaff && <span className="text-xs text-slate-500">Times with {selectedStaff.name}</span>}
+          {selectedStaff && <span className="text-xs text-slate-500">{translateUi("Times with ")}{selectedStaff.name}</span>}
         </div>
         {error && <div role="alert" className="flex items-center justify-center gap-2 py-4 text-sm text-red-600">
-          {error}<button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">Retry</button>
+          {error}<button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">{translateUi("Retry")}</button>
         </div>}
-        {!selectedStaff && <p className="py-6 text-center text-sm text-slate-500">Choose a stylist to see their available times.</p>}
+        {!selectedStaff && <p className="py-6 text-center text-sm text-slate-500">{translateUi("Choose a stylist to see their available times.")}</p>}
         {selectedStaff && <div className="overflow-x-auto pb-2" aria-busy={loading}>
           <div className="grid min-w-[640px] grid-cols-7 gap-2">
             {days.map(({ day, iso }) => {
@@ -867,22 +872,22 @@ function DesignerGrid({
                 <button type="button" disabled={closed || beyond} onClick={() => setDate(iso)} aria-pressed={date === iso}
                   className="mb-2 flex w-full flex-col items-center gap-1 rounded-xl border px-2 py-3 disabled:opacity-50"
                   style={{ borderColor: date === iso ? accent.color : "#e2e8f0", backgroundColor: date === iso ? accent.tint : "#f8fafc" }}>
-                  <span className="text-[10px] font-semibold uppercase text-slate-500">{day.toLocaleDateString(undefined, { weekday: "short" })}</span>
+                  <span className="text-[10px] font-semibold uppercase text-slate-500">{day.toLocaleDateString(uiLocale, { weekday: "short" })}</span>
                   <span className="text-lg font-semibold text-slate-800">{day.getDate()}</span>
                   <span className="text-[10px] font-medium" style={{ color: accent.color }}>
-                    {beyond ? "Not open yet" : closed ? "Closed" : loading ? "Loading…" : error ? "—" : `${slots.length} free`}
+                    {beyond ? translateUi("Not open yet") : closed ? translateUi("Closed") : loading ? translateUi("Loading…") : error ? "—" : translateUi("{count} free", { count: slots.length })}
                   </span>
                 </button>
                 {!loading && !error && !closed && !beyond && (slots.length ? slots.map((slot) => (
                   <button key={slot.startTime} type="button" onClick={() => onPick(iso, slot)}
-                    aria-label={`${selectedStaff.name}, ${fmtDate(iso)}, ${fmt12(slot.startTime)}`}
+                    aria-label={`${selectedStaff.name}, ${fmtDate(iso, uiLocale)}, ${fmt12(slot.startTime, uiLocale)}`}
                     className="mb-1.5 min-h-10 w-full rounded-lg border px-1 py-2 text-xs font-semibold transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2"
                     style={date === iso && selectedSlot?.staffId === slot.staffId && selectedSlot?.startTime === slot.startTime
                       ? { backgroundColor: accent.color, color: accent.text, borderColor: accent.color }
                       : { borderColor: accent.border, color: accent.color }}>
-                    {fmt12(slot.startTime)}
+                    {fmt12(slot.startTime, uiLocale)}
                   </button>
-                )) : <p className="py-3 text-center text-xs text-slate-400">No times</p>)}
+                )) : <p className="py-3 text-center text-xs text-slate-400">{translateUi("No times")}</p>)}
               </div>;
             })}
           </div>
@@ -908,6 +913,7 @@ function DaySlots({
   closedDateRanges: ClosureRange[];
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -944,12 +950,12 @@ function DaySlots({
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-        Available times{date ? ` · ${fmtDate(date)}` : ""}
+        {translateUi("Available times")}{date ? ` · ${fmtDate(date, uiLocale)}` : ""}
         {staffId && staffMap.get(staffId) ? ` · ${staffMap.get(staffId)!.name}` : ""}
       </p>
 
-      {!date && <p className="text-xs text-slate-400 py-4 text-center">Pick a date to see available times.</p>}
-      {date && isClosed && <p className="text-xs text-slate-400 py-4 text-center">The salon is closed on {fmtDate(date)} — pick another date.</p>}
+      {!date && <p className="text-xs text-slate-400 py-4 text-center">{translateUi("Pick a date to see available times.")}</p>}
+      {date && isClosed && <p className="text-xs text-slate-400 py-4 text-center">{translateUi("The salon is closed on ")}{fmtDate(date, uiLocale)} {translateUi("— pick another date.")}</p>}
 
       {loading && (
         <div className="flex items-center justify-center py-6">
@@ -961,12 +967,12 @@ function DaySlots({
 
       {!loading && !error && date && !isClosed && slots !== null && (
         slots.length === 0 ? (
-          <p className="text-xs text-slate-400 py-4 text-center">No available times on {fmtDate(date)} — try another date.</p>
+          <p className="text-xs text-slate-400 py-4 text-center">{translateUi("No available times on ")}{fmtDate(date, uiLocale)} {translateUi("— try another date.")}</p>
         ) : (
           <div className="space-y-4">
             {groups.map(([label, list]) => (
               <div key={label}>
-                <p className="text-[10px] font-semibold text-slate-400 mb-1.5">{label}</p>
+                <p className="text-[10px] font-semibold text-slate-400 mb-1.5">{translateUi(label)}</p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-1.5">
                   {dedupeByTime(list).map((s) => {
                     const member = staffMap.get(s.staffId);
@@ -986,9 +992,9 @@ function DaySlots({
                             ? { backgroundColor: accent.color, color: accent.text, borderColor: accent.color }
                             : { backgroundColor: accent.tint, color: accent.color, borderColor: "transparent" }
                         }
-                        title={isBooked ? `${fmt12(s.startTime)} – Booked` : `${fmt12(s.startTime)} – ${fmt12(s.endTime)}${member ? ` · ${member.name}` : ""}`}
+                        title={isBooked ? `${fmt12(s.startTime, uiLocale)} – Booked` : `${fmt12(s.startTime, uiLocale)} – ${fmt12(s.endTime, uiLocale)}${member ? ` · ${member.name}` : ""}`}
                       >
-                        {isBooked ? <span className="line-through opacity-60">{fmt12(s.startTime)}</span> : fmt12(s.startTime)}
+                        {isBooked ? <span className="line-through opacity-60">{fmt12(s.startTime, uiLocale)}</span> : fmt12(s.startTime, uiLocale)}
                       </button>
                     );
                   })}
@@ -1013,6 +1019,7 @@ function SoonestSlots({ salonId, serviceId, staffId, staff, maxDate, accent, onP
   accent: Accent;
   onPick: (date: string, slot: AvailableSlot) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   type Opening = { date: string; slot: AvailableSlot };
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState<{ key: string; openings: Opening[]; error?: string } | null>(null);
@@ -1054,15 +1061,15 @@ function SoonestSlots({ salonId, serviceId, staffId, staff, maxDate, accent, onP
     return () => { cancelled = true; };
   }, [key, salonId, serviceId, staffId, today, until]);
 
-  if (loading) return <p role="status" className="py-8 text-center text-sm text-slate-500">Finding the earliest available times…</p>;
-  if (result?.error) return <p role="alert" className="py-6 text-center text-sm text-red-600">{result.error} <button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">Retry</button></p>;
-  if (!result?.openings.length) return <p className="py-8 text-center text-sm text-slate-500">No available times within the booking window. Try another stylist or service.</p>;
+  if (loading) return <p role="status" className="py-8 text-center text-sm text-slate-500">{translateUi("Finding the earliest available times…")}</p>;
+  if (result?.error) return <p role="alert" className="py-6 text-center text-sm text-red-600">{result.error} <button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">{translateUi("Retry")}</button></p>;
+  if (!result?.openings.length) return <p className="py-8 text-center text-sm text-slate-500">{translateUi("No available times within the booking window. Try another stylist or service.")}</p>;
   return <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
     {result.openings.map(({ date, slot }, index) => <button type="button" key={`${date}-${slot.staffId}-${slot.startTime}`}
       onClick={() => onPick(date, slot)} className="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors hover:bg-slate-50"
       style={{ borderColor: index === 0 ? accent.color : accent.border }}>
-      <span className="text-[10px] font-semibold" style={{ color: accent.color }}>{index === 0 ? "Earliest · " : ""}{date === today ? "Today" : fmtDate(date)}</span>
-      <span className="text-base font-bold text-slate-800">{fmt12(slot.startTime)}</span>
+      <span className="text-[10px] font-semibold" style={{ color: accent.color }}>{index === 0 ? translateUi("Earliest · ") : ""}{date === today ? translateUi("Today") : fmtDate(date, uiLocale)}</span>
+      <span className="text-base font-bold text-slate-800">{fmt12(slot.startTime, uiLocale)}</span>
       <span className="text-xs text-slate-500">{staff.find((member) => member.id === slot.staffId)?.name ?? "Available stylist"}</span>
     </button>)}
   </div>;
@@ -1092,6 +1099,7 @@ function StepDate({
   /** Switching view tabs starts over: clears the stylist, date and time picked in the previous tab */
   onResetSelection: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const today = new Date().toISOString().split("T")[0];
   // Soonest is the default booking view, including when a stylist was preselected.
   const [dateMode, setDateMode] = useState<"soonest" | "input" | "week" | "designer">("soonest");
@@ -1140,7 +1148,7 @@ function StepDate({
   const staffPicker = staff.length > 0 && (
     <div>
       <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-        Preferred staff member <span className="font-normal normal-case">— optional</span>
+        {translateUi("Preferred staff member ")}<span className="font-normal normal-case">{translateUi("— optional")}</span>
       </label>
       <div className="relative">
         <div
@@ -1158,7 +1166,7 @@ function StepDate({
             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
               <Users className="w-4 h-4 text-slate-400" />
             </div>
-            <span className="text-[11px] font-semibold text-slate-700 text-center w-14">Anyone</span>
+            <span className="text-[11px] font-semibold text-slate-700 text-center w-14">{translateUi("Anyone")}</span>
             {staffId === null && (
               <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent.color }}>
                 <Check className="w-3 h-3" style={{ color: accent.text }} />
@@ -1192,7 +1200,7 @@ function StepDate({
                 )}
               </div>
               <span className="text-[11px] font-semibold text-slate-700 text-center w-14 truncate">{s.name.split(" ")[0]}</span>
-              <span className="text-[9px] text-slate-400 -mt-0.5 w-14 truncate text-center">{STAFF_ROLE_LABEL[s.role] ?? s.role}</span>
+              <span className="text-[9px] text-slate-400 -mt-0.5 w-14 truncate text-center">{translateUi(STAFF_ROLE_LABEL[s.role] ?? s.role)}</span>
               <StaffRating member={s} className="text-[10px] text-slate-600" />
 
               {staffId === s.id && (
@@ -1205,7 +1213,7 @@ function StepDate({
             <button type="button" onClick={() => setProfileStaff(s)} aria-label={`View ${s.name}'s profile`}
               className="mb-1.5 flex shrink-0 cursor-pointer items-center gap-0.5 self-center whitespace-nowrap rounded px-1 text-[10px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
               style={{ color: accent.color }}>
-              View profile <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              {translateUi("View profile ")}<ArrowUpRight className="h-3 w-3" aria-hidden="true" />
             </button>
             </div>
           ))}
@@ -1217,7 +1225,7 @@ function StepDate({
             <button
               type="button"
               onClick={() => scrollStaff(-1)}
-              aria-label="Scroll staff list left"
+              aria-label={translateUi("Scroll staff list left")}
               className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer transition-colors"
             >
               <ArrowLeft className="w-3 h-3" />
@@ -1230,7 +1238,7 @@ function StepDate({
             <button
               type="button"
               onClick={() => scrollStaff(1)}
-              aria-label="Scroll staff list right"
+              aria-label={translateUi("Scroll staff list right")}
               className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer transition-colors"
             >
               <ArrowRight className="w-3 h-3" />
@@ -1244,10 +1252,10 @@ function StepDate({
   return (
     <div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-0.5">
-        <h2 className="text-lg font-bold text-slate-900">Choose a time</h2>
+        <h2 className="text-lg font-bold text-slate-900">{translateUi("Choose a time")}</h2>
         <div className="min-w-0 max-w-full sm:shrink-0">
         <div ref={modeRailRef} className="flex w-full flex-nowrap items-center gap-0.5 overflow-x-auto rounded-lg bg-slate-100 p-0.5"
-          style={{ scrollbarWidth: "thin", scrollbarColor: `${accent.color} #f1f5f9` }} aria-label="Appointment time view">
+          style={{ scrollbarWidth: "thin", scrollbarColor: `${accent.color} #f1f5f9` }} aria-label={translateUi("Appointment time view")}>
           {(["soonest", "input", "designer", "week"] as const).map((m) => (
             <button
               key={m}
@@ -1259,21 +1267,21 @@ function StepDate({
                 ? { backgroundColor: "#ffffff", color: accent.color, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }
                 : { color: "#64748b" }}
             >
-              {MODE_LABEL[m]}
+              {translateUi(MODE_LABEL[m])}
             </button>
           ))}
         </div>
-        {modeRailScrollable && <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-400"><MoveHorizontal className="h-3 w-3" aria-hidden="true" /> Swipe to see all options</p>}
+        {modeRailScrollable && <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-400"><MoveHorizontal className="h-3 w-3" aria-hidden="true" /> {translateUi("Swipe to see all options")}</p>}
         </div>
       </div>
       <p className="text-sm text-slate-500 mb-3">
         {dateMode === "soonest"
-          ? "Find the earliest available appointment for your service."
+          ? translateUi("Find the earliest available appointment for your service.")
           : dateMode === "week"
-          ? "Pick an available time straight from the week overview."
+          ? translateUi("Pick an available time straight from the week overview.")
           : dateMode === "designer"
-          ? "Choose your stylist, then pick an available time from their week."
-          : "Choose when you'd like your appointment."}
+          ? translateUi("Choose your stylist, then pick an available time from their week.")
+          : translateUi("Choose when you'd like your appointment.")}
       </p>
 
       <div className="space-y-3 mb-4">
@@ -1282,7 +1290,7 @@ function StepDate({
 
         <div>
           <div className="mb-1.5">
-            <label className="block text-sm font-medium text-slate-700">Date &amp; time <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700">{translateUi("Date & time ")}<span className="text-red-500">*</span></label>
           </div>
           {dateMode === "soonest" ? (
             <SoonestSlots salonId={salonId} serviceId={serviceId} staffId={staffId} staff={staff} maxDate={maxDate} accent={accent} onPick={onPickSlot} />
@@ -1346,11 +1354,9 @@ function StepDate({
 
       <div className="flex gap-3">
         <button onClick={onBack} className={backBtnCls}>
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
+          <ArrowLeft className="w-4 h-4" /> {translateUi("Back ")}</button>
         <div className="flex-1 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-          <Clock className="w-3.5 h-3.5" /> Select a time above to continue
-        </div>
+          <Clock className="w-3.5 h-3.5" /> {translateUi("Select a time above to continue ")}</div>
       </div>
 
       {profileStaff && (
@@ -1381,6 +1387,7 @@ function StepSlots({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1410,9 +1417,9 @@ function StepSlots({
 
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-900 mb-1">Choose a time</h2>
+      <h2 className="text-lg font-bold text-slate-900 mb-1">{translateUi("Choose a time")}</h2>
       <p className="text-sm text-slate-500 mb-5">
-        Available slots for <strong>{fmtDate(date)}</strong>
+        {translateUi("Available slots for ")}<strong>{fmtDate(date, uiLocale)}</strong>
         {staffId && staffMap.get(staffId) ? ` with ${staffMap.get(staffId)!.name}` : ""}
       </p>
 
@@ -1429,14 +1436,14 @@ function StepSlots({
         slots.length === 0 ? (
           <div className="text-center py-10">
             <CalendarCheck className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-            <p className="text-sm text-slate-500">No available slots for this date and service.</p>
-            <p className="text-xs text-slate-400 mt-1">Try a different date or staff member.</p>
+            <p className="text-sm text-slate-500">{translateUi("No available slots for this date and service.")}</p>
+            <p className="text-xs text-slate-400 mt-1">{translateUi("Try a different date or staff member.")}</p>
           </div>
         ) : (
           <div className="space-y-5 mb-6 overflow-y-auto pr-1 max-h-[380px]">
             {groups.map(([label, list]) => (
               <div key={label}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{translateUi(label)}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {list.map((s, i) => {
                     const member = staffMap.get(s.staffId);
@@ -1455,10 +1462,10 @@ function StepSlots({
                             ? { borderColor: accent.color, backgroundColor: accent.tint, boxShadow: `0 0 0 1px ${accent.color}` }
                             : { borderColor: "#e2e8f0" }
                         }
-                        title={isBooked ? `${fmt12(s.startTime)} – Booked` : undefined}
+                        title={isBooked ? `${fmt12(s.startTime, uiLocale)} – Booked` : undefined}
                       >
-                        <span className={`text-sm font-bold ${isBooked ? "text-slate-400 line-through" : "text-slate-900"}`}>{fmt12(s.startTime)}</span>
-                        <span className="text-xs text-slate-400 mt-0.5">{isBooked ? "Booked" : fmt12(s.endTime)}</span>
+                        <span className={`text-sm font-bold ${isBooked ? "text-slate-400 line-through" : "text-slate-900"}`}>{fmt12(s.startTime, uiLocale)}</span>
+                        <span className="text-xs text-slate-400 mt-0.5">{isBooked ? translateUi("Booked") : fmt12(s.endTime, uiLocale)}</span>
                         {!staffId && member && !isBooked && (
                           <span className="text-[0.6rem] font-semibold mt-1 px-1.5 py-0.5 rounded-full"
                             style={{ backgroundColor: accent.tint, color: accent.color }}>
@@ -1477,12 +1484,11 @@ function StepSlots({
 
       <div className="flex gap-3 mt-4">
         <button onClick={onBack} className={backBtnCls}>
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
+          <ArrowLeft className="w-4 h-4" /> {translateUi("Back ")}</button>
         <button onClick={onNext} disabled={!selectedSlot}
           className={`flex-1 py-3 ${primaryBtnCls}`}
           style={primaryBtnStyle(accent, !!selectedSlot)}>
-          Continue <ArrowRight className="w-4 h-4" />
+          {translateUi("Continue ")}<ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -1503,6 +1509,7 @@ function StepDetails({
   onSubmit: () => void;
   busy: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [contactTab, setContactTab] = useState<ContactMethod>("email");
 
   const contactValid = contactTab === "email"
@@ -1512,8 +1519,8 @@ function StepDetails({
 
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-900 mb-1">Your details</h2>
-      <p className="text-sm text-slate-500 mb-5">We'll use this to confirm your appointment.</p>
+      <h2 className="text-lg font-bold text-slate-900 mb-1">{translateUi("Your details")}</h2>
+      <p className="text-sm text-slate-500 mb-5">{translateUi("We'll use this to confirm your appointment.")}</p>
 
       <div className="mb-6">
         <CustomerDetailsFields form={form} onChange={setForm} contactMethod={contactTab} onContactMethodChange={setContactTab}
@@ -1522,15 +1529,14 @@ function StepDetails({
 
       <div className="flex gap-3">
         <button onClick={onBack} className={backBtnCls}>
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
+          <ArrowLeft className="w-4 h-4" /> {translateUi("Back ")}</button>
         <button onClick={onSubmit} disabled={!valid || busy}
           className={`flex-1 py-3 ${primaryBtnCls}`}
           style={primaryBtnStyle(accent, !!valid && !busy)}>
           {busy ? (
-            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Booking…</>
+            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {translateUi("Booking…")}</>
           ) : (
-            <>Confirm booking <Check className="w-4 h-4" /></>
+            <>{translateUi("Confirm booking ")}<Check className="w-4 h-4" /></>
           )}
         </button>
       </div>
@@ -1551,6 +1557,7 @@ function StepConfirm({
   onExit: () => void;
   standalone?: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const isPending = booking.status === "PENDING";
   return (
     <div className="text-center" style={{ animation: "pop 0.4s ease-out both" }}>
@@ -1562,16 +1569,15 @@ function StepConfirm({
       </div>
       {isPending ? (
         <>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Request received!</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">{translateUi("Request received!")}</h2>
           <p className="text-sm text-slate-500 mb-6">
-            Your booking is <strong>pending confirmation</strong>. We'll notify <strong>{booking.customerEmail}</strong> once it's confirmed.
-          </p>
+            {translateUi("Your booking is pending confirmation. We'll notify {email} once it's confirmed.", { email: booking.customerEmail })}</p>
         </>
       ) : (
         <>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">You're booked!</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">{translateUi("You're booked!")}</h2>
           <p className="text-sm text-slate-500 mb-6">
-            A confirmation has been sent to <strong>{booking.customerEmail}</strong>.
+            {translateUi("A confirmation has been sent to {email}.", { email: booking.customerEmail })}
           </p>
         </>
       )}
@@ -1579,18 +1585,17 @@ function StepConfirm({
       <div className="rounded-2xl border border-slate-200 overflow-hidden mb-8 text-left shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: accent.tint }}>
           <span className="text-xs font-bold uppercase tracking-wider" style={{ color: accent.color }}>
-            Appointment
-          </span>
+            {translateUi("Appointment ")}</span>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/70" style={{ color: accent.color }}>
-            #{booking.id} · {isPending ? "Pending" : "Confirmed"}
+            #{booking.id} · {isPending ? translateUi("Pending") : translateUi("Confirmed")}
           </span>
         </div>
         <div className="bg-white p-4 space-y-2.5">
-          <Row label="Salon" value={salon.name} />
-          <Row label="Service" value={`${service.name} (${service.durationMinutes} min)`} />
-          <Row label="Date" value={fmtDate(booking.appointmentDate)} />
-          <Row label="Time" value={`${fmt12(booking.startTime)} – ${fmt12(booking.endTime)}`} />
-          {staff && <Row label="Staff" value={staff.name} />}
+          <Row label={translateUi("Salon")} value={salon.name} />
+          <Row label={translateUi("Service")} value={`${service.name} (${service.durationMinutes} min)`} />
+          <Row label={translateUi("Date")} value={fmtDate(booking.appointmentDate, uiLocale)} />
+          <Row label={translateUi("Time")} value={`${fmt12(booking.startTime, uiLocale)} – ${fmt12(booking.endTime, uiLocale)}`} />
+          {staff && <Row label={translateUi("Staff")} value={staff.name} />}
         </div>
       </div>
 
@@ -1600,17 +1605,18 @@ function StepConfirm({
         style={primaryBtnStyle(accent)}
       >
         {standalone
-          ? <><CalendarCheck className="w-4 h-4" /> Book new appointment</>
-          : <><ArrowLeft className="w-4 h-4" /> Back to {salon.name}</>}
+          ? <><CalendarCheck className="w-4 h-4" /> {translateUi("Book new appointment")}</>
+          : <><ArrowLeft className="w-4 h-4" /> {translateUi("Back to ")}{salon.name}</>}
       </button>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs font-semibold text-slate-400 w-24 shrink-0">{label}</span>
+      <span className="text-xs font-semibold text-slate-400 w-24 shrink-0">{translateUi(label)}</span>
       <span className="text-sm text-slate-800 font-medium">{value}</span>
     </div>
   );
@@ -1641,6 +1647,7 @@ export function BookingWizard({
   /** Extra content rendered in the header's right side (standalone mode only) */
   headerExtra?: React.ReactNode;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const preselected = services.find((s) => s.id === initialServiceId) ?? null;
   const preStaff    = staff.find((s) => s.id === initialStaffId) ?? null;
 
@@ -1774,7 +1781,7 @@ export function BookingWizard({
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStackCss }}>
       {/* Accent ribbon */}
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
-      {paymentReturned && !confirmed && <div className="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm text-green-800">Payment received. Your appointment is being confirmed by the salon.</div>}
+      {paymentReturned && !confirmed && <div className="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm text-green-800">{translateUi("Payment received. Your appointment is being confirmed by the salon.")}</div>}
 
       {/* Header — same chrome as the salon website (Book link swapped for Back) */}
       <SiteHeader salon={salon} theme={theme} current="book" onBack={onExit} onNavigate={onNavigate} getPagePath={getPagePath} standalone={standalone} headerExtra={headerExtra} />
@@ -1789,7 +1796,7 @@ export function BookingWizard({
           {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
             <p className="mb-3 flex items-center justify-end gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
               <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)}
-              <span className="font-normal text-slate-400">({salon.ratingCount} ratings)</span>
+              <span className="font-normal text-slate-400">({salon.ratingCount} {translateUi("ratings)")}</span>
             </p>
           )}
           {step < 5 && <StepBar current={step} accent={accent} />}
@@ -1801,8 +1808,7 @@ export function BookingWizard({
                   onClick={goBack}
                   className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back
-                </button>
+                  <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("Back ")}</button>
               )}
               <div className="flex-1 min-w-0">
                 <SelectionSummary

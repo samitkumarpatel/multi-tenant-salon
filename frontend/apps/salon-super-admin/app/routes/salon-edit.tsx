@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { useOutletContext, useRevalidator } from "react-router";
 import { useLoaderData } from "react-router";
@@ -46,6 +47,7 @@ const STEPS = [
 ] as const;
 
 function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (h: OperatingHours[]) => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const ensured = DAYS.map((day) => hours.find((h) => h.day === day) ?? { day, openTime: "09:00", closeTime: "18:00", closed: false });
   function update(idx: number, patch: Partial<OperatingHours>) {
     onChange(ensured.map((h, i) => (i === idx ? { ...h, ...patch } : h)));
@@ -54,7 +56,7 @@ function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (
     <div className="space-y-2">
       {ensured.map((h, idx) => (
         <div key={h.day} className="flex items-center gap-3">
-          <span className="w-8 text-xs font-medium text-stone-500 shrink-0">{DAY_SHORT[h.day]}</span>
+          <span className="w-8 text-xs font-medium text-stone-500 shrink-0">{translateUi(DAY_SHORT[h.day])}</span>
           <button
             type="button"
             onClick={() => update(idx, { closed: !h.closed })}
@@ -71,7 +73,7 @@ function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (
                 className="flex-1 px-2 py-1 text-xs border border-stone-200 rounded-md bg-stone-100 text-stone-800 outline-none focus:border-matcha-500" />
             </>
           ) : (
-            <span className="text-xs text-stone-400 italic">Closed</span>
+            <span className="text-xs text-stone-400 italic">{translateUi("Closed")}</span>
           )}
         </div>
       ))}
@@ -80,6 +82,7 @@ function HoursEditor({ hours, onChange }: { hours: OperatingHours[]; onChange: (
 }
 
 export default function SalonEdit() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon, setSalon } = useOutletContext<SalonManageContext>();
   const { countries } = useLoaderData<typeof clientLoader>();
   const { revalidate } = useRevalidator();
@@ -195,7 +198,7 @@ export default function SalonEdit() {
               className={`${inp} text-base font-semibold ${errors.name ? "border-red-500" : ""}`}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. The Modern Cut"
+              placeholder={translateUi("e.g. The Modern Cut")}
               onKeyDown={(e) => e.key === "Enter" && goNext()}
             />
             {errors.name && <p className="text-red-600 text-xs mt-1.5">{errors.name}</p>}
@@ -205,25 +208,25 @@ export default function SalonEdit() {
         return (
           <div className="space-y-4">
             <div>
-              <label className={lbl}>Full name <span className="text-red-500">*</span></label>
+              <label className={lbl}>{translateUi("Full name ")}<span className="text-red-500">*</span></label>
               <input className={`${inp} ${errors.ownerName ? "border-red-500" : ""}`}
                 value={owner.name} onChange={(e) => patchOwner({ name: e.target.value })}
-                placeholder="Jane Smith" />
+                placeholder={translateUi("Jane Smith")} />
               {errors.ownerName && <p className="text-red-600 text-xs mt-1">{errors.ownerName}</p>}
             </div>
             <div>
-              <label className={lbl}>Email <span className="text-red-500">*</span></label>
+              <label className={lbl}>{translateUi("Email ")}<span className="text-red-500">*</span></label>
               <input type="email" className={`${inp} ${errors.ownerEmail ? "border-red-500" : ""}`}
                 value={owner.email} onChange={(e) => patchOwner({ email: e.target.value })}
-                placeholder="owner@salon.com" />
+                placeholder={"owner@salon.com"} />
               {errors.ownerEmail && <p className="text-red-600 text-xs mt-1">{errors.ownerEmail}</p>}
-              <p className="text-xs text-stone-400 mt-1.5">This email is used for owner login — changing it affects access.</p>
+              <p className="text-xs text-stone-400 mt-1.5">{translateUi("This email is used for owner login — changing it affects access.")}</p>
             </div>
             <div>
-              <label className={lbl}>Phone</label>
+              <label className={lbl}>{translateUi("Phone")}</label>
               <input type="tel" className={inp}
                 value={owner.phone ?? ""} onChange={(e) => patchOwner({ phone: e.target.value })}
-                placeholder="+1 555 000 0000" />
+                placeholder={"+1 555 000 0000"} />
             </div>
           </div>
         );
@@ -231,33 +234,33 @@ export default function SalonEdit() {
         return (
           <div className="space-y-4">
             <div>
-              <label className={lbl}>Country</label>
+              <label className={lbl}>{translateUi("Country")}</label>
               <select
                 value={location.country ?? ""}
                 onChange={(e) => { patchLoc({ country: e.target.value }); setBizRegId(""); setShowBizId(false); }}
                 className={`${inp} appearance-none`}
               >
-                <option value="">Select country…</option>
+                <option value="">{translateUi("Select country…")}</option>
                 {countries.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={lbl}>Address</label>
-              <input className={inp} value={location.address ?? ""} onChange={(e) => patchLoc({ address: e.target.value })} placeholder="123 Main St" />
+              <label className={lbl}>{translateUi("Address")}</label>
+              <input className={inp} value={location.address ?? ""} onChange={(e) => patchLoc({ address: e.target.value })} placeholder={translateUi("123 Main St")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={lbl}>Postal code</label>
-                <input className={inp} value={location.zipCode ?? ""} onChange={(e) => patchLoc({ zipCode: e.target.value })} placeholder="94105" />
+                <label className={lbl}>{translateUi("Postal code")}</label>
+                <input className={inp} value={location.zipCode ?? ""} onChange={(e) => patchLoc({ zipCode: e.target.value })} placeholder={"94105"} />
               </div>
               <div>
-                <label className={lbl}>City</label>
-                <input className={inp} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder="San Francisco" />
+                <label className={lbl}>{translateUi("City")}</label>
+                <input className={inp} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder={translateUi("San Francisco")} />
               </div>
             </div>
             {bizIdLabel && (
               <div>
-                <label className={lbl}>{bizIdLabel} <span className="text-stone-400 font-normal normal-case">optional</span></label>
+                <label className={lbl}>{bizIdLabel} <span className="text-stone-400 font-normal normal-case">{translateUi("optional")}</span></label>
                 <input className={inp} value={bizRegId} onChange={(e) => setBizRegId(e.target.value)} placeholder={selectedCountry?.businessIdPlaceholder ?? ""} />
                 {bizRegId && (
                   <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
@@ -268,7 +271,7 @@ export default function SalonEdit() {
                     >
                       <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${showBizId ? "translate-x-4" : "translate-x-0.5"}`} />
                     </button>
-                    <span className="text-xs text-stone-500">Show on public website</span>
+                    <span className="text-xs text-stone-500">{translateUi("Show on public website")}</span>
                   </label>
                 )}
               </div>
@@ -279,16 +282,16 @@ export default function SalonEdit() {
         return (
           <div className="space-y-4">
             <div>
-              <label className={lbl}>Phone</label>
-              <input type="tel" className={inp} value={contact.phone ?? ""} onChange={(e) => patchCon({ phone: e.target.value })} placeholder="+1 555 000 0000" />
+              <label className={lbl}>{translateUi("Phone")}</label>
+              <input type="tel" className={inp} value={contact.phone ?? ""} onChange={(e) => patchCon({ phone: e.target.value })} placeholder={"+1 555 000 0000"} />
             </div>
             <div>
-              <label className={lbl}>Email</label>
-              <input type="email" className={inp} value={contact.email ?? ""} onChange={(e) => patchCon({ email: e.target.value })} placeholder="hello@salon.com" />
+              <label className={lbl}>{translateUi("Email")}</label>
+              <input type="email" className={inp} value={contact.email ?? ""} onChange={(e) => patchCon({ email: e.target.value })} placeholder={"hello@salon.com"} />
             </div>
             <div>
-              <label className={lbl}>Website</label>
-              <input className={inp} value={contact.website ?? ""} onChange={(e) => patchCon({ website: e.target.value })} placeholder="https://salon.com" />
+              <label className={lbl}>{translateUi("Website")}</label>
+              <input className={inp} value={contact.website ?? ""} onChange={(e) => patchCon({ website: e.target.value })} placeholder={"https://salon.com"} />
             </div>
           </div>
         );
@@ -309,7 +312,7 @@ export default function SalonEdit() {
                   <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${on ? "bg-matcha-600 border-matcha-500" : "border-stone-300"}`}>
                     {on && <Check className="w-2.5 h-2.5 text-white" />}
                   </div>
-                  <span className="text-sm font-medium">{FEATURE_LABEL[f]}</span>
+                  <span className="text-sm font-medium">{translateUi(FEATURE_LABEL[f])}</span>
                 </button>
               );
             })}
@@ -325,12 +328,12 @@ export default function SalonEdit() {
 
   return (
     <div className="max-w-lg">
-      <h1 className="text-xl font-bold text-stone-900 mb-6">Edit Salon</h1>
+      <h1 className="text-xl font-bold text-stone-900 mb-6">{translateUi("Edit Salon")}</h1>
 
       {/* Step header */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-stone-800">{STEPS[step].title}</span>
+          <span className="text-sm font-semibold text-stone-800">{translateUi(STEPS[step].title)}</span>
           <span className="text-xs text-stone-400 tabular-nums">{step + 1} / {STEPS.length}</span>
         </div>
         <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
@@ -355,7 +358,7 @@ export default function SalonEdit() {
       {/* Card */}
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
         <div className="px-5 pt-4 pb-3 border-b border-stone-200">
-          <p className="text-xs text-stone-400">{STEPS[step].hint}</p>
+          <p className="text-xs text-stone-400">{translateUi(STEPS[step].hint)}</p>
         </div>
         <div key={step} className="px-5 py-5">
           {saveErr && (
@@ -363,16 +366,14 @@ export default function SalonEdit() {
           )}
           {saved && (
             <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700 font-medium flex items-center gap-2">
-              <Check className="w-4 h-4" /> Changes saved!
-            </div>
+              <Check className="w-4 h-4" /> {translateUi("Changes saved! ")}</div>
           )}
           {renderStep()}
         </div>
         <div className="px-5 py-4 border-t border-stone-200 flex justify-between items-center bg-stone-50">
           {step > 0 ? (
             <button onClick={goBack} className="px-4 py-2 rounded-lg border border-stone-200 text-sm text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-all cursor-pointer">
-              ← Back
-            </button>
+              {translateUi("← Back ")}</button>
           ) : <span />}
           <div className="flex items-center gap-2">
             <button
@@ -384,12 +385,11 @@ export default function SalonEdit() {
                   : "border border-stone-200 text-stone-500 hover:border-matcha-500 hover:text-matcha-600"
               }`}
             >
-              {saving ? "Saving…" : "Save"}
+              {saving ? translateUi("Saving…") : translateUi("Save")}
             </button>
             {!isLast && (
               <button onClick={goNext} className="px-5 py-2 rounded-lg bg-matcha-600 text-sm font-medium text-white hover:bg-matcha-500 transition-all cursor-pointer">
-                Next →
-              </button>
+                {translateUi("Next → ")}</button>
             )}
           </div>
         </div>

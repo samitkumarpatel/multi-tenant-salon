@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { redirect, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
@@ -95,6 +96,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
 const inputCls = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
 
 export default function DashboardPage() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const initial = useLoaderData<typeof clientLoader>();
   const salon = initial.salon;
   const [params, setParams] = useSearchParams();
@@ -254,17 +256,17 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "cashier" ? cashierView === "invoices" ? "Invoices" : "Till / POS" : appointmentsView === "new" ? "Book appointment" : "Overview"}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "cashier" ? cashierView === "invoices" ? "Review sales recorded through Till / POS." : "Build an in-salon sale from services and products." : appointmentsView === "new" ? "Choose an available time to start a booking." : "Appointments for the selected date."}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
           </div>
-          {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">Book</button>}
+          {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
         </div>
       </div>
 
       {!appointmentEnabled && !settings.cashierEnabled && (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
-          <h2 className="text-sm font-semibold text-slate-800">This salon desk is not available yet</h2>
-          <p className="mt-1 text-xs text-slate-400">Ask the salon manager to enable appointments or cashier.</p>
+          <h2 className="text-sm font-semibold text-slate-800">{translateUi("This salon desk is not available yet")}</h2>
+          <p className="mt-1 text-xs text-slate-400">{translateUi("Ask the salon manager to enable appointments or cashier.")}</p>
         </div>
       )}
 
@@ -287,7 +289,7 @@ export default function DashboardPage() {
       {view === "cashier" && cashierView === "invoices" && settings.cashierEnabled && (
         <section className="rounded-xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Filter invoices by date">
+            <div className="flex flex-wrap gap-1" role="group" aria-label={translateUi("Filter invoices by date")}>
               {([ ["all", "All"], ["today", "Today"], ["week", "This week"], ["month", "Month"], ["range", "Date"]] as const).map(([key, label]) => <div key={key} className="relative">
                 <button type="button" onClick={() => {
                   if (key === "month" || key === "range") {
@@ -297,17 +299,17 @@ export default function DashboardPage() {
                     selectInvoicePeriod(key);
                     setInvoicePicker(null);
                   }
-                }} aria-pressed={invoicePeriod === key} aria-expanded={(key === "month" || key === "range") && invoicePicker === key} className={`cursor-pointer rounded-md px-3 py-2 text-xs font-semibold transition-colors ${invoicePeriod === key ? "bg-matcha-100 text-matcha-900" : "text-slate-500 hover:bg-slate-50"}`}>{label}</button>
-                {key === "month" && invoicePicker === "month" && <div role="dialog" aria-label="Choose invoice month" className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-                  <label className="block text-xs font-medium text-slate-600">Choose month<input type="month" value={params.get("invoiceMonth") ?? localDateKey().slice(0, 7)} onChange={(event) => { const next = new URLSearchParams(params); next.set("invoiceMonth", event.target.value); setParams(next); }} className="mt-2 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
-                  <button type="button" onClick={() => setInvoicePicker(null)} className="mt-3 w-full cursor-pointer rounded-lg bg-matcha-700 px-3 py-2 text-xs font-semibold text-white hover:bg-matcha-800">Done</button>
+                }} aria-pressed={invoicePeriod === key} aria-expanded={(key === "month" || key === "range") && invoicePicker === key} className={`cursor-pointer rounded-md px-3 py-2 text-xs font-semibold transition-colors ${invoicePeriod === key ? "bg-matcha-100 text-matcha-900" : "text-slate-500 hover:bg-slate-50"}`}>{translateUi(label)}</button>
+                {key === "month" && invoicePicker === "month" && <div role="dialog" aria-label={translateUi("Choose invoice month")} className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                  <label className="block text-xs font-medium text-slate-600">{translateUi("Choose month")}<input type="month" value={params.get("invoiceMonth") ?? localDateKey().slice(0, 7)} onChange={(event) => { const next = new URLSearchParams(params); next.set("invoiceMonth", event.target.value); setParams(next); }} className="mt-2 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
+                  <button type="button" onClick={() => setInvoicePicker(null)} className="mt-3 w-full cursor-pointer rounded-lg bg-matcha-700 px-3 py-2 text-xs font-semibold text-white hover:bg-matcha-800">{translateUi("Done")}</button>
                 </div>}
-                {key === "range" && invoicePicker === "range" && <div role="dialog" aria-label="Choose invoice date range" className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                {key === "range" && invoicePicker === "range" && <div role="dialog" aria-label={translateUi("Choose invoice date range")} className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
                   <div className="space-y-3">
-                    <label className="block text-xs font-medium text-slate-600">From<input type="date" value={params.get("invoiceFrom") ?? ""} onChange={(event) => { const next = new URLSearchParams(params); const from = event.target.value; if (from) next.set("invoiceFrom", from); else next.delete("invoiceFrom"); const to = next.get("invoiceTo"); if (to && from && to <= from) next.delete("invoiceTo"); setParams(next); }} className="mt-1 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
-                    <label className="block text-xs font-medium text-slate-600">To<input type="date" min={params.get("invoiceFrom") ? nextDateKey(params.get("invoiceFrom")!) : undefined} value={params.get("invoiceTo") ?? ""} onChange={(event) => { const next = new URLSearchParams(params); const to = event.target.value; if (to) next.set("invoiceTo", to); else next.delete("invoiceTo"); setParams(next); }} className="mt-1 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
+                    <label className="block text-xs font-medium text-slate-600">{translateUi("From")}<input type="date" value={params.get("invoiceFrom") ?? ""} onChange={(event) => { const next = new URLSearchParams(params); const from = event.target.value; if (from) next.set("invoiceFrom", from); else next.delete("invoiceFrom"); const to = next.get("invoiceTo"); if (to && from && to <= from) next.delete("invoiceTo"); setParams(next); }} className="mt-1 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
+                    <label className="block text-xs font-medium text-slate-600">{translateUi("To")}<input type="date" min={params.get("invoiceFrom") ? nextDateKey(params.get("invoiceFrom")!) : undefined} value={params.get("invoiceTo") ?? ""} onChange={(event) => { const next = new URLSearchParams(params); const to = event.target.value; if (to) next.set("invoiceTo", to); else next.delete("invoiceTo"); setParams(next); }} className="mt-1 w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700" /></label>
                   </div>
-                  <button type="button" onClick={() => setInvoicePicker(null)} className="mt-3 w-full cursor-pointer rounded-lg bg-matcha-700 px-3 py-2 text-xs font-semibold text-white hover:bg-matcha-800">Done</button>
+                  <button type="button" onClick={() => setInvoicePicker(null)} className="mt-3 w-full cursor-pointer rounded-lg bg-matcha-700 px-3 py-2 text-xs font-semibold text-white hover:bg-matcha-800">{translateUi("Done")}</button>
                 </div>}
               </div>)}
             </div>
@@ -317,11 +319,11 @@ export default function DashboardPage() {
               <Receipt className="h-4 w-4 text-slate-400" />
               <span className="font-mono font-semibold text-slate-700">{sale.saleNumber}</span>
               <span className="min-w-0 flex-1 truncate text-slate-500">{sale.customerName || "Walk-in customer"}</span>
-              <span className="text-slate-400">{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(sale.createdAt))}</span>
-              <span className="capitalize text-slate-500">{sale.paymentMethod.toLowerCase()}{sale.paymentStatus === "PENDING" ? " · awaiting payment" : sale.paymentStatus === "FAILED" ? " · failed" : ""}</span>
-              <span className="font-semibold text-slate-800">{formatPrice(sale.total, sale.currency)}</span>
+              <span className="text-slate-400">{new Intl.DateTimeFormat(uiLocale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(sale.createdAt))}</span>
+              <span className="capitalize text-slate-500">{sale.paymentMethod.toLowerCase()}{sale.paymentStatus === "PENDING" ? translateUi(" · awaiting payment") : sale.paymentStatus === "FAILED" ? translateUi(" · failed") : ""}</span>
+              <span className="font-semibold text-slate-800">{formatPrice(sale.total, sale.currency, uiLocale)}</span>
             </div>)}
-          </div> : <p className="px-4 py-12 text-center text-sm text-slate-400">No invoices found for this period.</p>}
+          </div> : <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No invoices found for this period.")}</p>}
         </section>
       )}
 
@@ -329,15 +331,15 @@ export default function DashboardPage() {
         <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
           <div className="order-2 flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white lg:order-1 lg:h-[calc(100vh-10rem)]">
             <div className="border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-semibold text-slate-800">Services and products</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Products appear when Shop is enabled and stock is available.</p>
+              <h2 className="text-sm font-semibold text-slate-800">{translateUi("Services and products")}</h2>
+              <p className="mt-0.5 text-xs text-slate-400">{translateUi("Products appear when Shop is enabled and stock is available.")}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <label className="relative min-w-[180px] flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input type="search" value={cashierSearch} onChange={(event) => setCashierSearch(event.target.value)} placeholder="Search services and products" aria-label="Search services and products" className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs text-slate-700 outline-none focus:border-matcha-500" />
+                  <input type="search" value={cashierSearch} onChange={(event) => setCashierSearch(event.target.value)} placeholder={translateUi("Search services and products")} aria-label={translateUi("Search services and products")} className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs text-slate-700 outline-none focus:border-matcha-500" />
                 </label>
-                <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Filter cashier items">
-                  {([ ["ALL", "All"], ["SERVICE", "Services"], ["PRODUCT", "Products"] ] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setCashierFilter(key)} aria-pressed={cashierFilter === key} className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${cashierFilter === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{label}</button>)}
+                <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Filter cashier items")}>
+                  {([ ["ALL", "All"], ["SERVICE", "Services"], ["PRODUCT", "Products"] ] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setCashierFilter(key)} aria-pressed={cashierFilter === key} className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${cashierFilter === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{translateUi(label)}</button>)}
                 </div>
               </div>
             </div>
@@ -353,30 +355,30 @@ export default function DashboardPage() {
                     <p className="mt-0.5 truncate text-[10px] text-slate-400">{item.detail || (item.sourceType === "SERVICE" ? "Service" : "Product")}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-700">{formatPrice(item.price, item.currency)}</span>
+                    <span className="text-xs font-semibold text-slate-700">{formatPrice(item.price, item.currency, uiLocale)}</span>
                     {(() => {
                       const quantity = cart.find((line) => line.sourceType === item.sourceType && line.sourceId === item.sourceId)?.quantity ?? 0;
-                      return <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold transition-colors ${quantity ? "bg-matcha-100 text-matcha-800" : "bg-slate-100 text-slate-500 group-hover:bg-matcha-600 group-hover:text-white"}`} aria-label={quantity ? `${quantity} in current sale` : "Add to current sale"}>{quantity || <Plus className="h-3 w-3" />}</span>;
+                      return <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold transition-colors ${quantity ? "bg-matcha-100 text-matcha-800" : "bg-slate-100 text-slate-500 group-hover:bg-matcha-600 group-hover:text-white"}`} aria-label={quantity ? `${quantity} in current sale` : translateUi("Add to current sale")}>{quantity || <Plus className="h-3 w-3" />}</span>;
                     })()}
                   </div>
                 </button>
               ))}
-              {!cashierItems.length ? <p className="p-4 text-sm text-slate-400">No active services or products are available.</p>
-                : !visibleCashierItems.length && <p className="p-4 text-sm text-slate-400">No items match your search.</p>}
+              {!cashierItems.length ? <p className="p-4 text-sm text-slate-400">{translateUi("No active services or products are available.")}</p>
+                : !visibleCashierItems.length && <p className="p-4 text-sm text-slate-400">{translateUi("No items match your search.")}</p>}
             </div>
           </div>
 
           <div className="order-1 sticky top-20 z-20 h-fit max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white lg:order-2">
             <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
               <Receipt className="h-4 w-4 text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-800">Current sale</h2>
+              <h2 className="text-sm font-semibold text-slate-800">{translateUi("Current sale")}</h2>
             </div>
             <div className="space-y-3 p-4">
-              {!cart.length ? <p className="py-4 text-center text-xs text-slate-400">Select a service or product to begin.</p> : cart.map((line) => (
+              {!cart.length ? <p className="py-4 text-center text-xs text-slate-400">{translateUi("Select a service or product to begin.")}</p> : cart.map((line) => (
                 <div key={`${line.sourceType}-${line.sourceId}`} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-slate-700">{line.name}</p>
-                    <p className="text-[11px] text-slate-400">{formatPrice(line.price, line.currency)} each</p>
+                    <p className="text-[11px] text-slate-400">{formatPrice(line.price, line.currency, uiLocale)} {translateUi("each")}</p>
                   </div>
                   <button onClick={() => changeQuantity(line, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100 cursor-pointer" aria-label={`Remove one ${line.name}`}><Minus className="h-3.5 w-3.5" /></button>
                   <span className="w-5 text-center text-xs font-semibold">{line.quantity}</span>
@@ -385,15 +387,15 @@ export default function DashboardPage() {
               ))}
               <div className="border-t border-slate-100 pt-3">
                 <div className="mb-3 flex justify-between text-sm font-bold text-slate-800">
-                  <span>Total</span><span>{formatPrice(cartTotal, cartCurrency)}</span>
+                  <span>{translateUi("Total")}</span><span>{formatPrice(cartTotal, cartCurrency, uiLocale)}</span>
                 </div>
-                <input className={`${inputCls} mb-2`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name (optional)" />
+                <input className={`${inputCls} mb-2`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder={translateUi("Customer name (optional)")} />
                 <select className={`${inputCls} mb-3`} value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PosSale["paymentMethod"])}>
-                  <option value="CASH">Cash</option><option value="CARD" disabled={!cardPaymentEnabled}>Card{cardPaymentEnabled ? " · Stripe" : " · connect Stripe in Admin"}</option><option value="OTHER">Other</option>
+                  <option value="CASH">{translateUi("Cash")}</option><option value="CARD" disabled={!cardPaymentEnabled}>{translateUi("Card")}{cardPaymentEnabled ? translateUi(" · Stripe") : translateUi(" · connect Stripe in Admin")}</option><option value="OTHER">{translateUi("Other")}</option>
                 </select>
                 <button type="button" disabled={!cart.length || saving} onClick={completeSale}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-matcha-700 disabled:opacity-40 cursor-pointer">
-                  <CreditCard className="h-4 w-4" /> {saving ? "Processing…" : paymentMethod === "CARD" ? "Continue to card payment" : "Record payment"}
+                  <CreditCard className="h-4 w-4" /> {saving ? translateUi("Processing…") : paymentMethod === "CARD" ? translateUi("Continue to card payment") : translateUi("Record payment")}
                 </button>
               </div>
             </div>
@@ -401,13 +403,13 @@ export default function DashboardPage() {
 
           {sales.length > 0 && (
             <div className="order-3 rounded-xl border border-slate-200 bg-white lg:col-span-2">
-              <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">Recent sales</div>
+              <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{translateUi("Recent sales")}</div>
               <div className="divide-y divide-slate-100">
                 {sales.slice(0, 8).map((sale) => (
                   <div key={sale.id} className="flex items-center gap-3 px-4 py-3 text-xs">
                     <span className="font-mono font-semibold text-slate-600">{sale.saleNumber}</span>
                     <span className="min-w-0 flex-1 truncate text-slate-400">{sale.customerName || "Walk-in customer"} · {sale.paymentMethod.toLowerCase()}</span>
-                    <span className="font-semibold text-slate-700">{formatPrice(sale.total, sale.currency)}</span>
+                    <span className="font-semibold text-slate-700">{formatPrice(sale.total, sale.currency, uiLocale)}</span>
                   </div>
                 ))}
               </div>
@@ -543,6 +545,7 @@ function AppointmentsCalendar({ bookings, staff, services, operatingHours, closu
   closures: SalonClosure[]; holidays: SalonHoliday[]; schedules: StaffScheduleData[]; bookingAdvanceDays?: number; searchParams: URLSearchParams;
   setSearchParams: (next: URLSearchParams) => void; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"overall" | "stylist">("overall");
   const requestedDate = searchParams.get("date");
@@ -564,14 +567,14 @@ function AppointmentsCalendar({ bookings, staff, services, operatingHours, closu
 
   return <div className={expanded ? "fixed inset-3 z-50 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
-        <div className="flex items-center gap-1"><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, -1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label="Previous day"><ChevronLeft className="h-4 w-4" /></button><button onClick={() => chooseDate(localDateKey())} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Today</button><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, 1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label="Next day"><ChevronRight className="h-4 w-4" /></button></div>
-        <div className="min-w-[190px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDay, { weekday: "long", day: "numeric", month: "long" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? "appointment" : "appointments"}</p></div>
-        <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Booking calendar layout">
-          <button type="button" onClick={() => setMode("overall")} aria-pressed={mode === "overall"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "overall" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Overall</button>
-          <button type="button" onClick={() => setMode("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>By Stylist</button>
+        <div className="flex items-center gap-1"><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, -1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label={translateUi("Previous day")}><ChevronLeft className="h-4 w-4" /></button><button onClick={() => chooseDate(localDateKey())} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">{translateUi("Today")}</button><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, 1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label={translateUi("Next day")}><ChevronRight className="h-4 w-4" /></button></div>
+        <div className="min-w-[190px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDay, { weekday: "long", day: "numeric", month: "long" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? translateUi("appointment") : translateUi("appointments")}</p></div>
+        <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Booking calendar layout")}>
+          <button type="button" onClick={() => setMode("overall")} aria-pressed={mode === "overall"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "overall" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("Overall")}</button>
+          <button type="button" onClick={() => setMode("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("By Stylist")}</button>
         </div>
-        <input type="date" value={selectedDate} onChange={(event) => chooseDate(event.target.value)} aria-label="Choose date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />
-        <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? "Exit expanded calendar" : "Expand calendar"} title={expanded ? "Exit expanded calendar" : "Expand calendar"} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
+        <input type="date" value={selectedDate} onChange={(event) => chooseDate(event.target.value)} aria-label={translateUi("Choose date")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />
+        <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} title={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
       </div>
       <div className={expanded ? "min-h-0 flex-1 overflow-y-auto" : ""}>{mode === "stylist"
         ? <BookByStylistCalendar date={selectedDate} bookings={dayBookings} staff={staff} schedules={schedules} operatingHours={operatingHours} restriction={restriction} services={services} serviceMap={serviceMap} onNew={onNew} onSelect={onSelect} />
@@ -583,6 +586,7 @@ function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, 
   bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
   date: string; mode: "stylist" | "day"; onDateChange: (date: string) => void; onModeChange: (mode: "stylist" | "day") => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const selectedDate = parseDate(date);
   const dayBookings = bookings.filter((booking) => booking.appointmentDate === date)
@@ -597,19 +601,19 @@ function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, 
 
   return <section className={expanded ? "fixed inset-3 z-50 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl" : "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"}>
     <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
-      <div className="min-w-[180px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? "appointment" : "appointments"} · Read only</p></div>
-      <label className="flex items-center gap-2 text-xs font-medium text-slate-500">Date<input type="date" value={date} onChange={(event) => event.target.value && onDateChange(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-matcha-500" /></label>
-      <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? "Exit expanded calendar" : "Expand calendar"} title={expanded ? "Exit expanded calendar" : "Expand calendar"} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
+      <div className="min-w-[180px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? translateUi("appointment") : translateUi("appointments")} {translateUi("· Read only")}</p></div>
+      <label className="flex items-center gap-2 text-xs font-medium text-slate-500">{translateUi("Date")}<input type="date" value={date} onChange={(event) => event.target.value && onDateChange(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-matcha-500" /></label>
+      <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} title={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
     </div>
     <div className="flex flex-wrap items-center justify-end gap-3 border-b border-slate-100 px-4 py-2.5">
-      <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Appointment overview layout">
-        <button type="button" onClick={() => onModeChange("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>By Stylist</button>
-        <button type="button" onClick={() => onModeChange("day")} aria-pressed={mode === "day"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "day" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Overall view</button>
+      <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Appointment overview layout")}>
+        <button type="button" onClick={() => onModeChange("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("By Stylist")}</button>
+        <button type="button" onClick={() => onModeChange("day")} aria-pressed={mode === "day"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "day" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("Overall view")}</button>
       </div>
     </div>
     {mode === "stylist" ? <StylistSchedule date={date} groups={grouped} operatingHours={operatingHours} services={serviceMap} />
       : dayBookings.length ? <ReadOnlyDayTimeline date={date} bookings={dayBookings} services={serviceMap} staff={staffMap} operatingHours={operatingHours} closed={!!dayHours?.closed} />
-        : <p className="px-4 py-12 text-center text-sm text-slate-400">No appointments scheduled for this date.</p>}
+        : <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No appointments scheduled for this date.")}</p>}
   </section>;
 }
 
@@ -618,10 +622,11 @@ function ExpandIcon({ expanded }: { expanded: boolean }) {
 }
 
 function StaffAvatar({ member, size = "sm" }: { member?: StaffMember; size?: "sm" | "md" }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const sizeClass = size === "md" ? "h-9 w-9 text-xs" : "h-6 w-6 text-[9px]";
   return <span className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 font-semibold text-slate-500 ${sizeClass}`} title={member?.name ?? "Stylist"} aria-hidden="true">
     <span>{member?.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "?"}</span>
-    {member?.avatarUrl && <img src={member.avatarUrl} alt="" className="absolute inset-0 h-full w-full rounded-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+    {member?.avatarUrl && <img src={member.avatarUrl} alt={""} className="absolute inset-0 h-full w-full rounded-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
   </span>;
 }
 
@@ -655,6 +660,7 @@ function ReadOnlyDayTimeline({ date, bookings, services, staff, operatingHours, 
   date: string; bookings: Booking[]; services: Map<number, string>; staff: Map<number, StaffMember>;
   operatingHours?: OperatingHours[]; closed: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const hours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
   const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
   const opening = hours && !hours.closed ? toMinutes(hours.openTime) : 8 * 60;
@@ -669,7 +675,7 @@ function ReadOnlyDayTimeline({ date, bookings, services, staff, operatingHours, 
   const end = Math.max(Math.ceil(closing / 30) * 30, ...starts.map((minutes) => minutes + 30));
   const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
   return <div className="divide-y divide-slate-100">
-    {closed && <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">Salon is marked closed today. Existing appointments are shown below.</p>}
+    {closed && <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">{translateUi("Salon is marked closed today. Existing appointments are shown below.")}</p>}
     {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} className={`flex items-center gap-2 rounded-md border px-3 py-2 ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><StaffAvatar member={member} /></div>; })}</div></div>)}
   </div>;
 }
@@ -678,6 +684,7 @@ function StylistSchedule({ date, groups, operatingHours, services }: {
   date: string; groups: { member: StaffMember; appointments: Booking[] }[];
   operatingHours?: OperatingHours[]; services: Map<number, string>;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const columnsRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
@@ -710,10 +717,10 @@ function StylistSchedule({ date, groups, operatingHours, services }: {
   }, [groups.length]);
 
   return <div ref={anchorRef}>
-    {hasOverflow && <p className="mx-4 mt-3 flex w-fit items-center rounded-full border border-matcha-200 bg-matcha-50 px-2.5 py-1.5 text-[11px] font-semibold text-matcha-800">Scroll to see all stylists</p>}
-    {!groups.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">No active stylists are available.</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
+    {hasOverflow && <p className="mx-4 mt-3 flex w-fit items-center rounded-full border border-matcha-200 bg-matcha-50 px-2.5 py-1.5 text-[11px] font-semibold text-matcha-800">{translateUi("Scroll to see all stylists")}</p>}
+    {!groups.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No active stylists are available.")}</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
       <div className="sticky left-0 z-20 w-16 shrink-0 border-r border-slate-200 bg-white">
-        <div className="flex h-11 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">Time</div>
+        <div className="flex h-11 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">{translateUi("Time")}</div>
         {times.map((minutes) => <div key={minutes} className="h-16 border-b border-slate-100 pr-2 pt-1 text-right text-[10px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</div>)}
       </div>
       <div className="relative min-w-0 flex-1">
@@ -732,8 +739,8 @@ function StylistSchedule({ date, groups, operatingHours, services }: {
           </section>)}
         </div>
       </div>
-      {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to previous stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
-      {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to more stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
+      {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to previous stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
+      {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to more stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
       </div>
     </div>}
   </div>;
@@ -751,6 +758,7 @@ function BookByStylistCalendar({ date, bookings, staff, schedules, operatingHour
   date: string; bookings: Booking[]; staff: StaffMember[]; schedules: StaffScheduleData[]; operatingHours?: OperatingHours[]; restriction: string | null;
   services: ServiceItem[]; serviceMap: Map<number, string>; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const columnsRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -782,10 +790,10 @@ function BookByStylistCalendar({ date, bookings, staff, schedules, operatingHour
   }, [activeStaff.length]);
 
   return <div ref={anchorRef}>
-    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">Existing appointments are shown; new appointments cannot be added for this date.</p></div></div>}
-    {!activeStaff.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">No active stylists are available.</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
+    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">{translateUi("Existing appointments are shown; new appointments cannot be added for this date.")}</p></div></div>}
+    {!activeStaff.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No active stylists are available.")}</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
       <div className="sticky left-0 z-20 w-20 shrink-0 border-r border-slate-200 bg-white">
-        <div className="flex h-12 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">Time</div>
+        <div className="flex h-12 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">{translateUi("Time")}</div>
         {slots.map((minutes) => <div key={minutes} className="h-14 border-b border-slate-100 pr-2 pt-1 text-right text-[10px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? formatTime(minutes) : ""}</div>)}
       </div>
       <div className="relative min-w-0 flex-1">
@@ -805,20 +813,21 @@ function BookByStylistCalendar({ date, bookings, staff, schedules, operatingHour
                     const bookingPassed = isTimeInPast(date, booking.startTime);
                     return <button key={booking.id} type="button" disabled={bookingPassed} onClick={() => onSelect(booking)} className={`truncate rounded border px-2 py-1 text-left text-[10px] disabled:cursor-not-allowed ${bookingPassed ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><span className="font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</span><span className="ml-1 opacity-75">{serviceMap.get(booking.serviceId)}</span></button>;
                   })}
-                  {!slotBookings.length && <button type="button" disabled={!bookable} onClick={() => onNew(date, time, member.id)} aria-label={`Book ${member.name} at ${time}`} title={!bookable ? restriction || (passed ? "This time has passed" : !salonOpen ? "Outside salon opening hours" : "Stylist is unavailable") : `Book ${member.name} at ${time}`} className={`h-full w-full rounded px-2 text-left text-[10px] font-medium transition-colors disabled:cursor-not-allowed ${bookable ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus-visible:bg-matcha-50 focus-visible:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>{bookable ? "+ Book" : "Unavailable"}</button>}
+                  {!slotBookings.length && <button type="button" disabled={!bookable} onClick={() => onNew(date, time, member.id)} aria-label={`Book ${member.name} at ${time}`} title={!bookable ? restriction || (passed ? "This time has passed" : !salonOpen ? "Outside salon opening hours" : "Stylist is unavailable") : `Book ${member.name} at ${time}`} className={`h-full w-full rounded px-2 text-left text-[10px] font-medium transition-colors disabled:cursor-not-allowed ${bookable ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus-visible:bg-matcha-50 focus-visible:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>{bookable ? translateUi("+ Book") : translateUi("Unavailable")}</button>}
                 </div>;
               })}
             </section>)}
           </div>
         </div>
-        {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to previous stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
-        {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label="Scroll to more stylists" style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
+        {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to previous stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
+        {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to more stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
       </div>
     </div>}
   </div>;
 }
 
 function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restriction, services, serviceMap, staffMap, onNew, onSelect }: { date: string; bookings: Booking[]; staff: StaffMember[]; schedules: StaffScheduleData[]; operatingHours?: OperatingHours[]; restriction: string | null; services: ServiceItem[]; serviceMap: Map<number, string>; staffMap: Map<number, StaffMember>; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
   const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
   const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -829,7 +838,7 @@ function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restr
   const end = Math.max(Math.ceil(closingMinutes / 30) * 30, ...scheduledMinutes.map((minutes) => Math.floor(minutes / 30) * 30 + 30));
   const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
   return <div>
-    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">Existing appointments remain available, but new appointments cannot be added.</p></div></div>}
+    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">{translateUi("Existing appointments remain available, but new appointments cannot be added.")}</p></div></div>}
     <div className="divide-y divide-slate-100">{slots.map((minutes) => {
       const time = formatTime(minutes);
       const inSlot = bookings.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
@@ -839,7 +848,7 @@ function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restr
       const canBook = !restriction && !slotPassed && salonOpen && anyStaffWorking;
       return <div key={minutes} className={`group flex min-h-12 ${!canBook && !inSlot.length ? "bg-slate-50" : ""}`}>
         <span className={`sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums ${slotPassed ? "text-slate-300" : "text-slate-400"}`}>{minutes % 60 === 0 ? time : ""}</span>
-        <HorizontalScrollCue label="More appointments in this time slot">
+        <HorizontalScrollCue label={translateUi("More appointments in this time slot")}>
           {inSlot.map((booking) => {
             const bookingPassed = isTimeInPast(date, booking.startTime);
             return <button key={booking.id} type="button" disabled={bookingPassed} onClick={() => onSelect(booking)} className={`min-h-10 w-56 shrink-0 rounded-md border px-3 py-2 text-left disabled:cursor-not-allowed ${bookingPassed ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}>
@@ -848,7 +857,7 @@ function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restr
             </button>;
           })}
           {!slotPassed && <button type="button" disabled={!canBook} onClick={() => onNew(date, time)} aria-label={`Book at ${time}`} title={!canBook ? restriction || (!salonOpen ? "Outside salon opening hours" : !anyStaffWorking ? "No stylist is available at this time" : "This time has passed") : `Book at ${time}`} className={`flex min-h-9 w-36 shrink-0 items-center rounded-md px-3 text-left text-xs transition-colors disabled:cursor-not-allowed ${canBook ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus:bg-matcha-50 focus:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>
-            <span className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">+ Book at {time}</span>
+            <span className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">{translateUi("+ Book at ")}{time}</span>
           </button>}
         </HorizontalScrollCue>
       </div>;
@@ -857,6 +866,7 @@ function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restr
 }
 
 function HorizontalScrollCue({ children, label }: { children: React.ReactNode; label: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -878,23 +888,25 @@ function HorizontalScrollCue({ children, label }: { children: React.ReactNode; l
     <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden">
       <div className="flex w-max min-w-full items-start gap-2 px-2 py-1">{children}</div>
     </div>
-    {canScrollLeft && <button type="button" title={label} aria-label="Scroll to previous appointments" onClick={() => scrollRef.current?.scrollBy({ left: -Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-5 w-5" /></button>}
-    {canScrollRight && <button type="button" title={label} aria-label="Scroll to more appointments" onClick={() => scrollRef.current?.scrollBy({ left: Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-5 w-5" /></button>}
+    {canScrollLeft && <button type="button" title={translateUi(label)} aria-label={translateUi("Scroll to previous appointments")} onClick={() => scrollRef.current?.scrollBy({ left: -Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-5 w-5" /></button>}
+    {canScrollRight && <button type="button" title={translateUi(label)} aria-label={translateUi("Scroll to more appointments")} onClick={() => scrollRef.current?.scrollBy({ left: Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-5 w-5" /></button>}
   </div>;
 }
 
 function BookingActions({ booking, staff, services, notificationsEnabled, onClose, onEdit, onNotify, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; notificationsEnabled: boolean; onClose: () => void; onEdit: () => void; onNotify: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const service = services.find((item) => item.id === booking.serviceId); const member = staff.find((item) => item.id === booking.staffId); const active = booking.status === "PENDING" || booking.status === "CONFIRMED";
   const confirmAction = (action: "cancel" | "no-show", message: string) => {
     if (window.confirm(message)) void onAction(booking.id, action);
   };
-  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />Edit / reschedule</button>{notificationsEnabled && <button onClick={onNotify} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Bell className="h-3.5 w-3.5" />Notify customer</button>}{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />Confirm</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />Complete</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName} as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Mark no-show</button></>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />Cancel booking</button>}</div></div></Dialog>;
+  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{notificationsEnabled && <button onClick={onNotify} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Bell className="h-3.5 w-3.5" />{translateUi("Notify customer")}</button>}{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName} as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div></div></Dialog>;
 }
 
 function AvailableServicePicker({ sid, date, time, staffId, services, staff, onClose, onSelect }: {
   sid: string; date: string; time: string; staffId?: number; services: ServiceItem[]; staff: StaffMember[];
   onClose: () => void; onSelect: (serviceId: number) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [available, setAvailable] = useState<{ service: ServiceItem; staffIds: number[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -921,20 +933,20 @@ function AvailableServicePicker({ sid, date, time, staffId, services, staff, onC
     return () => { cancelled = true; };
   }, [date, services, sid, time, staffId]);
 
-  return <Dialog title="Choose a service" onClose={onClose}>
+  return <Dialog title={translateUi("Choose a service")} onClose={onClose}>
     <div className="space-y-3">
-      <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs font-semibold text-slate-700">{prettyDate(parseDate(date), { weekday: "long", day: "numeric", month: "long" })} at {time}</p><p className="text-[11px] text-slate-400">{staffId ? `Services available with ${staff.find((member) => member.id === staffId)?.name ?? "this stylist"} are shown.` : "Only services available at this time are shown."}</p></div>
-      {timeHasPassed ? <p className="py-8 text-center text-sm text-slate-400">This time has already passed. Choose another time.</p>
-        : loading ? <p className="py-8 text-center text-sm text-slate-400">Checking available services…</p>
+      <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs font-semibold text-slate-700">{prettyDate(parseDate(date), { weekday: "long", day: "numeric", month: "long" })} {translateUi("at ")}{time}</p><p className="text-[11px] text-slate-400">{staffId ? `Services available with ${staff.find((member) => member.id === staffId)?.name ?? "this stylist"} are shown.` : translateUi("Only services available at this time are shown.")}</p></div>
+      {timeHasPassed ? <p className="py-8 text-center text-sm text-slate-400">{translateUi("This time has already passed. Choose another time.")}</p>
+        : loading ? <p className="py-8 text-center text-sm text-slate-400">{translateUi("Checking available services…")}</p>
         : available.length ? <div className="max-h-[55vh] space-y-2 overflow-y-auto">{available.map(({ service, staffIds }) => {
           const availableStaff = staff.filter((member) => staffIds.includes(member.id) && member.status === "ACTIVE");
           return <button key={service.id} type="button" onClick={() => onSelect(service.id)} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-matcha-400 hover:bg-matcha-50 focus:outline-none focus:ring-2 focus:ring-matcha-500">
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-800">{service.name}</p><p className="mt-0.5 text-xs text-slate-400">{service.durationMinutes} min · {availableStaff.map((member) => member.name).join(", ") || `${staffIds.length} available ${staffIds.length === 1 ? "stylist" : "stylists"}`}</p></div>
-            <span className="shrink-0 text-xs font-semibold text-slate-700">{formatPrice(service.price, service.currency)}</span>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-800">{service.name}</p><p className="mt-0.5 text-xs text-slate-400">{service.durationMinutes} {translateUi("min · ")}{availableStaff.map((member) => member.name).join(", ") || `${staffIds.length} available ${staffIds.length === 1 ? "stylist" : "stylists"}`}</p></div>
+            <span className="shrink-0 text-xs font-semibold text-slate-700">{formatPrice(service.price, service.currency, uiLocale)}</span>
           </button>;
         })}</div>
-        : <div className="py-8 text-center"><p className="text-sm font-medium text-slate-600">No services are available at {time}.</p><p className="mt-1 text-xs text-slate-400">Choose another time to see available services.</p>{failed && <p className="mt-2 text-[11px] text-red-500">Some availability checks could not be completed.</p>}</div>}
-      <div className="flex justify-end border-t border-slate-100 pt-3"><button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600">Cancel</button></div>
+        : <div className="py-8 text-center"><p className="text-sm font-medium text-slate-600">{translateUi("No services are available at ")}{time}.</p><p className="mt-1 text-xs text-slate-400">{translateUi("Choose another time to see available services.")}</p>{failed && <p className="mt-2 text-[11px] text-red-500">{translateUi("Some availability checks could not be completed.")}</p>}</div>}
+      <div className="flex justify-end border-t border-slate-100 pt-3"><button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600">{translateUi("Cancel")}</button></div>
     </div>
   </Dialog>;
 }
@@ -945,6 +957,7 @@ function AppointmentEditor({ sid, staff, services, countries, defaultCountry, bo
   schedules: { staffId: number; availability: StaffAvailability[]; overrides: StaffAvailabilityOverride[] }[];
   onClose: () => void; onSaved: (booking: Booking) => void;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [form, setForm] = useState({ customerName: booking?.customerName ?? "", customerEmail: booking?.customerEmail ?? "", customerPhone: booking?.customerPhone ?? "", serviceId: booking?.serviceId ?? defaultServiceId ?? services[0]?.id ?? 0, staffId: booking?.staffId ?? defaultStaffId ?? (defaultServiceId ? 0 : staff[0]?.id ?? 0), appointmentDate: booking?.appointmentDate ?? defaultDate ?? localDateKey(), startTime: booking?.startTime?.slice(0, 5) ?? defaultTime ?? "09:00", notes: booking?.notes ?? "" });
   const [contactMethod, setContactMethod] = useState<ContactMethod>(booking?.customerPhone && !booking.customerEmail ? "phone" : "email");
   const [saving, setSaving] = useState(false);
@@ -992,7 +1005,7 @@ function AppointmentEditor({ sid, staff, services, countries, defaultCountry, bo
       onSaved(saved);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save appointment"); } finally { setSaving(false); }
   }
-  return <Dialog title={booking ? "Edit appointment" : "Book appointment"} onClose={onClose}>
+  return <Dialog title={booking ? translateUi("Edit appointment") : translateUi("Book appointment")} onClose={onClose}>
     <div className="space-y-3">
       {!booking && <><CustomerDetailsFields
         form={{ name: form.customerName, email: form.customerEmail, phone: form.customerPhone, notes: form.notes }}
@@ -1001,24 +1014,25 @@ function AppointmentEditor({ sid, staff, services, countries, defaultCountry, bo
         countries={countries} defaultCountry={defaultCountry}
       /><select className={inputCls} value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: Number(e.target.value), staffId: 0 })}>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
       <input type="date" min={booking ? undefined : localDateKey()} className={inputCls} value={form.appointmentDate} onChange={(e) => setForm({ ...form, appointmentDate: e.target.value, startTime: "" })} />
-      {salonRestriction && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{salonRestriction} — select another date.</p>}
-      <div className="grid grid-cols-2 gap-3"><select className={inputCls} value={form.staffId || ""} onChange={(e) => { const staffId = Number(e.target.value); const originalTime = !!booking && staffId === booking.staffId && form.appointmentDate === booking.appointmentDate; const timeIsAvailable = slots.some((slot) => slot.staffId === staffId && slot.startTime.slice(0, 5) === form.startTime); setForm({ ...form, staffId, startTime: timeIsAvailable || originalTime || (hasCalendarTime && !staffId) ? form.startTime : "" }); }}><option value="">{loadingSlots ? "Loading stylists…" : hasCalendarTime ? "Any available stylist — auto-assign" : "Select stylist"}</option>{eligibleStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>{hasCalendarTime
-        ? <div className={`${inputCls} flex items-center justify-between bg-slate-50 text-slate-700`} aria-label="Selected appointment time"><span>{form.startTime || "Selected time"}</span><span className="text-[10px] font-medium text-slate-400">From calendar</span></div>
-        : <select className={inputCls} value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} disabled={!form.staffId || !!restriction}><option value="">{loadingSlots ? "Loading times…" : "Select time"}</option>{timeOptions.map((time) => <option key={time} value={time}>{time}</option>)}</select>}</div>
-      {selectedTimePassed && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">This time has already passed. Choose a later time.</p>}
+      {salonRestriction && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{salonRestriction} {translateUi("— select another date.")}</p>}
+      <div className="grid grid-cols-2 gap-3"><select className={inputCls} value={form.staffId || ""} onChange={(e) => { const staffId = Number(e.target.value); const originalTime = !!booking && staffId === booking.staffId && form.appointmentDate === booking.appointmentDate; const timeIsAvailable = slots.some((slot) => slot.staffId === staffId && slot.startTime.slice(0, 5) === form.startTime); setForm({ ...form, staffId, startTime: timeIsAvailable || originalTime || (hasCalendarTime && !staffId) ? form.startTime : "" }); }}><option value="">{loadingSlots ? translateUi("Loading stylists…") : hasCalendarTime ? translateUi("Any available stylist — auto-assign") : translateUi("Select stylist")}</option>{eligibleStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>{hasCalendarTime
+        ? <div className={`${inputCls} flex items-center justify-between bg-slate-50 text-slate-700`} aria-label={translateUi("Selected appointment time")}><span>{form.startTime || "Selected time"}</span><span className="text-[10px] font-medium text-slate-400">{translateUi("From calendar")}</span></div>
+        : <select className={inputCls} value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} disabled={!form.staffId || !!restriction}><option value="">{loadingSlots ? translateUi("Loading times…") : translateUi("Select time")}</option>{timeOptions.map((time) => <option key={time} value={time}>{time}</option>)}</select>}</div>
+      {selectedTimePassed && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">{translateUi("This time has already passed. Choose a later time.")}</p>}
       {staffRestriction && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{staffRestriction}.</p>}
-      {!loadingSlots && !salonRestriction && slots.length === 0 && !originalSlot && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">No bookable slots remain for this service and date.</p>}
-      {booking && <textarea className={inputCls} rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" />}
+      {!loadingSlots && !salonRestriction && slots.length === 0 && !originalSlot && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">{translateUi("No bookable slots remain for this service and date.")}</p>}
+      {booking && <textarea className={inputCls} rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={translateUi("Notes (optional)")} />}
       {error && <p className="text-xs font-medium text-red-600">{error}</p>}
-      <div className="flex justify-end gap-2 pt-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">Cancel</button><button onClick={save} disabled={saving || loadingSlots || (!booking && !hasContact) || (!form.staffId && !hasCalendarTime) || !form.serviceId || !form.startTime || !validSlot || selectedTimePassed || (!!restriction && !originalSlot)} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer">{saving ? "Saving…" : "Save appointment"}</button></div>
+      <div className="flex justify-end gap-2 pt-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">{translateUi("Cancel")}</button><button onClick={save} disabled={saving || loadingSlots || (!booking && !hasContact) || (!form.staffId && !hasCalendarTime) || !form.serviceId || !form.startTime || !validSlot || selectedTimePassed || (!!restriction && !originalSlot)} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer">{saving ? translateUi("Saving…") : translateUi("Save appointment")}</button></div>
     </div>
   </Dialog>;
 }
 
 function NotificationDialog({ sid, booking, defaultMessage, onClose, onSent }: { sid: string; booking: Booking; defaultMessage: string; onClose: () => void; onSent: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [custom, setCustom] = useState(false); const [message, setMessage] = useState(defaultMessage); const [sending, setSending] = useState(false); const [error, setError] = useState("");
   async function send() { setSending(true); setError(""); try { await apiFetch(`${ADMIN_API}/${sid}/dashboard/bookings/${booking.id}/notifications`, { method: "POST", body: JSON.stringify({ message: custom ? message : null }) }); onSent(); } catch (err) { setError(err instanceof Error ? err.message : "Could not send notification"); } finally { setSending(false); } }
-  return <Dialog title={`Notify ${booking.customerName}`} onClose={onClose}><div className="space-y-3"><p className="text-sm text-slate-500">Send the configured default message or customise it for this appointment.</p><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={custom} onChange={(e) => setCustom(e.target.checked)} /> Customise message</label>{custom && <textarea className={inputCls} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />}{error && <p className="text-xs font-medium text-red-600">{error}</p>}<div className="flex justify-end gap-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">Cancel</button><button onClick={send} disabled={sending || (custom && !message.trim())} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer"><Bell className="h-4 w-4" /> {sending ? "Sending…" : custom ? "Send custom message" : "Send default message"}</button></div></div></Dialog>;
+  return <Dialog title={`Notify ${booking.customerName}`} onClose={onClose}><div className="space-y-3"><p className="text-sm text-slate-500">{translateUi("Send the configured default message or customise it for this appointment.")}</p><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={custom} onChange={(e) => setCustom(e.target.checked)} /> {translateUi("Customise message")}</label>{custom && <textarea className={inputCls} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />}{error && <p className="text-xs font-medium text-red-600">{error}</p>}<div className="flex justify-end gap-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">{translateUi("Cancel")}</button><button onClick={send} disabled={sending || (custom && !message.trim())} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer"><Bell className="h-4 w-4" /> {sending ? translateUi("Sending…") : custom ? translateUi("Send custom message") : translateUi("Send default message")}</button></div></div></Dialog>;
 }
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

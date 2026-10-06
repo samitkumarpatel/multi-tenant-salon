@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useId } from "react";
 
 interface AppLogoProps {
@@ -18,6 +19,7 @@ export function AppLogo({
   className = "",
   onClick,
 }: AppLogoProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [snipping, setSnipping] = useState(false);
   const uid      = useId().replace(/:/g, "");
   const bgId     = `logo-bg-${uid}`;
@@ -40,7 +42,7 @@ export function AppLogo({
           : ""
       } ${className}`}
       role={onClick ? undefined : "img"}
-      aria-label={onClick ? "Go home" : (import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org")}
+      aria-label={onClick ? translateUi("Go home") : (import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org")}
     >
       <span
         className={`logo-snip shrink-0 ${snipping ? "is-snipping" : ""}`}
@@ -134,8 +136,7 @@ export function AppLogo({
           className="font-bold tracking-tight leading-none"
           style={{ fontSize: Math.round(size * 0.54), color: textColor }}
         >
-          Salon
-          <span
+          {translateUi("Salon ")}<span
             className="uppercase"
             style={{
               fontSize: "0.62em",
@@ -145,8 +146,7 @@ export function AppLogo({
               color: "#c9922e",
             }}
           >
-            SaaS
-          </span>
+            {translateUi("SaaS ")}</span>
         </span>
       )}
     </Wrapper>

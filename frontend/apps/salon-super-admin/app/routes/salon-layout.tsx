@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useEffect } from "react";
 import { Link, NavLink, Outlet, useNavigate, redirect } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -33,6 +34,7 @@ const NAV = [
 ];
 
 export default function SalonLayout() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon: initial } = useLoaderData<typeof clientLoader>();
   const [salon, setSalon] = useState<Salon>(initial);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -90,8 +92,7 @@ export default function SalonLayout() {
           <AppLogo size={24} showText={false} onClick={() => navigate("/")} />
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded hidden sm:inline">
-          Super Admin
-        </span>
+          {translateUi("Super Admin ")}</span>
         <div className="h-4 border-l border-stone-200 hidden sm:block" />
         <span className="text-sm font-semibold text-stone-600 truncate hidden sm:block max-w-[200px]">
           {salon.name}
@@ -107,14 +108,14 @@ export default function SalonLayout() {
             className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
-            <span className="hidden sm:inline">All Salons</span>
+            <span className="hidden sm:inline">{translateUi("All Salons")}</span>
           </Link>
           <button
             onClick={handleSignOut}
             className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">Sign out</span>
+            <span className="hidden sm:inline">{translateUi("Sign out")}</span>
           </button>
         </div>
       </header>
@@ -154,14 +155,14 @@ export default function SalonLayout() {
                 }
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                {label}
+                {translateUi(label)}
               </NavLink>
             ))}
           </div>
           <div className="px-3 py-3 border-t border-stone-200">
             <div className="flex items-center gap-2 px-3 py-2">
               <Shield className="w-3.5 h-3.5 text-matcha-500 shrink-0" />
-              <span className="text-[10px] text-stone-400">Super Admin Access</span>
+              <span className="text-[10px] text-stone-400">{translateUi("Super Admin Access")}</span>
             </div>
           </div>
         </nav>

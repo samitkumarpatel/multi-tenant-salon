@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import { CalendarCheck, Filter } from "lucide-react";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
@@ -26,13 +27,14 @@ function fmt12(t: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-function fmtDate(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+function fmtDate(dateStr: string, locale = "en") {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString(locale, {
     weekday: "short", month: "short", day: "numeric", year: "numeric",
   });
 }
 
 export default function Appointments() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const session = getStaffSession()!;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -54,10 +56,9 @@ export default function Appointments() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">My Appointments</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("My Appointments")}</h1>
         <InfoBar>
-          All appointments assigned to you across all dates. Use the filter to narrow down by status.
-        </InfoBar>
+          {translateUi("All appointments assigned to you across all dates. Use the filter to narrow down by status. ")}</InfoBar>
       </div>
 
       {/* ── Filter row ── */}
@@ -73,7 +74,7 @@ export default function Appointments() {
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
             }`}
           >
-            {s === "ALL" ? "All" : STATUS_LABEL[s]}
+            {s === "ALL" ? translateUi("All") : STATUS_LABEL[s]}
           </button>
         ))}
         <span className="text-xs text-slate-400 ml-auto">
@@ -84,14 +85,13 @@ export default function Appointments() {
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-xs text-slate-400">
           <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
-          Loading…
-        </div>
+          {translateUi("Loading… ")}</div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-10 text-center">
           <CalendarCheck className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-500">No appointments found</p>
+          <p className="text-sm font-medium text-slate-500">{translateUi("No appointments found")}</p>
           <p className="text-xs text-slate-400 mt-1">
-            {filter === "ALL" ? "You have no appointments yet." : `No ${STATUS_LABEL[filter]?.toLowerCase()} appointments.`}
+            {filter === "ALL" ? translateUi("You have no appointments yet.") : `No ${STATUS_LABEL[filter]?.toLowerCase()} appointments.`}
           </p>
         </div>
       ) : (
@@ -103,7 +103,7 @@ export default function Appointments() {
                 <div className="shrink-0 pt-0.5">
                   <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex flex-col items-center justify-center">
                     <span className="text-[9px] font-bold text-slate-400 uppercase leading-none">
-                      {new Date(b.appointmentDate + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}
+                      {new Date(b.appointmentDate + "T00:00:00").toLocaleDateString(uiLocale, { month: "short" })}
                     </span>
                     <span className="text-sm font-bold text-slate-800 leading-none">
                       {new Date(b.appointmentDate + "T00:00:00").getDate()}
@@ -116,7 +116,7 @@ export default function Appointments() {
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{b.customerName}</p>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        {fmtDate(b.appointmentDate)} · {fmt12(b.startTime)} – {fmt12(b.endTime)}
+                        {fmtDate(b.appointmentDate, uiLocale)} · {fmt12(b.startTime)} – {fmt12(b.endTime)}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">{b.customerEmail}</p>
                       {b.customerPhone && (

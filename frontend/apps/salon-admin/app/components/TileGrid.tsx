@@ -1,4 +1,5 @@
 import { toggleList } from "~/lib/constants";
+import { useI18n } from "@salon/i18n";
 
 interface Props {
   options: readonly string[];
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function TileGrid({ options, labels, selected, onChange }: Props) {
+  const { t } = useI18n();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
       {options.map((f) => {
@@ -32,7 +34,7 @@ export default function TileGrid({ options, labels, selected, onChange }: Props)
                 </svg>
               )}
             </div>
-            <span className="text-sm font-medium leading-tight">{labels[f] ?? f}</span>
+            <span className="text-sm font-medium leading-tight">{t(labels[f] ?? f)}</span>
           </button>
         );
       })}

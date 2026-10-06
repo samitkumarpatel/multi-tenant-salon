@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { useOutletContext, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -33,6 +34,7 @@ function formatDate(d: string) {
 }
 
 export default function SalonBookings() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<SalonManageContext>();
   const { bookings: initial, services, staff } = useLoaderData<typeof clientLoader>();
 
@@ -77,8 +79,8 @@ export default function SalonBookings() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-stone-900">Bookings</h1>
-          <p className="text-xs text-stone-400 mt-0.5">{bookings.length} total · {counts.PENDING} pending · {counts.CONFIRMED} confirmed</p>
+          <h1 className="text-xl font-bold text-stone-900">{translateUi("Bookings")}</h1>
+          <p className="text-xs text-stone-400 mt-0.5">{bookings.length} {translateUi("total · ")}{counts.PENDING} {translateUi("pending · ")}{counts.CONFIRMED} {translateUi("confirmed")}</p>
         </div>
         <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer disabled:opacity-40">
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -102,7 +104,7 @@ export default function SalonBookings() {
                 statusFilter === s ? "bg-matcha-600 text-white" : "bg-white border border-stone-200 text-stone-500 hover:text-stone-800"
               }`}>
               {cfg && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />}
-              {s === "ALL" ? "All" : cfg!.label}
+              {s === "ALL" ? translateUi("All") : cfg!.label}
               <span className={`px-1 rounded text-[10px] font-bold ${statusFilter === s ? "bg-white/20" : "bg-stone-100"}`}>{count}</span>
             </button>
           );
@@ -112,7 +114,7 @@ export default function SalonBookings() {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <CalendarCheck className="w-10 h-10 text-stone-300 mb-3" />
-          <p className="text-stone-400 text-sm">{statusFilter === "ALL" ? "No bookings yet." : `No ${STATUS_CONFIG[statusFilter as BookingStatus].label.toLowerCase()} bookings.`}</p>
+          <p className="text-stone-400 text-sm">{statusFilter === "ALL" ? translateUi("No bookings yet.") : `No ${STATUS_CONFIG[statusFilter as BookingStatus].label.toLowerCase()} bookings.`}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -148,34 +150,34 @@ export default function SalonBookings() {
                 {isOpen && (
                   <div className="px-4 pb-4 border-t border-stone-200">
                     <div className="pt-3 space-y-2 mb-3">
-                      <Row icon={User}  label="Customer" value={b.customerName} />
-                      <Row icon={Mail}  label="Email"    value={b.customerEmail} />
-                      {b.customerPhone && <Row icon={Phone} label="Phone" value={b.customerPhone} />}
-                      {stf && <Row icon={User} label="Staff" value={stf.name} />}
-                      {svc && <Row icon={CalendarCheck} label="Service" value={`${svc.name} · ${svc.durationMinutes}m`} />}
-                      <Row icon={Clock} label="Time" value={`${formatDate(b.appointmentDate)} · ${b.startTime.slice(0,5)}–${b.endTime.slice(0,5)}`} />
-                      {b.notes && <Row icon={AlertTriangle} label="Notes" value={b.notes} />}
+                      <Row icon={User}  label={translateUi("Customer")} value={b.customerName} />
+                      <Row icon={Mail}  label={translateUi("Email")}    value={b.customerEmail} />
+                      {b.customerPhone && <Row icon={Phone} label={translateUi("Phone")} value={b.customerPhone} />}
+                      {stf && <Row icon={User} label={translateUi("Staff")} value={stf.name} />}
+                      {svc && <Row icon={CalendarCheck} label={translateUi("Service")} value={`${svc.name} · ${svc.durationMinutes}m`} />}
+                      <Row icon={Clock} label={translateUi("Time")} value={`${formatDate(b.appointmentDate)} · ${b.startTime.slice(0,5)}–${b.endTime.slice(0,5)}`} />
+                      {b.notes && <Row icon={AlertTriangle} label={translateUi("Notes")} value={b.notes} />}
                     </div>
 
                     <div className="flex flex-wrap gap-2">
                       {b.status === "PENDING" && (
                         <>
-                          <ActionBtn label="Confirm" color="emerald" disabled={busy} onClick={() => doAction(b.id, "confirm")} />
-                          <ActionBtn label="Cancel"  color="red"     disabled={busy} onClick={() => doAction(b.id, "cancel")} />
+                          <ActionBtn label={translateUi("Confirm")} color="emerald" disabled={busy} onClick={() => doAction(b.id, "confirm")} />
+                          <ActionBtn label={translateUi("Cancel")}  color="red"     disabled={busy} onClick={() => doAction(b.id, "cancel")} />
                         </>
                       )}
                       {b.status === "CONFIRMED" && (
                         <>
-                          <ActionBtn label="Complete" color="indigo" disabled={busy} onClick={() => doAction(b.id, "complete")} />
-                          <ActionBtn label="No-show"  color="amber"  disabled={busy} onClick={() => doAction(b.id, "no-show")} />
-                          <ActionBtn label="Cancel"   color="red"    disabled={busy} onClick={() => doAction(b.id, "cancel")} />
+                          <ActionBtn label={translateUi("Complete")} color="indigo" disabled={busy} onClick={() => doAction(b.id, "complete")} />
+                          <ActionBtn label={translateUi("No-show")}  color="amber"  disabled={busy} onClick={() => doAction(b.id, "no-show")} />
+                          <ActionBtn label={translateUi("Cancel")}   color="red"    disabled={busy} onClick={() => doAction(b.id, "cancel")} />
                         </>
                       )}
                       {(b.status === "CANCELLED" || b.status === "NO_SHOW") && (
-                        <ActionBtn label="Re-confirm" color="emerald" disabled={busy} onClick={() => doAction(b.id, "confirm")} />
+                        <ActionBtn label={translateUi("Re-confirm")} color="emerald" disabled={busy} onClick={() => doAction(b.id, "confirm")} />
                       )}
                     </div>
-                    {busy && <p className="text-xs text-stone-400 mt-2">Updating…</p>}
+                    {busy && <p className="text-xs text-stone-400 mt-2">{translateUi("Updating…")}</p>}
                   </div>
                 )}
               </div>
@@ -188,10 +190,11 @@ export default function SalonBookings() {
 }
 
 function Row({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="flex items-start gap-2.5 text-xs">
       <Icon className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-      <span className="text-stone-400 w-14 shrink-0">{label}</span>
+      <span className="text-stone-400 w-14 shrink-0">{translateUi(label)}</span>
       <span className="text-stone-600">{value}</span>
     </div>
   );
@@ -204,6 +207,7 @@ const COLOR_MAP: Record<string, string> = {
   amber:   "bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 hover:border-amber-300",
 };
 function ActionBtn({ label, color, disabled, onClick }: { label: string; color: string; disabled: boolean; onClick: () => void }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <button onClick={onClick} disabled={disabled}
       className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-40 transition-colors ${COLOR_MAP[color]}`}>
@@ -211,7 +215,7 @@ function ActionBtn({ label, color, disabled, onClick }: { label: string; color: 
        label === "Cancel" ? <X className="w-3 h-3" /> :
        label === "Complete" ? <Check className="w-3 h-3" /> :
        <Ban className="w-3 h-3" />}
-      {label}
+      {translateUi(label)}
     </button>
   );
 }

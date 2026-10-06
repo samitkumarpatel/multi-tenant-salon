@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import type { AiPolishResponse } from "@salon/ui-shared";
 import { useState } from "react";
 import { AiPolishButton } from "@salon/ui-shared";
@@ -33,6 +34,7 @@ const lbl = "block text-xs font-semibold text-stone-500 mb-1.5 uppercase trackin
 const BLANK = { name:"",email:"",phone:"",role:"STYLIST",status:"ACTIVE",availableForBooking:true,specializations:[] as string[],bio:"" };
 
 export default function SalonStaff() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<SalonManageContext>();
   const { staff: initial } = useLoaderData<typeof clientLoader>();
   const [staff, setStaff] = useState<StaffMember[]>(initial);
@@ -97,17 +99,16 @@ export default function SalonStaff() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-stone-900">Staff</h1>
-          <p className="text-xs text-stone-400 mt-0.5">{staff.length} team member{staff.length !== 1 ? "s" : ""}</p>
+          <h1 className="text-xl font-bold text-stone-900">{translateUi("Staff")}</h1>
+          <p className="text-xs text-stone-400 mt-0.5">{staff.length} {translateUi("team member")}{staff.length !== 1 ? translateUi("s") : ""}</p>
         </div>
         <button onClick={openAdd} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-sm font-semibold transition-colors cursor-pointer">
-          <Plus className="w-4 h-4" /> Add Staff
-        </button>
+          <Plus className="w-4 h-4" /> {translateUi("Add Staff ")}</button>
       </div>
 
       {staff.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-stone-400 text-sm">No staff members yet.</p>
+          <p className="text-stone-400 text-sm">{translateUi("No staff members yet.")}</p>
         </div>
       ) : (
         <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
@@ -165,26 +166,26 @@ export default function SalonStaff() {
         <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && close()}>
           <div className="bg-white border border-stone-200 rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 shrink-0">
-              <h3 className="text-sm font-bold text-stone-900">{editTarget ? "Edit Staff Member" : "Add Staff Member"}</h3>
+              <h3 className="text-sm font-bold text-stone-900">{editTarget ? translateUi("Edit Staff Member") : translateUi("Add Staff Member")}</h3>
               <button onClick={close} className="text-stone-400 hover:text-stone-800 cursor-pointer p-1"><X className="w-4 h-4" /></button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
               {err && <p className="text-red-600 text-xs px-3 py-2 bg-red-50 border border-red-200 rounded-lg">{err}</p>}
               <div>
-                <label className={lbl}>Full name <span className="text-red-500">*</span></label>
-                <input className={inp} value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Jane Smith" />
+                <label className={lbl}>{translateUi("Full name ")}<span className="text-red-500">*</span></label>
+                <input className={inp} value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder={translateUi("Jane Smith")} />
               </div>
               <div>
-                <label className={lbl}>Email <span className="text-red-500">*</span></label>
-                <input type="email" className={inp} value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="jane@salon.com" />
+                <label className={lbl}>{translateUi("Email ")}<span className="text-red-500">*</span></label>
+                <input type="email" className={inp} value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder={"jane@salon.com"} />
               </div>
               <div>
-                <label className={lbl}>Phone</label>
-                <input type="tel" className={inp} value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="+1 555 000 0000" />
+                <label className={lbl}>{translateUi("Phone")}</label>
+                <input type="tel" className={inp} value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder={"+1 555 000 0000"} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lbl}>Role</label>
+                  <label className={lbl}>{translateUi("Role")}</label>
                   <div className="relative">
                     <select value={form.role} onChange={(e) => patch({ role: e.target.value })} className={`${inp} appearance-none pr-8`}>
                       {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
@@ -194,7 +195,7 @@ export default function SalonStaff() {
                 </div>
                 {editTarget && (
                   <div>
-                    <label className={lbl}>Status</label>
+                    <label className={lbl}>{translateUi("Status")}</label>
                     <div className="relative">
                       <select value={form.status} onChange={(e) => patch({ status: e.target.value })} className={`${inp} appearance-none pr-8`}>
                         {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
@@ -205,7 +206,7 @@ export default function SalonStaff() {
                 )}
               </div>
               <div>
-                <label className={lbl}>Specializations</label>
+                <label className={lbl}>{translateUi("Specializations")}</label>
                 <div className="flex flex-wrap gap-1.5">
                   {SPECIALIZATIONS.map((s) => {
                     const on = form.specializations.includes(s);
@@ -219,12 +220,12 @@ export default function SalonStaff() {
                 </div>
               </div>
               <div>
-                <label className={lbl}>Bio</label>
+                <label className={lbl}>{translateUi("Bio")}</label>
                 <AiPolishButton value={form.bio} onApply={(text) => patch({ bio: text })}
                   polish={(text) => apiFetch<AiPolishResponse>(`${ADMIN_API}/${salon.id}/ai/polish`, {
                     method: "POST", body: JSON.stringify({ text }),
                   })}>
-                  <textarea rows={2} className={`${inp} resize-none`} value={form.bio} onChange={(e) => patch({ bio: e.target.value })} placeholder="Brief bio…" />
+                  <textarea rows={2} className={`${inp} resize-none`} value={form.bio} onChange={(e) => patch({ bio: e.target.value })} placeholder={translateUi("Brief bio…")} />
                 </AiPolishButton>
               </div>
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -232,12 +233,12 @@ export default function SalonStaff() {
                   className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${form.availableForBooking ? "bg-matcha-600" : "bg-stone-200"}`}>
                   <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.availableForBooking ? "translate-x-4" : "translate-x-0"}`} />
                 </button>
-                <span className="text-sm text-stone-600">Available for booking</span>
+                <span className="text-sm text-stone-600">{translateUi("Available for booking")}</span>
               </label>
             </div>
             <div className="px-5 py-4 border-t border-stone-200 shrink-0 flex justify-end gap-2">
-              <button onClick={close} className="px-4 py-2 rounded-lg border border-stone-200 text-sm text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50">{saving ? "Saving…" : editTarget ? "Save" : "Add"}</button>
+              <button onClick={close} className="px-4 py-2 rounded-lg border border-stone-200 text-sm text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer">{translateUi("Cancel")}</button>
+              <button onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg bg-matcha-600 hover:bg-matcha-500 text-white text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50">{saving ? translateUi("Saving…") : editTarget ? translateUi("Save") : translateUi("Add")}</button>
             </div>
           </div>
         </div>

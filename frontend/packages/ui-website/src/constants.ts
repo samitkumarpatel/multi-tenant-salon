@@ -24,17 +24,17 @@ export const CATEGORY_LABEL: Record<string, string> = {
 export const isVideoUrl = (url?: string | null) =>
   !!url && /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(url);
 
-export const formatPrice = (price: number | null | undefined, currency: string | null = "USD") => {
+export const formatPrice = (price: number | null | undefined, currency: string | null = "USD", locale = "en") => {
   if (price == null) return "-";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: currency ?? "USD" }).format(price);
+  return new Intl.NumberFormat(locale, { style: "currency", currency: currency ?? "USD" }).format(price);
 };
 
 /** Placeholder shown wherever a product has no photo uploaded by the salon admin — the
  * native "shopping bags" emoji renders as a full-color illustration on every platform. */
 export const DEFAULT_PRODUCT_EMOJI = "🛍️";
 
-export const formatDate = (ts?: string) =>
-  ts ? new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+export const formatDate = (ts?: string, locale = "en") =>
+  ts ? new Date(ts).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" }) : "";
 
 export function openDays(operatingHours?: OperatingHours[]) {
   if (!operatingHours?.length) return null;

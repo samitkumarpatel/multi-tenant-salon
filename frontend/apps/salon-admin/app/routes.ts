@@ -9,6 +9,7 @@ export default [
   route(":salonId", "routes/layout.tsx", [
     index("routes/manage.tsx"),
     route("edit", "routes/edit.tsx"),
+    route("languages", "routes/languages.tsx"),
     route("services", "routes/services.tsx"),
     route("staff", "routes/staff.tsx"),
     route("website", "routes/website.tsx"),

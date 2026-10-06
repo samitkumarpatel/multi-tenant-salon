@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import { Mail, KeyRound, ShieldCheck, ArrowLeft, Lock, Store } from "lucide-react";
@@ -20,6 +21,7 @@ const inputCls =
   "w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-white text-slate-900 outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10 transition placeholder:text-slate-400";
 
 function MockLogin() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
 
   const [step, setStep]                     = useState<"email" | "otp">("email");
@@ -123,8 +125,7 @@ function MockLogin() {
         <AppLogo size={24} textColor="#374151" />
         <div className="ml-auto">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-            Admin Portal
-          </span>
+            {translateUi("Admin Portal ")}</span>
         </div>
       </header>
 
@@ -140,19 +141,17 @@ function MockLogin() {
                     <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                       <KeyRound className="w-3.5 h-3.5 text-matcha-600" />
                     </div>
-                    <h1 className="text-sm font-semibold text-slate-900">Sign in to your salon</h1>
+                    <h1 className="text-sm font-semibold text-slate-900">{translateUi("Sign in to your salon")}</h1>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed pl-9">
-                    Enter the email address you used when registering your salon.
-                  </p>
+                    {translateUi("Enter the email address you used when registering your salon. ")}</p>
                 </div>
 
                 <div className="px-6 py-5">
                   <form onSubmit={handleEmailSubmit} className="flex flex-col gap-3">
                     <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                        Owner email address
-                      </label>
+                        {translateUi("Owner email address ")}</label>
                       <div className="relative">
                         <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                         <input
@@ -160,7 +159,7 @@ function MockLogin() {
                           autoFocus
                           value={email}
                           onChange={(e) => { setEmail(e.target.value); setEmailErr(""); }}
-                          placeholder="owner@example.com"
+                          placeholder={"owner@example.com"}
                           className={`${inputCls} pl-8 ${emailErr ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
                         />
                       </div>
@@ -174,7 +173,7 @@ function MockLogin() {
                       disabled={!email.trim() || loading}
                       className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer"
                     >
-                      {loading ? "Looking up your salon…" : "Continue →"}
+                      {loading ? translateUi("Looking up your salon…") : translateUi("Continue →")}
                     </button>
                   </form>
                 </div>
@@ -189,13 +188,11 @@ function MockLogin() {
                     <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                       <ShieldCheck className="w-3.5 h-3.5 text-matcha-600" />
                     </div>
-                    <h1 className="text-sm font-semibold text-slate-900">Enter verification code</h1>
+                    <h1 className="text-sm font-semibold text-slate-900">{translateUi("Enter verification code")}</h1>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed pl-9">
-                    We sent a 6-digit code to{" "}
-                    <span className="font-medium text-slate-700">{email}</span>.
-                    Enter it below to continue.
-                  </p>
+                    {translateUi("We sent a 6-digit code to")}{" "}
+                    <span className="font-medium text-slate-700">{email}</span>{translateUi(". Enter it below to continue. ")}</p>
                 </div>
 
                 <div className="px-6 py-5">
@@ -234,23 +231,21 @@ function MockLogin() {
                       disabled={otp.join("").length < 6}
                       className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer"
                     >
-                      Verify &amp; sign in →
-                    </button>
+                      {translateUi("Verify & sign in → ")}</button>
 
                     <button
                       type="button"
                       onClick={() => { setStep("email"); setOtpErr(""); }}
                       className="flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition cursor-pointer"
                     >
-                      <ArrowLeft className="w-3 h-3" /> Use a different email
-                    </button>
+                      <ArrowLeft className="w-3 h-3" /> {translateUi("Use a different email ")}</button>
                   </form>
                 </div>
               </div>
 
               <div className="mt-5 bg-slate-100 border border-slate-200 rounded-xl px-4 py-3">
                 <p className="text-[11px] text-slate-500 text-center">
-                  <span className="font-semibold text-slate-600">Dev mode</span> — use code{" "}
+                  <span className="font-semibold text-slate-600">{translateUi("Dev mode")}</span> {translateUi("— use code")}{" "}
                   <span className="font-mono font-bold tracking-widest text-slate-700">{DUMMY_OTP}</span>
                 </p>
               </div>
@@ -263,8 +258,7 @@ function MockLogin() {
       <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
         <AppLogo size={16} textColor="#94a3b8" />
         <p className="text-[10px] text-slate-400 ml-auto">
-          © {new Date().getFullYear()} · All rights reserved.
-        </p>
+          © {new Date().getFullYear()} {translateUi("· All rights reserved. ")}</p>
       </footer>
 
     </div>
@@ -274,6 +268,7 @@ function MockLogin() {
 // ── Real OAuth2 (Authorization Code + PKCE) login ────────────────────────────
 
 function OAuth2Login() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
@@ -324,8 +319,7 @@ function OAuth2Login() {
           <AppLogo size={24} textColor="#374151" />
           <div className="ml-auto">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-              Admin Portal
-            </span>
+              {translateUi("Admin Portal ")}</span>
           </div>
         </header>
 
@@ -337,13 +331,11 @@ function OAuth2Login() {
                   <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                     <Store className="w-3.5 h-3.5 text-matcha-600" />
                   </div>
-                  <h1 className="text-sm font-semibold text-slate-900">No salon found</h1>
+                  <h1 className="text-sm font-semibold text-slate-900">{translateUi("No salon found")}</h1>
                 </div>
                 <p className="text-xs text-slate-500 leading-relaxed pl-9">
-                  We couldn't find a salon linked to{" "}
-                  <span className="font-medium text-slate-700">{noSalonEmail}</span>.
-                  Create one to get started.
-                </p>
+                  {translateUi("We couldn't find a salon linked to")}{" "}
+                  <span className="font-medium text-slate-700">{noSalonEmail}</span>{translateUi(". Create one to get started. ")}</p>
               </div>
 
               <div className="px-6 py-5 flex flex-col gap-2.5">
@@ -351,15 +343,13 @@ function OAuth2Login() {
                   to={`/new?email=${encodeURIComponent(noSalonEmail)}`}
                   className="w-full text-center py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 transition cursor-pointer"
                 >
-                  Create your salon →
-                </Link>
+                  {translateUi("Create your salon → ")}</Link>
                 <button
                   type="button"
                   onClick={() => setNoSalonEmail(null)}
                   className="flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition cursor-pointer"
                 >
-                  <ArrowLeft className="w-3 h-3" /> Use a different account
-                </button>
+                  <ArrowLeft className="w-3 h-3" /> {translateUi("Use a different account ")}</button>
               </div>
             </div>
           </div>
@@ -368,8 +358,7 @@ function OAuth2Login() {
         <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
           <AppLogo size={16} textColor="#94a3b8" />
           <p className="text-[10px] text-slate-400 ml-auto">
-            © {new Date().getFullYear()} · All rights reserved.
-          </p>
+            © {new Date().getFullYear()} {translateUi("· All rights reserved. ")}</p>
         </footer>
       </div>
     );
@@ -382,8 +371,7 @@ function OAuth2Login() {
         <AppLogo size={24} textColor="#374151" />
         <div className="ml-auto">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-            Admin Portal
-          </span>
+            {translateUi("Admin Portal ")}</span>
         </div>
       </header>
 
@@ -396,11 +384,10 @@ function OAuth2Login() {
                 <div className="w-7 h-7 rounded-full bg-matcha-100 flex items-center justify-center shrink-0">
                   <Lock className="w-3.5 h-3.5 text-matcha-600" />
                 </div>
-                <h1 className="text-sm font-semibold text-slate-900">Sign in to your salon</h1>
+                <h1 className="text-sm font-semibold text-slate-900">{translateUi("Sign in to your salon")}</h1>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed pl-9">
-                You'll be redirected to sign in securely, then brought back here.
-              </p>
+                {translateUi("You'll be redirected to sign in securely, then brought back here. ")}</p>
             </div>
 
             <div className="px-6 py-5">
@@ -413,7 +400,7 @@ function OAuth2Login() {
                 onClick={() => { setLoading(true); startOAuth2Login(); }}
                 className="w-full py-2.5 rounded-lg bg-matcha-600 text-white text-xs font-semibold hover:bg-matcha-700 disabled:opacity-50 transition cursor-pointer"
               >
-                {loading ? "Redirecting…" : "Sign In →"}
+                {loading ? translateUi("Redirecting…") : translateUi("Sign In →")}
               </button>
             </div>
           </div>
@@ -423,8 +410,7 @@ function OAuth2Login() {
       <footer className="h-10 border-t border-slate-200 bg-white flex items-center px-6 gap-2 shrink-0">
         <AppLogo size={16} textColor="#94a3b8" />
         <p className="text-[10px] text-slate-400 ml-auto">
-          © {new Date().getFullYear()} · All rights reserved.
-        </p>
+          © {new Date().getFullYear()} {translateUi("· All rights reserved. ")}</p>
       </footer>
 
     </div>

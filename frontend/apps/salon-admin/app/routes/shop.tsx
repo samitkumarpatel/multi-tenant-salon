@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useOutletContext, useParams } from "react-router";
 import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw, CreditCard } from "lucide-react";
@@ -12,6 +13,7 @@ export interface ShopOutletContext {
 const PENDING_STATUSES = new Set(["NEW"]);
 
 export default function Shop() {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<LayoutContext>();
   const { salonId } = useParams<{ salonId: string }>();
   const [pendingCount, setPendingCount] = useState(0);
@@ -45,11 +47,9 @@ export default function Shop() {
   return (
     <div>
       <div className="mb-5 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">Shop</h1>
+        <h1 className="text-xl font-bold text-slate-900">{translateUi("Shop")}</h1>
         <InfoBar id="shop">
-          Manage your product catalogue, keep stock up to date, and work through customer orders.
-          Shoppers see active products on your public website's Shop page.
-        </InfoBar>
+          {translateUi("Manage your product catalogue, keep stock up to date, and work through customer orders. Shoppers see active products on your public website's Shop page. ")}</InfoBar>
       </div>
 
       <nav className="flex flex-wrap gap-2 mb-6">

@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import type { OperatingHours } from "~/lib/types";
 import { DAY_SHORT } from "~/lib/constants";
 
@@ -9,6 +10,7 @@ interface Props {
 const timeInputCls = "w-full px-3 py-2 border border-stone-200 rounded-xl text-sm outline-none focus:border-stone-400 text-stone-900 disabled:bg-stone-50 disabled:text-stone-300 disabled:border-stone-100 transition-colors";
 
 export default function HoursTable({ hours, onChange }: Props) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   function update(idx: number, field: keyof OperatingHours, value: string | boolean) {
     onChange(hours.map((h, i) => (i === idx ? { ...h, [field]: value } : h)));
   }
@@ -32,7 +34,7 @@ export default function HoursTable({ hours, onChange }: Props) {
           {/* Desktop: single 4-col row */}
           <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_auto] gap-3 items-center">
             <span className={`text-sm font-semibold ${h.closed ? "text-stone-300 line-through" : "text-stone-700"}`}>
-              {DAY_SHORT[h.day] ?? h.day}
+              {translateUi(DAY_SHORT[h.day] ?? h.day)}
             </span>
             <input
               type="time"
@@ -55,7 +57,7 @@ export default function HoursTable({ hours, onChange }: Props) {
                 checked={h.closed}
                 onChange={(e) => update(idx, "closed", e.target.checked)}
               />
-              <span className="text-xs text-stone-500">Closed</span>
+              <span className="text-xs text-stone-500">{translateUi("Closed")}</span>
             </label>
           </div>
 
@@ -63,10 +65,10 @@ export default function HoursTable({ hours, onChange }: Props) {
           <div className="sm:hidden flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className={`text-sm font-semibold ${h.closed ? "text-stone-300 line-through" : "text-stone-700"}`}>
-                {DAY_SHORT[h.day] ?? h.day}
+                {translateUi(DAY_SHORT[h.day] ?? h.day)}
               </span>
               <label className="flex items-center gap-2 cursor-pointer select-none">
-                <span className="text-xs text-stone-500">Closed</span>
+                <span className="text-xs text-stone-500">{translateUi("Closed")}</span>
                 <input
                   type="checkbox"
                   className="w-4 h-4 cursor-pointer"
@@ -77,7 +79,7 @@ export default function HoursTable({ hours, onChange }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">Open</span>
+                <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">{translateUi("Open")}</span>
                 <input
                   type="time"
                   className={timeInputCls}
@@ -87,7 +89,7 @@ export default function HoursTable({ hours, onChange }: Props) {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">Close</span>
+                <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">{translateUi("Close")}</span>
                 <input
                   type="time"
                   className={timeInputCls}

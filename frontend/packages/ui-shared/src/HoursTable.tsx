@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import type { OperatingHours } from "@salon/ui-website";
 import { DAY_SHORT } from "@salon/ui-website";
 import { ChevronDown } from "lucide-react";
@@ -28,6 +29,7 @@ function TimeSelect({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   return (
     <div className="relative">
       <select
@@ -41,7 +43,7 @@ function TimeSelect({
           }`}
       >
         {TIME_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
+          <option key={opt.value} value={opt.value}>{translateUi(opt.label)}</option>
         ))}
       </select>
       <ChevronDown
@@ -69,6 +71,7 @@ function Toggle({ isOpen, onChange }: { isOpen: boolean; onChange: (v: boolean) 
 }
 
 export function HoursTable({ hours, onChange }: Props) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   function update(idx: number, field: keyof OperatingHours, value: string | boolean) {
     onChange(hours.map((h, i) => (i === idx ? { ...h, [field]: value } : h)));
   }
@@ -78,7 +81,7 @@ export function HoursTable({ hours, onChange }: Props) {
       {/* Desktop column headers */}
       <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_120px] gap-3 px-1">
         {["Day", "Open", "Close", "Status"].map((label) => (
-          <span key={label} className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{label}</span>
+          <span key={label} className="text-xs font-semibold text-stone-400 uppercase tracking-wide">{translateUi(label)}</span>
         ))}
       </div>
 
@@ -95,11 +98,11 @@ export function HoursTable({ hours, onChange }: Props) {
             <div className="sm:hidden">
               <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
                 <span className={`text-sm font-bold ${isOpen ? "text-stone-800" : "text-stone-300"}`}>
-                  {DAY_SHORT[h.day] ?? h.day}
+                  {translateUi(DAY_SHORT[h.day] ?? h.day)}
                 </span>
                 <div className="flex items-center gap-2.5">
                   <span className={`text-xs font-semibold ${isOpen ? "text-matcha-600" : "text-stone-400"}`}>
-                    {isOpen ? "Open" : "Closed"}
+                    {isOpen ? translateUi("Open") : translateUi("Closed")}
                   </span>
                   <Toggle isOpen={isOpen} onChange={(v) => update(idx, "closed", !v)} />
                 </div>
@@ -108,11 +111,11 @@ export function HoursTable({ hours, onChange }: Props) {
               {isOpen && (
                 <div className="grid grid-cols-2 gap-3 px-4 pb-4">
                   <div>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">Open</p>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">{translateUi("Open")}</p>
                     <TimeSelect value={h.openTime} onChange={(v) => update(idx, "openTime", v)} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">Close</p>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">{translateUi("Close")}</p>
                     <TimeSelect value={h.closeTime} onChange={(v) => update(idx, "closeTime", v)} />
                   </div>
                 </div>
@@ -122,14 +125,14 @@ export function HoursTable({ hours, onChange }: Props) {
             {/* Desktop */}
             <div className="hidden sm:grid grid-cols-[72px_1fr_1fr_120px] gap-3 items-center px-4 py-3">
               <span className={`text-sm font-semibold ${isOpen ? "text-stone-700" : "text-stone-300 line-through"}`}>
-                {DAY_SHORT[h.day] ?? h.day}
+                {translateUi(DAY_SHORT[h.day] ?? h.day)}
               </span>
               <TimeSelect value={h.openTime} onChange={(v) => update(idx, "openTime", v)} disabled={!isOpen} />
               <TimeSelect value={h.closeTime} onChange={(v) => update(idx, "closeTime", v)} disabled={!isOpen} />
               <div className="flex items-center gap-2">
                 <Toggle isOpen={isOpen} onChange={(v) => update(idx, "closed", !v)} />
                 <span className={`text-xs font-semibold ${isOpen ? "text-matcha-600" : "text-stone-400"}`}>
-                  {isOpen ? "Open" : "Closed"}
+                  {isOpen ? translateUi("Open") : translateUi("Closed")}
                 </span>
               </div>
             </div>

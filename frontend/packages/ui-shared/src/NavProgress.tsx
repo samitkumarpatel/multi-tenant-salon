@@ -1,8 +1,10 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useRef, useState } from "react";
 
 type Phase = "idle" | "loading" | "slow" | "completing";
 
 export function NavProgress({ loading, slowAfterMs = 8000 }: { loading: boolean; slowAfterMs?: number }) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [phase, setPhase] = useState<Phase>("idle");
   const [width,  setWidth] = useState(0);
   const timers             = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -34,13 +36,12 @@ export function NavProgress({ loading, slowAfterMs = 8000 }: { loading: boolean;
   if (phase === "slow") {
     return (
       <div className="fixed top-0 inset-x-0 z-[9999] flex items-center justify-between gap-4 bg-amber-500 px-4 py-2 text-xs font-medium text-white shadow-md">
-        <span>Taking longer than expected — check your connection.</span>
+        <span>{translateUi("Taking longer than expected — check your connection.")}</span>
         <button
           onClick={() => window.location.reload()}
           className="shrink-0 rounded border border-white/40 px-2.5 py-1 hover:bg-white/10 cursor-pointer transition-colors"
         >
-          ↻ Retry
-        </button>
+          {translateUi("↻ Retry ")}</button>
       </div>
     );
   }

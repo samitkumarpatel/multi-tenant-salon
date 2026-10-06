@@ -1,3 +1,4 @@
+import { useI18n } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import { Clock, RefreshCw } from "lucide-react";
 
@@ -29,6 +30,7 @@ function formatRemaining(ms: number): string {
 /** Header pill showing who's signed in and, when there's an OAuth2 access
  *  token, a live countdown to its expiry. */
 export function SessionBadge({ email, expiresAt, renewing = false, tone = "slate", className = "" }: SessionBadgeProps) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
   const [now, setNow] = useState(() => Date.now());
   const c = TONE[tone];
 
@@ -54,10 +56,10 @@ export function SessionBadge({ email, expiresAt, renewing = false, tone = "slate
             className={`inline-flex items-center gap-1 font-mono tabular-nums shrink-0 ${
               renewing ? "text-blue-600 font-semibold" : expired ? "text-red-500 font-semibold" : expiringSoon ? "text-amber-600 font-semibold" : c.dim
             }`}
-            title={renewing ? "Renewing session…" : "Time until your session expires"}
+            title={renewing ? translateUi("Renewing session…") : translateUi("Time until your session expires")}
           >
             {renewing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
-            {expired ? "Expired" : formatRemaining(remaining)}
+            {expired ? translateUi("Expired") : formatRemaining(remaining)}
           </span>
         </>
       )}
