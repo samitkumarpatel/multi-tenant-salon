@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { redirect, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
-  Bell, CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard,
+  CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard,
   Maximize2, Minimize2, Minus, Pencil, Plus, Receipt, ShoppingCart, UserRound, X, XCircle,
   Search,
 } from "lucide-react";
@@ -24,8 +24,6 @@ interface DashboardSettings {
   salonId: string;
   bookingManagementEnabled: boolean;
   cashierEnabled: boolean;
-  notificationsEnabled: boolean;
-  defaultNotification?: string | null;
 }
 
 interface CashierItem {
@@ -149,7 +147,6 @@ export default function DashboardPage() {
   const [servicePickerTime, setServicePickerTime] = useState<{ date: string; time: string; staffId?: number } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editTarget, setEditTarget] = useState<Booking | null>(null);
-  const [notifyTarget, setNotifyTarget] = useState<Booking | null>(null);
 
   async function updateBooking(id: number, action: "confirm" | "cancel" | "complete" | "no-show") {
     try {
@@ -425,15 +422,13 @@ export default function DashboardPage() {
         bookingAdvanceDays={salon.bookingAdvanceDays}
         onClose={() => setNewDefaults(null)} onSaved={(booking) => { setBookings((current) => [...current, booking]); setNewDefaults(null); notify("Appointment created."); }} />}
       {selectedBooking && <BookingActions booking={selectedBooking} staff={initial.staff} services={initial.services}
-        notificationsEnabled={settings.notificationsEnabled} onClose={() => setSelectedBooking(null)}
+        onClose={() => setSelectedBooking(null)}
         onEdit={() => { setEditTarget(selectedBooking); setSelectedBooking(null); }}
-        onNotify={() => { setNotifyTarget(selectedBooking); setSelectedBooking(null); }} onAction={updateBooking} />}
+        onAction={updateBooking} />}
       {editTarget && <AppointmentEditor sid={initial.sid} staff={initial.staff} services={initial.services} countries={initial.countries} defaultCountry={salon.location?.country} booking={editTarget}
         operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays} schedules={initial.schedules}
         bookingAdvanceDays={salon.bookingAdvanceDays}
         onClose={() => setEditTarget(null)} onSaved={(booking) => { setBookings((current) => current.map((item) => item.id === booking.id ? booking : item)); setEditTarget(null); notify("Appointment updated."); }} />}
-      {notifyTarget && <NotificationDialog sid={initial.sid} booking={notifyTarget} defaultMessage={settings.defaultNotification ?? ""}
-        onClose={() => setNotifyTarget(null)} onSent={() => { setNotifyTarget(null); notify("Notification queued."); }} />}
       <Toast toast={toast} />
     </div>
   );
@@ -893,13 +888,13 @@ function HorizontalScrollCue({ children, label }: { children: React.ReactNode; l
   </div>;
 }
 
-function BookingActions({ booking, staff, services, notificationsEnabled, onClose, onEdit, onNotify, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; notificationsEnabled: boolean; onClose: () => void; onEdit: () => void; onNotify: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
+function BookingActions({ booking, staff, services, onClose, onEdit, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; onClose: () => void; onEdit: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const service = services.find((item) => item.id === booking.serviceId); const member = staff.find((item) => item.id === booking.staffId); const active = booking.status === "PENDING" || booking.status === "CONFIRMED";
   const confirmAction = (action: "cancel" | "no-show", message: string) => {
     if (window.confirm(message)) void onAction(booking.id, action);
   };
-  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{notificationsEnabled && <button onClick={onNotify} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Bell className="h-3.5 w-3.5" />{translateUi("Notify customer")}</button>}{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName} as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div></div></Dialog>;
+  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div></div></Dialog>;
 }
 
 function AvailableServicePicker({ sid, date, time, staffId, services, staff, onClose, onSelect }: {
@@ -1012,7 +1007,7 @@ function AppointmentEditor({ sid, staff, services, countries, defaultCountry, bo
         onChange={(details) => setForm({ ...form, customerName: details.name, customerEmail: details.email, customerPhone: details.phone, notes: details.notes })}
         contactMethod={contactMethod} onContactMethodChange={setContactMethod}
         countries={countries} defaultCountry={defaultCountry}
-      /><select className={inputCls} value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: Number(e.target.value), staffId: 0 })}>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
+      /><p className="text-xs text-slate-500">{translateUi("Email confirmations are sent automatically. Phone notifications are currently previewed in the server log.")}</p><select className={inputCls} value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: Number(e.target.value), staffId: 0 })}>{services.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
       <input type="date" min={booking ? undefined : localDateKey()} className={inputCls} value={form.appointmentDate} onChange={(e) => setForm({ ...form, appointmentDate: e.target.value, startTime: "" })} />
       {salonRestriction && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{salonRestriction} {translateUi("— select another date.")}</p>}
       <div className="grid grid-cols-2 gap-3"><select className={inputCls} value={form.staffId || ""} onChange={(e) => { const staffId = Number(e.target.value); const originalTime = !!booking && staffId === booking.staffId && form.appointmentDate === booking.appointmentDate; const timeIsAvailable = slots.some((slot) => slot.staffId === staffId && slot.startTime.slice(0, 5) === form.startTime); setForm({ ...form, staffId, startTime: timeIsAvailable || originalTime || (hasCalendarTime && !staffId) ? form.startTime : "" }); }}><option value="">{loadingSlots ? translateUi("Loading stylists…") : hasCalendarTime ? translateUi("Any available stylist — auto-assign") : translateUi("Select stylist")}</option>{eligibleStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>{hasCalendarTime
@@ -1026,13 +1021,6 @@ function AppointmentEditor({ sid, staff, services, countries, defaultCountry, bo
       <div className="flex justify-end gap-2 pt-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">{translateUi("Cancel")}</button><button onClick={save} disabled={saving || loadingSlots || (!booking && !hasContact) || (!form.staffId && !hasCalendarTime) || !form.serviceId || !form.startTime || !validSlot || selectedTimePassed || (!!restriction && !originalSlot)} className="rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer">{saving ? translateUi("Saving…") : translateUi("Save appointment")}</button></div>
     </div>
   </Dialog>;
-}
-
-function NotificationDialog({ sid, booking, defaultMessage, onClose, onSent }: { sid: string; booking: Booking; defaultMessage: string; onClose: () => void; onSent: () => void }) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const [custom, setCustom] = useState(false); const [message, setMessage] = useState(defaultMessage); const [sending, setSending] = useState(false); const [error, setError] = useState("");
-  async function send() { setSending(true); setError(""); try { await apiFetch(`${ADMIN_API}/${sid}/dashboard/bookings/${booking.id}/notifications`, { method: "POST", body: JSON.stringify({ message: custom ? message : null }) }); onSent(); } catch (err) { setError(err instanceof Error ? err.message : "Could not send notification"); } finally { setSending(false); } }
-  return <Dialog title={`Notify ${booking.customerName}`} onClose={onClose}><div className="space-y-3"><p className="text-sm text-slate-500">{translateUi("Send the configured default message or customise it for this appointment.")}</p><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={custom} onChange={(e) => setCustom(e.target.checked)} /> {translateUi("Customise message")}</label>{custom && <textarea className={inputCls} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />}{error && <p className="text-xs font-medium text-red-600">{error}</p>}<div className="flex justify-end gap-2"><button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 cursor-pointer">{translateUi("Cancel")}</button><button onClick={send} disabled={sending || (custom && !message.trim())} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 cursor-pointer"><Bell className="h-4 w-4" /> {sending ? translateUi("Sending…") : custom ? translateUi("Send custom message") : translateUi("Send default message")}</button></div></div></Dialog>;
 }
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

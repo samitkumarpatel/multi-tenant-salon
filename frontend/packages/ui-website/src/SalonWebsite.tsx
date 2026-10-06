@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -10,6 +10,8 @@ import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl,
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { BookingWizard } from "./BookingWizard";
+import { SalonPolicyLinks } from "./SalonPolicyLinks";
+import type { SalonPolicy } from "./SalonPolicyLinks";
 import { ShopView } from "./ShopView";
 import { FEATURE_NAV } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
@@ -605,6 +607,8 @@ export interface SalonWebsiteProps {
   staff: StaffMember[];
   services: ServiceItem[];
   theme: WebsiteTheme;
+  websitePolicies?: SalonPolicy[];
+  bookingPolicies?: SalonPolicy[];
   /** Current page key: "book" | "shop" | "membership" | "loyalty" | undefined (home) */
   activePage?: string;
   /** Navigate to a page ("book", "shop", etc.) or null to go home */
@@ -613,7 +617,7 @@ export interface SalonWebsiteProps {
   getPagePath?: (page: string) => string;
 }
 
-export function SalonWebsite({ salon, staff, services, theme: themeProp, activePage, onNavigate, getPagePath }: SalonWebsiteProps) {
+export function SalonWebsite({ salon, staff, services, theme: themeProp, websitePolicies = [], bookingPolicies = [], activePage, onNavigate, getPagePath }: SalonWebsiteProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const theme = { ...DEFAULT_THEME, ...themeProp };
   const bookUrl = getPagePath ? getPagePath("book") : "/book";
@@ -777,6 +781,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
           salon={salon} services={activeServices} staff={activeStaff} theme={theme}
           initialServiceId={bookServiceId} initialStaffId={bookStaffId}
           getPagePath={getPagePath}
+          policies={bookingPolicies}
           onExit={() => { setBookServiceId(null); setBookStaffId(null); onNavigate?.(null); }}
           onNavigate={(page) => onNavigate?.(page)}
         />
@@ -789,6 +794,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
       <ShopView
         salon={salon}
         theme={theme}
+        policies={websitePolicies}
         getPagePath={getPagePath}
         onNavigate={(page) => onNavigate?.(page)}
       />
@@ -800,6 +806,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
     return (
       <FeatureView
         salon={salon} theme={theme} pageKey={featureViewKey} bookUrl={bookUrl}
+        policies={websitePolicies}
         getPagePath={getPagePath}
         onBack={() => onNavigate?.(null)}
         onNavigate={(page) => onNavigate?.(page)}
@@ -842,6 +849,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 {translateUi("Book now ")}</a>
             )}
+            <LanguageSelector compact />
             {featurePages.length > 0 && (
               <button
                 type="button"
@@ -1461,14 +1469,15 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, activeP
           </div>
 
           <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
-            <div>
-              <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved.")}</p>
+            <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved.")}</p>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
+              <SalonPolicyLinks policies={websitePolicies} color={footerDim} salonName={salon.name} />
+              {isScrollable && (
+                <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
+                  {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
+                </button>
+              )}
             </div>
-            {isScrollable && (
-              <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
-                {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
-              </button>
-            )}
           </div>
         </div>
       </footer>

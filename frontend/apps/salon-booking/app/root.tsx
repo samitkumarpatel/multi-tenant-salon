@@ -1,4 +1,4 @@
-import { I18nProvider, LanguageSelector, useI18n, ENGLISH_POLICY } from "@salon/i18n";
+import { I18nProvider, useI18n, ENGLISH_POLICY } from "@salon/i18n";
 import type { LanguagePolicy } from "@salon/i18n";
 import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
@@ -100,7 +100,7 @@ function AppDocument() {
         {state !== "idle" && (
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 2, background: "#10B981", zIndex: 9999, animation: "progress 1s ease-in-out infinite" }} />
         )}
-        <LanguageSelector /><Outlet />
+        <Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

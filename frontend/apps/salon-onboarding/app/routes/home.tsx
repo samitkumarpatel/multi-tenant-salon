@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
-import { CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
+import { ADMIN_APP_URL, CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
 import { PRIVACY_TEXT } from "~/lib/legal";
 import { LegalModal } from "~/components/LegalModal";
 import { SiteFooter } from "~/components/SiteFooter";
@@ -98,20 +98,22 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row gap-4">
 
-            <Link
-              to="/new"
-              className="group flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-5 sm:p-8 no-underline transition-all duration-200 hover:border-matcha-400 hover:shadow-[0_0_0_4px_rgba(86,115,48,0.10)] hover:-translate-y-0.5"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-matcha-100 transition-colors">
-                <Building2 className="w-6 h-6 text-matcha-600" />
-              </div>
-              <p className="text-2xl font-bold text-stone-900 mb-1">{translateUi("I'm an owner")}</p>
-              <p className="text-sm text-stone-500 leading-relaxed flex-1">
-                {translateUi("Register your salon, set up services and staff, and go live in minutes. ")}</p>
-              <div className="flex items-center gap-1.5 mt-5 sm:mt-8 text-sm font-semibold text-matcha-600 group-hover:gap-2.5 transition-all">
-                {translateUi("Get started ")}<ArrowRight className="w-4 h-4" />
-              </div>
-            </Link>
+            <div className="group flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-5 sm:p-8 transition-all duration-200 hover:border-matcha-400 hover:shadow-[0_0_0_4px_rgba(86,115,48,0.10)] hover:-translate-y-0.5">
+              <Link to="/new" className="flex flex-1 flex-col no-underline">
+                <div className="w-12 h-12 rounded-2xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-matcha-100 transition-colors">
+                  <Building2 className="w-6 h-6 text-matcha-600" />
+                </div>
+                <p className="text-2xl font-bold text-stone-900 mb-1">{translateUi("I'm an owner")}</p>
+                <p className="text-sm text-stone-500 leading-relaxed flex-1">
+                  {translateUi("Register your salon, set up services and staff, and go live in minutes. ")}</p>
+                <div className="flex items-center gap-1.5 mt-5 sm:mt-8 text-sm font-semibold text-matcha-600 group-hover:gap-2.5 transition-all">
+                  {translateUi("Get started ")}<ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
+              <a href={ADMIN_APP_URL} className="mt-4 border-t border-stone-100 pt-3 text-xs font-medium text-stone-500 hover:text-matcha-700 no-underline transition-colors">
+                {translateUi("Sign in to your salon ")}
+              </a>
+            </div>
 
             <div className="flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-5 sm:p-8 opacity-50 cursor-not-allowed select-none">
               <div className="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center mb-4 sm:mb-6">

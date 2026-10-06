@@ -11,7 +11,5 @@ public record DashboardSettings(
         @Id UUID salonId,
         boolean bookingManagementEnabled,
         boolean cashierEnabled,
-        boolean notificationsEnabled,
-        String defaultNotification,
         Instant updatedAt
 ) {}

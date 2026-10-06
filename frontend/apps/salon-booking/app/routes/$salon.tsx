@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { DEFAULT_THEME, BookingWizard, SalonErrorPage, apiFetch, API_BASE } from "@salon/ui-website";
-import type { Salon, ServiceItem, StaffMember, WebsiteTheme, Country } from "@salon/ui-website";
+import type { Salon, ServiceItem, StaffMember, WebsiteTheme, Country, SalonPolicy } from "@salon/ui-website";
 
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
@@ -19,6 +19,7 @@ type LoaderOk = {
   staff: StaffMember[];
   theme: WebsiteTheme;
   countries: Country[];
+  policies: SalonPolicy[];
 };
 
 type LoaderData =
@@ -38,13 +39,14 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs): Promis
       return { status: "booking_disabled", salonName: salon.name };
     }
 
-    const [services, staff, theme, countries, ratings, languages] = await Promise.all([
+    const [services, staff, theme, countries, ratings, languages, policies] = await Promise.all([
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
       apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`).catch((): Country[] => []),
       apiFetch<{ salon: { average: number | null; count: number }; staff: Record<string, { average: number | null; count: number }> }>(`${API_BASE}/api/salon/${salon.id}/ratings`).catch(() => null),
       apiFetch<SalonLanguages>(`${API_BASE}/api/salon/${salon.id}/languages`),
+      apiFetch<SalonPolicy[]>(`${API_BASE}/api/salon/${salon.id}/policies?placement=booking`).catch((): SalonPolicy[] => []),
     ]);
 
     const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
@@ -57,6 +59,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs): Promis
       staff: staff.filter((s) => s.status === "ACTIVE").map((s) => ({ ...s, rating: ratings?.staff[String(s.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(s.id)]?.count ?? 0 })),
       theme: { ...DEFAULT_THEME, ...theme },
       countries,
+      policies,
     };
   } catch (err) {
     const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
@@ -137,7 +140,7 @@ export default function SalonBookingRoute() {
   if (data.status === "error") return <SalonErrorPage is404={false} />;
   if (data.status === "booking_disabled") return <BookingUnavailablePage salonName={data.salonName} />;
 
-  const { salon, services, staff, theme, countries } = data;
+  const { salon, services, staff, theme, countries, policies } = data;
   const serviceId = Number(searchParams.get("serviceId"));
   const staffId   = Number(searchParams.get("staffId"));
 
@@ -149,6 +152,7 @@ export default function SalonBookingRoute() {
       staff={staff}
       theme={theme}
       countries={countries}
+      policies={policies}
       initialServiceId={Number.isFinite(serviceId) && serviceId > 0 ? serviceId : null}
       initialStaffId={Number.isFinite(staffId) && staffId > 0 ? staffId : null}
       standalone

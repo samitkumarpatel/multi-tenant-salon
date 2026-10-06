@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
@@ -1389,6 +1389,7 @@ export function GenerativeUIWebsite({
             {thinking ? translateUi("Thinking…") : isOpenNow(salon) ? translateUi("Open now · AI Assistant") : translateUi("AI Assistant · Online")}
           </p>
         </div>
+        <LanguageSelector compact />
         {fullscreenToggle()}
         {started && (
           <button

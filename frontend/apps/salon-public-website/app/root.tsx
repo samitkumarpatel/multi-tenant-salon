@@ -1,4 +1,4 @@
-import { I18nProvider, LanguageSelector, useI18n, ENGLISH_POLICY } from "@salon/i18n";
+import { I18nProvider, useI18n, ENGLISH_POLICY } from "@salon/i18n";
 import type { LanguagePolicy } from "@salon/i18n";
 import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
@@ -95,7 +95,7 @@ function AppDocument() {
       </head>
       <body>
         <NavProgress loading={state !== "idle"} />
-        <LanguageSelector /><Outlet />
+        <Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

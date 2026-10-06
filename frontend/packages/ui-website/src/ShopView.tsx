@@ -7,6 +7,7 @@ import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
 import { DEFAULT_PRODUCT_EMOJI, formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
+import type { SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont, shade } from "./theme";
 import { useCart } from "./shopCart";
 import { useWishlist } from "./shopWishlist";
@@ -16,6 +17,7 @@ import type { CartLine, Country, Salon, ShopBrand, ShopCategory, ShopOrder, Shop
 export interface ShopViewProps {
   salon: Salon;
   theme: WebsiteTheme;
+  policies?: SalonPolicy[];
   /** Build the href for a page key (for the header's other nav links). */
   getPagePath?: (page: string) => string;
   /** Navigate to another page key, or null to return to the home page. */
@@ -24,7 +26,7 @@ export interface ShopViewProps {
 
 type Step = "browse" | "checkout" | "done";
 
-export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: ShopViewProps) {
+export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, onNavigate }: ShopViewProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const theme = themeProp;
   const fontStackCss = fontStack(theme.fontFamily);
@@ -199,7 +201,7 @@ export function ShopView({ salon, theme: themeProp, getPagePath, onNavigate }: S
         onAvatarOpen={() => setAvatarOpen(true)}
       />
       <main className="flex-1">{body}</main>
-      <SiteFooter salon={salon} theme={theme} current="shop" onBack={goHome} getPagePath={getPagePath} />
+      <SiteFooter salon={salon} theme={theme} current="shop" onBack={goHome} getPagePath={getPagePath} policies={policies} />
     </div>
   );
 

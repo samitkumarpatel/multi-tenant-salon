@@ -76,7 +76,7 @@ function AppDocument() {
       </head>
       <body className="bg-slate-50 text-slate-900 min-h-screen font-sans antialiased">
         <NavProgress loading={state !== "idle"} />
-        <LanguageSelector /><Outlet />
+        <LanguageSelector compact floating /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

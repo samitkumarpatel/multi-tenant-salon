@@ -117,7 +117,7 @@ function AppDocument() {
       </head>
       <body>
         <NavProgress loading={state !== "idle"} />
-        <LanguageSelector /><Outlet />
+        <LanguageSelector compact floating /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

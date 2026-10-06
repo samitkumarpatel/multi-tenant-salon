@@ -10,6 +10,8 @@ export { CustomerDetailsFields } from "./CustomerDetailsFields";
 export type { CustomerBookingForm, ContactMethod } from "./CustomerDetailsFields";
 export { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 export { SiteHeader, SiteFooter, FEATURE_NAV } from "./SiteChrome";
+export { SalonPolicyLinks } from "./SalonPolicyLinks";
+export type { SalonPolicy } from "./SalonPolicyLinks";
 export { SocialLinksRow, SOCIAL_PLATFORMS } from "./SocialIcons";
 export type { SocialPlatform, SocialPlatformKey } from "./SocialIcons";
 export { CategoryIcon, CATEGORY_ICON } from "./CategoryIcon";

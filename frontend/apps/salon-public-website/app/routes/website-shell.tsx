@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { Outlet, useLoaderData, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE } from "@salon/ui-website";
-import type { Salon, StaffMember, ServiceItem, WebsiteTheme } from "@salon/ui-website";
+import type { Salon, StaffMember, ServiceItem, WebsiteTheme, SalonPolicy } from "@salon/ui-website";
 import { AnalyticsTracker } from "../components/AnalyticsTracker";
 import { tenantHost } from "../lib/tenant-host";
 
@@ -34,6 +34,8 @@ export type TenantData = {
   staff: StaffMember[];
   services: ServiceItem[];
   theme: WebsiteTheme;
+  websitePolicies: SalonPolicy[];
+  bookingPolicies: SalonPolicy[];
 };
 
 type LoaderData =
@@ -52,13 +54,15 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     if (salon.status === "DISABLED") {
       return { status: "disabled", salonName: salon.name };
     }
-    const [staff, services, theme, preferredDomain, ratings, languages] = await Promise.all([
+    const [staff, services, theme, preferredDomain, ratings, languages, websitePolicies, bookingPolicies] = await Promise.all([
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
       apiFetch<{ hostname: string | null }>(`${API_BASE}/api/salon/${salon.id}/website/domain`).catch(() => null),
       apiFetch<{ salon: { average: number | null; count: number }; staff: Record<string, { average: number | null; count: number }> }>(`${API_BASE}/api/salon/${salon.id}/ratings`).catch(() => null),
       apiFetch<SalonLanguages>(`${API_BASE}/api/salon/${salon.id}/languages`),
+      apiFetch<SalonPolicy[]>(`${API_BASE}/api/salon/${salon.id}/policies?placement=website`).catch((): SalonPolicy[] => []),
+      apiFetch<SalonPolicy[]>(`${API_BASE}/api/salon/${salon.id}/policies?placement=booking`).catch((): SalonPolicy[] => []),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
     if (!salon.features?.includes("STATIC_WEBSITE")) {
@@ -67,7 +71,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     const canonicalOrigin = preferredDomain?.hostname ? `https://${preferredDomain.hostname}` : new URL(request.url).origin;
     const ratedStaff = staff.map((member) => ({ ...member, rating: ratings?.staff[String(member.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(member.id)]?.count ?? 0 }));
     const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
-    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, canonicalOrigin, languagePolicy: languages.website, languageScope: String(salon.id) };
+    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, websitePolicies, bookingPolicies, canonicalOrigin, languagePolicy: languages.website, languageScope: String(salon.id) };
   } catch (err) {
     const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
     return { status: is404 ? "not_found" : "error" };
@@ -118,11 +122,11 @@ export default function WebsiteShell() {
   if (data.status === "not_found") return <SalonErrorPage is404 />;
   if (data.status === "error") return <SalonErrorPage is404={false} />;
 
-  const { salon, staff, services, theme } = data;
+  const { salon, staff, services, theme, websitePolicies, bookingPolicies } = data;
   return (
     <>
       <AnalyticsTracker salonId={String(salon.id)} enabled={salon.features?.includes("ANALYTICS") ?? false} />
-      <Outlet context={{ salon, staff, services, theme } satisfies TenantData} />
+      <Outlet context={{ salon, staff, services, theme, websitePolicies, bookingPolicies } satisfies TenantData} />
     </>
   );
 }

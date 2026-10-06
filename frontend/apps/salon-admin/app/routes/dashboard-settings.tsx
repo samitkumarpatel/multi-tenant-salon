@@ -2,7 +2,7 @@ import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { Bell, CalendarCheck, Check, ExternalLink, ShoppingCart } from "lucide-react";
+import { CalendarCheck, Check, ExternalLink, ShoppingCart } from "lucide-react";
 import { Toast, useToast } from "@salon/ui-shared";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { dashboardUrl } from "~/lib/config";
@@ -12,8 +12,6 @@ interface DashboardSettings {
   salonId: string;
   bookingManagementEnabled: boolean;
   cashierEnabled: boolean;
-  notificationsEnabled: boolean;
-  defaultNotification?: string | null;
 }
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
@@ -33,14 +31,13 @@ export default function DashboardSettingsPage() {
   const options = [
     { key: "bookingManagementEnabled" as const, title: "Appointment management", description: "Create, edit, confirm, cancel, and complete bookings.", icon: CalendarCheck, disabled: !bookingAvailable },
     { key: "cashierEnabled" as const, title: "Cashier", description: "Take in-salon payments for services and Shop products.", icon: ShoppingCart, disabled: false },
-    { key: "notificationsEnabled" as const, title: "Customer notifications", description: "Send the default message or customise it for an appointment.", icon: Bell, disabled: false },
   ];
 
   async function save() {
     setSaving(true);
     try {
       const saved = await apiFetch<DashboardSettings>(`${ADMIN_API}/${initial.salonId}/dashboard/settings`, {
-        method: "PUT", body: JSON.stringify(settings),
+        method: "PUT", body: JSON.stringify({ bookingManagementEnabled: settings.bookingManagementEnabled, cashierEnabled: settings.cashierEnabled }),
       });
       setSettings(saved);
       notify("Dashboard settings saved.");
@@ -68,7 +65,6 @@ export default function DashboardSettingsPage() {
       </div>
     </div>
 
-    {settings.notificationsEnabled && <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><label className="block text-sm font-semibold text-slate-700">{translateUi("Default customer message")}</label><p className="mb-3 mt-1 text-xs text-slate-400">{translateUi("Used when a Dashboard operator sends an appointment update without customising the message.")}</p><textarea rows={4} value={settings.defaultNotification ?? ""} onChange={(event) => setSettings((current) => ({ ...current, defaultNotification: event.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10" placeholder={translateUi("We have an update about your appointment…")} /></div>}
 
     <div className="flex justify-end"><button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-matcha-700 disabled:opacity-50"><Check className="h-4 w-4" />{saving ? translateUi("Saving…") : translateUi("Save settings")}</button></div>
     <Toast toast={toast} />

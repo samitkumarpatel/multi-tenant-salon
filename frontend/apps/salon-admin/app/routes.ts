@@ -10,6 +10,7 @@ export default [
     index("routes/manage.tsx"),
     route("edit", "routes/edit.tsx"),
     route("languages", "routes/languages.tsx"),
+    route("policies", "routes/policies.tsx"),
     route("services", "routes/services.tsx"),
     route("staff", "routes/staff.tsx"),
     route("website", "routes/website.tsx"),

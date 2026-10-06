@@ -21,8 +21,10 @@ class BookingNotificationListener {
 
     @ApplicationModuleListener
     void onBookingCreated(BookingCreatedEvent event) {
-        log.info("[NOTIFICATION → CUSTOMER] Booking #{} received — notifying {} <{}>",
-                event.bookingId(), event.customerName(), event.customerEmail());
+        var channel = event.customerEmail() != null && !event.customerEmail().isBlank() ? "email"
+                : event.customerPhone() != null && !event.customerPhone().isBlank() ? "SMS preview" : "no contact";
+        log.info("[NOTIFICATION → CUSTOMER] Booking #{} received — channel={} customer={}",
+                event.bookingId(), channel, event.customerName());
         notificationService.notifyBookingCreated(event);
     }
 

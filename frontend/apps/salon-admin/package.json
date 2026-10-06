@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "react-router dev",
+    "dev": "react-router dev --force",
     "build": "react-router build",
     "preview": "npx serve build/client",
     "typecheck": "react-router typegen && tsc"

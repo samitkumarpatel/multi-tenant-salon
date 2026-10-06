@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import React from "react";
 import {
   ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, MapPin, Phone, ShoppingCart, User,
@@ -7,6 +7,8 @@ import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
 import { SocialLinksRow } from "./SocialIcons";
 import { useIsScrollable } from "./useIsScrollable";
+import { SalonPolicyLinks } from "./SalonPolicyLinks";
+import type { SalonPolicy } from "./SalonPolicyLinks";
 import type { OperatingHours, Salon, WebsiteTheme } from "./types";
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -97,8 +99,11 @@ export function SiteHeader({
             <span className="text-sm font-bold truncate" style={{ color: headerText }}>{salon.name}</span>
             <BetaBadge color={theme.accentColor} />
           </button>
-          {/* Right: mode toggle */}
-          {headerExtra && <div className="flex items-center shrink-0">{headerExtra}</div>}
+          {/* Right: language and mode controls */}
+          <div className="flex items-center gap-2 shrink-0">
+            {headerExtra}
+            <LanguageSelector compact />
+          </div>
         </div>
       ) : (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-6">
@@ -212,6 +217,7 @@ export function SiteHeader({
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 {translateUi("Book now ")}</a>
             ) : null}
+            <LanguageSelector compact />
           </div>
         </div>
       )}
@@ -220,7 +226,7 @@ export function SiteHeader({
 }
 
 export function SiteFooter({
-  salon, theme, current, onBack, getPagePath, standalone = false,
+  salon, theme, current, onBack, getPagePath, standalone = false, policies = [],
 }: {
   salon: Salon;
   theme: WebsiteTheme;
@@ -229,6 +235,7 @@ export function SiteFooter({
   getPagePath?: (page: string) => string;
   /** Hide "Back to website" link — use when there is no website to return to */
   standalone?: boolean;
+  policies?: SalonPolicy[];
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const accentText = contrastText(theme.accentColor);
@@ -277,22 +284,28 @@ export function SiteFooter({
             )}
           </div>
           {standalone ? (
-            salon.contact?.phone && (
-              <a
-                href={`tel:${salon.contact.phone}`}
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium no-underline hover:opacity-80 transition-opacity"
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+              <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
+              {salon.contact?.phone && (
+                <a
+                  href={`tel:${salon.contact.phone}`}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium no-underline hover:opacity-80 transition-opacity"
+                  style={{ color: theme.accentColor }}
+                >
+                  <Phone className="w-3 h-3" /> {salon.contact.phone}
+                </a>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                onClick={onBack}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
                 style={{ color: theme.accentColor }}
               >
-                <Phone className="w-3 h-3" /> {salon.contact.phone}
-              </a>
-            )
-          ) : (
-            <button
-              onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
-              style={{ color: theme.accentColor }}
-            >
-              <ArrowLeft className="w-3 h-3" /> {translateUi("Back to website ")}</button>
+                <ArrowLeft className="w-3 h-3" /> {translateUi("Back to website ")}</button>
+              <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
+            </div>
           )}
         </div>
       </footer>
@@ -375,11 +388,14 @@ export function SiteFooter({
         <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
           <p className="text-[11px]" style={{ color: footerDim }}>
             © {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved. ")}</p>
-          {isScrollable && (
-            <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
-              {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
-            </button>
-          )}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
+            <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
+            {isScrollable && (
+              <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
+                {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </footer>

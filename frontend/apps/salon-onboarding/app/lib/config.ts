@@ -7,7 +7,7 @@ const ADMIN_BASE_URL: string =
 
 export const ADMIN_APP_URL = ADMIN_BASE_URL;
 
-export const CONTACT_EMAIL = `admin@${SALON_DOMAIN}`;
+export const CONTACT_EMAIL = `info@${SALON_DOMAIN}`;
 
 // In dev, the public website runs at localhost:5174 with path-based routing.
 // In production, it uses subdomain routing: {handler}.{SALON_DOMAIN}.

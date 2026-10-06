@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { redirect, Link, NavLink, Outlet, useNavigate, useMatch, useRouteError, isRouteErrorResponse, useLocation, useNavigation } from "react-router";
@@ -6,7 +6,7 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronRight, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle, Gauge } from "lucide-react";
+import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -163,11 +163,9 @@ function SidebarGroupHeader({ controls, icon: Icon, label, active, expanded, onC
       onClick={onClick}
       className={`flex min-h-11 w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
         active
-          ? expanded
-            ? "text-matcha-700 hover:bg-slate-50"
-            : "bg-matcha-50 text-matcha-700"
+          ? "bg-matcha-50 text-matcha-800 hover:bg-matcha-100"
           : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-      }`}
+      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1`}
     >
       <Icon className="w-4 h-4 shrink-0" />
       <span>{translateUi(label)}</span>
@@ -185,8 +183,8 @@ function SidebarSubLink({ to, active, onClick, children }: { to: string; active:
       to={to}
       aria-current={active ? "page" : undefined}
       onClick={onClick}
-      className={`flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-matcha-50 text-matcha-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+      className={`flex min-h-10 items-center rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1 ${
+        active ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
       }`}
     >
       {children}
@@ -247,9 +245,11 @@ function SalonSwitcher({ current, salonId, onSalonEnabled }: { current: Salon; s
         onClick={() => open ? setOpen(false) : openDropdown()}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={translateUi("Switch salon")}
         className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
       >
-        <span className="truncate max-w-[100px] sm:max-w-[160px]">{current.name}</span>
+        <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+        <span>{translateUi("Switch salon")}</span>
         <ChevronDown className={`w-3 h-3 text-slate-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -577,17 +577,42 @@ export default function Layout() {
             <AppLogo size={24} showText={false} onClick={() => navigate("/salons")} />
           </span>
         </div>
-        <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:block" />
-        <span className="text-sm text-slate-500 truncate max-w-[120px] sm:max-w-none min-w-0">{salon.name}</span>
+        {session && session.salons.length > 1 && (
+          <SalonSwitcher current={salon} salonId={salonId} onSalonEnabled={(s) => setSalon(s)} />
+        )}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {session && (
-            <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} />
-            </div>
-          )}
-          <SalonSwitcher current={salon} salonId={salonId} onSalonEnabled={(s) => setSalon(s)} />
-          <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
+          <LanguageSelector compact />
+          {session ? (
+            <details className="relative z-[1010]">
+              <summary
+                aria-label={translateUi("Account menu")}
+                title={translateUi("Account menu")}
+                className="list-none flex cursor-pointer items-center gap-1 rounded-full p-0.5 text-xs font-semibold text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-matcha-600"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-100 hover:bg-slate-200">
+                  {session.email.slice(0, 2).toUpperCase()}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+              </summary>
+              <div className="absolute right-0 top-[calc(100%+8px)] z-[70] w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{translateUi("Signed in as")}</p>
+                  <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} className="mt-2 w-full justify-center" />
+                </div>
+                <div className="p-1.5">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4" />{translateUi("Sign out")}
+                  </button>
+                </div>
+              </div>
+            </details>
+          ) : (
+            <Tooltip content="Sign out of the admin panel. You'll need to verify your email again to get back in." side="bottom">
             <button
               onClick={handleLogout}
               className="shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
@@ -595,7 +620,8 @@ export default function Layout() {
               <LogOut className="w-3 h-3" />
               <span className="hidden sm:inline">{translateUi("Sign out")}</span>
             </button>
-          </Tooltip>
+            </Tooltip>
+          )}
         </div>
       </header>
 
@@ -626,17 +652,13 @@ export default function Layout() {
 
           <div className="px-4 py-4 border-b border-slate-100">
             <p className="text-xs font-semibold text-slate-900 truncate">{salon.name}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-              {salon.owner?.name}
-              {salon.location?.city ? ` · ${salon.location.city}` : ""}
-            </p>
           </div>
 
           <nav className="flex-1 px-3 py-3 flex flex-col gap-0.5">
-            <NavLink to="languages" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-              <Globe className="w-4 h-4 shrink-0" /> {translateUi("Languages ")}</NavLink>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5">
-              {translateUi("Manage ")}</p>
+            <Tooltip content="Your everyday tasks, salon details, and sharing links.">
+              <NavLink to={`/${salonId}`} end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <LayoutDashboard className="w-4 h-4 shrink-0" /> {translateUi("Home ")}</NavLink>
+            </Tooltip>
 
             {(pendingServices || pendingStaff || pendingWebsite) && (
               <Tooltip content="Finish your onboarding checklist to prepare for your first customer.">
@@ -649,10 +671,12 @@ export default function Layout() {
               </Tooltip>
             )}
 
-            <Tooltip content="Your everyday tasks, salon details, and sharing links.">
-              <NavLink to={`/${salonId}`} end className={sideNavClass} onClick={() => setSidebarOpen(false)}>
-                <LayoutDashboard className="w-4 h-4 shrink-0" /> {translateUi("Home ")}</NavLink>
-            </Tooltip>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-3 py-1.5">
+              {translateUi("Manage ")}</p>
+            <NavLink to="languages" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+              <Globe className="w-4 h-4 shrink-0" /> {translateUi("Languages ")}</NavLink>
+            <NavLink to="policies" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+              <FileText className="w-4 h-4 shrink-0" /> {translateUi("Legal policies")}</NavLink>
 
             <Tooltip content="Build your booking menu — add treatments, set pricing, duration, and assign staff.">
               <NavLink to="services" className={sideNavClass} onClick={() => setSidebarOpen(false)}>

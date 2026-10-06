@@ -2,6 +2,7 @@ import { useI18n } from "@salon/i18n";
 import { ArrowLeft, ShoppingBag, BadgeCheck, Gift, CalendarCheck, type LucideIcon } from "lucide-react";
 import { fontStack, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
+import type { SalonPolicy } from "./SalonPolicyLinks";
 import type { Salon, WebsiteTheme } from "./types";
 
 export const FEATURE_VIEWS: Record<string, { title: string; icon: LucideIcon; tagline: string; blurb: string }> = {
@@ -30,10 +31,11 @@ function initials(name: string) {
 }
 
 export function FeatureView({
-  salon, theme, pageKey, bookUrl, onBack, getPagePath, onNavigate,
+  salon, theme, pageKey, bookUrl, onBack, getPagePath, onNavigate, policies = [],
 }: {
   salon: Salon;
   theme: WebsiteTheme;
+  policies?: SalonPolicy[];
   pageKey: string;
   bookUrl: string;
   onBack: () => void;
@@ -103,7 +105,7 @@ export function FeatureView({
         </div>
       </main>
 
-      <SiteFooter salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} />
+      <SiteFooter salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} policies={policies} />
     </div>
   );
 }

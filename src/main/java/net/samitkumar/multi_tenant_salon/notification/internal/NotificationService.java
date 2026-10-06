@@ -9,7 +9,6 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedE
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
-import net.samitkumar.multi_tenant_salon.dashboard.DashboardNotificationRequestedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
@@ -216,7 +215,9 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        var sms = "Hi " + event.customerName() + ": we received your booking request (#" + event.bookingId() + ") for "
+                + formattedDateTime(event) + " at " + event.startTime().format(TIME_FMT) + ". " + statusLine + " — " + event.salonName();
+        sendBookingCustomerMessage(event.customerEmail(), event.customerPhone(), event.customerName(), subject, text, html, sms);
     }
 
     void notifyBookingStatusChanged(BookingStatusChangedEvent event) {
@@ -286,15 +287,6 @@ class NotificationService {
                 teamSignatureHtml(event.salonName()));
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
-    }
-
-    void notifyDashboardCustomer(DashboardNotificationRequestedEvent event) {
-        var text = "Hi " + event.customerName() + ",\n\n" + event.message()
-                + "\n\n— " + event.salonName();
-        var html = "<p>Hi " + HtmlUtils.htmlEscape(event.customerName()) + ",</p><p>"
-                + HtmlUtils.htmlEscape(event.message()).replace("\n", "<br>") + "</p><p>— "
-                + HtmlUtils.htmlEscape(event.salonName()) + "</p>";
-        sendEmail(event.customerEmail(), event.customerName(), event.subject(), text, html);
     }
 
     // ── Bookings — staff-facing ──────────────────────────────────────────────
@@ -589,6 +581,18 @@ class NotificationService {
 
     private String teamSignatureHtml(String salonName) {
         return "<p><small>Regards,<br>Team " + (StringUtils.hasText(salonName) ? salonName : "SalonSaaS") + "</small></p>";
+    }
+
+    private void sendBookingCustomerMessage(String email, String phone, String name, String subject,
+                                            String text, String html, String smsText) {
+        if (StringUtils.hasText(email)) {
+            sendEmail(email, name, subject, text, html);
+        } else if (StringUtils.hasText(phone)) {
+            // SMS delivery is intentionally a placeholder until an SMS provider is selected.
+            log.info("[SMS MOCK → CUSTOMER] to={} body={}", phone, smsText);
+        } else {
+            log.warn("[NOTIFICATION] Booking customer has no email or phone — skipping booking message.");
+        }
     }
 
     /** "12.50" + "EUR" → "€12.50"; falls back to "12.50 EUR" for an unknown currency code. */

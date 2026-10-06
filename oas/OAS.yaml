@@ -23,6 +23,7 @@ info:
     - `/api/salon/{salonId}/staff/...` — view staff members
     - `/api/salon/{salonId}/booking/...` — slot discovery and appointment creation
     - `/api/salon/{salonId}/website` — public website theme
+    - `/api/salon/{salonId}/policies` — published, salon-specific legal policies for the website or booking page
     - `/api/salon/{salonId}/chat` — AI assistant for the Generative UI website mode
 
     ### Admin sub-paths
@@ -31,6 +32,7 @@ info:
     - `/api/salon-admin/{salonId}/booking/...` — view, reschedule, and change booking status
     - `/api/salon-admin/{salonId}/website` — website theme management
     - `/api/salon-admin/{salonId}/website-type` — get or update the active website presentation type
+    - `/api/salon-admin/{salonId}/policies` — edit and publish salon-specific customer policies
     - `/api/salon-admin/{salonId}/analytics/summary` — website analytics rollup (requires the `ANALYTICS` feature)
     - `/api/salon-admin/{salonId}/analytics/genui-summary` — Generative-UI chat usage rollup (requires the `ANALYTICS` feature)
 
@@ -75,6 +77,8 @@ tags:
       Customer-facing appointment flow — slot discovery and booking creation/retrieval.
   - name: Website
     description: Customer-facing website theme — read the public visual theme for a salon.
+  - name: LegalPolicies
+    description: Salon-specific legal policy drafts, publication, and public website/booking links.
   - name: Chat
     description: |
       Customer-facing AI assistant for the Generative UI website mode. Backed by an Anthropic
@@ -555,6 +559,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebsiteTheme"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon/{salonId}/policies:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [LegalPolicies]
+      summary: List published salon policies for a customer-facing page
+      description: Returns only this salon's published, enabled policies selected for the requested placement. If no policies have been published, returns an empty array.
+      operationId: getSalonPolicies
+      parameters:
+        - name: placement
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [website, booking]
+            default: website
+          description: Public surface where the salon selected to show the policies.
+      responses:
+        "200":
+          description: Published policies selected for this placement
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: no-store; policy text is always fetched fresh.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SalonPolicy" }
+        "400":
+          description: Unknown placement value
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -1147,6 +1185,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebsiteTheme"
+
+  /api/salon-admin/{salonId}/policies:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [LegalPolicies]
+      summary: Get policy drafts and available default templates
+      description: Owner-only. Returns this salon's editable drafts merged with the built-in policy templates for any policies not saved yet.
+      operationId: getSalonPolicyDrafts
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Draft policies and unsaved templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SalonPolicy" }
+        "401": { description: Authentication required }
+        "403": { description: Requires salon owner or super-admin access }
+    put:
+      tags: [LegalPolicies]
+      summary: Save salon policy drafts
+      description: Upserts the submitted salon-specific draft documents by policy key. Draft changes do not appear on public pages until published. Disable a policy and publish to remove it from public pages.
+      operationId: saveSalonPolicyDrafts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 100
+              items: { $ref: "#/components/schemas/SalonPolicy" }
+      responses:
+        "200":
+          description: Saved draft policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SalonPolicy" }
+        "400": { description: Invalid policy document or duplicate policy key }
+        "401": { description: Authentication required }
+        "403": { description: Requires salon owner or super-admin access }
+
+  /api/salon-admin/{salonId}/policies/publish:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [LegalPolicies]
+      summary: Publish this salon's saved policy drafts
+      description: Copies the salon's complete draft set to its published set. Public website and booking requests then return enabled policies selected for their placement.
+      operationId: publishSalonPolicies
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Published policy set
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SalonPolicy" }
+        "401": { description: Authentication required }
+        "403": { description: Requires salon owner or super-admin access }
 
   /api/salon-admin/{salonId}/website-type:
     parameters:
@@ -4494,6 +4600,47 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    SalonPolicy:
+      type: object
+      required: [key, title, enabled, website, booking, source, defaultLanguage, translations]
+      properties:
+        key:
+          type: string
+          maxLength: 80
+          pattern: '^[a-z0-9][a-z0-9-]{0,79}$'
+          description: Stable policy identifier, unique within the salon.
+          example: privacy
+        title:
+          type: string
+          maxLength: 120
+          example: Privacy Policy
+        enabled:
+          type: boolean
+          description: Whether this policy is active for customers.
+        website:
+          type: boolean
+          description: Show this policy link on the public salon website.
+        booking:
+          type: boolean
+          description: Show this policy link on the booking experience.
+        source:
+          type: string
+          enum: [DEFAULT, CUSTOM]
+          description: Built-in starter text or salon-provided text.
+        defaultLanguage:
+          type: string
+          enum: [en, da, sv, nb, fr, de]
+          description: Language used if a visitor's selected language has no policy text.
+        translations:
+          type: object
+          description: Policy text keyed by language code. Imported text is stored as plain text.
+          additionalProperties:
+            type: string
+            maxLength: 30000
+          example:
+            en: Contact the salon for questions about this policy.
+            da: Kontakt salonen, hvis du har spørgsmål til denne politik.
 
     # ── Chat ───────────────────────────────────────────────────────────────────
 

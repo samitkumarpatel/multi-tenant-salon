@@ -119,6 +119,7 @@ export default function Manage() {
       desc: "Your public salon page",
     }] : []),
   ];
+  const customerLinks = salonLinks.filter(({ key }) => key === "booking" || key === "website");
 
   async function copyLink(text: string, key: string) {
     setCopyError(null);
@@ -160,7 +161,55 @@ export default function Manage() {
         </nav>
       </div>
 
-      {tab === "home" && <OwnerHome dashboardAvailable={dashboardAvailable} />}
+      {tab === "home" && (
+        <>
+          <OwnerHome dashboardAvailable={dashboardAvailable} />
+          <section aria-labelledby="share-customer-links" className="max-w-4xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-matcha-50">
+                <Share2 className="h-4 w-4 text-matcha-700" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="share-customer-links" className="text-sm font-semibold text-slate-900">{translateUi("Share with customers")}</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">{translateUi("Copy a link to your booking page or public website.")}</p>
+              </div>
+              <button type="button" onClick={() => setTab("links")}
+                className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1 text-xs font-semibold text-matcha-700 hover:text-matcha-900 cursor-pointer">
+                {translateUi("All links ")}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+            {customerLinks.length > 0 ? (
+              <ul className="divide-y divide-slate-100">
+                {customerLinks.map(({ key, label, url, icon: Icon }) => (
+                  <li key={key} className="flex min-w-0 items-center gap-3 px-4 py-3 sm:px-5">
+                    <Icon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-800">{translateUi(label)}</p>
+                      <p className="truncate text-xs text-slate-500" title={url}>{url}</p>
+                    </div>
+                    <button type="button" onClick={() => copyLink(url, `home-${key}`)}
+                      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-xs font-medium text-slate-600 hover:border-matcha-300 hover:bg-matcha-50 hover:text-matcha-800 cursor-pointer">
+                      {copied === `home-${key}` ? <Check className="h-3.5 w-3.5 text-matcha-700" /> : <Copy className="h-3.5 w-3.5" />}
+                      <span>{copied === `home-${key}` ? translateUi("Copied") : translateUi("Copy link")}</span>
+                    </button>
+                    <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`${translateUi("Open ")}${translateUi(label)}`}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <p className="text-xs leading-relaxed text-slate-500">{translateUi("Enable online booking or a public website to create a customer link.")}</p>
+                <Link to="edit?step=3" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 text-xs font-semibold text-matcha-700 hover:text-matcha-900 no-underline">
+                  {translateUi("Set up features ")}<ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
+          </section>
+        </>
+      )}
       <p role="status" className={copyError ? "text-sm text-red-700" : "sr-only"}>{copyError ?? (copied ? "Copied to clipboard." : "")}</p>
 
       {/* ── Details tab ─────────────────────────────────────────────────── */}
@@ -341,6 +390,24 @@ export default function Manage() {
               ) : (
                 <span className="text-xs text-slate-400 italic">{translateUi("No features enabled")}</span>
               )}
+              {lockedFeatures.length > 0 && (
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                    <Lock className="h-3 w-3" aria-hidden="true" /> {translateUi("Available to enable")}
+                  </p>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {lockedFeatures.map((key) => (
+                      <div key={key} title={FEATURE_HINTS[key]} className="flex min-w-0 items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+                        <span className="truncate text-xs font-medium text-slate-600">{translateUi(FEATURE_LABEL[key] ?? key)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Link to="edit?step=3" className="mt-3 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-matcha-700 hover:text-matcha-900 no-underline">
+                    {translateUi("Manage features ")}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Operating Hours */}
@@ -373,72 +440,12 @@ export default function Manage() {
             )}
           </div>
 
-          {/* Keep sharing discoverable without duplicating the links list. */}
-          <div className="max-w-2xl rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-matcha-50">
-                <Share2 className="h-4 w-4 text-matcha-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-800">
-                  {hasBooking || hasWebsite ? translateUi("Share your salon") : translateUi("Share with your team")}
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-                  {hasBooking || hasWebsite
-                    ? translateUi("Access your booking, website, and other salon links in one place.")
-                    : translateUi("Access the portal links your team needs in one place.")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTab("links")}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-matcha-300 hover:bg-matcha-50 hover:text-matcha-700 cursor-pointer"
-              >
-                {translateUi("View share links ")}<ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Unlock more features callout */}
-          {lockedFeatures.length > 0 && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-              <div className="flex items-start gap-3 mb-4">
-                <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">{translateUi("More features available")}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                    {translateUi("These capabilities aren't active yet. Enable them via")}{" "}
-                    <Link to="edit?step=3" className="text-matcha-600 hover:underline font-medium">
-                      {translateUi("Edit Salon → Features ")}</Link>{" "}
-                    {translateUi("to unlock the corresponding admin sections. ")}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {lockedFeatures.map((key) => (
-                  <div key={key} className="flex items-start gap-2.5 bg-white border border-slate-200 rounded-lg px-3 py-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mt-1.5" />
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600">{translateUi(FEATURE_LABEL[key] ?? key)}</p>
-                      <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{FEATURE_HINTS[key]}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Link
-                to="edit?step=3"
-                className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold text-matcha-600 hover:text-matcha-700 no-underline hover:underline"
-              >
-                {translateUi("Go to Edit Salon ")}<ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          )}
-
         </>
       )}
 
       {/* ── Links tab ───────────────────────────────────────────────────── */}
       {tab === "links" && (
-        <div className="max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="max-w-4xl">
           <CompactLinkList links={salonLinks} copied={copied} onCopy={copyLink} />
         </div>
       )}
@@ -457,27 +464,51 @@ function CompactLinkList({
   onCopy: (url: string, key: string) => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
+  const groups = [
+    {
+      title: "Customer links",
+      description: "Share these links so customers can find your salon or book an appointment.",
+      links: links.filter(({ key }) => key === "booking" || key === "website"),
+    },
+    {
+      title: "Salon access",
+      description: "Portal links for you and your team.",
+      links: links.filter(({ key }) => key === "admin" || key === "staff" || key === "dashboard"),
+    },
+  ];
   return (
-    <ul className="divide-y divide-slate-100">
-      {links.map(({ key, label, desc, url, altUrl, icon: Icon }) => (
-        <li key={key} className="flex items-start gap-3 px-3 py-3 sm:px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-            <Icon className="h-4 w-4 text-slate-500" />
+    <div className="space-y-6">
+      {groups.filter(({ links: items }) => items.length > 0).map(({ title, description, links: items }) => (
+        <section key={title} aria-labelledby={`share-group-${title.replaceAll(" ", "-")}`}>
+          <div className="mb-3">
+            <h2 id={`share-group-${title.replaceAll(" ", "-")}`} className="text-sm font-semibold text-slate-900">{translateUi(title)}</h2>
+            <p className="mt-1 text-xs text-slate-500">{translateUi(description)}</p>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <p className="shrink-0 text-sm font-semibold text-slate-800">{translateUi(label)}</p>
-              <p className="hidden truncate text-[11px] text-slate-400 sm:block">{desc}</p>
-            </div>
-            <LinkUrl url={url} label={translateUi(label)} copyKey={key} copied={copied} onCopy={onCopy} />
-            {altUrl && <>
-              <p className="text-[11px] text-slate-400">{translateUi("or")}</p>
-              <LinkUrl url={altUrl} label={translateUi(label)} copyKey={`${key}-alt`} copied={copied} onCopy={onCopy} />
-            </>}
-          </div>
-        </li>
+          <ul className="grid gap-3 lg:grid-cols-2">
+            {items.map(({ key, label, desc, url, altUrl, icon: Icon }) => (
+              <li key={key} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                    <Icon className="h-4 w-4 text-slate-600" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-slate-800">{translateUi(label)}</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">{translateUi(desc)}</p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-3">
+                  <LinkUrl url={url} label={translateUi(label)} copyKey={key} copied={copied} onCopy={onCopy} />
+                  {altUrl && <div className="border-t border-slate-100 pt-3">
+                    <p className="mb-1 text-[11px] font-medium text-slate-400">{translateUi("Alternative booking link")}</p>
+                    <LinkUrl url={altUrl} label={`${translateUi(label)} — ${translateUi("alternative")}`} copyKey={`${key}-alt`} copied={copied} onCopy={onCopy} />
+                  </div>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -486,28 +517,31 @@ function LinkUrl({ url, label, copyKey, copied, onCopy }: {
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      <p className="w-full break-all py-1 text-sm text-slate-600">{url}</p>
-      <button
-        type="button"
-        onClick={() => onCopy(url, copyKey)}
-        className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-matcha-700 transition-colors hover:bg-matcha-50 cursor-pointer"
-        title={`Copy ${url}`}
-        aria-label={`Copy ${label} URL ${url}`}
-      >
-        {copied === copyKey ? <Check className="h-4 w-4 text-matcha-600" /> : <Copy className="h-4 w-4" />}
-        {copied === copyKey ? translateUi("Copied") : translateUi("Copy link")}
-      </button>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
-        title={`Open ${url}`}
-        aria-label={`Open ${label} ${url} in a new tab`}
-      >
-        <ExternalLink className="h-4 w-4" />
-        {translateUi("Open ")}</a>
+    <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50 p-2.5">
+      <p className="break-all text-xs leading-relaxed text-slate-700">{url}</p>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <button
+          type="button"
+          onClick={() => onCopy(url, copyKey)}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-matcha-800 transition-colors hover:bg-matcha-100 cursor-pointer"
+          title={`Copy ${url}`}
+          aria-label={`Copy ${label} URL ${url}`}
+        >
+          {copied === copyKey ? <Check className="h-3.5 w-3.5 text-matcha-700" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied === copyKey ? translateUi("Copied") : translateUi("Copy link")}
+        </button>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200"
+          title={`Open ${url}`}
+          aria-label={`Open ${label} ${url} in a new tab`}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          {translateUi("Open ")}
+        </a>
+      </div>
     </div>
   );
 }

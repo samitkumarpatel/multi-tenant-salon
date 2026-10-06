@@ -1,7 +1,5 @@
 package net.samitkumar.multi_tenant_salon.dashboard.internal;
 
-import net.samitkumar.multi_tenant_salon.booking.BookingApi;
-import net.samitkumar.multi_tenant_salon.dashboard.DashboardNotificationRequestedEvent;
 import net.samitkumar.multi_tenant_salon.dashboard.DashboardSettings;
 import net.samitkumar.multi_tenant_salon.dashboard.PosSale;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
@@ -10,7 +8,6 @@ import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.shop.ShopCatalogApi;
 import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,22 +35,17 @@ class DashboardManager {
     private final SalonApi salonApi;
     private final SalonServiceApi serviceApi;
     private final ShopCatalogApi shopApi;
-    private final BookingApi bookingApi;
-    private final ApplicationEventPublisher events;
     private final PaymentGateway stripe;
     private final JdbcClient jdbc;
 
     DashboardManager(DashboardSettingsRepository settingsRepository, PosSaleRepository saleRepository,
                      SalonApi salonApi, SalonServiceApi serviceApi, ShopCatalogApi shopApi,
-                     BookingApi bookingApi, ApplicationEventPublisher events, PaymentGateway stripe,
-                     JdbcTemplate jdbcTemplate) {
+                     PaymentGateway stripe, JdbcTemplate jdbcTemplate) {
         this.settingsRepository = settingsRepository;
         this.saleRepository = saleRepository;
         this.salonApi = salonApi;
         this.serviceApi = serviceApi;
         this.shopApi = shopApi;
-        this.bookingApi = bookingApi;
-        this.events = events;
         this.stripe = stripe;
         this.jdbc = JdbcClient.create(jdbcTemplate);
     }
@@ -63,32 +55,26 @@ class DashboardManager {
         return settingsRepository.findById(salonId).orElseGet(() -> defaults(salonId));
     }
 
-    DashboardSettings updateSettings(UUID salonId, boolean bookingManagement, boolean cashier,
-                                     boolean notifications, String defaultNotification) {
+    DashboardSettings updateSettings(UUID salonId, boolean bookingManagement, boolean cashier) {
         var salon = requireDashboard(salonId);
         if (bookingManagement && !hasFeature(salon, SalonFeature.BOOKING)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Enable Online Booking before enabling booking management");
         }
-        var saved = new DashboardSettings(salonId, bookingManagement, cashier, notifications,
-                trimToNull(defaultNotification), Instant.now());
+        var saved = new DashboardSettings(salonId, bookingManagement, cashier, Instant.now());
         // Upsert rather than settingsRepository.save(): the id (salon_id) is assigned, not generated,
         // so Spring Data JDBC treats the record as existing and issues an UPDATE — which silently
         // matches no row until one has been inserted, and nothing else ever inserts it.
         jdbc.sql("""
-                INSERT INTO dashboard_settings (salon_id, booking_management_enabled, cashier_enabled,
-                                                notifications_enabled, default_notification, updated_at)
-                VALUES (:id, :booking, :cashier, :notifications, :message, :updated)
+                INSERT INTO dashboard_settings (salon_id, booking_management_enabled, cashier_enabled, updated_at)
+                VALUES (:id, :booking, :cashier, :updated)
                 ON CONFLICT (salon_id) DO UPDATE SET
                     booking_management_enabled = EXCLUDED.booking_management_enabled,
                     cashier_enabled = EXCLUDED.cashier_enabled,
-                    notifications_enabled = EXCLUDED.notifications_enabled,
-                    default_notification = EXCLUDED.default_notification,
                     updated_at = EXCLUDED.updated_at
                 """)
                 .param("id", salonId).param("booking", saved.bookingManagementEnabled())
-                .param("cashier", saved.cashierEnabled()).param("notifications", saved.notificationsEnabled())
-                .param("message", saved.defaultNotification())
+                .param("cashier", saved.cashierEnabled())
                 .param("updated", saved.updatedAt().atOffset(ZoneOffset.UTC))
                 .update();
         return saved;
@@ -191,26 +177,6 @@ class DashboardManager {
         return saleRepository.findTop50BySalonIdOrderByCreatedAtDesc(salonId);
     }
 
-    void notifyBookingCustomer(UUID salonId, Long bookingId, String subject, String message) {
-        var salon = requireDashboard(salonId);
-        var settings = settings(salonId);
-        if (!settings.notificationsEnabled()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Dashboard notifications are disabled");
-        }
-        var booking = bookingApi.findById(salonId, bookingId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
-        if (booking.customerEmail() == null || booking.customerEmail().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This customer has no email address");
-        }
-        var body = trimToNull(message);
-        if (body == null) body = settings.defaultNotification();
-        if (body == null) body = "We have an update about your appointment. Please contact the salon if you have any questions.";
-        var notificationSubject = trimToNull(subject);
-        if (notificationSubject == null) notificationSubject = salon.name() + " — appointment update";
-        events.publishEvent(new DashboardNotificationRequestedEvent(salonId, bookingId, salon.name(),
-                booking.customerName(), booking.customerEmail(), notificationSubject, body, Instant.now()));
-    }
-
     private Salon requireDashboard(UUID salonId) {
         var salon = salonApi.findById(salonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Salon not found"));
@@ -226,7 +192,7 @@ class DashboardManager {
 
     private DashboardSettings defaults(UUID salonId) {
         var salon = salonApi.findById(salonId).orElseThrow();
-        return new DashboardSettings(salonId, hasFeature(salon, SalonFeature.BOOKING), true, true, null, null);
+        return new DashboardSettings(salonId, hasFeature(salon, SalonFeature.BOOKING), true, null);
     }
 
     private String trimToNull(String value) {

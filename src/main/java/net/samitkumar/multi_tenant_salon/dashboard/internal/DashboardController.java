@@ -19,12 +19,10 @@ class DashboardController {
         this.salonApi = salonApi;
     }
 
-    record SettingsRequest(boolean bookingManagementEnabled, boolean cashierEnabled,
-                           boolean notificationsEnabled, String defaultNotification) {}
+    record SettingsRequest(boolean bookingManagementEnabled, boolean cashierEnabled) {}
     record SaleRequest(String customerName, PosSale.PaymentMethod paymentMethod,
                        List<DashboardManager.SaleItemRequest> items) {}
     record CardCheckoutResponse(PosSale sale, String checkoutUrl) {}
-    record NotificationRequest(String subject, String message) {}
 
     @GetMapping("/settings")
     DashboardSettings settings(@PathVariable String salonId) {
@@ -34,7 +32,7 @@ class DashboardController {
     @PutMapping("/settings")
     DashboardSettings updateSettings(@PathVariable String salonId, @RequestBody SettingsRequest request) {
         return dashboard.updateSettings(salonApi.resolveId(salonId), request.bookingManagementEnabled(),
-                request.cashierEnabled(), request.notificationsEnabled(), request.defaultNotification());
+                request.cashierEnabled());
     }
 
     @GetMapping("/cashier/items")
@@ -63,11 +61,4 @@ class DashboardController {
         return ResponseEntity.ok(new CardCheckoutResponse(result.sale(), result.checkoutUrl()));
     }
 
-    @PostMapping("/bookings/{bookingId}/notifications")
-    ResponseEntity<Void> notifyCustomer(@PathVariable String salonId, @PathVariable Long bookingId,
-                                        @RequestBody(required = false) NotificationRequest request) {
-        dashboard.notifyBookingCustomer(salonApi.resolveId(salonId), bookingId,
-                request == null ? null : request.subject(), request == null ? null : request.message());
-        return ResponseEntity.accepted().build();
-    }
 }

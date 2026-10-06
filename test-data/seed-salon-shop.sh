@@ -128,9 +128,7 @@ echo "  handler = ${HANDLER}"
 echo "▶ Configuring Operations Dashboard…"
 dashboard_settings=$(jq -nc --arg salon "$SALON_NAME" '{
   bookingManagementEnabled:true,
-  cashierEnabled:true,
-  notificationsEnabled:true,
-  defaultNotification:("We have an update about your appointment at " + $salon + ". Reply to this email or call the salon if you have any questions.")
+  cashierEnabled:true
 }')
 must PUT "/api/salon-admin/${SALON_ID}/dashboard/settings" "$dashboard_settings" "Dashboard settings"
 echo "  appointment management, cashier and customer notifications enabled"

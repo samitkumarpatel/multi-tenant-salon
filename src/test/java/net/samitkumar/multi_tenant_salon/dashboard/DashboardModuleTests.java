@@ -35,19 +35,18 @@ class DashboardModuleTests {
         jdbcTemplate.update("INSERT INTO salon_feature (salon_id, feature) VALUES (?, 'BOOKING')", salonId);
     }
 
-    private void putSettings(boolean booking, boolean cashier, boolean notifications, String message) {
+    private void putSettings(boolean booking, boolean cashier) {
         client.put()
                 .uri("/api/salon-admin/{id}/dashboard/settings", salonId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
-                        {"bookingManagementEnabled": %s, "cashierEnabled": %s, "notificationsEnabled": %s, "defaultNotification": %s}
-                        """.formatted(booking, cashier, notifications, message == null ? "null" : "\"" + message + "\""))
+                        {"bookingManagementEnabled": %s, "cashierEnabled": %s}
+                        """.formatted(booking, cashier))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.bookingManagementEnabled").isEqualTo(booking)
-                .jsonPath("$.cashierEnabled").isEqualTo(cashier)
-                .jsonPath("$.notificationsEnabled").isEqualTo(notifications);
+                .jsonPath("$.cashierEnabled").isEqualTo(cashier);
     }
 
     @Test
@@ -58,14 +57,13 @@ class DashboardModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.bookingManagementEnabled").isEqualTo(true)
-                .jsonPath("$.cashierEnabled").isEqualTo(true)
-                .jsonPath("$.notificationsEnabled").isEqualTo(true);
+                .jsonPath("$.cashierEnabled").isEqualTo(true);
     }
 
     @Test
     void firstSaveIsPersistedAndReadBack() {
         // No dashboard_settings row exists yet — the first save must insert one.
-        putSettings(true, false, false, "See you soon");
+        putSettings(true, false);
 
         client.get()
                 .uri("/api/salon-admin/{id}/dashboard/settings", salonId)
@@ -73,15 +71,13 @@ class DashboardModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.bookingManagementEnabled").isEqualTo(true)
-                .jsonPath("$.cashierEnabled").isEqualTo(false)
-                .jsonPath("$.notificationsEnabled").isEqualTo(false)
-                .jsonPath("$.defaultNotification").isEqualTo("See you soon");
+                .jsonPath("$.cashierEnabled").isEqualTo(false);
     }
 
     @Test
     void laterSavesOverwriteThePreviousOnes() {
-        putSettings(false, false, true, null);
-        putSettings(true, true, false, null);
+        putSettings(false, false);
+        putSettings(true, true);
 
         client.get()
                 .uri("/api/salon-admin/{id}/dashboard/settings", salonId)
@@ -89,13 +85,12 @@ class DashboardModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.bookingManagementEnabled").isEqualTo(true)
-                .jsonPath("$.cashierEnabled").isEqualTo(true)
-                .jsonPath("$.notificationsEnabled").isEqualTo(false);
+                .jsonPath("$.cashierEnabled").isEqualTo(true);
     }
 
     @Test
     void disabledCashierIsEnforcedByTheCashierEndpoints() {
-        putSettings(true, false, true, null);
+        putSettings(true, false);
 
         client.get()
                 .uri("/api/salon-admin/{id}/dashboard/cashier/items", salonId)

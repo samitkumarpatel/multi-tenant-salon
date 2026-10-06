@@ -21,6 +21,7 @@ import {
 import { StaffSpotlight, StaffRating } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
+import type { SalonPolicy } from "./SalonPolicyLinks";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { CategoryIcon } from "./CategoryIcon";
 import { fontStack, loadGoogleFont, contrastText } from "./theme";
@@ -1625,13 +1626,14 @@ function Row({ label, value }: { label: string; value: string }) {
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
 export function BookingWizard({
-  salon, services, staff, theme, countries: countriesProp = [], initialServiceId = null, initialStaffId = null, onExit, onNavigate, getPagePath, standalone = false, headerExtra,
+  salon, services, staff, theme, countries: countriesProp = [], policies = [], initialServiceId = null, initialStaffId = null, onExit, onNavigate, getPagePath, standalone = false, headerExtra,
 }: {
   salon: Salon;
   services: ServiceItem[];
   staff: StaffMember[];
   theme: WebsiteTheme;
   countries?: Country[];
+  policies?: SalonPolicy[];
   /** Preselects the service and starts at step 2 */
   initialServiceId?: number | null;
   /** Preselects the staff member ("Book with me") — calendar opens filtered to them */
@@ -1918,7 +1920,7 @@ export function BookingWizard({
       </main>
 
       {/* Footer — same chrome as the salon website */}
-      <SiteFooter salon={salon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} />
+      <SiteFooter salon={salon} theme={theme} current="book" onBack={onExit} getPagePath={getPagePath} standalone={standalone} policies={policies} />
     </div>
   );
 }
