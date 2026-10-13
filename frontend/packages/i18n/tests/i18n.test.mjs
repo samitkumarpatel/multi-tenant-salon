@@ -44,3 +44,23 @@ test("every catalog entry supplies all five translations and preserves placehold
     }
   }
 });
+
+test("onboarding homepage copy has translations in every supported language", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const sources = await Promise.all([
+    "../../../apps/salon-onboarding/app/routes/home.tsx",
+    "../../../apps/salon-onboarding/app/components/SiteFooter.tsx",
+  ].map(path => readFile(new URL(path, import.meta.url), "utf8")));
+  const keys = new Set(sources.flatMap(source => [
+    ...Array.from(source.matchAll(/(?:\bt|translateUi)\(\s*"([^"]+)"/g), match => match[1].trim()),
+    ...Array.from(source.matchAll(/(?:label|name):\s*"([^"]+)"/g), match => match[1]),
+  ]));
+  // Copy supplied dynamically by the booking/team preview and shared beta banner.
+  for (const key of ["Cut & style", "Colour refresh", "45 min", "90 min", "Stylist", "Colourist", "Beta", "Product status", "This software is not ready for production use."]) keys.add(key);
+  for (const key of keys) {
+    const entry = messages[key] ?? Object.entries(messages).find(([candidate]) => candidate.toLowerCase() === key.toLowerCase())?.[1];
+    for (const { code } of LANGUAGES.filter(({ code }) => code !== "en")) {
+      assert.ok(entry?.[code]?.trim(), `Missing onboarding translation: ${code}: ${key}`);
+    }
+  }
+});

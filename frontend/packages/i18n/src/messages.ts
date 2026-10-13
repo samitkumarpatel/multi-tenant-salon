@@ -1166,6 +1166,53 @@ Each open day needs a closing time later than its opening time.|Hver åben dag s
 Enter a website address starting with https:// (for example, https://yoursalon.com).|Indtast en webadresse, der begynder med https:// (f.eks. https://yoursalon.com).|Ange en webbadress som börjar med https:// (till exempel https://yoursalon.com).|Skriv inn en nettadresse som starter med https:// (for eksempel https://yoursalon.com).|Saisissez une adresse commençant par https:// (par exemple https://yoursalon.com).|Geben Sie eine Webadresse ein, die mit https:// beginnt (z. B. https://yoursalon.com).
 Please read and accept the terms and privacy policy to continue.|Læs og acceptér vilkårene og privatlivspolitikken for at fortsætte.|Läs och godkänn villkoren och integritetspolicyn för att fortsätta.|Les og godta vilkårene og personvernerklæringen for å fortsette.|Veuillez lire et accepter les conditions et la politique de confidentialité pour continuer.|Lesen und akzeptieren Sie die Bedingungen und die Datenschutzerklärung, um fortzufahren.
 We couldn’t load the country list. Try again to choose your salon’s country.|Vi kunne ikke indlæse landelisten. Prøv igen for at vælge salonens land.|Vi kunde inte ladda landslistan. Försök igen för att välja salongens land.|Vi kunne ikke laste landlisten. Prøv igjen for å velge salongens land.|Impossible de charger la liste des pays. Réessayez pour choisir le pays du salon.|Die Länderliste konnte nicht geladen werden. Versuchen Sie es erneut, um das Land Ihres Salons auszuwählen.
+We use essential cookies to make our site work, and optional analytics cookies to understand how you use it. See our|Vi bruger nødvendige cookies for at få siden til at fungere og valgfrie analysecookies for at forstå, hvordan du bruger den. Se vores|Vi använder nödvändiga cookies för att webbplatsen ska fungera och valfria analyscookies för att förstå hur du använder den. Se vår|Vi bruker nødvendige informasjonskapsler for at nettstedet skal fungere og valgfrie analyseinformasjonskapsler for å forstå hvordan du bruker det. Se våre|Nous utilisons des cookies essentiels au fonctionnement du site et des cookies d’analyse facultatifs pour comprendre votre utilisation. Consultez notre|Wir verwenden notwendige Cookies für den Betrieb der Website und optionale Analyse-Cookies, um ihre Nutzung zu verstehen. Lesen Sie unsere
+for details. You can change your preferences at any time.|for detaljer. Du kan ændre dine præferencer når som helst.|för mer information. Du kan ändra dina inställningar när som helst.|for mer informasjon. Du kan endre innstillingene dine når som helst.|pour en savoir plus. Vous pouvez modifier vos préférences à tout moment.|für weitere Informationen. Sie können Ihre Einstellungen jederzeit ändern.
+Our community in numbers|Vores fællesskab i tal|Vår gemenskap i siffror|Fellesskapet vårt i tall|Notre communauté en chiffres|Unsere Gemeinschaft in Zahlen
+One platform. Many salons.|Én platform. Mange frisørsaloner.|En plattform. Många salonger.|Én plattform. Mange salonger.|Une plateforme. De nombreux salons.|Eine Plattform. Viele Salons.
+Loading community totals…|Indlæser fællesskabets tal…|Läser in gemenskapens siffror…|Laster inn fellesskapets tall…|Chargement des chiffres de la communauté…|Zahlen der Gemeinschaft werden geladen…
+Community totals are temporarily unavailable.|Fællesskabets tal er midlertidigt utilgængelige.|Gemenskapens siffror är tillfälligt otillgängliga.|Fellesskapets tall er midlertidig utilgjengelige.|Les chiffres de la communauté sont temporairement indisponibles.|Die Zahlen der Gemeinschaft sind vorübergehend nicht verfügbar.
+Bookings include all statuses.|Bookinger omfatter alle statusser.|Bokningar omfattar alla statusar.|Bestillinger omfatter alle statuser.|Les réservations incluent tous les statuts.|Buchungen umfassen alle Statuswerte.
+Explore salon features|Udforsk salonfunktioner|Utforska salongsfunktioner|Utforsk salongfunksjoner|Découvrez les fonctionnalités du salon|Salonfunktionen entdecken
+Your salon|Din frisørsalon|Din salong|Din salong|Votre salon|Ihr Salon
+Example preview|Eksempelvisning|Exempelförhandsvisning|Eksempelforhåndsvisning|Aperçu d’exemple|Beispielvorschau
+Your style.|Din stil.|Din stil.|Din stil.|Votre style.|Ihr Stil.
+Beautifully online.|Smukt præsenteret online.|Snyggt presenterad online.|Vakkert presentert på nett.|Une belle présence en ligne.|Ein schöner Auftritt im Netz.
+Services & appointments|Behandlinger og aftaler|Behandlingar och bokningar|Behandlinger og avtaler|Prestations et rendez-vous|Leistungen und Termine
+Salon website preview with a bright studio interior|Forhåndsvisning af salonens hjemmeside med et lyst saloninteriør|Förhandsvisning av salongens webbplats med en ljus salongsinteriör|Forhåndsvisning av salongens nettside med et lyst salonginteriør|Aperçu du site du salon avec un intérieur lumineux|Vorschau einer Salonwebsite mit hellem Saloninterieur
+A day at your salon|En dag i din salon|En dag på din salong|En dag i salongen din|Une journée dans votre salon|Ein Tag in Ihrem Salon
+Everyone, in sync.|Alle på samme hold.|Alla i samspel.|Alle i samspill.|Toute l’équipe au diapason.|Alle im Einklang.
+On the schedule|På vagtplanen|På schemat|På vaktplanen|Au planning|Im Dienstplan
+Main navigation|Hovednavigation|Huvudnavigering|Hovednavigasjon|Navigation principale|Hauptnavigation
+Owner sign in|Log ind som ejer|Logga in som ägare|Logg inn som eier|Connexion propriétaire|Inhaber-Anmeldung
+For independent salons. Built around you.|Til selvstændige frisører. Med dig i centrum.|För fristående salonger. Med dig i centrum.|For selvstendige salonger. Med deg i sentrum.|Pour les salons indépendants. Pensé pour vous.|Für unabhängige Salons. Auf Sie zugeschnitten.
+Your salon.|Din frisørsalon.|Din salong.|Din salong.|Votre salon.|Ihr Salon.
+Your next chapter.|Dit næste kapitel.|Ditt nästa kapitel.|Ditt neste kapittel.|Votre prochain chapitre.|Ihr nächstes Kapitel.
+Website. Bookings. Team. All in one place.|Hjemmeside. Bookinger. Team. Alt samlet ét sted.|Webbplats. Bokningar. Team. Allt på ett ställe.|Nettside. Bestillinger. Team. Alt på ett sted.|Site web. Réservations. Équipe. Tout au même endroit.|Website. Buchungen. Team. Alles an einem Ort.
+Set up your salon|Opret din frisørsalon|Skapa din salong|Opprett salongen din|Créez votre salon|Salon einrichten
+A spacious salon with styling chairs and tall windows|En rummelig salon med frisørstole og høje vinduer|En rymlig salong med frisörstolar och höga fönster|En romslig salong med frisørstoler og høye vinduer|Un salon spacieux avec des fauteuils de coiffure et de hautes fenêtres|Ein geräumiger Salon mit Friseurstühlen und hohen Fenstern
+A salon owner styling a customer's hair|En salonejer styler en kundes hår|En salongsägare stylar en kunds hår|En salongeier styler håret til en kunde|Un propriétaire de salon coiffe une cliente|Eine Saloninhaberin stylt die Haare einer Kundin
+More time for your craft.|Mere tid til dit håndværk.|Mer tid för ditt hantverk.|Mer tid til håndverket ditt.|Plus de temps pour votre savoir-faire.|Mehr Zeit für Ihr Handwerk.
+Your own salon website|Din frisørsalons egen hjemmeside|Din salongs egen webbplats|Din salongs egen nettside|Le site web de votre salon|Ihre eigene Salonwebsite
+Make it yours.|Gør det til dit eget.|Gör det till ditt.|Gjør det til ditt.|À votre image.|Ganz nach Ihrem Stil.
+Footer links|Links i sidefoden|Länkar i sidfoten|Lenker i bunnteksten|Liens de pied de page|Links in der Fußzeile
+Documentation|Dokumentation|Dokumentation|Dokumentasjon|Documentation|Dokumentation
+All rights reserved.|Alle rettigheder forbeholdes.|Alla rättigheter förbehållna.|Alle rettigheter forbeholdt.|Tous droits réservés.|Alle Rechte vorbehalten.
+Salons onboarded|Tilmeldte frisørsaloner|Registrerade salonger|Registrerte salonger|Salons inscrits|Registrierte Salons
+Bookings created|Oprettede bookinger|Skapade bokningar|Opprettede bestillinger|Réservations créées|Erstellte Buchungen
+Countries represented|Repræsenterede lande|Representerade länder|Representerte land|Pays représentés|Vertretene Länder
+Your website|Din hjemmeside|Din webbplats|Din nettside|Votre site web|Ihre Website
+Your bookings|Dine bookinger|Dina bokningar|Dine bestillinger|Vos réservations|Ihre Buchungen
+Your team|Dit team|Ditt team|Teamet ditt|Votre équipe|Ihr Team
+Cut & style|Klip og styling|Klippning och styling|Klipp og styling|Coupe et coiffage|Schnitt & Styling
+Colour refresh|Farveopfriskning|Färguppfräschning|Fargeoppfriskning|Raviver la couleur|Farbe auffrischen
+45 min|45 min.|45 min|45 min|45 min|45 Min.
+90 min|90 min.|90 min|90 min|90 min|90 Min.
+Colourist|Farvespecialist|Färgspecialist|Fargespesialist|Coloriste|Colorist
+Product status|Produktstatus|Produktstatus|Produktstatus|État du produit|Produktstatus
+Beta|Beta|Beta|Beta|Bêta|Beta
+This software is not ready for production use.|Denne software er ikke klar til produktionsbrug.|Denna programvara är inte redo för produktionsanvändning.|Denne programvaren er ikke klar for produksjonsbruk.|Ce logiciel n’est pas prêt pour une utilisation en production.|Diese Software ist noch nicht für den Produktivbetrieb bereit.
+Sample figures|Eksempeltal|Exempelsiffror|Eksempeltall|Chiffres d’exemple|Beispielzahlen
 `.trim().split("\n").map((row) => row.split("|"));
 
 export const messages: Record<string, Record<Exclude<Language, "en">, string>> = Object.fromEntries(

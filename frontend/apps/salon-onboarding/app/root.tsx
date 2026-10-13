@@ -123,7 +123,7 @@ export function ErrorBoundary() {
 }
 
 function AppDocument() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const { state } = useNavigation();
 
   return (
@@ -136,9 +136,9 @@ function AppDocument() {
         <Links />
       </head>
       <body>
-        <aside aria-label="Product status" className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-medium leading-5 text-amber-950 sm:text-sm">
-          <span className="mr-2 inline-flex rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">Beta</span>
-          This software is not ready for production use.
+        <aside aria-label={t("Product status")} className="border-b border-amber-200 bg-amber-50 pl-3 pr-20 sm:px-20 py-2 text-center text-xs font-medium leading-5 text-amber-950 sm:text-sm">
+          <span className="mr-2 inline-flex rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">{t("Beta")}</span>
+          {t("This software is not ready for production use.")}
         </aside>
         <NavProgress loading={state !== "idle"} />
         <LanguageSelector compact floating /><Outlet />
