@@ -45,6 +45,18 @@ class SalonService implements SalonApi {
         this.countryApi = countryApi;
     }
 
+    /** Blank maps link → null; anything but an http(s) URL is rejected so the website never renders a bad href. */
+    static Salon.Location normalizeLocation(Salon.Location location) {
+        if (location == null) return null;
+        var maps = location.mapsUrl() == null ? null : location.mapsUrl().strip();
+        if (maps == null || maps.isEmpty()) maps = null;
+        else if (maps.length() > 2000 || !maps.matches("(?i)^https?://\\S+$")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Maps link must be an http(s) URL of at most 2000 characters");
+        }
+        return new Salon.Location(location.address(), location.city(), location.state(), location.country(),
+                location.zipCode(), maps);
+    }
+
     private String deriveBusinessIdLabel(Salon.Location location) {
         if (location == null || location.country() == null) return null;
         return countryApi.findByName(location.country())
@@ -84,6 +96,7 @@ class SalonService implements SalonApi {
                   List<Salon.OperatingHours> operatingHours, List<SalonFeature> features,
                   String businessRegistrationId, Boolean showBusinessId, boolean termsAccepted) {
         log.info("[SalonService] Creating salon name='{}' owner='{}'", name, owner.email());
+        location = normalizeLocation(location);
         var handler = deriveUniqueHandler(name);
         var featureRefs = features != null
                 ? features.stream().map(Salon.SalonFeatureRef::new).toList()
@@ -149,14 +162,15 @@ class SalonService implements SalonApi {
                             List<Salon.OperatingHours> operatingHours, Integer bookingAdvanceDays,
                             String businessRegistrationId, Boolean showBusinessId, Boolean bookingRequiresConfirmation) {
         log.info("[SalonService] Updating salon id={}", id);
+        var normalizedLocation = normalizeLocation(location);
         return repository.findById(id).map(existing -> {
             var nameToSave = (name != null && !name.isBlank()) ? name : existing.name();
             var days = bookingAdvanceDays != null ? bookingAdvanceDays : existing.bookingAdvanceDays();
             var bizId    = businessRegistrationId != null ? businessRegistrationId : existing.businessRegistrationId();
             var showBiz  = showBusinessId != null ? showBusinessId : existing.showBusinessId();
             var needsConfirm = bookingRequiresConfirmation != null ? bookingRequiresConfirmation : existing.bookingRequiresConfirmation();
-            var bizLabel = location != null ? deriveBusinessIdLabel(location) : existing.businessIdLabel();
-            var updated = new Salon(existing.id(), nameToSave, existing.handler(), existing.owner(), location, contact,
+            var bizLabel = normalizedLocation != null ? deriveBusinessIdLabel(normalizedLocation) : existing.businessIdLabel();
+            var updated = new Salon(existing.id(), nameToSave, existing.handler(), existing.owner(), normalizedLocation, contact,
                     operatingHours, existing.features(), days, bizId, showBiz, needsConfirm, bizLabel, existing.createdAt(), existing.status(),
                     existing.termsAccepted(), existing.termsAcceptedAt());
             var saved = repository.save(updated);

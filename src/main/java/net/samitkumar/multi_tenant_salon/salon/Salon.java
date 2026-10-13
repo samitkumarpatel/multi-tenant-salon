@@ -50,7 +50,8 @@ public record Salon(
             @Column("owner_phone") String phone
     ) {}
 
-    public record Location(String address, String city, String state, String country, String zipCode) {}
+    /** {@code mapsUrl} optionally overrides the auto-generated Google Maps search link for the address. */
+    public record Location(String address, String city, String state, String country, String zipCode, String mapsUrl) {}
 
     /**
      * Phone/email/website plus the salon's social profiles. Each social platform carries its URL

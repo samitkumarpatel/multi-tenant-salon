@@ -117,6 +117,7 @@ spring:
         - classpath:db/V14__ratings.sql
         - classpath:db/V15__salon_languages.sql
         - classpath:db/V16__salon_policies.sql
+        - classpath:db/V17__location_maps_url.sql
   modulith:
     events:
       jdbc:

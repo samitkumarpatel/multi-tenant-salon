@@ -174,6 +174,65 @@ class SalonModuleTests {
     }
 
     @Test
+    void updateLocationMapsLink() {
+        var created = client.post()
+                .uri("/api/salon-onboarding")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "name": "Maps Salon",
+                            "ownerName": "Dana",
+                            "ownerEmail": "dana@test.com",
+                            "termsAccepted": true
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Void.class)
+                .returnResult();
+        String path = created.getResponseHeaders().getLocation().getPath();
+        String id = path.substring(path.lastIndexOf('/') + 1);
+
+        client.put()
+                .uri("/api/salon-admin/" + id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "name": "Maps Salon", "location": { "address": "1 Main St", "mapsUrl": "  https://maps.app.goo.gl/abc  " } }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.location.address").isEqualTo("1 Main St")
+                .jsonPath("$.location.mapsUrl").isEqualTo("https://maps.app.goo.gl/abc");
+
+        client.get().uri("/api/salon/" + id).exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.location.mapsUrl").isEqualTo("https://maps.app.goo.gl/abc");
+
+        for (var bad : java.util.List.of("javascript:alert(1)", "maps.google.com/x")) {
+            client.put()
+                    .uri("/api/salon-admin/" + id)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{ \"name\": \"Maps Salon\", \"location\": { \"address\": \"1 Main St\", \"mapsUrl\": \"" + bad + "\" } }")
+                    .exchange()
+                    .expectStatus().isBadRequest();
+        }
+
+        // A blank link clears the override (the website falls back to an address search)
+        client.put()
+                .uri("/api/salon-admin/" + id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "name": "Maps Salon", "location": { "address": "1 Main St", "mapsUrl": "  " } }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.location.mapsUrl").doesNotExist();
+    }
+
+    @Test
     void deleteSalon() {
         var created = client.post()
                 .uri("/api/salon-onboarding")

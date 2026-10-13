@@ -3,7 +3,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useLoaderData, useRouteError, isRouteErrorResponse, useNavigate, useLocation, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { X, Palette, Check, Wand2, RotateCcw, ChevronDown } from "lucide-react";
+import { X, Palette, Check, Wand2, RotateCcw, ChevronDown, Sparkles } from "lucide-react";
 import {
   SalonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS,
   loadGoogleFont, fontStack, isLightColor, contrastText,
@@ -198,9 +198,19 @@ function ColorPicker({ label, value, onChange }: {
   );
 }
 
-// ── Admin-only: font picker (14 presets + searchable full Google Fonts list) ───
+// ── Admin-only: font picker (one dropdown: 14 presets first, then all of Google Fonts) ─
 
 const FONT_CATEGORIES = ["All", "Sans Serif", "Serif", "Display", "Handwriting", "Monospace"] as const;
+const LIST_LIMIT = 60;
+
+/** Presets as dropdown rows: the family they render in (for search/subtitle) and a category for the filter chips. */
+const PRESET_ROWS = Object.entries(FONTS).map(([id, font]) => {
+  const family = /'([^']+)'/.exec(font.stack)?.[1] ?? (id === "georgia" ? "Georgia" : "System UI");
+  const category: GoogleFontCategory = font.stack.includes("cursive") ? "Handwriting"
+    : /(^|[^-])serif/.test(font.stack) ? "Serif" : "Sans Serif";
+  return { id, label: font.label, stack: font.stack, family, category };
+});
+const PRESET_FAMILIES = new Set(PRESET_ROWS.map((p) => p.family.toLowerCase()));
 
 function FontField({ value, onChange, accent }: {
   value: string;
@@ -212,96 +222,250 @@ function FontField({ value, onChange, accent }: {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<GoogleFontCategory | "All">("All");
 
-  const isPreset = value in FONTS;
+  const preset = PRESET_ROWS.find((p) => p.id === value);
   const selCls = accent === "violet"
     ? "border-violet-400 bg-violet-50 text-violet-800"
     : "border-amber-400 bg-amber-50 text-amber-800";
+  const rowSel = accent === "violet" ? "bg-violet-50 text-violet-800 font-semibold" : "bg-amber-50 text-amber-800 font-semibold";
 
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return GOOGLE_FONTS
-      .filter((f) => (cat === "All" || f.category === cat) && (!needle || f.family.toLowerCase().includes(needle)))
-      .slice(0, 60);
-  }, [query, cat]);
+  const needle = query.trim().toLowerCase();
+  const presetMatches = useMemo(() => PRESET_ROWS.filter((p) =>
+    (cat === "All" || p.category === cat) &&
+    (!needle || p.label.toLowerCase().includes(needle) || p.family.toLowerCase().includes(needle)),
+  ), [needle, cat]);
+
+  // Preset families (Inter, Lato…) are listed once, as their preset, so a pick always stores the slug.
+  const googleMatches = useMemo(() => GOOGLE_FONTS
+    .filter((f) => !PRESET_FAMILIES.has(f.family.toLowerCase()) &&
+      (cat === "All" || f.category === cat) && (!needle || f.family.toLowerCase().includes(needle)))
+    .slice(0, LIST_LIMIT), [needle, cat]);
 
   // Load the CSS for the rows currently shown, and for the active non-preset selection so its
   // preview renders in its own face.
-  useEffect(() => { matches.forEach((f) => loadGoogleFont(f.family)); }, [matches]);
-  useEffect(() => { if (!isPreset) loadGoogleFont(value); }, [value, isPreset]);
+  useEffect(() => { if (open) googleMatches.forEach((f) => loadGoogleFont(f.family)); }, [open, googleMatches]);
+  useEffect(() => { if (!preset) loadGoogleFont(value); }, [value, preset]);
+
+  function pick(v: string) {
+    onChange(v);
+    setOpen(false);
+    setQuery("");
+  }
+
+  const groupCls = "px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-400";
 
   return (
     <section>
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">{translateUi("Font")}</p>
 
-      <div className="grid grid-cols-2 gap-2">
-        {Object.entries(FONTS).map(([id, font]) => (
-          <button
-            key={id} type="button" onClick={() => onChange(id)}
-            className={`px-3 py-2.5 text-xs rounded-lg border text-left transition-all cursor-pointer ${
-              value === id ? `${selCls} font-semibold` : "border-slate-200 hover:border-slate-300 text-slate-600"
-            }`}
-            style={{ fontFamily: font.stack }}
-          >
-            {font.label}
-          </button>
-        ))}
-      </div>
+      <button
+        type="button" onClick={() => setOpen((o) => !o)}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm rounded-lg border transition-all cursor-pointer ${selCls}`}
+        style={{ fontFamily: fontStack(value) }}
+      >
+        <span className="truncate font-semibold">{preset ? translateUi(preset.label) : value}</span>
+        <span className="flex items-center gap-1.5 shrink-0">
+          {preset && <span className="text-[10px] font-normal opacity-60" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>{preset.family}</span>}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
+      </button>
 
-      <div className="mt-2.5">
-        <button
-          type="button" onClick={() => setOpen((o) => !o)}
-          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-xs rounded-lg border transition-all cursor-pointer ${
-            !isPreset ? `${selCls} font-semibold` : "border-slate-200 hover:border-slate-300 text-slate-600"
-          }`}
-          style={!isPreset ? { fontFamily: fontStack(value) } : undefined}
-        >
-          <span className="truncate">{isPreset ? translateUi("More fonts — all of Google Fonts") : value}</span>
-          <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
-
-        {open && (
-          <div className="mt-1.5 rounded-lg border border-slate-200 bg-white overflow-hidden">
-            <div className="p-2 border-b border-slate-100 space-y-1.5">
-              <input
-                autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${GOOGLE_FONTS.length.toLocaleString(uiLocale)} fonts…`}
-                className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-slate-300"
-              />
-              <div className="flex flex-wrap gap-1">
-                {FONT_CATEGORIES.map((c) => (
-                  <button
-                    key={c} type="button" onClick={() => setCat(c)}
-                    className={`px-2 py-0.5 rounded-full text-[10px] border cursor-pointer ${
-                      cat === c ? "border-slate-400 bg-slate-100 text-slate-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="max-h-56 overflow-y-auto">
-              {matches.length === 0 && <p className="text-[11px] text-slate-400 px-3 py-3">{translateUi("No fonts match.")}</p>}
-              {matches.map((f) => (
+      {open && (
+        <div className="mt-1.5 rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="p-2 border-b border-slate-100 space-y-1.5">
+            <input
+              autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Search ${(GOOGLE_FONTS.length).toLocaleString(uiLocale)} fonts…`}
+              className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-slate-300"
+            />
+            <div className="flex flex-wrap gap-1">
+              {FONT_CATEGORIES.map((c) => (
                 <button
-                  key={f.family} type="button"
-                  onClick={() => { onChange(f.family); setOpen(false); setQuery(""); }}
-                  className={`w-full flex items-baseline justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer ${
-                    value === f.family ? "bg-slate-50 font-semibold" : "text-slate-700"
+                  key={c} type="button" onClick={() => setCat(c)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] border cursor-pointer ${
+                    cat === c ? "border-slate-400 bg-slate-100 text-slate-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
                   }`}
-                  style={{ fontFamily: fontStack(f.family) }}
                 >
-                  <span className="truncate">{f.family}</span>
-                  <span className="text-[10px] text-slate-400 shrink-0">{f.category}</span>
+                  {c}
                 </button>
               ))}
-              {matches.length === 60 && (
-                <p className="text-[10px] text-slate-400 px-3 py-2 border-t border-slate-100">{translateUi("Showing the first 60 — refine your search to see more.")}</p>
-              )}
             </div>
           </div>
+          <div className="max-h-72 overflow-y-auto">
+            {presetMatches.length === 0 && googleMatches.length === 0 && (
+              <p className="text-[11px] text-slate-400 px-3 py-3">{translateUi("No fonts match.")}</p>
+            )}
+            {presetMatches.length > 0 && (
+              <>
+                <p className={groupCls}>{translateUi("Curated")}</p>
+                {presetMatches.map((p) => (
+                  <button
+                    key={p.id} type="button" onClick={() => pick(p.id)}
+                    className={`w-full flex items-baseline justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer ${
+                      value === p.id ? rowSel : "text-slate-700"
+                    }`}
+                    style={{ fontFamily: p.stack }}
+                  >
+                    <span className="truncate">{translateUi(p.label)}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>{p.family}</span>
+                  </button>
+                ))}
+              </>
+            )}
+            {googleMatches.length > 0 && (
+              <>
+                <p className={`${groupCls} ${presetMatches.length ? "border-t border-slate-100 mt-1" : ""}`}>{translateUi("All Google Fonts")}</p>
+                {googleMatches.map((f) => (
+                  <button
+                    key={f.family} type="button" onClick={() => pick(f.family)}
+                    className={`w-full flex items-baseline justify-between gap-2 text-left px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer ${
+                      value === f.family ? rowSel : "text-slate-700"
+                    }`}
+                    style={{ fontFamily: fontStack(f.family) }}
+                  >
+                    <span className="truncate">{f.family}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>{f.category}</span>
+                  </button>
+                ))}
+              </>
+            )}
+            {googleMatches.length === LIST_LIMIT && (
+              <p className="text-[10px] text-slate-400 px-3 py-2 border-t border-slate-100">{translateUi("Showing the first 60 — refine your search to see more.")}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Admin-only: AI palette matcher ────────────────────────────────────────────
+
+type ThemeSuggestion = Pick<WebsiteTheme,
+  "heroBg" | "heroTextColor" | "accentColor" | "logoBgColor" | "headerBg" | "footerBg" | "chatBg" | "fontFamily"
+> & { name: string; mood: string };
+
+/**
+ * Asks the backend for three coordinated palettes (hero, branding, header/footer, chat + font)
+ * and applies the picked one to the live preview. Nothing is persisted until "Save Changes".
+ */
+function AiThemeMatcher({ salonId, salonName, services, theme, onChange, accent }: {
+  salonId: string; salonName: string; services: ServiceItem[];
+  theme: WebsiteTheme; onChange: (t: WebsiteTheme) => void; accent: "violet" | "amber";
+}) {
+  const { t: translateUi } = useI18n();
+  const [style, setStyle] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<ThemeSuggestion[]>([]);
+  const [picked, setPicked] = useState<number | null>(null);
+  // Theme as it was before the first AI pick, so the admin can back out of all suggestions.
+  const [before, setBefore] = useState<WebsiteTheme | null>(null);
+
+  const btn = accent === "violet" ? "bg-violet-600 hover:bg-violet-700" : "bg-amber-500 hover:bg-amber-600";
+  const ring = accent === "violet" ? "border-violet-400 ring-2 ring-violet-200" : "border-amber-400 ring-2 ring-amber-200";
+
+  useEffect(() => { suggestions.forEach((s) => loadGoogleFont(s.fontFamily)); }, [suggestions]);
+
+  async function suggest() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch<{ suggestions: ThemeSuggestion[] }>(`${ADMIN_API}/${salonId}/ai/website-theme`, {
+        method: "POST",
+        body: JSON.stringify({
+          salonName,
+          style: style.trim() || undefined,
+          services: [...new Set(services.map((s) => s.name).filter(Boolean))].slice(0, 40),
+          websiteType: theme.websiteType,
+        }),
+      });
+      setSuggestions(res.suggestions);
+      setPicked(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : translateUi("AI suggestions failed — try again"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function apply(i: number) {
+    const { name: _name, mood: _mood, ...colours } = suggestions[i];
+    if (!before) setBefore(theme);
+    setPicked(i);
+    onChange({ ...theme, ...colours });
+  }
+
+  function undo() {
+    if (before) onChange(before);
+    setBefore(null);
+    setPicked(null);
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <Sparkles className="w-3 h-3" /> {translateUi("Match with AI")}
+        </p>
+        {before && (
+          <button onClick={undo} className="flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer">
+            <RotateCcw className="w-2.5 h-2.5" /> {translateUi("Undo")}
+          </button>
         )}
       </div>
+      <p className="text-[11px] text-slate-400 leading-relaxed">
+        {translateUi("Picks colours for every section and a font that match each other and your salon.")}
+      </p>
+      <input
+        value={style} onChange={(e) => setStyle(e.target.value)} maxLength={300}
+        onKeyDown={(e) => e.key === "Enter" && !loading && suggest()}
+        placeholder={translateUi("Style (optional) — e.g. luxury, minimal, bold barber")}
+        className="w-full text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-slate-300"
+      />
+      <button
+        onClick={suggest} disabled={loading}
+        className={`w-full inline-flex items-center justify-center gap-2 text-xs font-semibold py-2 rounded-lg text-white transition-all cursor-pointer disabled:opacity-60 disabled:cursor-default ${btn}`}
+      >
+        {loading
+          ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {translateUi("Designing…")}</>
+          : <><Sparkles className="w-3.5 h-3.5" /> {suggestions.length ? translateUi("Suggest again") : translateUi("Suggest matching design")}</>}
+      </button>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+
+      {suggestions.length > 0 && (
+        <div className="space-y-2">
+          {suggestions.map((s, i) => (
+            <button
+              key={`${s.name}-${i}`} onClick={() => apply(i)}
+              className={`w-full text-left rounded-lg border overflow-hidden bg-white transition-all cursor-pointer hover:shadow-md ${
+                picked === i ? ring : "border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              {/* Mini site mock: header / hero with accent CTA + logo badge / footer */}
+              <div style={{ background: s.headerBg }} className="h-2.5" />
+              <div style={{ background: s.heroBg, color: s.heroTextColor, fontFamily: fontStack(s.fontFamily) }} className="px-2.5 py-2 flex items-center gap-2">
+                <span style={{ background: s.logoBgColor, color: contrastText(s.logoBgColor) }}
+                  className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center text-[9px] font-bold">
+                  {salonName.charAt(0).toUpperCase()}
+                </span>
+                <span className="text-sm font-semibold truncate flex-1">{s.name}</span>
+                <span style={{ background: s.accentColor, color: contrastText(s.accentColor) }}
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0">
+                  {translateUi("Book")}
+                </span>
+              </div>
+              <div style={{ background: s.footerBg }} className="h-2.5" />
+              <div className="px-2.5 py-1.5 flex items-start gap-1.5">
+                {picked === i && <Check className="w-3 h-3 mt-0.5 shrink-0 text-emerald-500" />}
+                <p className="text-[10px] text-slate-500 leading-snug">
+                  <span className="font-semibold text-slate-600">{FONTS[s.fontFamily]?.label ?? s.fontFamily}</span> · {s.mood}
+                </p>
+              </div>
+            </button>
+          ))}
+          <p className="text-[10px] text-slate-400">{translateUi("Click a design to preview it, then Save Changes to publish.")}</p>
+        </div>
+      )}
     </section>
   );
 }
@@ -310,8 +474,9 @@ function FontField({ value, onChange, accent }: {
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-function ThemePanel({ salonId, theme, onChange, onClose }: {
-  salonId: string; theme: WebsiteTheme; onChange: (t: WebsiteTheme) => void; onClose: () => void;
+function ThemePanel({ salonId, salonName, services, theme, onChange, onClose }: {
+  salonId: string; salonName: string; services: ServiceItem[];
+  theme: WebsiteTheme; onChange: (t: WebsiteTheme) => void; onClose: () => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -327,7 +492,7 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
         body: JSON.stringify({
           heroBg: theme.heroBg, heroTextColor: theme.heroTextColor, accentColor: theme.accentColor,
           fontFamily: theme.fontFamily, logoBgColor: theme.logoBgColor,
-          headerBg: theme.headerBg, footerBg: theme.footerBg, mapsUrl: theme.mapsUrl ?? null,
+          headerBg: theme.headerBg, footerBg: theme.footerBg,
           chatBg: theme.chatBg ?? null, chatLayout: theme.chatLayout ?? "fullscreen",
         }),
       });
@@ -339,7 +504,6 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
     }
   }
 
-  const accentRing = isGenUI ? "focus:border-violet-400 focus:ring-violet-400/20" : "focus:border-amber-400 focus:ring-amber-400/20";
   const saveBtn    = isGenUI
     ? "bg-violet-600 hover:bg-violet-700"
     : "bg-amber-500 hover:bg-amber-600";
@@ -368,12 +532,26 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
+        {isGenUI && (
+          <p className="text-[11px] text-slate-400 leading-relaxed bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5">
+            {translateUi("These settings style the ")}<span className="font-semibold text-violet-700">{translateUi("chat window shell")}</span> {translateUi("your AI Receptionist greets visitors in. ")}</p>
+        )}
+
+        {/* Site-wide choices first (AI match, font); section-by-section colours follow. */}
+        <AiThemeMatcher
+          salonId={salonId} salonName={salonName} services={services}
+          theme={theme} onChange={onChange} accent={isGenUI ? "violet" : "amber"}
+        />
+
+        <FontField
+          value={theme.fontFamily}
+          onChange={(v) => onChange({ ...theme, fontFamily: v })}
+          accent={isGenUI ? "violet" : "amber"}
+        />
+
         {isGenUI ? (
           // ── AI Receptionist palette — only what affects the chat shell ────
           <>
-            <p className="text-[11px] text-slate-400 leading-relaxed bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5">
-              {translateUi("These settings style the ")}<span className="font-semibold text-violet-700">{translateUi("chat window shell")}</span> {translateUi("your AI Receptionist greets visitors in. ")}</p>
-
             <section>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{translateUi("Colours")}</p>
               <div className="space-y-4">
@@ -383,12 +561,6 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
                 <ColorPicker label={translateUi("Avatar Color")} value={theme.logoBgColor} onChange={(v) => onChange({ ...theme, logoBgColor: v })} />
               </div>
             </section>
-
-            <FontField
-              value={theme.fontFamily}
-              onChange={(v) => onChange({ ...theme, fontFamily: v })}
-              accent="violet"
-            />
 
             <section>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">{translateUi("Layout")}</p>
@@ -456,25 +628,8 @@ function ThemePanel({ salonId, theme, onChange, onClose }: {
               <div className="space-y-4">
                 <ColorPicker label={translateUi("Header Background")} value={theme.headerBg} onChange={(v) => onChange({ ...theme, headerBg: v })} />
                 <ColorPicker label={translateUi("Footer Background")} value={theme.footerBg} onChange={(v) => onChange({ ...theme, footerBg: v })} />
-                <div>
-                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1.5">{translateUi("Maps link URL")}</p>
-                  <input
-                    type="url"
-                    className={`w-full font-mono text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none focus:ring-1 ${accentRing}`}
-                    placeholder={"https://maps.google.com/…"}
-                    value={theme.mapsUrl ?? ""}
-                    onChange={(e) => onChange({ ...theme, mapsUrl: e.target.value || undefined })}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">{translateUi("Leave empty to use auto-generated Google Maps link.")}</p>
-                </div>
               </div>
             </section>
-
-            <FontField
-              value={theme.fontFamily}
-              onChange={(v) => onChange({ ...theme, fontFamily: v })}
-              accent="amber"
-            />
           </>
         )}
 
@@ -578,6 +733,8 @@ export default function SalonPreviewPage() {
       {showDesign && (
         <ThemePanel
           salonId={salonId}
+          salonName={salon.name}
+          services={services}
           theme={theme}
           onChange={setTheme}
           onClose={() => setShowDesign(false)}

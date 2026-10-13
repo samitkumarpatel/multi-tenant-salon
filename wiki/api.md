@@ -582,7 +582,6 @@ service price or the configured deposit percentage. If Checkout creation fails t
   "logoBgColor": "#DB2777",
   "headerBg": "#E2E8F0",
   "footerBg": "#E2E8F0",
-  "mapsUrl": null,
   "chatLayout": "fullscreen",
   "chatBg": "#EEF2F4",
   "websiteType": "STATIC_WEBSITE",
@@ -590,7 +589,7 @@ service price or the configured deposit percentage. If Checkout creation fails t
 }
 ```
 
-`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory). `mapsUrl` is `null` until the admin sets a Google Maps embed URL. `chatLayout` controls how the Generative UI chat opens — `"windowed"` for a centered card, `"fullscreen"` (the default) otherwise. The legacy value `"app"` is treated as `"fullscreen"`. `fontFamily` is either a preset slug (`"nunito"`, `"playfair"`, …) or any Google Fonts family name (`"Noto Sans KR"`, `"Roboto Slab"`, …) — the admin picker offers both; the default is `"Noto Sans KR"`.
+`updatedAt` is `null` when the theme has never been explicitly saved (defaults are returned in-memory). The custom maps link is not part of the theme — it lives on the salon's [Location](#location) (`location.mapsUrl`). `chatLayout` controls how the Generative UI chat opens — `"windowed"` for a centered card, `"fullscreen"` (the default) otherwise. The legacy value `"app"` is treated as `"fullscreen"`. `fontFamily` is either a preset slug (`"nunito"`, `"playfair"`, …) or any Google Fonts family name (`"Noto Sans KR"`, `"Roboto Slab"`, …) — the admin picker offers both; the default is `"Noto Sans KR"`.
 
 **Flow**
 
@@ -799,6 +798,70 @@ chips instead. Each string is sent to `POST .../chat` verbatim when tapped.
 
 ---
 
+## AI Website Theme Matching — Admin
+
+Powers **Match with AI** at the top of the website design panel (both the static website
+and the AI Receptionist chat-window palettes) in salon-admin's preview (`?design=1`).
+
+| Method and path | Access in OAuth2 mode |
+|---|---|
+| `POST /api/salon-admin/{salonId}/ai/website-theme` | Active `OWNER` claim for the salon UUID, or `ROLE_SUPER_ADMIN` |
+
+Request (`application/json`):
+
+```json
+{
+  "salonName": "Rose Studio",
+  "style": "luxury, soft pink",
+  "services": ["Balayage", "Bridal makeup"],
+  "websiteType": "STATIC_WEBSITE"
+}
+```
+
+`salonName` is required (nonblank, max 200). `style` (max 300), `services` (max 40 names of
+max 120 chars) and `websiteType` are optional context; all are passed to the model as data.
+
+Example `200 OK` response (values vary):
+
+```json
+{
+  "suggestions": [
+    {
+      "name": "Blush Luxe",
+      "mood": "Soft blush tones with an elegant serif feel refined and bridal-ready.",
+      "heroBg": "#FDF2F8", "heroTextColor": "#831843", "accentColor": "#DB2777",
+      "logoBgColor": "#BE185D", "headerBg": "#FCE7F3", "footerBg": "#FCE7F3",
+      "chatBg": "#FFF7FB", "fontFamily": "playfair"
+    }
+  ]
+}
+```
+
+Up to three coordinated palettes come from one model call. Each sets every design-panel
+colour plus `fontFamily`, which is always one of the preset slugs (`inter`, `playfair`,
+`raleway`, `lato`, `poppins`, `montserrat`, `lora`, `cormorant`, `oswald`, `dancing`,
+`nunito`, `merriweather`, `system`, `georgia`). The backend normalises colours to uppercase
+`#RRGGBB`, defaults a missing `chatBg` to `heroBg`, and swaps `heroTextColor` for `#0F172A`
+or `#FFFFFF` when its contrast against `heroBg` is below 4.5:1.
+
+| Status | Meaning |
+|---|---|
+| `400` | Missing/blank/oversized `salonName`, or another field over its limit |
+| `401` | Missing or invalid bearer token in OAuth2 mode |
+| `403` | Salon ownership check failed in OAuth2 mode |
+| `502` | Model output malformed, empty, or contained an invalid colour or unknown font |
+| `503` | Model request failed; design suggestions are temporarily unavailable |
+
+In the panel, each suggestion renders as a mini header/hero/footer mock in its own font.
+Clicking one previews it live (keeping the chat layout); **Undo** restores the
+theme from before the first pick. Nothing is saved until **Save Changes**
+(`PUT /api/salon-admin/{salonId}/website`).
+
+Implemented by `chat/internal/ThemeSuggestController` using the existing Spring AI model;
+stateless, no tools or chat memory, reads no salon records and persists nothing.
+
+---
+
 ## AI Text Polishing — Admin and Staff
 
 Powers **Fix with AI** on service, product, brand and category descriptions and staff bios
@@ -997,7 +1060,8 @@ Updates name, location, contact, operating hours, and business registration deta
     "city": "New York",
     "state": "NY",
     "country": "United States",
-    "zipCode": "10022"
+    "zipCode": "10022",
+    "mapsUrl": "https://maps.app.goo.gl/AbCdEf123"
   },
   "contact": {
     "phone": "+1987654321",
@@ -1015,7 +1079,7 @@ Updates name, location, contact, operating hours, and business registration deta
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `name` | string | yes | Display name of the salon |
-| `location` | object | no | See [Location](#location); `businessIdLabel` is re-derived when country changes |
+| `location` | object | no | See [Location](#location); replaced as a whole, so send `mapsUrl` back to keep it. `businessIdLabel` is re-derived when country changes |
 | `contact` | object | no | See [ContactInfo](#contactinfo) |
 | `operatingHours` | array | no | Replaces existing hours when provided |
 | `bookingAdvanceDays` | integer | no | Preserved if omitted |
@@ -1024,6 +1088,8 @@ Updates name, location, contact, operating hours, and business registration deta
 | `bookingRequiresConfirmation` | boolean | no | Preserved if omitted. Use `PATCH .../booking-settings` for a focused update. |
 
 **Response** `200 OK` — updated salon object
+
+**Response** `400 Bad Request` — missing `name`, or `location.mapsUrl` is not an http(s) URL (max 2000 chars)
 
 **Response** `404 Not Found`
 
@@ -1306,7 +1372,6 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
   "logoBgColor": "#6366F1",
   "headerBg": "#0F172A",
   "footerBg": "#0F172A",
-  "mapsUrl": "https://www.google.com/maps/embed?pb=...",
   "chatLayout": "fullscreen"
 }
 ```
@@ -1320,7 +1385,6 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 | `logoBgColor` | string | Background color behind the salon logo |
 | `headerBg` | string | Navigation bar background color |
 | `footerBg` | string | Footer background color |
-| `mapsUrl` | string | Google Maps embed URL for the salon location |
 | `chatLayout` | string | How the Generative UI chat opens: `"windowed"` or `"fullscreen"` (default) |
 
 **Response** `200 OK`
@@ -1335,7 +1399,6 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
   "logoBgColor": "#6366F1",
   "headerBg": "#0F172A",
   "footerBg": "#0F172A",
-  "mapsUrl": "https://www.google.com/maps/embed?pb=...",
   "chatLayout": "fullscreen",
   "websiteType": "STATIC_WEBSITE",
   "updatedAt": "2026-07-08T12:00:00Z"
@@ -2439,13 +2502,14 @@ new is the pair of endpoints that actually activate it: [`POST /api/analytics/ev
 
 ### Location
 
-| Field | Type |
-|---|---|
-| `address` | string |
-| `city` | string |
-| `state` | string |
-| `country` | string |
-| `zipCode` | string |
+| Field | Type | Notes |
+|---|---|---|
+| `address` | string | |
+| `city` | string | |
+| `state` | string | |
+| `country` | string | |
+| `zipCode` | string | |
+| `mapsUrl` | string | Optional custom "Open in Maps" link, http(s) only, max 2000 chars; blank → `null`. When `null` the website links to a Google Maps search for the address. Edited under **Edit salon → Location** and shown on **Salon details** (moved from the website design panel; `V17__location_maps_url.sql` copied existing theme values over). |
 
 ### ContactInfo
 

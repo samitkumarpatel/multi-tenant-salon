@@ -55,6 +55,8 @@ export default function Edit() {
   function validate(s: number): Record<string, string> {
     const e: Record<string, string> = {};
     if (s === 0 && !name.trim()) e.name = "Salon name is required.";
+    if (s === 1 && location.mapsUrl?.trim() && !/^https?:\/\/\S+$/i.test(location.mapsUrl.trim()))
+      e.mapsUrl = "Enter a full link starting with https://";
     return e;
   }
 
@@ -82,6 +84,7 @@ export default function Edit() {
             state:   location.state?.trim()   || null,
             country: location.country?.trim() || null,
             zipCode: location.zipCode?.trim() || null,
+            mapsUrl: location.mapsUrl?.trim() || null,
           },
           contact: {
             phone:   contact.phone?.trim()   || null,
@@ -158,6 +161,20 @@ export default function Edit() {
                 <label className={labelCls}>{translateUi("Town")}</label>
                 <input className={inputCls} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder={translateUi("San Francisco")} />
               </div>
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>
+                {translateUi("Maps link")}{" "}
+                <span className="text-stone-300 font-normal normal-case tracking-normal">{translateUi("optional")}</span>
+              </label>
+              <input
+                type="url" className={`${inputCls} ${errors.mapsUrl ? "border-red-400" : ""}`}
+                value={location.mapsUrl ?? ""} onChange={(e) => patchLoc({ mapsUrl: e.target.value })}
+                placeholder={"https://maps.app.goo.gl/…"}
+              />
+              {errors.mapsUrl
+                ? <p className="text-red-500 text-xs mt-2">{errors.mapsUrl}</p>
+                : <p className="text-xs text-stone-400 mt-1.5">{translateUi("Paste your Google Maps share link. Leave empty to link to a map search for your address.")}</p>}
             </div>
             {bizIdLabel && (
               <div className={fieldCls}>

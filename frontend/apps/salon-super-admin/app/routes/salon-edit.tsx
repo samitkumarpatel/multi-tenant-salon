@@ -116,6 +116,8 @@ export default function SalonEdit() {
     if (s === 1) {
       if (!owner.name.trim()) e.ownerName = "Owner name is required.";
       if (!owner.email.trim()) e.ownerEmail = "Owner email is required.";
+      if (location.mapsUrl?.trim() && !/^https?:\/\/\S+$/i.test(location.mapsUrl.trim()))
+        e.mapsUrl = "Enter a full link starting with https://";
     }
     return e;
   }
@@ -159,6 +161,7 @@ export default function SalonEdit() {
             state:   location.state?.trim()   || null,
             country: location.country?.trim() || null,
             zipCode: location.zipCode?.trim() || null,
+            mapsUrl: location.mapsUrl?.trim() || null,
           },
           contact: {
             phone:   contact.phone?.trim()   || null,
@@ -257,6 +260,20 @@ export default function SalonEdit() {
                 <label className={lbl}>{translateUi("City")}</label>
                 <input className={inp} value={location.city ?? ""} onChange={(e) => patchLoc({ city: e.target.value })} placeholder={translateUi("San Francisco")} />
               </div>
+            </div>
+            <div>
+              <label className={lbl}>
+                {translateUi("Maps link")}{" "}
+                <span className="text-stone-300 font-normal normal-case tracking-normal">{translateUi("optional")}</span>
+              </label>
+              <input
+                type="url" className={`${inp} ${errors.mapsUrl ? "border-red-400" : ""}`}
+                value={location.mapsUrl ?? ""} onChange={(e) => patchLoc({ mapsUrl: e.target.value })}
+                placeholder={"https://maps.app.goo.gl/…"}
+              />
+              {errors.mapsUrl
+                ? <p className="text-red-600 text-xs mt-1">{errors.mapsUrl}</p>
+                : <p className="text-xs text-stone-400 mt-1.5">{translateUi("Paste your Google Maps share link. Leave empty to link to a map search for your address.")}</p>}
             </div>
             {bizIdLabel && (
               <div>

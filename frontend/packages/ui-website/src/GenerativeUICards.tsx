@@ -307,7 +307,7 @@ export function LocationCard({ salon, tokens }: { salon: Salon; tokens: CardToke
   const { theme, msgText, msgDim } = tokens;
   const loc = salon.location;
   if (!loc?.address && !loc?.city) return null;
-  const mapsUrl = theme.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+  const mapsUrl = loc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     [loc.address, loc.zipCode, loc.city, loc.country].filter(Boolean).join(", ")
   )}`;
 

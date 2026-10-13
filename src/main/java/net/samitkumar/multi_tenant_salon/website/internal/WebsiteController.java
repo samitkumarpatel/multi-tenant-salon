@@ -25,7 +25,6 @@ class WebsiteController {
             String logoBgColor,
             String headerBg,
             String footerBg,
-            String mapsUrl,
             String chatLayout,
             String chatBg
     ) {}
@@ -42,7 +41,7 @@ class WebsiteController {
     ResponseEntity<WebsiteTheme> saveTheme(@PathVariable String id, @RequestBody SaveThemeRequest req) {
         var theme = service.saveTheme(salonApi.resolveId(id), req.heroBg(), req.heroTextColor(),
                 req.accentColor(), req.fontFamily(), req.logoBgColor(),
-                req.headerBg(), req.footerBg(), req.mapsUrl(), req.chatLayout(), req.chatBg());
+                req.headerBg(), req.footerBg(), req.chatLayout(), req.chatBg());
         return ResponseEntity.ok(theme);
     }
 

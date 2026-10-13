@@ -1061,10 +1061,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
               <div>
                 {/* Heading pins under the header on md+ (like the sticky team column); the -mt/pt pair lets its white background cover the gap below the header. */}
                 <FadeIn className="relative z-20 bg-white md:sticky md:top-14 md:-mt-6 md:pt-6">
-                  <div className="pb-6">
-                    <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>{translateUi("What we offer")}</p>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 border-b-2 pb-1" style={{ borderColor: theme.accentColor }}>{translateUi("Services & pricing")}</h2>
+                  <div className="pb-5">
+                    {/* The eyebrow is the section heading — no separate large title. Heading + subtitle sit in a
+                        column-wide tinted box; the row has a fixed min height (the filter pill's) so both
+                        columns' boxes and cards line up. */}
+                    <div className="rounded-sm border px-4 py-3" style={{ borderColor: `${theme.accentColor}40`, backgroundColor: `${theme.accentColor}0D` }}>
+                    <div className="flex items-center gap-3 flex-wrap min-h-8">
+                      <h2 className="text-[11px] font-black uppercase tracking-widest" style={{ color: theme.accentColor }}>{translateUi("What we offer")}</h2>
                       {grouped.length > 1 && (
                         <CategoryFilter
                           categories={grouped.map(([cat]) => cat)}
@@ -1076,6 +1079,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                     </div>
                     <p className="mt-1.5 text-xs text-slate-500">
                       {translateUi("Tap a service to know more & who offers it ")}</p>
+                    </div>
                   </div>
                   <StickyScrollHint accentColor={theme.accentColor} label={translateUi("services")} />
                 </FadeIn>
@@ -1159,18 +1163,22 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 `}</style>
                 <FadeIn delay={100}>
                   {/* Same pinned heading as "Services & pricing" — keeps it under the header when the team list is too tall for the column itself to stick. */}
-                  <div className="relative z-10 bg-white pb-4 md:sticky md:top-14 md:-mt-6 md:pt-6">
-                    <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>{translateUi("The people behind your look")}</p>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 w-fit border-b-2 pb-1" style={{ borderColor: theme.accentColor }}>{translateUi("Meet our team")}</h2>
-                    {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
-                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
-                        <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)} <span className="font-normal text-slate-400">({salon.ratingCount} {translateUi("ratings)")}</span>
-                      </p>
-                    )}
+                  <div className="relative z-10 bg-white pb-5 md:sticky md:top-14 md:-mt-6 md:pt-6">
+                    {/* Same box as the services header. Rating sits in the heading row (like the services filter) so both columns stay aligned. */}
+                    <div className="rounded-sm border px-4 py-3" style={{ borderColor: `${theme.accentColor}40`, backgroundColor: `${theme.accentColor}0D` }}>
+                    <div className="flex items-center gap-3 flex-wrap min-h-8">
+                      <h2 className="text-[11px] font-black uppercase tracking-widest" style={{ color: theme.accentColor }}>{translateUi("The people behind your look")}</h2>
+                      {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
+                        <p className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
+                          <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)} <span className="font-normal text-slate-400">({salon.ratingCount} {translateUi("ratings)")}</span>
+                        </p>
+                      )}
+                    </div>
                     {activeStaff.some(staffHasDetails) && (
                       <p className="mt-1.5 text-xs text-slate-500">
                         {translateUi("Tap a stylist to see their story & recent work ")}</p>
                     )}
+                    </div>
                     <StickyScrollHint accentColor={theme.accentColor} label={translateUi("the team")} />
                   </div>
 

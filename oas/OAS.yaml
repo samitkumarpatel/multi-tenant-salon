@@ -707,6 +707,66 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
 
+  /api/salon-admin/{salonId}/ai/website-theme:
+    parameters:
+      - name: salonId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Salon UUID matching the owner's active salon claim; super-admins may access any salon.
+    post:
+      tags: [SalonAdmin]
+      summary: Suggest matching website palettes with AI (admin)
+      operationId: suggestWebsiteTheme
+      security:
+        - BearerAuth: []
+      description: |
+        Requires an active OWNER claim for the salon UUID, or ROLE_SUPER_ADMIN.
+        Authentication is bypassed in the backend's local/mock security mode.
+        Powers **Match with AI** in the website design panel. One stateless model call returns up to
+        three coordinated palettes — hero, branding, header/footer and chat colours plus a page font —
+        chosen to match each other and the salon. Reads no salon records and persists nothing; apply a
+        suggestion to the design panel, then save through `PUT /api/salon-admin/{salonId}/website`.
+        The backend normalises colours to uppercase `#RRGGBB`, rejects fonts outside the preset slugs,
+        defaults a missing `chatBg` to `heroBg`, and replaces `heroTextColor` with `#0F172A` or `#FFFFFF`
+        when its contrast against `heroBg` is below 4.5:1.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThemeSuggestRequest"
+      responses:
+        "200":
+          description: One to three palette suggestions; nothing has been persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThemeSuggestResponse"
+        "400":
+          description: Missing, blank or over-200-character salonName, or another field over its limit
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          description: Missing or invalid bearer token (OAuth2 mode)
+        "403":
+          description: Caller is not the salon owner or a super-admin (OAuth2 mode)
+        "502":
+          description: AI returned malformed output, no suggestions, an invalid colour or an unknown font
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "503":
+          description: AI request failed; design suggestions are temporarily unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
   /api/salon/{salonId}/chat:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -887,7 +947,7 @@ paths:
       tags: [SalonAdmin]
       summary: Update salon details (admin)
       description: |
-        Admin-only. Updates name, location, contact info, and operating hours. Handler, features, and owner are never changed here — use PUT /api/salon-super-admin/salons/{id}/owner to change the owner.
+        Admin-only. Updates name, location (including the optional `mapsUrl` "Open in Maps" link), contact info, and operating hours. `location` is replaced as a whole. Handler, features, and owner are never changed here — use PUT /api/salon-super-admin/salons/{id}/owner to change the owner.
         Emits **SalonUpdatedEvent** → owner receives a notification email.
       operationId: updateSalon
       requestBody:
@@ -903,6 +963,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Salon"
+        "400":
+          description: Missing name, or location.mapsUrl is not an http(s) URL of at most 2000 characters
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -3364,6 +3430,83 @@ components:
               maxLength: 5000
               description: Shorter, direct wording preserving the supplied facts.
 
+    ThemeSuggestRequest:
+      type: object
+      required: [salonName]
+      properties:
+        salonName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          examples: ["Rose Studio"]
+        style:
+          type: string
+          maxLength: 300
+          description: Optional style hint from the admin, treated as descriptive data.
+          examples: ["luxury, soft pink"]
+        services:
+          type: array
+          maxItems: 40
+          items:
+            type: string
+            maxLength: 120
+          description: Optional service names giving the model a sense of the salon's niche.
+          examples: [["Balayage", "Bridal makeup"]]
+        websiteType:
+          type: string
+          maxLength: 40
+          description: When `GENERATIVE_UI`, the model favours the chat-window colours.
+
+    ThemeSuggestion:
+      type: object
+      required: [name, mood, heroBg, heroTextColor, accentColor, logoBgColor, headerBg, footerBg, chatBg, fontFamily]
+      properties:
+        name:
+          type: string
+          maxLength: 60
+          examples: ["Blush Luxe"]
+        mood:
+          type: string
+          maxLength: 300
+          description: One sentence on why the colours and font work together.
+        heroBg:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        heroTextColor:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+          description: Guaranteed at least 4.5:1 contrast against heroBg.
+        accentColor:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        logoBgColor:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        headerBg:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        footerBg:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        chatBg:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        fontFamily:
+          type: string
+          enum: [inter, playfair, raleway, lato, poppins, montserrat, lora, cormorant, oswald, dancing, nunito, merriweather, system, georgia]
+          description: Preset font slug, stored as-is in `WebsiteTheme.fontFamily`.
+
+    ThemeSuggestResponse:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/ThemeSuggestion"
+
     # ── Errors ───────────────────────────────────────────────────────────────
 
     ProblemDetail:
@@ -3705,6 +3848,14 @@ components:
           type: string
         zipCode:
           type: string
+        mapsUrl:
+          type: string
+          format: uri
+          maxLength: 2000
+          description: >
+            Optional custom "Open in Maps" link (e.g. a Google Maps share link). Must be an http(s) URL;
+            blank is stored as null. When null, the website links to a Google Maps search for the address.
+            Edited in salon-admin under Edit salon → Location (moved from the website design panel).
 
     ContactInfo:
       type: object
@@ -4585,9 +4736,6 @@ components:
         footerBg:
           type: string
           description: Footer background color
-        mapsUrl:
-          type: string
-          description: Google Maps embed URL for the salon location
         chatLayout:
           type: string
           enum: [fullscreen, windowed]
@@ -4818,9 +4966,6 @@ components:
         footerBg:
           type: string
           description: Footer background color
-        mapsUrl:
-          type: string
-          description: Google Maps embed URL for the salon location
         chatLayout:
           type: string
           enum: [fullscreen, windowed]

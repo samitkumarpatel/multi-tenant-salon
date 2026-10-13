@@ -10,6 +10,7 @@ export interface Location {
   state?: string;
   country?: string;
   zipCode?: string;
+  mapsUrl?: string;
 }
 
 export interface ContactInfo {

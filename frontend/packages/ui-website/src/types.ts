@@ -27,6 +27,8 @@ export interface Location {
   state?: string;
   country?: string;
   zipCode?: string;
+  /** Custom "Open in Maps" link; when unset the website builds a Google Maps search for the address. */
+  mapsUrl?: string;
 }
 
 export interface ContactInfo {
@@ -106,7 +108,6 @@ export interface WebsiteTheme {
   logoBgColor: string;
   headerBg: string;
   footerBg: string;
-  mapsUrl?: string;
   websiteType?: string;
   /** How the Generative-UI chat opens. "windowed" = the constrained card; anything else
    *  (incl. the legacy "app" value and undefined) = fullscreen. */

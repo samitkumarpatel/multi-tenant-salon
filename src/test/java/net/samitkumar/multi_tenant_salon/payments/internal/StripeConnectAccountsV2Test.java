@@ -42,7 +42,7 @@ class StripeConnectAccountsV2Test {
         when(salon.name()).thenReturn("Glow Studio");
         when(salon.handler()).thenReturn("glow");
         when(salon.owner()).thenReturn(new Salon.Owner("Ann", "ann@glow.dk", null));
-        when(salon.location()).thenReturn(new Salon.Location(null, null, null, "Denmark", null));
+        when(salon.location()).thenReturn(new Salon.Location(null, null, null, "Denmark", null, null));
         when(salons.findById(salonId)).thenReturn(Optional.of(salon));
         when(accounts.findById(salonId)).thenReturn(Optional.empty());
         when(countries.findByName("Denmark")).thenReturn(Optional.of(new Country("Denmark", "dk", "+45", "DKK", null, null, null, null)));

@@ -276,6 +276,15 @@ export default function Manage() {
                 {salon.location.state   && <InfoRow label={translateUi("State")}>{salon.location.state}</InfoRow>}
                 {salon.location.country && <InfoRow label={translateUi("Country")}>{salon.location.country}</InfoRow>}
                 {salon.location.zipCode && <InfoRow label={translateUi("ZIP")}>{salon.location.zipCode}</InfoRow>}
+                {salon.location.mapsUrl && (
+                  <InfoRow label={translateUi("Maps link")}>
+                    <a href={salon.location.mapsUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex max-w-full items-center gap-1 text-matcha-700 hover:text-matcha-900 no-underline" title={salon.location.mapsUrl}>
+                      <span className="truncate">{salon.location.mapsUrl.replace(/^https?:\/\//, "")}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  </InfoRow>
+                )}
                 {salon.businessRegistrationId && (
                   <InfoRow label={salon.businessIdLabel ?? "Reg. ID"}>
                     {salon.businessRegistrationId}
