@@ -69,6 +69,14 @@ spring:
         # Hard cap on live conversations held in memory; least-recently-used evicted when full.
         max-conversations: ${CHAT_MEMORY_MAX_CONVERSATIONS:5000}
   ai:
+    mcp:
+      server:
+        name: salon-platform
+        version: 1.0.0
+        protocol: STREAMABLE
+        type: SYNC
+        annotation-scanner:
+          enabled: true
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:3weew334}
       base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}

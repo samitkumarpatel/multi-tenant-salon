@@ -1,7 +1,7 @@
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Send, Sparkles, SquarePen, Users, Wrench,
+  ArrowUp, Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Search, Sparkles, SquarePen, Users, Wrench,
 } from "lucide-react";
 import { fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -11,6 +11,7 @@ import {
   type CardTokens, type PendingBookingFields, type PickerProgress,
 } from "./GenerativeUICards";
 import { GenUIComponent, type UIComponent, type GenUICtx } from "./GenerativeUIRegistry";
+import { McpAppFrame } from "./McpAppFrame";
 import { type ClosureRange, resolveHolidayRanges } from "./bookingDates";
 import { STAFF_ROLE_LABEL } from "./constants";
 import type { Booking, Salon, SalonHoliday, ServiceItem, StaffMember, WebsiteTheme } from "./types";
@@ -62,10 +63,10 @@ type Message =
       role: "assistant"; text: string; tool?: ToolCard; time: string; cta?: "book";
       pendingBooking?: PendingBookingUI;
       components?: UIComponent[];
+      suggested?: string[];
+      mcpAppCall?: Record<string, unknown>;
       /** Live selections inside this turn's booking-picker, lifted up for the uiState clue. */
       picker?: PickerProgress;
-      /** Follow-up chips the backend returned with this reply (skips a /followups round-trip). */
-      suggested?: string[];
     };
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -126,9 +127,10 @@ type ChatApiResponse = {
   sessionId: string;
   message: string | null;
   components?: UIComponent[] | null;
-  suggestedQuestions?: string[] | null;
   toolsUsed?: string[];
+  suggestedQuestions?: string[] | null;
   pendingBooking?: PendingBookingResponse | null;
+  mcpAppCall?: Record<string, unknown> | null;
 };
 
 const TOOL_LABELS: Record<string, string> = {
@@ -227,6 +229,7 @@ type ChatReplyResult = {
   pendingBooking: PendingBookingResponse | null;
   components: UIComponent[] | null;
   suggestedQuestions: string[];
+  mcpAppCall: Record<string, unknown> | null;
 };
 
 async function requestChatReply(
@@ -246,7 +249,8 @@ async function requestChatReply(
       toolsUsed: res.toolsUsed ?? [],
       pendingBooking: res.pendingBooking ?? null,
       components: res.components ?? null,
-      suggestedQuestions: Array.isArray(res.suggestedQuestions) ? res.suggestedQuestions : [],
+      suggestedQuestions: Array.isArray(res.suggestedQuestions) ? res.suggestedQuestions.slice(0, 4) : [],
+      mcpAppCall: res.mcpAppCall ?? null,
     };
   } catch {
     return {
@@ -255,6 +259,7 @@ async function requestChatReply(
       pendingBooking: null,
       components: null,
       suggestedQuestions: [],
+      mcpAppCall: null,
     };
   }
 }
@@ -311,7 +316,7 @@ export function GenerativeUIWebsite({
   // live, so a card rendered from the snapshot can disagree with the reply next to it — a price
   // edited since load, a stylist added or deactivated, changed opening hours, a new holiday.
   // Keep the three lists in state, seeded from the props, and re-pull them on mount and after any
-  // turn that used a data tool so every card (and the sidebar/header) shows what the salon
+  // turn that used a data tool so every card and header shows what the salon
   // returns right now. `theme` stays a snapshot — it isn't salon data and rarely changes mid-visit.
   const [salon, setSalon] = useState(salonProp);
   const [staff, setStaff] = useState(staffProp);
@@ -330,11 +335,6 @@ export function GenerativeUIWebsite({
   // (Booking context is always full-page and ignores this.)
   const [isFullscreen, setIsFullscreen] = useState(!isBooking && theme.chatLayout !== "windowed");
   const [closedDateRanges, setClosedDateRanges] = useState<ClosureRange[]>([]);
-  // LLM-suggested next questions, shown as chips above the composer; refreshed after each
-  // assistant turn / instant card, cleared when the visitor sends something.
-  const [followups, setFollowups] = useState<string[]>([]);
-  const [followupsLoading, setFollowupsLoading] = useState(false);
-  const followupKeyRef = useRef<string>("");
   // Opaque per-visitor conversation key. The backend keeps the transcript under it (TTL memory),
   // so we no longer re-send history — just this id + the new message. Persisted for the tab so a
   // reload within the TTL resumes the same conversation; "Clear chat" mints a fresh one.
@@ -366,40 +366,6 @@ export function GenerativeUIWebsite({
       document.body.style.overflow = prevOverflow;
     };
   }, [isFullscreen]);
-
-  // After each completed assistant turn (a reply, or an instant card from a sidebar option),
-  // ask the assistant for the questions the visitor is likely to want next and show them as
-  // chips above the composer. Cleared as soon as the visitor's own message lands.
-  useEffect(() => {
-    const reset = () => { setFollowups([]); setFollowupsLoading(false); followupKeyRef.current = ""; };
-    if (thinking) { reset(); return; }
-    const last = messages[messages.length - 1];
-    if (!last) return;
-    if (last.role === "user") { reset(); return; }
-    if (!(last.text || last.components?.length || last.pendingBooking)) return; // empty placeholder
-    const hasPicker = last.components?.some((c) => c.type === "booking-picker") ?? false;
-    // Include the picker's current step so the chips refresh as the visitor moves through the
-    // interactive card (stylist → date → time → contact), each step getting its own suggestions.
-    const pickerStep = hasPicker ? (last.picker?.step ?? "open") : "";
-    const compTypes = last.components?.map((c) => c.type).join(",") ?? "";
-    const key = `${messages.length}:${last.text}:${compTypes}:${pickerStep}:${last.pendingBooking?.status ?? ""}`;
-    if (key === followupKeyRef.current) return;
-    followupKeyRef.current = key;
-    // A /chat reply already carried its follow-ups inline — use them and skip the round-trip.
-    // Re-fetch only when the picker step advanced (its key changed but `suggested` is stale) or
-    // for an instant card that never hit /chat.
-    if (last.suggested && !hasPicker) { setFollowups(last.suggested.slice(0, 4)); return; }
-    setFollowups([]);
-    setFollowupsLoading(true);
-    apiFetch<{ followups?: string[] }>(`${API_BASE}/api/salon/${salon.id}/chat/followups`, {
-      method: "POST",
-      body: JSON.stringify({ sessionId, context: isBooking ? "booking" : "website", uiState: buildUiState() }),
-    })
-      .then((r) => setFollowups(Array.isArray(r.followups) ? r.followups.slice(0, 4) : []))
-      .catch(() => setFollowups([]))
-      .finally(() => setFollowupsLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, thinking]);
 
   // Re-pull the salon profile + staff + services lists so every data card matches what the
   // assistant's own live tool calls see.
@@ -619,7 +585,7 @@ export function GenerativeUIWebsite({
 
   function resolveReply(userText: string, uiState: string | undefined) {
     requestChatReply(salon.id, sessionId, isBooking ? "booking" : "website", userText, uiState).then(
-      ({ text: reply, toolsUsed, pendingBooking, components: rawComponents, suggestedQuestions }) => {
+      ({ text: reply, toolsUsed, pendingBooking, components: rawComponents, suggestedQuestions, mcpAppCall }) => {
         const cta = replyCta(userText);
         let components = normalizeComponents(rawComponents, services);
         const cleanedReply = stripStageDirections(reply);
@@ -668,6 +634,7 @@ export function GenerativeUIWebsite({
             pendingBooking: pendingBooking ? { ...pendingBooking, status: "proposed" } : undefined,
             components: components.length ? components : undefined,
             suggested: suggestedQuestions.length ? suggestedQuestions : undefined,
+            mcpAppCall: mcpAppCall ?? undefined,
           };
           return next;
         });
@@ -839,8 +806,6 @@ export function GenerativeUIWebsite({
   function newChat() {
     setMessages([]);
     setStarted(false);
-    setFollowups([]);
-    followupKeyRef.current = "";
     // Fresh server-side conversation — the old transcript is left to expire on its TTL.
     setSessionId(resetSessionId(salon.id));
   }
@@ -1073,56 +1038,43 @@ export function GenerativeUIWebsite({
     },
   ].filter(Boolean) as ActionButton[];
 
-  // The sidebar and empty-state cards are the fixed category options. LLM-generated follow-up
-  // questions appear separately, as chips above the composer.
+  // These options are available to assistant tools that need to recover from an off-topic turn.
   const actionButtons = isBooking ? bookingButtons : websiteButtons;
+
+  // Starter prompts keep the empty state chat-first. Unlike the former fixed action cards,
+  // these go through the normal conversation so the assistant can choose the right response/UI.
+  const starterQuestions = [
+    activeServicesCount > 0 && {
+      label: "Explore services",
+      hint: `${activeServicesCount} treatments and prices`,
+      question: isBooking ? "What services can I book?" : "Show me the salon services",
+      icon: Sparkles,
+    },
+    activeStaffCount > 0 && {
+      label: "Meet the team",
+      hint: `${activeStaffCount} team members`,
+      question: "Tell me about the stylists",
+      icon: Users,
+    },
+    (salon.operatingHours?.length ?? 0) > 0 && {
+      label: "Opening hours",
+      hint: todayHours(salon) ?? "See this week's hours",
+      question: "What are your opening hours?",
+      icon: Clock,
+    },
+    salon.features?.includes("BOOKING") && activeServicesCount > 0 && {
+      label: "Book an appointment",
+      hint: "See available services and times",
+      question: "I'd like to book an appointment",
+      icon: CalendarCheck,
+    },
+  ].filter(Boolean) as { label: string; hint: string; question: string; icon: React.ComponentType<{ className?: string }> }[];
 
   const chipStyle = {
     backgroundColor: `${theme.accentColor}10`,
     borderColor: `${theme.accentColor}30`,
     color: theme.accentColor,
   };
-
-  // The strip above the composer is *only* the assistant's dynamically-generated follow-up
-  // questions, built from the latest message in the thread — never the fixed category options
-  // (those live in the sidebar / empty state). Nothing shows here until we have some.
-  const followupChips = followups.length > 0 && (
-    <div className="flex flex-wrap gap-2 justify-start px-1">
-      {followups.map((q) => (
-        <button
-          key={q}
-          onClick={() => sendMessage(q)}
-          disabled={thinking}
-          className="inline-flex items-center px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          style={chipStyle}
-        >
-          {q}
-        </button>
-      ))}
-    </div>
-  );
-
-  // Richer "card" grid — the pre-chat landing screen's quick-question tiles, each with a live
-  // one-line hint pulled straight from the salon's own data.
-  const suggestionCards = actionButtons.length > 0 && (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 w-full max-w-[380px] lg:max-w-[560px]">
-      {actionButtons.map((btn) => {
-        const active = Boolean(btn.directAction);
-        return (
-          <button
-            key={btn.label}
-            onClick={() => askQuestion(btn)}
-            className="flex flex-col items-start gap-2 p-3.5 rounded-2xl border text-left transition-all duration-150 hover:shadow-sm hover:-translate-y-0.5 active:scale-95 active:translate-y-0 cursor-pointer"
-            style={active ? { backgroundColor: theme.accentColor, borderColor: theme.accentColor, color: accentText } : chipStyle}
-          >
-            <btn.icon className="w-4 h-4 shrink-0" />
-            <span className="text-xs font-semibold leading-tight">{btn.label}</span>
-            {btn.hint && <span className="text-[10px] leading-snug opacity-70">{btn.hint}</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
 
   // ── "Book now" CTA button (booking context only) ─────────────────────
 
@@ -1274,6 +1226,37 @@ export function GenerativeUIWebsite({
                   inside a padded bubble stacks 3 layers of horizontal padding and is unusably
                   tight on phones. Several can render in one turn; they stack in order. */}
               {m.pendingBooking && bookingCard(i, m.pendingBooking)}
+              {m.mcpAppCall && (
+                <section
+                  className="overflow-hidden rounded-2xl border"
+                  aria-label={translateUi("Interactive salon guide")}
+                  style={{ backgroundColor: asBubbleBg, borderColor: bubbleBorder, boxShadow: bubbleShadow }}
+                >
+                  <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                      style={{ color: accentText, backgroundColor: theme.accentColor }}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold" style={{ color: msgText }}>{translateUi("Interactive salon guide")}</p>
+                      <p className="text-xs" style={{ color: msgDim }}>{translateUi("Live details, services, team, and booking")}</p>
+                    </div>
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                      style={{ color: theme.accentColor, backgroundColor: `${theme.accentColor}14` }}
+                    >
+                      {translateUi("Interactive")}
+                    </span>
+                  </div>
+                  <McpAppFrame
+                    toolArguments={m.mcpAppCall}
+                    title={`${salon.name} interactive guide`}
+                    className="overflow-hidden rounded-none border-0"
+                  />
+                </section>
+              )}
               {m.components && m.components.length > 0 && (() => {
                 const rendered = m.components.map((c) => renderComponent(i, c));
                 if (!rendered.some(Boolean) && !m.text) {
@@ -1286,6 +1269,25 @@ export function GenerativeUIWebsite({
                 }
                 return rendered.map((r, ci) => <React.Fragment key={ci}>{r}</React.Fragment>);
               })()}
+              {i === messages.length - 1 && !thinking && m.suggested && m.suggested.length > 0 && (
+                <div className="pt-1.5">
+                  <p className="text-[11px] mb-2" style={{ color: msgDim }}>{translateUi("You could ask")}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {m.suggested.map((question, qi) => (
+                      <button
+                        key={`${qi}-${question}`}
+                        type="button"
+                        onClick={() => sendMessage(question)}
+                        disabled={thinking}
+                        className="px-3 py-2 rounded-full border text-xs font-medium transition-all duration-150 hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={chipStyle}
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )
@@ -1332,27 +1334,56 @@ export function GenerativeUIWebsite({
   // ── Empty state ──────────────────────────────────────────────────────────
 
   const emptyState = (
-    <div className="h-full flex flex-col items-center justify-center px-6 gap-7 gai-fade-in">
-      <div className="flex flex-col items-center text-center gap-3 max-w-md">
-        <div
-          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold"
-          style={{
-            backgroundColor: avatarBg, color: avatarText,
-            boxShadow: `0 0 0 4px ${theme.accentColor}18, 0 8px 24px ${theme.accentColor}30`,
-          }}
-        >
-          {initials(salon.name)}
-        </div>
-        <div>
+    <div className="min-h-full flex flex-col items-center justify-center px-5 py-10 sm:px-8 gai-fade-in">
+      <div className="w-full max-w-2xl">
+        <div className="mb-7 text-center">
+          <div
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
+            style={{ color: accentText, backgroundColor: theme.accentColor, boxShadow: `0 8px 24px ${theme.accentColor}35` }}
+          >
+            <Sparkles className="h-5 w-5" />
+          </div>
           <AnimatedSalonName text={isBooking ? `Book at ${salon.name}` : salon.name} color={theme.accentColor} />
-          <p className="text-sm mt-1.5" style={{ color: msgDim }}>
-            {isBooking
-              ? translateUi("Tell me what you'd like, and I'll get it booked.")
-              : translateUi("Ask me anything about services, hours, location, or booking.")}
+          <h2 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: msgText }}>
+            {translateUi(isBooking ? "What would you like to book?" : "What can we help you discover?")}
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed" style={{ color: msgDim }}>
+            {translateUi("Ask about services, stylists, opening hours, or find a time to visit.")}
           </p>
         </div>
+
+        <div className="mb-5">{renderComposer()}</div>
+
+        {starterQuestions.length > 0 && (
+          <div>
+            <p className="mb-2.5 px-1 text-xs font-medium" style={{ color: msgDim }}>{translateUi("Popular questions")}</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {starterQuestions.map(({ label, hint, question, icon: Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => sendMessage(question)}
+                  disabled={thinking}
+                  className="group flex min-h-[68px] items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ ...chipStyle, borderColor: bubbleBorder, backgroundColor: asBubbleBg }}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+                    style={{ color: theme.accentColor, backgroundColor: `${theme.accentColor}12` }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold" style={{ color: msgText }}>{translateUi(label)}</span>
+                    <span className="mt-0.5 block truncate text-xs" style={{ color: msgDim }}>{translateUi(hint)}</span>
+                  </span>
+                  <ArrowUp className="h-4 w-4 shrink-0 rotate-45 opacity-40 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-80" style={{ color: theme.accentColor }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="lg:hidden">{suggestionCards}</div>
     </div>
   );
 
@@ -1407,19 +1438,22 @@ export function GenerativeUIWebsite({
 
   // ── Composer ─────────────────────────────────────────────────────────────
 
-  const composer = (
+  function renderComposer() {
+    return (
     <div className="mx-auto w-full max-w-[760px]">
       <div
-        className="flex items-end gap-2 pl-4 pr-2 py-3 rounded-2xl"
-        style={{ backgroundColor: inputBg, border: `1.5px solid ${inputBorder}` }}
+        className="flex items-end gap-2 rounded-2xl px-4 py-3 transition-all focus-within:ring-4 sm:py-3.5"
+        style={{ backgroundColor: inputBg, border: `1.5px solid ${inputBorder}`, boxShadow: `0 8px 28px ${theme.accentColor}12`, "--tw-ring-color": `${theme.accentColor}18` } as React.CSSProperties}
       >
+        <Search className="mb-1.5 h-4 w-4 shrink-0" style={{ color: msgDim }} />
         <textarea
           ref={inputRef}
           value={input}
           rows={1}
           maxLength={2000}
-          placeholder={isBooking ? `Ask about services, or say what you'd like to book…` : `Message ${salon.name}…`}
-          className="flex-1 resize-none text-sm outline-none bg-transparent leading-relaxed py-1.5"
+          aria-label={translateUi("Ask a question")}
+          placeholder={isBooking ? translateUi("Search services or ask about booking…") : translateUi("Search services, stylists, hours, or ask anything…")}
+          className="flex-1 resize-none bg-transparent py-1.5 text-sm leading-relaxed outline-none placeholder:opacity-60"
           style={{ color: topText, maxHeight: "160px" }}
           onChange={(e) => {
             setInput(e.target.value);
@@ -1431,91 +1465,27 @@ export function GenerativeUIWebsite({
         <button
           onClick={send}
           disabled={!sendActive}
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:cursor-not-allowed"
+          aria-label={translateUi("Send question")}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
           style={{
             backgroundColor: sendActive ? theme.accentColor : `${inputBorder}`,
             opacity: sendActive ? 1 : 0.5,
           }}
         >
-          <Send className="w-4 h-4" style={{ color: sendActive ? accentText : topDim }} />
+          <ArrowUp className="h-4 w-4" style={{ color: sendActive ? accentText : topDim }} />
         </button>
       </div>
-      <div className="flex items-center justify-center gap-2 mt-2.5">
+      <div className="mt-2.5 flex items-center justify-center gap-2">
         <span className="text-[10px]" style={{ color: msgDim }}>
-          {translateUi("The assistant can make mistakes — please verify important details. ")}</span>
+          {translateUi("Press Enter to ask · Shift + Enter for a new line")}</span>
+        {started && <span className="text-[10px]" style={{ color: msgDim }}>·</span>}
+        {started && <span className="text-[10px]" style={{ color: msgDim }}>{translateUi("The assistant can make mistakes — please verify important details. ")}</span>}
       </div>
     </div>
-  );
+    );
+  }
 
-  // ── Sidebar (lg screens and up) — persistent salon facts + quick questions,
-  // so the extra desktop width goes toward something useful instead of stretching message text.
-
-  const sidebar = actionButtons.length > 0 && (
-    <aside
-      className="hidden lg:flex lg:flex-col lg:w-[300px] xl:w-[320px] shrink-0 gap-5 px-5 py-6 overflow-y-auto"
-      style={{ borderRight: `1px solid ${bubbleBorder}`, backgroundColor: asBubbleBg }}
-    >
-      <div className="flex items-center gap-2.5">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-          style={{ backgroundColor: avatarBg, color: avatarText }}
-        >
-          {initials(salon.name)}
-        </div>
-        <p className="text-sm font-bold leading-tight" style={{ color: msgText }}>{salon.name}</p>
-      </div>
-
-      <div className="space-y-2.5">
-        <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: isOpenNow(salon) ? "#34D399" : msgDim }} />
-          <span className="text-xs font-semibold" style={{ color: isOpenNow(salon) ? theme.accentColor : msgDim }}>
-            {isOpenNow(salon) ? translateUi("Open now") : todayHours(salon) ?? "Closed"}
-          </span>
-        </div>
-        {(salon.location?.address || salon.location?.city) && (
-          <p className="text-xs leading-snug flex items-start gap-1.5" style={{ color: msgDim }}>
-            <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>{[salon.location?.address, salon.location?.city].filter(Boolean).join(", ")}</span>
-          </p>
-        )}
-        {salon.contact?.phone && (
-          <a href={`tel:${salon.contact.phone}`} className="text-xs flex items-center gap-1.5 no-underline" style={{ color: msgDim }}>
-            <Phone className="w-3.5 h-3.5 shrink-0" />
-            {salon.contact.phone}
-          </a>
-        )}
-      </div>
-
-      <div style={{ borderTop: `1px solid ${bubbleBorder}` }} />
-
-      <div className="space-y-1.5 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: msgDim }}>{translateUi("Quick questions")}</p>
-        {actionButtons.map((btn) => (
-          <button
-            key={btn.label}
-            onClick={() => askQuestion(btn)}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all duration-150 hover:shadow-sm active:scale-[0.98] cursor-pointer"
-            style={btn.directAction ? { backgroundColor: theme.accentColor, color: accentText } : chipStyle}
-          >
-            <btn.icon className="w-3.5 h-3.5 shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold leading-tight">{btn.label}</span>
-              {btn.hint && <span className="block text-[10px] opacity-70 leading-snug truncate">{btn.hint}</span>}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {started && (
-        <button
-          onClick={newChat}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all hover:opacity-80"
-          style={{ color: theme.accentColor, border: `1px solid ${bubbleBorder}` }}
-        >
-          <SquarePen className="w-3.5 h-3.5" /> {translateUi("New conversation ")}</button>
-      )}
-    </aside>
-  );
+  const composer = renderComposer();
 
   // ── Shell ────────────────────────────────────────────────────────────────
 
@@ -1571,8 +1541,6 @@ export function GenerativeUIWebsite({
         className="flex-1 flex flex-col lg:flex-row min-h-0"
         style={{ background: pageBg, fontFamily: font.stack }}
       >
-        {sidebar}
-
         <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {chatHeader}
 
@@ -1580,19 +1548,7 @@ export function GenerativeUIWebsite({
             {started ? messageThread : emptyState}
           </div>
 
-          <div className="shrink-0 px-4 sm:px-6 pb-5 pt-3">
-            {started && (followupsLoading || followupChips) && (
-              <div className="mx-auto mb-3 max-w-[760px]">
-                {followupsLoading ? (
-                  <div className="flex items-center justify-start gap-1.5 px-1 py-1.5 text-[11px]" style={{ color: msgDim }}>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    <span>{translateUi("Preparing suggestions…")}</span>
-                  </div>
-                ) : followupChips}
-              </div>
-            )}
-            {composer}
-          </div>
+          {started && <div className="shrink-0 px-4 pb-5 pt-3 sm:px-6">{composer}</div>}
         </div>
       </div>
     </>

@@ -38,7 +38,7 @@ class ChatController {
 
     record ChatResponseBody(String sessionId, String message, List<UiComponent> components,
                             List<String> suggestedQuestions, List<String> toolsUsed,
-                            PendingBooking pendingBooking) {}
+                            PendingBooking pendingBooking, java.util.Map<String, Object> mcpAppCall) {}
 
     record ChatFollowupsRequest(String sessionId, String context, String uiState) {}
 
@@ -51,7 +51,7 @@ class ChatController {
                 salonId, conversationId(salonId, sessionId), request.context(), request.message(), request.uiState());
         publishUsageEvents(salonId, sessionId, reply);
         return new ChatResponseBody(sessionId, reply.message(), reply.components(), reply.suggestedQuestions(),
-                reply.toolsUsed(), reply.pendingBooking());
+                reply.toolsUsed(), reply.pendingBooking(), reply.mcpAppCall());
     }
 
     /**

@@ -1,6 +1,8 @@
 package net.samitkumar.multi_tenant_salon.chat.internal;
 
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import net.samitkumar.multi_tenant_salon.mcp.SalonMcpChatGateway;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -15,6 +17,17 @@ import java.util.Locale;
 @Service
 @Slf4j
 class ChatAssistantService {
+
+    private static final String MCP_APP_SYSTEM_PROMPT = """
+            You are the AI assistant on a salon's public website. You can answer only questions
+            about this salon. For every salon-related request, call salon_explorer and choose the
+            best view: overview, services, team, hours, location, or availability. For booking or
+            availability requests, open services unless you already know the exact service id and
+            date. Never invent salon facts or availability. After the tool call, write one short, warm sentence that introduces the
+            interactive Salon Explorer app. The app itself contains the live information and booking
+            controls. For unrelated questions, politely decline in one short sentence and invite the
+            visitor to ask about the salon; do not call a tool.
+            """;
 
     private static final String SCOPE_GUARDRAIL = """
             Stay strictly on topic: you only discuss this salon — its services, staff, pricing,
@@ -138,21 +151,26 @@ class ChatAssistantService {
     private final SalonApiClient salonApiClient;
     private final ChatMemory chatMemory;
     private final ChatFollowupsService chatFollowupsService;
+    private final SalonMcpChatGateway salonMcpChatGateway;
+    private final ObjectMapper objectMapper;
 
     ChatAssistantService(ChatClient.Builder chatClientBuilder, SalonApiClient salonApiClient,
-                         ChatMemory chatMemory, ChatFollowupsService chatFollowupsService) {
+                         ChatMemory chatMemory, ChatFollowupsService chatFollowupsService,
+                         SalonMcpChatGateway salonMcpChatGateway, ObjectMapper objectMapper) {
         this.chatClient = chatClientBuilder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
         this.salonApiClient = salonApiClient;
         this.chatMemory = chatMemory;
         this.chatFollowupsService = chatFollowupsService;
+        this.salonMcpChatGateway = salonMcpChatGateway;
+        this.objectMapper = objectMapper;
     }
 
     ChatReply reply(String salonId, String conversationId, String context, String message, String uiState) {
-        var tools = new SalonDataTools(salonApiClient, salonId);
+        var tools = new SalonMcpAppChatTools(salonId, salonMcpChatGateway, objectMapper);
         var today = LocalDate.now();
-        var systemPrompt = ("booking".equals(context) ? BOOKING_SYSTEM_PROMPT : WEBSITE_SYSTEM_PROMPT)
+            var systemPrompt = MCP_APP_SYSTEM_PROMPT
                 + "\nToday is " + today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH)
                 + ", " + today + " (yyyy-MM-dd). Resolve relative dates (\"tomorrow\", \"next Friday\")"
                 + " against it. Never work out the weekday for any other date yourself — you get it"
@@ -176,12 +194,12 @@ class ChatAssistantService {
                     .call()
                     .content();
 
-            var components = tools.components();
+            var components = List.<UiComponent>of();
             if (content == null || content.isBlank()) {
                 // The model can call a render tool without adding any trailing prose (e.g. an
                 // off-topic decline that only invokes showQuickActions) - never forward a
                 // null/blank reply, the frontend renders this text as the chat bubble.
-                if (components.isEmpty()) {
+                if (tools.appCall() == null) {
                     log.warn("Chat assistant returned blank content and no components for salon {} (message: {})",
                             salonId, message);
                     content = "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.";
@@ -189,15 +207,14 @@ class ChatAssistantService {
                     content = "Here's what I can help with:";
                 }
             }
-            var suggestedQuestions = chatFollowupsService.followups(
-                    salonId, conversationId, latestMessageClue(content, components));
-            return new ChatReply(content, components, suggestedQuestions,
-                    tools.invokedToolNames(), tools.pendingBooking());
+            var suggestedQuestions = chatFollowupsService.followups(salonId, conversationId, content);
+            return new ChatReply(content, components, suggestedQuestions, tools.appCall(),
+                    tools.appCall() == null ? List.of() : List.of("salon_explorer"), null);
         } catch (Exception e) {
             log.warn("Chat assistant failed for salon {} (message: {})", salonId, message, e);
             return new ChatReply(
                     "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
-                    List.of(), List.of(), List.of(), null);
+                    List.of(), List.of(), null, List.of(), null);
         }
     }
 

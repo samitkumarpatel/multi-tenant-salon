@@ -231,7 +231,8 @@ class BookingService implements BookingApi {
 
     // ── Slot calculation ──────────────────────────────────────────────────────
 
-    List<AvailableSlot> findAvailableSlots(UUID salonId, Long serviceId, LocalDate date, Long requestedStaffId) {
+    @Override
+    public List<AvailableSlot> findAvailableSlots(UUID salonId, Long serviceId, LocalDate date, Long requestedStaffId) {
         if (salonApi.isClosedOn(salonId, date)) {
             return List.of();
         }

@@ -8,5 +8,6 @@ import java.util.List;
  * data lookups that ran, and a staged {@link PendingBooking} if the model proposed one.
  */
 record ChatReply(String message, List<UiComponent> components, List<String> suggestedQuestions,
+                 java.util.Map<String, Object> mcpAppCall,
                  List<String> toolsUsed, PendingBooking pendingBooking) {
 }

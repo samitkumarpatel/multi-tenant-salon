@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.chat;
 
 import net.samitkumar.multi_tenant_salon.TestcontainersConfiguration;
+import net.samitkumar.multi_tenant_salon.mcp.SalonMcpChatGateway;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
@@ -21,6 +22,7 @@ import org.springframework.web.context.WebApplicationContext;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @ApplicationModuleTest
@@ -95,7 +97,7 @@ class ChatModuleTests {
     }
 
     @Test
-    void chatEndpointReturnsStagedPendingBookingWhenModelCallsProposeBookingTool() {
+    void chatEndpointReturnsMcpAppCallForBookingRequests() {
         var salonId = UUID.randomUUID().toString();
 
         client().post()
@@ -107,17 +109,12 @@ class ChatModuleTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.pendingBooking.serviceId").isEqualTo(1)
-                .jsonPath("$.pendingBooking.staffId").isEqualTo(2)
-                .jsonPath("$.pendingBooking.appointmentDate").isEqualTo("2026-09-01")
-                .jsonPath("$.pendingBooking.startTime").isEqualTo("10:00")
-                .jsonPath("$.pendingBooking.customerName").isEqualTo("Jane Doe")
-                .jsonPath("$.pendingBooking.customerEmail").isEqualTo("jane@example.com")
-                .jsonPath("$.toolsUsed[0]").isEqualTo("booking-proposal");
+                .jsonPath("$.mcpAppCall.view").isEqualTo("services")
+                .jsonPath("$.toolsUsed[0]").isEqualTo("salon_explorer");
     }
 
     @Test
-    void chatEndpointReturnsUiComponentWhenModelCallsAShowTool() {
+    void chatEndpointReturnsMcpAppCallWhenModelChoosesSalonView() {
         var salonId = UUID.randomUUID().toString();
 
         client().post()
@@ -129,12 +126,11 @@ class ChatModuleTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.components.length()").isEqualTo(1)
-                .jsonPath("$.components[0].type").isEqualTo("services");
+                .jsonPath("$.mcpAppCall.view").isEqualTo("services");
     }
 
     @Test
-    void chatEndpointReturnsSeveralComponentsWhenModelCallsSeveralRenderTools() {
+    void chatEndpointUsesOneSharedMcpAppInsteadOfMultipleCustomComponents() {
         var salonId = UUID.randomUUID().toString();
 
         client().post()
@@ -146,13 +142,12 @@ class ChatModuleTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.components.length()").isEqualTo(2)
-                .jsonPath("$.components[0].type").isEqualTo("services")
-                .jsonPath("$.components[1].type").isEqualTo("button-group");
+                .jsonPath("$.mcpAppCall.view").isEqualTo("services")
+                .jsonPath("$.components.length()").isEqualTo(0);
     }
 
     @Test
-    void chatEndpointRendersAFormWhenModelCallsShowForm() {
+    void chatEndpointUsesMcpAppForInteractiveDetailsInsteadOfCustomForm() {
         var salonId = UUID.randomUUID().toString();
 
         client().post()
@@ -164,8 +159,7 @@ class ChatModuleTests {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.components[0].type").isEqualTo("form")
-                .jsonPath("$.components[0].props.title").isEqualTo("Your details");
+                .jsonPath("$.mcpAppCall.view").isEqualTo("overview");
     }
 
     @Test
@@ -188,6 +182,11 @@ class ChatModuleTests {
 
     @TestConfiguration
     static class FakeChatModelConfig {
+
+        @Bean
+        SalonMcpChatGateway fakeSalonMcpChatGateway() {
+            return (salonId, view, serviceId, staffId, date) -> Map.of("salonId", salonId, "view", view);
+        }
 
         private static final String PROPOSE_BOOKING_ARGUMENTS = """
                 {"serviceId":1,"staffId":2,"appointmentDate":"2026-09-01","startTime":"10:00",\
@@ -231,19 +230,13 @@ class ChatModuleTests {
                             && instructionsContain(prompt, "MEMORY_PROBE_ALPHA")) {
                         return text("I recall MEMORY_PROBE_ALPHA");
                     }
-                    if (instructionsContain(prompt, "TRIGGER_BOOKING_PROPOSAL")) {
-                        return toolCalls(new AssistantMessage.ToolCall("call-1", "function", "proposeBooking", PROPOSE_BOOKING_ARGUMENTS));
-                    }
-                    if (instructionsContain(prompt, "TRIGGER_MULTI")) {
-                        return toolCalls(
-                                new AssistantMessage.ToolCall("call-2", "function", "showServices", "{}"),
-                                new AssistantMessage.ToolCall("call-3", "function", "showButtonGroup", BUTTON_GROUP_ARGUMENTS));
-                    }
-                    if (instructionsContain(prompt, "TRIGGER_SHOW_SERVICES")) {
-                        return toolCalls(new AssistantMessage.ToolCall("call-4", "function", "showServices", "{}"));
+                    if (instructionsContain(prompt, "TRIGGER_BOOKING_PROPOSAL")
+                            || instructionsContain(prompt, "TRIGGER_MULTI")
+                            || instructionsContain(prompt, "TRIGGER_SHOW_SERVICES")) {
+                        return toolCalls(new AssistantMessage.ToolCall("call-salon", "function", "salon_explorer", "{\"view\":\"services\"}"));
                     }
                     if (instructionsContain(prompt, "TRIGGER_SHOW_FORM")) {
-                        return toolCalls(new AssistantMessage.ToolCall("call-5", "function", "showForm", SHOW_FORM_ARGUMENTS));
+                        return toolCalls(new AssistantMessage.ToolCall("call-overview", "function", "salon_explorer", "{\"view\":\"overview\"}"));
                     }
                     return text("This is a fixed test reply.");
                 }

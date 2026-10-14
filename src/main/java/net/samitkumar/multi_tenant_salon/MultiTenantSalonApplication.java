@@ -61,12 +61,21 @@ public class MultiTenantSalonApplication {
 			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
 		if (issuerUri.contains("localhost")) {
 			log.warn("No OAuth2 issuer configured (still the localhost default) — running with security disabled for local development.");
-			return http -> http.csrf(AbstractHttpConfigurer::disable).cors(Customizer.withDefaults()).authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
+			return http -> http.csrf(AbstractHttpConfigurer::disable).cors(Customizer.withDefaults())
+					.headers(headers -> headers.frameOptions(frame -> frame.disable())
+							.addHeaderWriter((request, response) -> {
+								if (!request.getRequestURI().startsWith("/mcp-app/")) response.setHeader("X-Frame-Options", "DENY");
+							}))
+					.authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
 		}
 		return http ->
 				http
 						.csrf(AbstractHttpConfigurer::disable)
 						.cors(Customizer.withDefaults())
+						.headers(headers -> headers.frameOptions(frame -> frame.disable())
+								.addHeaderWriter((request, response) -> {
+									if (!request.getRequestURI().startsWith("/mcp-app/")) response.setHeader("X-Frame-Options", "DENY");
+								}))
 						.oauth2ResourceServer(oauth2 -> oauth2
 								.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
 						).authorizeHttpRequests(authH -> authH
@@ -86,6 +95,10 @@ public class MultiTenantSalonApplication {
 										// checks the target salon has opted into the ANALYTICS feature before
 										// enqueuing anything.
 										"/api/analytics/**",
+								// The MCP server only publishes public salon information and read-only availability.
+								"/mcp", "/mcp/**",
+								// The MCP App view is a public static resource embedded by compatible hosts.
+								"/mcp-app", "/mcp-app/**",
 								"/internal/user-identity").permitAll()
 								.requestMatchers("/api/payments/stripe/webhook").permitAll()
 								.requestMatchers("/api/salon-super-admin/**").hasRole("SUPER_ADMIN")

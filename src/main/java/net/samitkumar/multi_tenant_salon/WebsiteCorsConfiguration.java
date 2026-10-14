@@ -18,20 +18,23 @@ class WebsiteCorsConfiguration {
             var cors = new CorsConfiguration();
             cors.setAllowedOriginPatterns(patterns);
             cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
-            cors.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With"));
-            cors.setExposedHeaders(List.of("Content-Type", "x-tenant-id"));
+            cors.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With",
+                    "Mcp-Session-Id", "Mcp-Protocol-Version", "Last-Event-ID"));
+            cors.setExposedHeaders(List.of("Content-Type", "x-tenant-id", "Mcp-Session-Id", "Mcp-Protocol-Version"));
             cors.setAllowCredentials(false);
             cors.setMaxAge(300L);
             String origin = request.getHeader("Origin");
             String path = request.getRequestURI();
             boolean publicPath = path.startsWith("/api/salon/") || path.startsWith("/api/salon-utility/")
-                    || path.equals("/api/analytics/events");
+                    || path.equals("/api/analytics/events") || path.equals("/mcp") || path.startsWith("/mcp/")
+                    || path.startsWith("/mcp-app/");
             // Isolated Modulith contexts may omit the website module; that grants no additional origins.
             var domainApi = origin != null && cors.checkOrigin(origin) == null && publicPath ? domains.getIfAvailable() : null;
             if (domainApi != null && domainApi.isActiveOrigin(origin)) {
                 cors.setAllowedOrigins(List.of(origin));
                 cors.setAllowedMethods(List.of("GET", "POST", "OPTIONS", "HEAD"));
-                cors.setAllowedHeaders(List.of("Content-Type", "X-Requested-With"));
+                cors.setAllowedHeaders(List.of("Content-Type", "X-Requested-With", "Mcp-Session-Id",
+                        "Mcp-Protocol-Version", "Last-Event-ID"));
                 cors.setMaxAge(0L);
             }
             return cors;
