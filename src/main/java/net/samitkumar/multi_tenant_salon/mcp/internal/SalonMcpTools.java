@@ -219,7 +219,7 @@ class SalonMcpTools {
         List<Map<String, Object>> items = staff.findBySalonId(salonId).stream()
                 .filter(m -> m.status() == StaffStatus.ACTIVE)
                 .map(m -> Map.<String, Object>of(
-                        "id", m.id(), "name", m.name(), "bio", value(m.bio()),
+                        "id", m.id(), "name", m.name(), "role", m.role().name(), "bio", value(m.bio()),
                         "avatarUrl", value(m.avatarUrl()), "availableForBooking", m.availableForBooking(),
                         "specializations", m.specializations().stream().map(StaffMember.Specialization::value).toList(),
                         "workMedia", m.workMedia().stream().map(StaffMember.WorkMedia::value).toList()))

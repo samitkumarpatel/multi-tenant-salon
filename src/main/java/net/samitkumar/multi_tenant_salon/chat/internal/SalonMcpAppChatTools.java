@@ -15,6 +15,7 @@ class SalonMcpAppChatTools {
     private final SalonMcpChatGateway gateway;
     private final ObjectMapper mapper;
     private Map<String, Object> appCall;
+    private Map<String, Object> appResult;
 
     SalonMcpAppChatTools(String salonId, SalonMcpChatGateway gateway, ObjectMapper mapper) {
         this.salonId = salonId;
@@ -36,11 +37,13 @@ class SalonMcpAppChatTools {
         if (date != null && !date.isBlank()) arguments.put("date", date);
         appCall = Map.copyOf(arguments);
         try {
-            return mapper.writeValueAsString(gateway.explore(salonId, view, serviceId, staffId, date));
+            appResult = gateway.explore(salonId, view, serviceId, staffId, date);
+            return mapper.writeValueAsString(appResult);
         } catch (JsonProcessingException e) {
             return "Salon information is temporarily unavailable.";
         }
     }
 
     Map<String, Object> appCall() { return appCall; }
+    Map<String, Object> appResult() { return appResult; }
 }

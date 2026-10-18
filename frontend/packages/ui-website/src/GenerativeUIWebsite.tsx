@@ -1,9 +1,9 @@
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUp, Calendar, CalendarCheck, CheckCircle2, Clock, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, Search, Sparkles, SquarePen, Users, Wrench,
+  ArrowUp, Calendar, CalendarCheck, CheckCircle2, Clock, Copy, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, PlugZap, Search, Sparkles, SquarePen, Users, Wrench, X,
 } from "lucide-react";
-import { fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
+import { FONTS, fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
 import {
@@ -330,6 +330,8 @@ export function GenerativeUIWebsite({
   const [input, setInput]       = useState("");
   const [thinking, setThinking] = useState(false);
   const [started, setStarted]   = useState(false);
+  const [mcpDetailsOpen, setMcpDetailsOpen] = useState(false);
+  const [copiedMcpField, setCopiedMcpField] = useState<string | null>(null);
   // How the chat opens is a salon-admin theme setting: "windowed" = the constrained card,
   // anything else (default) = fullscreen. The header toggle still flips it at runtime.
   // (Booking context is always full-page and ignores this.)
@@ -339,6 +341,8 @@ export function GenerativeUIWebsite({
   // so we no longer re-send history — just this id + the new message. Persisted for the tab so a
   // reload within the TTL resumes the same conversation; "Clear chat" mints a fresh one.
   const [sessionId, setSessionId] = useState<string>(() => newSessionId(salon.id));
+  const mcpServerUrl = `${API_BASE.replace(/\/+$/, "")}/mcp`;
+  const mcpSalonHandle = salon.handler?.trim() || String(salon.id);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -1230,7 +1234,15 @@ export function GenerativeUIWebsite({
                 <section
                   className="overflow-hidden rounded-2xl border"
                   aria-label={translateUi("Interactive salon guide")}
-                  style={{ backgroundColor: asBubbleBg, borderColor: bubbleBorder, boxShadow: bubbleShadow }}
+                  style={{
+                    backgroundColor: asBubbleBg,
+                    borderColor: bubbleBorder,
+                    boxShadow: bubbleShadow,
+                    width: "min(calc(100% + 8rem), calc(100vw - 2rem), 960px)",
+                    position: "relative",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                  }}
                 >
                   <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
                     <span
@@ -1254,6 +1266,22 @@ export function GenerativeUIWebsite({
                     toolArguments={m.mcpAppCall}
                     title={`${salon.name} interactive guide`}
                     className="overflow-hidden rounded-none border-0"
+                    hostTheme={{
+                      accent: theme.accentColor,
+                      accentText,
+                      text: msgText,
+                      mutedText: msgDim,
+                      fontFamily: font.stack,
+                      fontCss: (() => {
+                        const googleSpec = FONTS[theme.fontFamily]?.google
+                          ?? (theme.fontFamily && !FONTS[theme.fontFamily]
+                            ? `${theme.fontFamily.trim().replace(/\s+/g, "+")}:wght@400;500;600;700`
+                            : undefined);
+                        return googleSpec
+                          ? `@import url('https://fonts.googleapis.com/css2?family=${googleSpec}&display=swap');`
+                          : undefined;
+                      })(),
+                    }}
                   />
                 </section>
               )}
@@ -1394,7 +1422,7 @@ export function GenerativeUIWebsite({
       className="shrink-0 z-10"
       style={{ backgroundColor: topBg, borderBottom: `1px solid ${topBorder}` }}
     >
-      <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
+      <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6">
         <div className="relative shrink-0">
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
@@ -1411,7 +1439,7 @@ export function GenerativeUIWebsite({
           <p className="text-sm font-bold truncate flex items-center gap-1.5" style={{ color: topText }}>
             <span className="truncate">{salon.name}</span>
             <span
-              className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
+              className="hidden shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border sm:inline-flex"
               style={{ color: theme.accentColor, borderColor: theme.accentColor }}
             >
               {translateUi("Beta ")}</span>
@@ -1421,16 +1449,26 @@ export function GenerativeUIWebsite({
           </p>
         </div>
         <LanguageSelector compact />
+        <button
+          type="button"
+          onClick={() => setMcpDetailsOpen(true)}
+          title={translateUi("Connect this salon to an AI app")}
+          aria-label={translateUi("MCP connection details")}
+          className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold transition-opacity hover:opacity-75"
+          style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
+        >
+          <PlugZap className="h-3.5 w-3.5" /><span>MCP</span>
+        </button>
         {fullscreenToggle()}
         {started && (
           <button
             onClick={newChat}
             title={translateUi("Start a new conversation")}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2 py-1.5 sm:px-3 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
             style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
           >
             <SquarePen className="w-3.5 h-3.5" />
-            {translateUi("Clear chat ")}</button>
+            <span className="hidden sm:inline">{translateUi("Clear chat ")}</span></button>
         )}
       </div>
     </div>
@@ -1475,11 +1513,11 @@ export function GenerativeUIWebsite({
           <ArrowUp className="h-4 w-4" style={{ color: sendActive ? accentText : topDim }} />
         </button>
       </div>
-      <div className="mt-2.5 flex items-center justify-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
         <span className="text-[10px]" style={{ color: msgDim }}>
           {translateUi("Press Enter to ask · Shift + Enter for a new line")}</span>
         {started && <span className="text-[10px]" style={{ color: msgDim }}>·</span>}
-        {started && <span className="text-[10px]" style={{ color: msgDim }}>{translateUi("The assistant can make mistakes — please verify important details. ")}</span>}
+        {started && <span className="basis-full text-[10px] text-center" style={{ color: msgDim }}>{translateUi("The assistant can make mistakes — please verify important details. ")}</span>}
       </div>
     </div>
     );
@@ -1551,6 +1589,81 @@ export function GenerativeUIWebsite({
           {started && <div className="shrink-0 px-4 pb-5 pt-3 sm:px-6">{composer}</div>}
         </div>
       </div>
+      {mcpDetailsOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
+          role="presentation"
+          onClick={() => setMcpDetailsOpen(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mcp-connect-title"
+            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl sm:p-6"
+            style={{ backgroundColor: topBg, color: topText, fontFamily: font.stack, paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 id="mcp-connect-title" className="text-base font-bold">{translateUi("Use this salon in your AI app")}</h2>
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: topDim }}>
+                  {translateUi("Add this remote MCP server to a compatible AI client. It can look up salon details and availability; bookings require customer confirmation.")}
+                </p>
+              </div>
+              <button type="button" onClick={() => setMcpDetailsOpen(false)} aria-label={translateUi("Close")}
+                className="rounded-lg p-2" style={{ color: topDim }}><X className="h-4 w-4" /></button>
+            </div>
+
+            {[
+              { label: translateUi("MCP server URL"), value: mcpServerUrl, key: "url" },
+              { label: translateUi("Salon ID / handle"), value: mcpSalonHandle, key: "salon" },
+            ].map(({ label, value, key }) => (
+              <div key={key} className="mb-3 rounded-xl border p-3" style={{ borderColor: topBorder }}>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold" style={{ color: topDim }}>{label}</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(value);
+                        setCopiedMcpField(key);
+                        window.setTimeout(() => setCopiedMcpField((current) => current === key ? null : current), 1600);
+                      } catch { setCopiedMcpField(null); }
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold"
+                    style={{ color: theme.accentColor, backgroundColor: `${theme.accentColor}12` }}
+                  >
+                    <Copy className="h-3 w-3" />
+                    {copiedMcpField === key ? translateUi("Copied") : translateUi("Copy")}
+                  </button>
+                </div>
+                <code className="block break-all text-xs leading-relaxed">{value}</code>
+              </div>
+            ))}
+
+            <p className="mb-2 text-xs font-semibold">{translateUi("Add it to your AI client")}</p>
+            <ol className="space-y-2 pl-5 text-xs leading-relaxed" style={{ color: topText }}>
+              <li>{translateUi("Claude: open Settings → Connectors → Add custom connector, then paste the server URL.")}</li>
+              <li>{translateUi("ChatGPT: open Settings → Apps and create a custom MCP app with the server URL. Developer mode or workspace access may be required.")}</li>
+              <li>{translateUi("Other clients: add the URL as a remote Streamable HTTP MCP server. When asked to identify the salon, use this handle:")}
+                <code className="mt-1 block break-all rounded-lg p-2" style={{ backgroundColor: `${theme.accentColor}10` }}>{mcpSalonHandle}</code>
+                <code className="mt-1 block break-all rounded-lg p-2" style={{ backgroundColor: `${theme.accentColor}10` }}>
+                  salon_explorer · salonIdOrHandler: "{mcpSalonHandle}" · view: "services"
+                </code>
+              </li>
+            </ol>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+              <a href="https://support.anthropic.com/en/articles/11503834-building-custom-integrations-via-remote-mcp-servers" target="_blank" rel="noreferrer"
+                className="underline" style={{ color: theme.accentColor }}>{translateUi("Claude setup guide")}</a>
+              <a href="https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt" target="_blank" rel="noreferrer"
+                className="underline" style={{ color: theme.accentColor }}>{translateUi("ChatGPT setup guide")}</a>
+            </div>
+            <p className="mt-3 text-[10px] leading-relaxed" style={{ color: topDim }}>
+              {translateUi("Claude Desktop remote connectors are configured in Settings, not in claude_desktop_config.json. ChatGPT MCP setup is currently web-only and depends on account and workspace settings.")}
+            </p>
+          </section>
+        </div>
+      )}
     </>
   );
 

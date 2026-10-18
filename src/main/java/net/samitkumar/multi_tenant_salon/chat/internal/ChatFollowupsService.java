@@ -88,10 +88,21 @@ class ChatFollowupsService {
             suggest questions about memberships, an online shop, loyalty or rewards, analytics,
             or anything else, even when such a feature is enabled.
 
+            Make every suggestion useful as the visitor's very next message. When the answer or
+            live app data gives a service, date, stylist, or time, carry that exact detail into
+            the suggestion instead of using a vague placeholder. Prefer a clear next action such
+            as checking a specific date, choosing a listed time, or booking the named service.
+            Do NOT ask the assistant to decide a personal preference (for example, "Which day
+            works best for me?"). Do NOT ask for information already visible in the answer or
+            live app (for example, asking what times are available when those times are listed).
+            If a live availability view is open, ground suggestions in its exact service, date,
+            and slots; do not substitute dates mentioned in unrelated earlier turns. If no
+            concrete option is available, ask one focused clarifying question instead.
+
             Return ONLY a JSON array of strings, nothing else.
             """;
 
-    private static final int MAX_FOLLOWUPS = 4;
+    private static final int MAX_FOLLOWUPS = 3;
     private static final int MAX_LEN = 80;
 
     private final ChatClient chatClient;

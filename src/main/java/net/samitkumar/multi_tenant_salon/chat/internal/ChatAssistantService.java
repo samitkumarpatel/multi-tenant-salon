@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -207,7 +208,8 @@ class ChatAssistantService {
                     content = "Here's what I can help with:";
                 }
             }
-            var suggestedQuestions = chatFollowupsService.followups(salonId, conversationId, content);
+            var followupContext = latestMessageClue(content, tools.appCall(), tools.appResult());
+            var suggestedQuestions = chatFollowupsService.followups(salonId, conversationId, followupContext);
             return new ChatReply(content, components, suggestedQuestions, tools.appCall(),
                     tools.appCall() == null ? List.of() : List.of("salon_explorer"), null);
         } catch (Exception e) {
@@ -248,5 +250,21 @@ class ChatAssistantService {
         }).distinct().toList();
         return content + "\n[Showed the visitor " + String.join(", ", parts)
                 + ". Base the follow-ups on what this shows or asks right now.]";
+    }
+
+    private String latestMessageClue(String content, Map<String, Object> appCall,
+                                     Map<String, Object> appResult) {
+        if (appCall == null) {
+            return content;
+        }
+        try {
+            var result = appResult == null ? "(no live result available)" : objectMapper.writeValueAsString(appResult);
+            return content + "\n[The interactive salon app is open on its " + appCall.get("view")
+                    + " view. Current request: " + appCall + ". Live app data: " + result
+                    + ". Base follow-ups on these exact current options.]";
+        } catch (Exception ignored) {
+            return content + "\n[The interactive salon app is open on its " + appCall.get("view")
+                    + " view. Base follow-ups on its current options.]";
+        }
     }
 }

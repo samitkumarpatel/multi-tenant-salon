@@ -32,6 +32,10 @@ export default defineConfig({
     dedupe: ["react", "react-dom", "react-router", "lucide-react"],
   },
   optimizeDeps: {
+    // The shared workspace UI package is served from source and can leave
+    // stale prebundled React/React Router chunks after dependency changes.
+    // Rebuild the optimizer cache on startup so hooks share the app renderer.
+    force: true,
     include: [
       "react",
       "react-dom",
