@@ -31,6 +31,12 @@ export default defineConfig({
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
       "lucide-react",
+      "react-router/dom",
+      // Imported by @salon/ui-website's McpAppFrame; the workspace package is served from
+      // source, so the startup scan misses these. Discovering them on first page load
+      // re-optimizes mid-session and splits React into two copies (null useContext).
+      "@modelcontextprotocol/client",
+      "@modelcontextprotocol/ext-apps/app-bridge",
     ],
   },
   server: {

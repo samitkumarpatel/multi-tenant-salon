@@ -8,6 +8,10 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDate;
 import java.time.format.TextStyle;
@@ -21,13 +25,26 @@ class ChatAssistantService {
 
     private static final String MCP_APP_SYSTEM_PROMPT = """
             You are the AI assistant on a salon's public website. You can answer only questions
-            about this salon. For every salon-related request, call salon_explorer and choose the
-            best view: overview, services, team, hours, location, or availability. For booking or
-            availability requests, open services unless you already know the exact service id and
-            date. Never invent salon facts or availability. After the tool call, write one short, warm sentence that introduces the
-            interactive Salon Explorer app. The app itself contains the live information and booking
-            controls. For unrelated questions, politely decline in one short sentence and invite the
-            visitor to ask about the salon; do not call a tool.
+            about this salon. For every salon-related request, open exactly one interactive Salon
+            app by calling its tool — the app shows the live information and lets the visitor act:
+            - salon_services: the service menu, prices, durations ("what do you offer", "how much is X").
+            - salon_team: the stylists, their bios and portfolio ("who works there", "show me Anna's work").
+            - salon_booking: the step-by-step booking app — the default for "I want to book", or a
+              booking on a specific day.
+            - salon_booking_by_stylist: when the visitor wants a particular stylist or asks when a
+              stylist is free.
+            - salon_booking_week: when they want to see a whole week of open times or compare days
+              ("what's free next week").
+            - salon_shop: products and buying them.
+            - salon_explorer: overview, opening hours (view=hours), location (view=location), contact.
+            Pass only ids and dates you actually know from earlier tool results in this
+            conversation; otherwise omit them and the app lets the visitor choose. Resolve relative
+            dates to yyyy-MM-dd. Never invent salon facts or availability, and never claim a
+            booking or order was made — the visitor confirms inside the app. If a tool result has
+            view=error, say so briefly and suggest another app instead. After the tool call, write
+            one short, warm sentence that introduces the app. For unrelated questions, politely
+            decline in one short sentence and invite the visitor to ask about the salon; do not
+            call a tool.
             """;
 
     private static final String SCOPE_GUARDRAIL = """
@@ -168,10 +185,77 @@ class ChatAssistantService {
         this.objectMapper = objectMapper;
     }
 
+    private static final String FALLBACK_REPLY =
+            "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.";
+
     ChatReply reply(String salonId, String conversationId, String context, String message, String uiState) {
         var tools = new SalonMcpAppChatTools(salonId, salonMcpChatGateway, objectMapper);
+        try {
+            rememberUiState(conversationId, uiState);
+            String content = chatClient.prompt()
+                    .system(systemPrompt())
+                    .user(message)
+                    .tools(tools)
+                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                    .call()
+                    .content();
+            var reply = assemble(salonId, message, content, tools, List.of());
+            var suggestedQuestions = chatFollowupsService.followups(salonId, conversationId, followupContext(reply, tools));
+            return withSuggestions(reply, suggestedQuestions);
+        } catch (Exception e) {
+            log.warn("Chat assistant failed for salon {} (message: {})", salonId, message, e);
+            return new ChatReply(FALLBACK_REPLY, List.of(), List.of(), null, List.of(), null, null);
+        }
+    }
+
+    /** One server-sent event of a streamed reply: {@code app}, {@code delta}, {@code done}, {@code suggestions} or {@code error}. */
+    record StreamEvent(String type, Object data, ChatReply reply) {
+        static StreamEvent of(String type, Object data) { return new StreamEvent(type, data, null); }
+    }
+
+    /**
+     * The same turn as {@link #reply}, streamed: text arrives as {@code delta} events while the
+     * model writes it, an {@code app} event fires the moment a Salon MCP App is opened (so the
+     * page can start loading it mid-sentence), then {@code done} carries the assembled reply and
+     * {@code suggestions} the follow-up chips — generated last so they never delay the answer.
+     */
+    Flux<StreamEvent> stream(String salonId, String conversationId, String context, String message, String uiState) {
+        Sinks.Many<StreamEvent> apps = Sinks.many().unicast().onBackpressureBuffer();
+        var tools = new SalonMcpAppChatTools(salonId, salonMcpChatGateway, objectMapper,
+                (tool, call) -> apps.tryEmitNext(StreamEvent.of("app", Map.of("tool", tool, "arguments", call))));
+        var text = new StringBuilder();
+        return Flux.defer(() -> {
+                    rememberUiState(conversationId, uiState);
+                    Flux<StreamEvent> deltas = chatClient.prompt()
+                            .system(systemPrompt())
+                            .user(message)
+                            .tools(tools)
+                            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                            .stream()
+                            .content()
+                            .filter(chunk -> chunk != null && !chunk.isEmpty())
+                            .doOnNext(text::append)
+                            .map(chunk -> StreamEvent.of("delta", Map.of("text", chunk)))
+                            .doFinally(signal -> apps.tryEmitComplete());
+                    return Flux.merge(deltas, apps.asFlux());
+                })
+                .concatWith(Flux.defer(() -> {
+                    var reply = assemble(salonId, message, text.toString(), tools, List.of());
+                    Mono<StreamEvent> suggestions = Mono.fromCallable(() -> StreamEvent.of("suggestions", Map.of("questions",
+                                    chatFollowupsService.followups(salonId, conversationId, followupContext(reply, tools)))))
+                            .subscribeOn(Schedulers.boundedElastic());
+                    return Flux.concat(Mono.just(new StreamEvent("done", null, reply)), suggestions);
+                }))
+                .onErrorResume(e -> {
+                    log.warn("Chat assistant stream failed for salon {} (message: {})", salonId, message, e);
+                    var fallback = new ChatReply(FALLBACK_REPLY, List.of(), List.of(), null, List.of(), null, null);
+                    return Flux.just(new StreamEvent("error", Map.of("message", FALLBACK_REPLY), fallback));
+                });
+    }
+
+    private String systemPrompt() {
         var today = LocalDate.now();
-            var systemPrompt = MCP_APP_SYSTEM_PROMPT
+        return MCP_APP_SYSTEM_PROMPT
                 + "\nToday is " + today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH)
                 + ", " + today + " (yyyy-MM-dd). Resolve relative dates (\"tomorrow\", \"next Friday\")"
                 + " against it. Never work out the weekday for any other date yourself — you get it"
@@ -179,45 +263,43 @@ class ChatAssistantService {
                 + " echoes the real weekday for the date you pass it). If the visitor pairs a weekday"
                 + " with a date that don't actually match, trust the date, drop the weekday, and don't"
                 + " repeat their wrong day name back to them.";
-        try {
-            // The frontend's bracketed note about what the visitor currently sees / is doing on
-            // the page (picker step, on-screen card contents) — the model never sees the live
-            // widgets, so record it as a synthetic prior assistant turn before this message.
-            if (uiState != null && !uiState.isBlank()) {
-                chatMemory.add(conversationId, new AssistantMessage(uiState));
-            }
+    }
 
-            String content = chatClient.prompt()
-                    .system(systemPrompt)
-                    .user(message)
-                    .tools(tools)
-                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call()
-                    .content();
-
-            var components = List.<UiComponent>of();
-            if (content == null || content.isBlank()) {
-                // The model can call a render tool without adding any trailing prose (e.g. an
-                // off-topic decline that only invokes showQuickActions) - never forward a
-                // null/blank reply, the frontend renders this text as the chat bubble.
-                if (tools.appCall() == null) {
-                    log.warn("Chat assistant returned blank content and no components for salon {} (message: {})",
-                            salonId, message);
-                    content = "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.";
-                } else {
-                    content = "Here's what I can help with:";
-                }
-            }
-            var followupContext = latestMessageClue(content, tools.appCall(), tools.appResult());
-            var suggestedQuestions = chatFollowupsService.followups(salonId, conversationId, followupContext);
-            return new ChatReply(content, components, suggestedQuestions, tools.appCall(),
-                    tools.appCall() == null ? List.of() : List.of("salon_explorer"), null);
-        } catch (Exception e) {
-            log.warn("Chat assistant failed for salon {} (message: {})", salonId, message, e);
-            return new ChatReply(
-                    "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
-                    List.of(), List.of(), null, List.of(), null);
+    /**
+     * The frontend's bracketed note about what the visitor currently sees / is doing on the page
+     * (picker step, on-screen card contents) — the model never sees the live widgets, so record
+     * it as a synthetic prior assistant turn before this message.
+     */
+    private void rememberUiState(String conversationId, String uiState) {
+        if (uiState != null && !uiState.isBlank()) {
+            chatMemory.add(conversationId, new AssistantMessage(uiState));
         }
+    }
+
+    private ChatReply assemble(String salonId, String message, String content, SalonMcpAppChatTools tools,
+                               List<String> suggestedQuestions) {
+        if (content == null || content.isBlank()) {
+            // The model can open an app without adding any prose - never forward a null/blank
+            // reply, the frontend renders this text as the chat bubble.
+            if (tools.appCall() == null) {
+                log.warn("Chat assistant returned blank content and no components for salon {} (message: {})",
+                        salonId, message);
+                content = FALLBACK_REPLY;
+            } else {
+                content = "Here's what I can help with:";
+            }
+        }
+        return new ChatReply(content, List.of(), suggestedQuestions, tools.appCall(),
+                tools.appTool() == null ? List.of() : List.of(tools.appTool()), null, tools.appTool());
+    }
+
+    private static ChatReply withSuggestions(ChatReply reply, List<String> suggestedQuestions) {
+        return new ChatReply(reply.message(), reply.components(), suggestedQuestions, reply.mcpAppCall(),
+                reply.toolsUsed(), reply.pendingBooking(), reply.mcpAppTool());
+    }
+
+    private String followupContext(ChatReply reply, SalonMcpAppChatTools tools) {
+        return latestMessageClue(reply.message(), tools.appTool(), tools.appCall(), tools.appResult());
     }
 
     /**
@@ -252,19 +334,19 @@ class ChatAssistantService {
                 + ". Base the follow-ups on what this shows or asks right now.]";
     }
 
-    private String latestMessageClue(String content, Map<String, Object> appCall,
+    private String latestMessageClue(String content, String appTool, Map<String, Object> appCall,
                                      Map<String, Object> appResult) {
         if (appCall == null) {
             return content;
         }
+        var app = appTool + (appCall.get("view") == null ? "" : " (" + appCall.get("view") + " view)");
         try {
-            var result = appResult == null ? "(no live result available)" : objectMapper.writeValueAsString(appResult);
-            return content + "\n[The interactive salon app is open on its " + appCall.get("view")
-                    + " view. Current request: " + appCall + ". Live app data: " + result
-                    + ". Base follow-ups on these exact current options.]";
+            var result = appResult == null ? "(no live result available)"
+                    : SalonMcpAppChatTools.truncate(objectMapper.writeValueAsString(appResult));
+            return content + "\n[The interactive " + app + " app is open. Current request: " + appCall
+                    + ". Live app data: " + result + ". Base follow-ups on these exact current options.]";
         } catch (Exception ignored) {
-            return content + "\n[The interactive salon app is open on its " + appCall.get("view")
-                    + " view. Base follow-ups on its current options.]";
+            return content + "\n[The interactive " + app + " app is open. Base follow-ups on its current options.]";
         }
     }
 }

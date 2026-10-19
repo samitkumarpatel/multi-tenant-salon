@@ -25,12 +25,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@ApplicationModuleTest
+// A real server (not just MockMvc) so the SSE stream test sees the asynchronously written events.
+@ApplicationModuleTest(webEnvironment = org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import({TestcontainersConfiguration.class, ChatModuleTests.FakeChatModelConfig.class})
 class ChatModuleTests {
 
     @Autowired
     WebApplicationContext context;
+
+    @org.springframework.boot.test.web.server.LocalServerPort
+    int port;
 
     private RestTestClient client() {
         return RestTestClient.bindToApplicationContext(context).build();
@@ -110,7 +114,57 @@ class ChatModuleTests {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.mcpAppCall.view").isEqualTo("services")
+                .jsonPath("$.mcpAppTool").isEqualTo("salon_explorer")
                 .jsonPath("$.toolsUsed[0]").isEqualTo("salon_explorer");
+    }
+
+    @Test
+    void chatEndpointOpensTheDedicatedAppTheModelChooses() {
+        var salonId = UUID.randomUUID().toString();
+
+        client().post()
+                .uri("/api/salon/{salonId}/chat", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body("""
+                        { "sessionId": "w-1", "context": "website", "message": "TRIGGER_WEEK_VIEW what's free next week?" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.mcpAppTool").isEqualTo("salon_booking_week")
+                .jsonPath("$.mcpAppCall.salonIdOrHandler").isEqualTo(salonId)
+                .jsonPath("$.mcpAppCall.serviceId").isEqualTo(3)
+                .jsonPath("$.mcpAppCall.weekStart").isEqualTo("2026-10-26")
+                .jsonPath("$.toolsUsed[0]").isEqualTo("salon_booking_week");
+    }
+
+    @Test
+    void chatStreamEndpointStreamsTheAppFirstThenTheTextThenTheReplyAndSuggestions() {
+        var salonId = UUID.randomUUID().toString();
+
+        String body = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build().post()
+                .uri("/api/salon/{salonId}/chat/stream", salonId)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .accept(org.springframework.http.MediaType.TEXT_EVENT_STREAM)
+                .body("""
+                        { "sessionId": "s-1", "context": "website", "message": "TRIGGER_WEEK_VIEW what's free next week?" }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class)
+                .getResponseBody();
+
+        var events = java.util.regex.Pattern.compile("(?m)^event:(\\S+)").matcher(body).results()
+                .map(m -> m.group(1)).toList();
+        org.assertj.core.api.Assertions.assertThat(events.getFirst()).isEqualTo("session");
+        org.assertj.core.api.Assertions.assertThat(events).containsSubsequence("session", "app", "delta", "done", "suggestions");
+        org.assertj.core.api.Assertions.assertThat(events.stream().filter("delta"::equals).count())
+                .as("text arrives in several chunks").isGreaterThan(1);
+        org.assertj.core.api.Assertions.assertThat(events.getLast()).isEqualTo("suggestions");
+        org.assertj.core.api.Assertions.assertThat(body)
+                .contains("\"tool\":\"salon_booking_week\"")
+                .contains("\"mcpAppTool\":\"salon_booking_week\"")
+                .contains("\"sessionId\":\"s-1\"");
     }
 
     @Test
@@ -185,7 +239,12 @@ class ChatModuleTests {
 
         @Bean
         SalonMcpChatGateway fakeSalonMcpChatGateway() {
-            return (salonId, view, serviceId, staffId, date) -> Map.of("salonId", salonId, "view", view);
+            return (tool, salonId, arguments) -> {
+                var result = new java.util.LinkedHashMap<String, Object>(arguments);
+                result.put("app", tool);
+                result.put("salonId", salonId);
+                return result;
+            };
         }
 
         private static final String PROPOSE_BOOKING_ARGUMENTS = """
@@ -235,6 +294,10 @@ class ChatModuleTests {
                             || instructionsContain(prompt, "TRIGGER_SHOW_SERVICES")) {
                         return toolCalls(new AssistantMessage.ToolCall("call-salon", "function", "salon_explorer", "{\"view\":\"services\"}"));
                     }
+                    if (instructionsContain(prompt, "TRIGGER_WEEK_VIEW")) {
+                        return toolCalls(new AssistantMessage.ToolCall("call-week", "function", "salon_booking_week",
+                                "{\"serviceId\":3,\"weekStart\":\"2026-10-26\"}"));
+                    }
                     if (instructionsContain(prompt, "TRIGGER_SHOW_FORM")) {
                         return toolCalls(new AssistantMessage.ToolCall("call-overview", "function", "salon_explorer", "{\"view\":\"overview\"}"));
                     }
@@ -243,7 +306,11 @@ class ChatModuleTests {
 
                 @Override
                 public Flux<ChatResponse> stream(Prompt prompt) {
-                    return Flux.just(call(prompt));
+                    // Like a real model: plain text arrives word by word, tool calls in one chunk.
+                    ChatResponse response = call(prompt);
+                    var output = response.getResult().getOutput();
+                    if (output.hasToolCalls() || output.getText() == null) return Flux.just(response);
+                    return Flux.fromArray(output.getText().split("(?<= )")).map(FakeChatModelConfig::text);
                 }
             };
         }

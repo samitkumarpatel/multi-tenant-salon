@@ -38,8 +38,9 @@ class SalonMcpToolsTest {
         when(services.findAllBySalonId(salonId)).thenReturn(List.of(new ServiceItem(
                 1L, salonId, "Haircut", null, null, null, 30, null, true, List.of(), null)));
 
-        var result = new SalonMcpTools(salons, services, staff, bookings, bookingClient, new ObjectMapper())
-                .exploreSalon(salonId.toString(), "services", null, null, null);
+        var result = new SalonMcpTools(new SalonMcpSupport(salons, new ObjectMapper()), salons, services, staff,
+                bookings, bookingClient, new ObjectMapper())
+                .exploreSalon(salonId.toString(), "services", null, null, null, null);
 
         assertFalse(result.isError());
         Map<?, ?> structured = assertInstanceOf(Map.class, result.structuredContent());

@@ -1,36 +1,40 @@
 package net.samitkumar.multi_tenant_salon.mcp.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
-import net.samitkumar.multi_tenant_salon.booking.AvailableSlot;
 import net.samitkumar.multi_tenant_salon.booking.BookingApi;
-import net.samitkumar.multi_tenant_salon.salon.Salon;
+import net.samitkumar.multi_tenant_salon.mcp.internal.SalonMcpSupport.SalonRef;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
-import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.salonservice.ServiceItem;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffMember;
 import net.samitkumar.multi_tenant_salon.staff.StaffStatus;
-import org.springframework.ai.mcp.annotation.McpResource;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
+import static net.samitkumar.multi_tenant_salon.mcp.internal.SalonMcpSupport.blankToNull;
+import static net.samitkumar.multi_tenant_salon.mcp.internal.SalonMcpSupport.error;
+import static net.samitkumar.multi_tenant_salon.mcp.internal.SalonMcpSupport.nullableMap;
+
+/**
+ * The general "Salon info" app ({@code salon_explorer}) plus the app-only booking write that every
+ * booking-capable app funnels through. The explorer keeps its services/team/availability views
+ * for MCP clients that still call them; the dedicated apps are the richer path.
+ */
 @Component
 class SalonMcpTools {
-    private static final String APP_MIME_TYPE = "text/html;profile=mcp-app";
+    static final String EXPLORER = "salon_explorer";
 
+    private final SalonMcpSupport support;
     private final SalonApi salons;
     private final SalonServiceApi services;
     private final StaffApi staff;
@@ -38,8 +42,9 @@ class SalonMcpTools {
     private final SalonMcpBookingClient bookingClient;
     private final ObjectMapper objectMapper;
 
-    SalonMcpTools(SalonApi salons, SalonServiceApi services, StaffApi staff,
+    SalonMcpTools(SalonMcpSupport support, SalonApi salons, SalonServiceApi services, StaffApi staff,
                   BookingApi bookings, SalonMcpBookingClient bookingClient, ObjectMapper objectMapper) {
+        this.support = support;
         this.salons = salons;
         this.services = services;
         this.staff = staff;
@@ -49,67 +54,50 @@ class SalonMcpTools {
     }
 
     @McpTool(
-            name = "salon_explorer",
-            title = "Explore a salon",
-            description = "Show a salon's live profile, services, team, opening hours, location, or real booking availability in an interactive view. The salonIdOrHandler is the salon's public UUID or handler/slug. Use this tool when a visitor asks to browse salon information or availability. This tool never creates or changes a booking.",
+            name = EXPLORER,
+            title = "Salon info",
+            description = "Show a salon's live overview, opening hours, location and contact details in an interactive view. The salonIdOrHandler is the salon's public UUID or handler/slug. Prefer the dedicated apps for services (salon_services), the team (salon_team), booking (salon_booking, salon_booking_by_stylist, salon_booking_week) and the shop (salon_shop). This tool never creates or changes a booking.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false),
-            metaProvider = SalonMcpAppToolMeta.class
+            metaProvider = SalonMcpAppMeta.ExplorerTool.class
     )
     McpSchema.CallToolResult exploreSalon(
-            @McpToolParam(description = "Salon public UUID or handler/slug") String salonIdOrHandler,
-            @McpToolParam(description = "One of overview, services, team, hours, location, availability") String view,
+            @McpToolParam(required = false, description = SalonMcpSupport.SALON_PARAM) String salonIdOrHandler,
+            @McpToolParam(description = "One of overview, hours, location (services, team and availability are kept for older clients)") String view,
             @McpToolParam(required = false, description = "Service id when checking availability") Long serviceId,
             @McpToolParam(required = false, description = "Staff member id when narrowing availability") Long staffId,
-            @McpToolParam(required = false, description = "Availability date in yyyy-MM-dd format") String date) {
-        try {
-            UUID salonId = salons.resolveId(salonIdOrHandler);
-            Salon salon = salons.findById(salonId)
-                    .filter(s -> s.status() == Salon.SalonStatus.ACTIVE)
-                    .orElseThrow(() -> new IllegalArgumentException("Salon not found or unavailable."));
-            Map<String, Object> data = switch (view == null ? "overview" : view.toLowerCase()) {
-                case "overview" -> overview(salonId, salon);
-                case "services" -> services(salonId, salon);
-                case "team" -> team(salonId, salon);
-                case "hours" -> hours(salonId, salon);
-                case "location" -> location(salonId, salon);
-                case "availability" -> availability(salonId, salon, serviceId, staffId, date);
-                default -> throw new IllegalArgumentException("Choose overview, services, team, hours, location, or availability.");
-            };
-            return result(data);
-        } catch (IllegalArgumentException e) {
-            return error(e.getMessage());
-        } catch (ResponseStatusException e) {
-            return error("Salon not found or unavailable.");
-        } catch (Exception e) {
-            return error("Salon information is temporarily unavailable. Please try again.");
-        }
-    }
-
-    @McpResource(
-            uri = SalonMcpAppToolMeta.RESOURCE_URI,
-            name = "Salon Explorer UI",
-            title = "Interactive salon explorer",
-            description = "Interactive salon details, services, team, opening hours, location, and live availability.",
-            mimeType = APP_MIME_TYPE,
-            metaProvider = SalonMcpAppResourceMeta.class
-    )
-    String salonExplorerResource() {
-        try {
-            return new ClassPathResource("static/mcp-app/index.html").getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Salon MCP App resource is missing. Build frontend/apps/salon-mcp-app first.", e);
-        }
+            @McpToolParam(required = false, description = "Availability date in yyyy-MM-dd format") String date,
+            McpTransportContext transport) {
+        return support.run("Salon information is temporarily unavailable. Please try again.", () -> {
+            SalonRef salon = support.activeSalon(salonIdOrHandler, transport);
+            String selected = view == null || view.isBlank() ? "overview" : view.toLowerCase();
+            Map<String, Object> data = support.base(EXPLORER, selected, salon);
+            switch (selected) {
+                case "overview" -> {
+                    data.put("salon", salonProfile(salon));
+                    data.put("items", salons.findOperatingHours(salon.id()));
+                }
+                case "services" -> data.put("items", services.findAllBySalonId(salon.id()).stream()
+                        .filter(ServiceItem::active).map(SalonMcpSupport::serviceMap).toList());
+                case "team" -> data.put("items", staff.findBySalonId(salon.id()).stream()
+                        .filter(m -> m.status() == StaffStatus.ACTIVE).map(SalonMcpSupport::staffMap).toList());
+                case "hours" -> data.put("items", salons.findOperatingHours(salon.id()));
+                case "location" -> data.put("location", location(salon));
+                case "availability" -> availability(salon, data, serviceId, staffId, date);
+                default -> throw new IllegalArgumentException("Choose overview, hours, or location.");
+            }
+            return data;
+        });
     }
 
     @McpTool(
             name = "create_customer_booking",
             title = "Confirm salon booking",
-            description = "Create a customer booking after the visitor reviews and explicitly confirms the booking in the Salon Explorer app. This tool is only available to the embedded app UI, not to the assistant. It requires customerConfirmed=true and a currently available slot.",
+            description = "Create a customer booking after the visitor reviews and explicitly confirms the booking in a Salon booking app. This tool is only available to the embedded app UI, not to the assistant. It requires customerConfirmed=true and a currently available slot.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false),
-            metaProvider = SalonMcpBookingToolMeta.class
+            metaProvider = SalonMcpAppMeta.CreateBookingTool.class
     )
     McpSchema.CallToolResult createCustomerBooking(
-            @McpToolParam(description = "Salon public UUID or handler/slug") String salonIdOrHandler,
+            @McpToolParam(required = false, description = SalonMcpSupport.SALON_PARAM) String salonIdOrHandler,
             @McpToolParam(description = "Active service id selected by the visitor") Long serviceId,
             @McpToolParam(description = "Booking date in yyyy-MM-dd format") String date,
             @McpToolParam(description = "Selected start time in HH:mm format") String startTime,
@@ -118,7 +106,8 @@ class SalonMcpTools {
             @McpToolParam(required = false, description = "Visitor's email address") String customerEmail,
             @McpToolParam(required = false, description = "Visitor's phone number") String customerPhone,
             @McpToolParam(required = false, description = "Optional booking notes") String notes,
-            @McpToolParam(description = "Must be true only after the visitor taps Confirm booking in the review view") Boolean customerConfirmed) {
+            @McpToolParam(description = "Must be true only after the visitor taps Confirm booking in the review view") Boolean customerConfirmed,
+            McpTransportContext transport) {
         try {
             if (!Boolean.TRUE.equals(customerConfirmed)) {
                 throw new IllegalArgumentException("The visitor must review and confirm the booking first.");
@@ -129,194 +118,110 @@ class SalonMcpTools {
             if ((customerEmail == null || customerEmail.isBlank()) && (customerPhone == null || customerPhone.isBlank())) {
                 throw new IllegalArgumentException("Enter an email address or phone number.");
             }
-            UUID salonId = salons.resolveId(salonIdOrHandler);
-            Salon salon = salons.findById(salonId)
-                    .filter(s -> s.status() == Salon.SalonStatus.ACTIVE)
-                    .orElseThrow(() -> new IllegalArgumentException("Salon not found or unavailable."));
-            if (!hasFeature(salon, SalonFeature.BOOKING)) {
-                throw new IllegalArgumentException("Online booking is not available at this salon.");
-            }
-            LocalDate bookingDate = LocalDate.parse(date);
-            java.time.LocalTime bookingTime = java.time.LocalTime.parse(startTime);
-            ServiceItem service = services.findByIdAndSalonId(serviceId, salonId)
+            SalonRef salon = support.bookableSalon(salonIdOrHandler, transport);
+            LocalDate bookingDate = SalonMcpSupport.parseDate(date, "the date");
+            if (bookingDate == null) throw new IllegalArgumentException("Choose a date.");
+            LocalTime bookingTime = LocalTime.parse(startTime);
+            ServiceItem service = services.findByIdAndSalonId(serviceId, salon.id())
                     .filter(ServiceItem::active)
                     .orElseThrow(() -> new IllegalArgumentException("Choose an active service at this salon."));
-            boolean slotIsAvailable = bookings.findAvailableSlots(salonId, service.id(), bookingDate, staffId).stream()
+            boolean slotIsAvailable = bookings.findAvailableSlots(salon.id(), service.id(), bookingDate, staffId).stream()
                     .anyMatch(slot -> !slot.booked() && slot.startTime().equals(bookingTime)
                             && (staffId == null || staffId.equals(slot.staffId())));
             if (!slotIsAvailable) {
                 throw new IllegalArgumentException("That time is no longer available. Check availability and choose another time.");
             }
 
-            var response = bookingClient.createBooking(salonId.toString(), new SalonMcpBookingClient.CreateBookingRequest(
+            var response = bookingClient.createBooking(salon.id().toString(), new SalonMcpBookingClient.CreateBookingRequest(
                     service.id(), staffId, customerName.strip(), blankToNull(customerEmail), blankToNull(customerPhone),
                     bookingDate.toString(), bookingTime.toString(), blankToNull(notes), null));
             var body = objectMapper.readTree(response);
             var booking = body.has("booking") ? body.path("booking") : body;
+            Long bookedStaffId = booking.path("staffId").isMissingNode() || booking.path("staffId").isNull()
+                    ? staffId : Long.valueOf(booking.path("staffId").asLong());
             var confirmation = nullableMap(
                     "status", booking.path("status").asText(null),
                     "bookingId", booking.path("id").isMissingNode() ? null : booking.path("id").asLong(),
-                    "salonName", salon.name(),
+                    "salonName", salon.salon().name(),
                     "serviceName", service.name(),
                     "date", bookingDate.toString(),
                     "startTime", bookingTime.toString(),
-                    "staffId", booking.path("staffId").isMissingNode() ? staffId : booking.path("staffId").asLong(),
+                    "staffId", bookedStaffId,
+                    "staffName", bookedStaffId == null ? null
+                            : staff.findByIdAndSalonId(bookedStaffId, salon.id()).map(StaffMember::name).orElse(null),
                     "paymentStatus", booking.path("paymentStatus").asText(null),
                     "checkoutUrl", body.path("checkoutUrl").asText(null),
                     "message", body.has("checkoutUrl") ? "Booking created. Complete payment to finish." : "Booking request submitted.");
-            return result(Map.of("view", "booking-confirmation", "booking", confirmation));
+            return support.result(Map.of("view", "booking-confirmation", "booking", confirmation));
         } catch (IllegalArgumentException e) {
             return error(e.getMessage());
+        } catch (java.time.format.DateTimeParseException e) {
+            return error("Choose a start time in HH:mm format.");
         } catch (RestClientResponseException e) {
             return error("We couldn't create that booking. The selected time may have just been taken; please check availability and try again.");
-        } catch (ResponseStatusException e) {
+        } catch (org.springframework.web.server.ResponseStatusException e) {
             return error("Salon not found or unavailable.");
         } catch (Exception e) {
             return error("We couldn't create that booking right now. Please try again.");
         }
     }
 
-    private Map<String, Object> overview(UUID salonId, Salon salon) {
-        return Map.of(
-                "view", "overview",
-                "salonId", salonId.toString(),
-                "bookingEnabled", hasFeature(salon, SalonFeature.BOOKING),
-                "salon", Map.of(
-                        "name", salon.name(),
-                        "handler", salon.handler(),
-                        "location", nullableMap(
-                                "address", salon.location() == null ? null : salon.location().address(),
-                                "city", salon.location() == null ? null : salon.location().city(),
-                                "state", salon.location() == null ? null : salon.location().state(),
-                                "country", salon.location() == null ? null : salon.location().country(),
-                                "zipCode", salon.location() == null ? null : salon.location().zipCode(),
-                                "mapsUrl", salon.location() == null ? null : salon.location().mapsUrl()),
-                        "contact", nullableMap(
-                                "phone", salon.contact() == null ? null : salon.contact().phone(),
-                                "email", salon.contact() == null ? null : salon.contact().email(),
-                                "website", salon.contact() == null ? null : salon.contact().website()),
-                        "bookingEnabled", hasFeature(salon, SalonFeature.BOOKING),
-                        "bookingAdvanceDays", salon.bookingAdvanceDays()
-                ),
-                "items", salons.findOperatingHours(salonId)
-        );
+    private static Map<String, Object> salonProfile(SalonRef salon) {
+        var s = salon.salon();
+        return nullableMap(
+                "name", s.name(),
+                "handler", s.handler(),
+                "location", location(salon),
+                "contact", nullableMap(
+                        "phone", s.contact() == null ? null : s.contact().phone(),
+                        "email", s.contact() == null ? null : s.contact().email(),
+                        "website", s.contact() == null ? null : s.contact().website()),
+                "bookingEnabled", salon.has(net.samitkumar.multi_tenant_salon.salon.SalonFeature.BOOKING),
+                "bookingAdvanceDays", salon.advanceDays());
     }
 
-    private Map<String, Object> services(UUID salonId, Salon salon) {
-        List<Map<String, Object>> items = services.findAllBySalonId(salonId).stream()
-                .filter(ServiceItem::active)
-                .map(s -> nullableMap(
-                        "id", s.id(), "name", s.name(), "description", value(s.description()),
-                        "price", s.price(), "currency", value(s.currency()),
-                        "durationMinutes", s.durationMinutes() == null ? 0 : s.durationMinutes(),
-                        "category", s.category() == null ? "" : s.category().name()))
-                .toList();
-        return Map.of("view", "services", "salonId", salonId.toString(), "salonName", salon.name(),
-                "bookingEnabled", hasFeature(salon, SalonFeature.BOOKING), "items", items);
+    private static Map<String, Object> location(SalonRef salon) {
+        var l = salon.salon().location();
+        return nullableMap(
+                "address", l == null ? null : l.address(),
+                "city", l == null ? null : l.city(),
+                "state", l == null ? null : l.state(),
+                "country", l == null ? null : l.country(),
+                "zipCode", l == null ? null : l.zipCode(),
+                "mapsUrl", l == null ? null : l.mapsUrl());
     }
 
-    private Map<String, Object> team(UUID salonId, Salon salon) {
-        List<Map<String, Object>> items = staff.findBySalonId(salonId).stream()
-                .filter(m -> m.status() == StaffStatus.ACTIVE)
-                .map(m -> Map.<String, Object>of(
-                        "id", m.id(), "name", m.name(), "role", m.role().name(), "bio", value(m.bio()),
-                        "avatarUrl", value(m.avatarUrl()), "availableForBooking", m.availableForBooking(),
-                        "specializations", m.specializations().stream().map(StaffMember.Specialization::value).toList(),
-                        "workMedia", m.workMedia().stream().map(StaffMember.WorkMedia::value).toList()))
-                .toList();
-        return Map.of("view", "team", "salonId", salonId.toString(), "salonName", salon.name(),
-                "bookingEnabled", hasFeature(salon, SalonFeature.BOOKING), "items", items);
-    }
-
-    private Map<String, Object> hours(UUID salonId, Salon salon) {
-        return Map.of("view", "hours", "salonId", salonId.toString(), "salonName", salon.name(),
-                "bookingEnabled", hasFeature(salon, SalonFeature.BOOKING),
-                "items", salons.findOperatingHours(salonId));
-    }
-
-    private Map<String, Object> location(UUID salonId, Salon salon) {
-        return Map.of("view", "location", "salonId", salonId.toString(), "salonName", salon.name(),
-                "bookingEnabled", hasFeature(salon, SalonFeature.BOOKING),
-                "location", nullableMap(
-                        "address", salon.location() == null ? null : salon.location().address(),
-                        "city", salon.location() == null ? null : salon.location().city(),
-                        "state", salon.location() == null ? null : salon.location().state(),
-                        "country", salon.location() == null ? null : salon.location().country(),
-                        "zipCode", salon.location() == null ? null : salon.location().zipCode(),
-                        "mapsUrl", salon.location() == null ? null : salon.location().mapsUrl()));
-    }
-
-    private Map<String, Object> availability(UUID salonId, Salon salon, Long serviceId, Long staffId, String dateText) {
-        if (!hasFeature(salon, SalonFeature.BOOKING)) {
+    private void availability(SalonRef salon, Map<String, Object> data, Long serviceId, Long staffId, String dateText) {
+        if (!salon.has(net.samitkumar.multi_tenant_salon.salon.SalonFeature.BOOKING)) {
             throw new IllegalArgumentException("Online booking is not available at this salon.");
         }
-        List<Map<String, Object>> serviceChoices = services.findAllBySalonId(salonId).stream()
+        List<Map<String, Object>> serviceChoices = services.findAllBySalonId(salon.id()).stream()
                 .filter(ServiceItem::active)
                 .map(s -> Map.<String, Object>of("id", s.id(), "name", s.name(), "durationMinutes", s.durationMinutes() == null ? 0 : s.durationMinutes()))
                 .toList();
-        if (serviceId == null || dateText == null || dateText.isBlank()) {
-            return Map.of("view", "availability", "salonId", salonId.toString(), "salonName", salon.name(),
-                    "bookingEnabled", true,
-                    "services", serviceChoices, "date", "", "items", List.of());
+        data.put("services", serviceChoices);
+        LocalDate date = SalonMcpSupport.parseDate(dateText, "a date");
+        if (serviceId == null || date == null) {
+            data.put("date", "");
+            data.put("items", List.of());
+            return;
         }
-        LocalDate date;
-        try {
-            date = LocalDate.parse(dateText);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Enter a date using yyyy-MM-dd.");
-        }
-        var service = services.findByIdAndSalonId(serviceId, salonId)
+        var service = services.findByIdAndSalonId(serviceId, salon.id())
                 .filter(ServiceItem::active)
                 .orElseThrow(() -> new IllegalArgumentException("Choose an active service at this salon."));
-        if (staffId != null && staff.findByIdAndSalonId(staffId, salonId).filter(m -> m.status() == StaffStatus.ACTIVE).isEmpty()) {
+        if (staffId != null && staff.findByIdAndSalonId(staffId, salon.id()).filter(m -> m.status() == StaffStatus.ACTIVE).isEmpty()) {
             throw new IllegalArgumentException("Choose an active team member at this salon.");
         }
-        LocalDate today = LocalDate.now();
-        LocalDate latest = today.plusDays(Math.max(1, salon.bookingAdvanceDays()));
-        if (date.isBefore(today) || date.isAfter(latest)) {
+        LocalDate latest = salon.lastBookableDate();
+        if (date.isBefore(LocalDate.now()) || date.isAfter(latest)) {
             throw new IllegalArgumentException("Choose a date from today through " + latest + ".");
         }
-        List<Map<String, Object>> items = bookings.findAvailableSlots(salonId, service.id(), date, staffId).stream()
+        data.put("serviceId", service.id());
+        data.put("serviceName", service.name());
+        data.put("date", date.toString());
+        data.put("items", bookings.findAvailableSlots(salon.id(), service.id(), date, staffId).stream()
                 .filter(slot -> !slot.booked())
-                .map(slot -> slotMap(slot))
-                .toList();
-        return Map.of("view", "availability", "salonId", salonId.toString(), "salonName", salon.name(),
-                "bookingEnabled", true,
-                "serviceId", service.id(), "serviceName", service.name(), "date", date.toString(),
-                "services", serviceChoices, "items", items);
-    }
-
-    private static Map<String, Object> slotMap(AvailableSlot slot) {
-        return nullableMap("staffId", slot.staffId(), "startTime", slot.startTime().toString(), "endTime", slot.endTime().toString());
-    }
-
-    private static Map<String, Object> nullableMap(Object... pairs) {
-        var result = new java.util.LinkedHashMap<String, Object>();
-        for (int i = 0; i + 1 < pairs.length; i += 2) {
-            if (pairs[i + 1] != null) result.put((String) pairs[i], pairs[i + 1]);
-        }
-        return result;
-    }
-
-    private static String value(String value) { return value == null ? "" : value; }
-    private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value.strip(); }
-
-    private static boolean hasFeature(Salon salon, SalonFeature feature) {
-        return salon.features().stream().anyMatch(f -> f.feature() == feature);
-    }
-
-    private McpSchema.CallToolResult result(Map<String, Object> data) {
-        try {
-            return McpSchema.CallToolResult.builder()
-                    .addTextContent(objectMapper.writeValueAsString(data))
-                    .structuredContent(data)
-                    .build();
-        } catch (JsonProcessingException e) {
-            return error("Could not prepare salon information.");
-        }
-    }
-
-    private static McpSchema.CallToolResult error(String message) {
-        return McpSchema.CallToolResult.builder().addTextContent(message).isError(true).build();
+                .map(slot -> nullableMap("staffId", slot.staffId(), "startTime", slot.startTime().toString(), "endTime", slot.endTime().toString()))
+                .toList());
     }
 }

@@ -317,7 +317,8 @@ class BookingService implements BookingApi {
      * @param granularity {@code SLOT} also fills {@link SalonAvailability.DayAvailability#slots()}
      * @param limit       when set, {@code days} holds only the first {@code limit} OPEN days
      */
-    SalonAvailability queryAvailability(UUID salonId, Long serviceId, Long staffId,
+    @Override
+    public SalonAvailability queryAvailability(UUID salonId, Long serviceId, Long staffId,
                                        LocalDate from, LocalDate to,
                                        SalonAvailability.Granularity granularity, Integer limit) {
         var today = LocalDate.now();

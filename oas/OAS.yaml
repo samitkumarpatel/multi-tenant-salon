@@ -795,6 +795,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
 
+  /api/salon/{salonId}/chat/stream:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+
+    post:
+      tags: [Chat]
+      summary: Stream a reply from the salon's AI assistant (public, Server-Sent Events)
+      description: |
+        The same turn as `POST /api/salon/{salonId}/chat`, streamed as `text/event-stream` so the
+        reply types in as the model writes it. Events, in order:
+
+        | event | data | when |
+        |---|---|---|
+        | `session` | `{ "sessionId": "…" }` | first |
+        | `delta` | `{ "text": "…" }` | each chunk of reply text, as generated |
+        | `app` | `{ "tool": "salon_booking_week", "arguments": { … } }` | the moment the assistant opens a Salon MCP App — usually mid-sentence, so the page can start loading it |
+        | `done` | `ChatResponse` (with `suggestedQuestions: []`) | the assembled reply — authoritative text, `mcpAppTool`/`mcpAppCall`, `toolsUsed` |
+        | `suggestions` | `{ "questions": ["…"] }` | last; follow-up chips are generated after the reply so they never delay it |
+        | `error` | `ChatResponse` with a friendly `message` | instead of `done`, if the model fails |
+
+        Sent with `X-Accel-Buffering: no` so proxies pass chunks through. Clients that can't
+        stream (or get a non-`text/event-stream` response) should fall back to `POST .../chat`.
+      operationId: streamChatWithAssistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Server-Sent Events stream of the reply
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event:session
+                  data:{"sessionId":"5f2b…"}
+
+                  event:app
+                  data:{"tool":"salon_booking_week","arguments":{"salonIdOrHandler":"3f1c…","serviceId":12}}
+
+                  event:delta
+                  data:{"text":"Here's the whole week "}
+
+                  event:done
+                  data:{"sessionId":"5f2b…","message":"Here's the whole week …","mcpAppTool":"salon_booking_week"}
+
+                  event:suggestions
+                  data:{"questions":["What about next week?"]}
+
   /api/salon/{salonId}/chat/followups:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -4872,6 +4924,24 @@ components:
           allOf:
             - $ref: "#/components/schemas/CreateBookingRequest"
           nullable: true
+        mcpAppTool:
+          type: string
+          nullable: true
+          description: |
+            The Salon MCP App the assistant opened this turn — the same model-visible tool an
+            external MCP host would call on `/mcp`. The website embeds that app's `ui://` resource
+            under the reply. `null` when no app was opened.
+          enum: [salon_explorer, salon_services, salon_team, salon_booking, salon_booking_by_stylist, salon_booking_week, salon_shop]
+          example: salon_booking_week
+        mcpAppCall:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: |
+            Arguments for `mcpAppTool`, always including `salonIdOrHandler`; only the ids/dates the
+            assistant already knew are present (e.g. `serviceId`, `staffId`, `date`, `weekStart`,
+            `view` for `salon_explorer`). The host passes them to the tool unchanged.
+          example: { salonIdOrHandler: "3f1c…", serviceId: 12, weekStart: "2026-10-26" }
 
     ChatFollowupsRequest:
       type: object

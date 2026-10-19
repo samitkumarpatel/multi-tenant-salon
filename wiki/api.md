@@ -740,14 +740,99 @@ explicitly confirm does it `POST` this object verbatim to `/api/salon/{salonId}/
 `## Customer — Booking`), which does the real validation (availability, conflicts, salon hours)
 and fires the same booking-confirmation email as the step-by-step wizard.
 
+`mcpAppTool` / `mcpAppCall` are present when the assistant opened one of the **Salon MCP Apps**
+(see below) — `mcpAppTool` names the app's MCP tool and `mcpAppCall` holds its arguments
+(always including `salonIdOrHandler`). The website embeds that app under the reply:
+
+```json
+{
+  "sessionId": "5f2b…",
+  "message": "Here's the whole week for a haircut — tap any time to book.",
+  "components": [],
+  "suggestedQuestions": ["What about next week?", "Who's free Saturday?"],
+  "toolsUsed": ["salon_booking_week"],
+  "pendingBooking": null,
+  "mcpAppTool": "salon_booking_week",
+  "mcpAppCall": { "salonIdOrHandler": "3f1c…", "serviceId": 12, "weekStart": "2026-10-26" }
+}
+```
+
+### Streaming replies
+
+`POST /api/salon/{salonId}/chat/stream` takes the same body as `POST .../chat` and answers with
+Server-Sent Events so the reply types in like ChatGPT / Claude:
+
+| event | data |
+|---|---|
+| `session` | `{ "sessionId" }` — first |
+| `delta` | `{ "text" }` — each chunk of reply text as the model writes it |
+| `app` | `{ "tool", "arguments" }` — the moment a Salon MCP App is opened (mid-sentence), so the page starts loading it while the text is still arriving |
+| `done` | the usual chat response body (`suggestedQuestions` empty) — authoritative final text and app |
+| `suggestions` | `{ "questions" }` — last; the follow-up chips need a second model call, so they never hold up the answer |
+| `error` | a chat response body with a friendly `message`, instead of `done` |
+
+`ChatAssistantService.stream` runs the same prompt, memory and app tools as `reply` through
+`ChatClient.stream()` (Spring AI's `ToolCallingAdvisor` executes tool calls mid-stream); usage
+analytics are recorded when `done` is sent. The website reads the stream with `fetch` (so it can
+POST), renders deltas once per animation frame with a typing caret, and falls back to
+`POST .../chat` when the response isn't `text/event-stream`. The model usually opens an app
+*before* writing its sentence, so the website starts loading the app on `app` but keeps it
+collapsed ("Preparing Week view…") while the text streams, then expands it under the finished
+text on `done` and scrolls to the reply's first line.
+
+### Salon MCP Apps
+
+The MCP server (Streamable HTTP, no token) exposes one interactive [MCP App](https://modelcontextprotocol.io/extensions/apps)
+per task. It is reachable two ways:
+
+| URL | Salon | Use it for |
+|---|---|---|
+| `/mcp/{salonIdOrHandler}` | Bound by the URL — every tool uses that salon and ignores any `salonIdOrHandler` argument | What the salon website hands out ("MCP" button): visitors paste one URL into Claude, ChatGPT, VS Code, Cursor, … and just ask |
+| `/mcp` | Each tool call passes `salonIdOrHandler` (a missing one returns an `isError` "Which salon?" result) | Integrations that work across salons |
+
+A salon URL is a servlet forward onto `/mcp` (`SalonMcpTransportConfiguration`): the salon is resolved
+once per request (unknown or disabled salon → `404 text/plain` before any MCP handling) and handed to
+tools through the transport's `McpTransportContext`. Both URLs share one MCP server, session table and
+tool set. Each model-visible tool links (`_meta.ui.resourceUri`) to its own single-file HTML view,
+built from `frontend/apps/salon-mcp-app` into `static/mcp-app/<app>.html` and served as `ui://salon/<app>.html`.
+Every tool takes an optional `salonIdOrHandler` (public UUID or handler) — omitted on a salon URL;
+the other arguments are optional too and only pre-select what the visitor would otherwise pick in the app. The apps re-call their own tool
+(and `salon_booking` for availability) through the host as the visitor navigates.
+
+| Tool | View | What the visitor can do | Optional arguments |
+|---|---|---|---|
+| `salon_explorer` | `ui://salon/explorer.html` | Overview, opening hours, location & contact; tiles that hand off to the other apps | `view` (`overview`/`hours`/`location`; `services`/`team`/`availability` kept for older clients), `serviceId`, `staffId`, `date` |
+| `salon_services` | `ui://salon/services.html` | Search, category chips, sort, expandable service rows with who performs them, book in place | `category` (e.g. `HAIR`), `serviceId` (highlighted) |
+| `salon_team` | `ui://salon/team.html` | Specialisation filter, stylist cards, profile with bio/services/portfolio lightbox, book with a stylist | `staffId` (opens their profile), `specialization` |
+| `salon_booking` | `ui://salon/booking.html` | Stepper: service → stylist (or any) → month calendar with OPEN/CLOSED/FULL days → grouped times → details → review → confirm | `serviceId`, `staffId`, `month` (`yyyy-MM`), `date` (`yyyy-MM-dd`) |
+| `salon_booking_by_stylist` | `ui://salon/booking-stylist.html` | Stylist carousel → their services → two-week day strip + "next available" → times → confirm | `staffId`, `serviceId`, `from`, `date` |
+| `salon_booking_week` | `ui://salon/booking-week.html` | Mon–Sun grid of every open time, prev/next week, morning/afternoon/evening filter, stylist choice → confirm | `serviceId`, `staffId`, `weekStart` (any day in the week) |
+| `salon_shop` | `ui://salon/shop.html` | Search/category/brand filters, product grid, gallery + variants + stock, cart, checkout → review → place order | `categoryId`, `brandId`, `productId`, `query` |
+
+Two write tools are `_meta.ui.visibility: ["app"]` — hidden from the model, callable only by a
+visitor's tap inside an app, and both require `customerConfirmed: true`:
+
+- `create_customer_booking` — re-checks the slot, then calls `POST /api/salon/{salonId}/booking`
+  so salon confirmation and Stripe payment rules apply (a `checkoutUrl` is returned when payment is due).
+- `create_shop_order` — `items[] {variantId, quantity}` (capped at 10 each), name + email, optional
+  phone and shipping address; calls `POST /api/salon/{salonId}/shop/orders` so stock and payment rules apply.
+
+Booking apps need the `BOOKING` feature and the shop needs `WEBSHOP`; otherwise the tool returns an
+`isError` result with a visitor-friendly message (the website chat sees it as `view: "error"`).
+Apps use `ui/message` to hand off between each other through the chat ("See the whole week instead"),
+and `ui/update-model-context` to tell the assistant what the visitor is doing (the website forwards
+the latest note in `uiState`).
+
 **Flow**
 
 1. `ChatController.chat(...)` → `ChatAssistantService.reply(salonId, conversationId, context, message, uiState)`
    (`conversationId` = `{salonId}:{sessionId}`).
 2. Records `uiState` (if any) into `ChatMemory` as a synthetic assistant turn, then calls the
    model with a system prompt for the given `context`, a `MessageChatMemoryAdvisor` that replays
-   the stored transcript, and a per-request `SalonDataTools` instance bound to `salonId`. The
-   model can call:
+   the stored transcript, and a per-request `SalonMcpAppChatTools` instance bound to `salonId`
+   (one tool per Salon MCP App above, each calling the same MCP tool via `SalonMcpChatGateway`;
+   the last app opened becomes `mcpAppTool`/`mcpAppCall`). The older `SalonDataTools` (still
+   in the codebase but no longer passed to the model by `reply`) can call:
    - **lookup tools** — `getSalonProfile`/`getStaff`/`getServices`/`getHolidays` (plain HTTP
      calls to this app's own `/api/salon/{salonId}/...` endpoints above) and `checkAvailability`
      (calls `/api/salon/{salonId}/booking/slots`, so it can't invent an open time);

@@ -1,7 +1,7 @@
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUp, Calendar, CalendarCheck, CheckCircle2, Clock, Copy, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, PlugZap, Search, Sparkles, SquarePen, Users, Wrench, X,
+  ArrowUp, Calendar, CalendarCheck, CalendarRange, CheckCircle2, Clock, Info, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, PlugZap, Scissors, Search, ShoppingBag, Sparkles, SquarePen, UserRound, Users, Wrench, X,
 } from "lucide-react";
 import { FONTS, fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -11,7 +11,8 @@ import {
   type CardTokens, type PendingBookingFields, type PickerProgress,
 } from "./GenerativeUICards";
 import { GenUIComponent, type UIComponent, type GenUICtx } from "./GenerativeUIRegistry";
-import { McpAppFrame } from "./McpAppFrame";
+import { MCP_APPS, McpAppFrame } from "./McpAppFrame";
+import { McpConnectGuide } from "./McpConnectGuide";
 import { type ClosureRange, resolveHolidayRanges } from "./bookingDates";
 import { STAFF_ROLE_LABEL } from "./constants";
 import type { Booking, Salon, SalonHoliday, ServiceItem, StaffMember, WebsiteTheme } from "./types";
@@ -65,6 +66,14 @@ type Message =
       components?: UIComponent[];
       suggested?: string[];
       mcpAppCall?: Record<string, unknown>;
+      /** Which Salon MCP App `mcpAppCall` opens (e.g. `salon_booking_week`). */
+      mcpAppTool?: string;
+      /** The app's latest `ui/update-model-context` note — what the visitor is doing in it. */
+      mcpAppContext?: string;
+      /** Identifies the turn so late stream events (suggestions) land on the right message. */
+      turnId?: number;
+      /** True while the reply text is still arriving. */
+      streaming?: boolean;
       /** Live selections inside this turn's booking-picker, lifted up for the uiState clue. */
       picker?: PickerProgress;
     };
@@ -131,6 +140,18 @@ type ChatApiResponse = {
   suggestedQuestions?: string[] | null;
   pendingBooking?: PendingBookingResponse | null;
   mcpAppCall?: Record<string, unknown> | null;
+  mcpAppTool?: string | null;
+};
+
+// Header icon per Salon MCP App embedded under a reply (see MCP_APPS for the labels).
+const MCP_APP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  salon_explorer: Info,
+  salon_services: Scissors,
+  salon_team: Users,
+  salon_booking: CalendarCheck,
+  salon_booking_by_stylist: UserRound,
+  salon_booking_week: CalendarRange,
+  salon_shop: ShoppingBag,
 };
 
 const TOOL_LABELS: Record<string, string> = {
@@ -143,7 +164,7 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 function friendlyToolLabel(tools: string[]): string {
-  return tools.length ? tools.map((t) => TOOL_LABELS[t] ?? t).join(", ") : "salon-data";
+  return tools.length ? tools.map((t) => TOOL_LABELS[t] ?? MCP_APPS[t]?.title.toLowerCase() ?? t).join(", ") : "salon-data";
 }
 
 // Booking-context replies get a "Book now" CTA unless the visitor asked a location/contact
@@ -230,6 +251,7 @@ type ChatReplyResult = {
   components: UIComponent[] | null;
   suggestedQuestions: string[];
   mcpAppCall: Record<string, unknown> | null;
+  mcpAppTool: string | null;
 };
 
 async function requestChatReply(
@@ -251,6 +273,7 @@ async function requestChatReply(
       components: res.components ?? null,
       suggestedQuestions: Array.isArray(res.suggestedQuestions) ? res.suggestedQuestions.slice(0, 4) : [],
       mcpAppCall: res.mcpAppCall ?? null,
+      mcpAppTool: res.mcpAppTool ?? null,
     };
   } catch {
     return {
@@ -260,8 +283,106 @@ async function requestChatReply(
       components: null,
       suggestedQuestions: [],
       mcpAppCall: null,
+      mcpAppTool: null,
     };
   }
+}
+
+type StreamHandlers = {
+  /** A chunk of the reply text, as the model writes it. */
+  onDelta: (text: string) => void;
+  /** The assistant opened a Salon MCP App — fires before the text is finished. */
+  onApp: (tool: string, args: Record<string, unknown>) => void;
+  /** Follow-up chips, generated after the reply. */
+  onSuggestions: (questions: string[]) => void;
+};
+
+function toResult(res: ChatApiResponse, suggestions: string[] = []): ChatReplyResult {
+  return {
+    text: res.message ?? "",
+    toolsUsed: res.toolsUsed ?? [],
+    pendingBooking: res.pendingBooking ?? null,
+    components: res.components ?? null,
+    suggestedQuestions: suggestions,
+    mcpAppCall: res.mcpAppCall ?? null,
+    mcpAppTool: res.mcpAppTool ?? null,
+  };
+}
+
+/**
+ * Streams one assistant turn from POST .../chat/stream (Server-Sent Events over fetch, since
+ * EventSource can't POST). Resolves with the final reply on `done`; suggestions keep arriving
+ * through `onSuggestions` afterwards. If streaming isn't available (older backend, proxy
+ * stripping SSE) it falls back to the one-shot endpoint, so the chat always answers.
+ */
+async function streamChatReply(
+  salonId: number,
+  sessionId: string,
+  context: "website" | "booking",
+  message: string,
+  uiState: string | undefined,
+  handlers: StreamHandlers,
+): Promise<ChatReplyResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/salon/${salonId}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify({ sessionId, context, message, uiState }),
+    });
+  } catch {
+    return requestChatReply(salonId, sessionId, context, message, uiState);
+  }
+  if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("text/event-stream")) {
+    return requestChatReply(salonId, sessionId, context, message, uiState);
+  }
+
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  let final: ChatReplyResult | null = null;
+  let resolveDone!: (value: ChatReplyResult) => void;
+  const done = new Promise<ChatReplyResult>((resolve) => { resolveDone = resolve; });
+
+  const handle = (event: string, data: string) => {
+    let payload: Record<string, unknown>;
+    try { payload = JSON.parse(data); } catch { return; }
+    if (event === "delta" && typeof payload.text === "string") handlers.onDelta(payload.text);
+    else if (event === "app" && typeof payload.tool === "string") handlers.onApp(payload.tool, (payload.arguments ?? {}) as Record<string, unknown>);
+    else if ((event === "done" || event === "error") && !final) { final = toResult(payload as ChatApiResponse); resolveDone(final); }
+    else if (event === "suggestions" && Array.isArray(payload.questions)) handlers.onSuggestions((payload.questions as string[]).slice(0, 4));
+  };
+
+  void (async () => {
+    try {
+      for (;;) {
+        const { value, done: ended } = await reader.read();
+        if (ended) break;
+        buffer += value;
+        // SSE events are separated by a blank line; each has "event:" and "data:" lines.
+        let split: number;
+        while ((split = buffer.search(/\r?\n\r?\n/)) >= 0) {
+          const raw = buffer.slice(0, split);
+          buffer = buffer.slice(split).replace(/^\r?\n\r?\n/, "");
+          let event = "message";
+          const data: string[] = [];
+          for (const line of raw.split(/\r?\n/)) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+          }
+          if (data.length) handle(event, data.join("\n"));
+        }
+      }
+    } catch {
+      /* connection dropped — whatever arrived is kept; resolve below */
+    }
+    if (!final) {
+      resolveDone({
+        text: "Sorry, I'm having trouble responding right now — please try again shortly or contact us directly.",
+        toolsUsed: [], pendingBooking: null, components: null, suggestedQuestions: [], mcpAppCall: null, mcpAppTool: null,
+      });
+    }
+  })();
+  return done;
 }
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -277,6 +398,14 @@ function MdText({ text }: { text: string }) {
     </>
   );
 }
+/** While a reply streams, hide a `**` whose closing pair hasn't arrived yet (no raw asterisks flash). */
+function withoutOpenBold(text: string) {
+  const marks = text.split("**").length - 1;
+  if (marks % 2 === 0) return text;
+  const last = text.lastIndexOf("**");
+  return text.slice(0, last) + text.slice(last + 2);
+}
+
 function MessageText({ text }: { text: string }) {
   return (
     <span className="whitespace-pre-line break-words text-[15px] leading-relaxed">
@@ -287,26 +416,20 @@ function MessageText({ text }: { text: string }) {
   );
 }
 
-// Landing-moment reveal: each character of the salon name fades/rises in with a short stagger,
-// in the salon's chosen accent color and font.
-function AnimatedSalonName({ text, color }: { text: string; color: string }) {
-  return (
-    <h1 className="text-2xl font-bold leading-tight" style={{ color }}>
-      {text.split("").map((ch, i) => (
-        <span key={i} className="inline-block gai-fade-in" style={{ animationDelay: `${i * 28}ms`, whiteSpace: ch === " " ? "pre" : "normal" }}>
-          {ch}
-        </span>
-      ))}
-    </h1>
-  );
-}
-
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function GenerativeUIWebsite({
   salon: salonProp, staff: staffProp, services: servicesProp, theme, context = "website", onSwitchToWizard,
 }: GenerativeUIWebsiteProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
+  // The long composer placeholder wraps (and is clipped) on phones; a short one fits.
+  const [narrowScreen, setNarrowScreen] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 639px)");
+    const update = () => setNarrowScreen(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const isBooking = context === "booking";
   const font = { stack: fontStack(theme.fontFamily) };
   loadGoogleFont(theme.fontFamily);
@@ -331,7 +454,6 @@ export function GenerativeUIWebsite({
   const [thinking, setThinking] = useState(false);
   const [started, setStarted]   = useState(false);
   const [mcpDetailsOpen, setMcpDetailsOpen] = useState(false);
-  const [copiedMcpField, setCopiedMcpField] = useState<string | null>(null);
   // How the chat opens is a salon-admin theme setting: "windowed" = the constrained card,
   // anything else (default) = fullscreen. The header toggle still flips it at runtime.
   // (Booking context is always full-page and ignores this.)
@@ -341,13 +463,41 @@ export function GenerativeUIWebsite({
   // so we no longer re-send history — just this id + the new message. Persisted for the tab so a
   // reload within the TTL resumes the same conversation; "Clear chat" mints a fresh one.
   const [sessionId, setSessionId] = useState<string>(() => newSessionId(salon.id));
-  const mcpServerUrl = `${API_BASE.replace(/\/+$/, "")}/mcp`;
+  // Each salon has its own MCP URL (/mcp/<handle>): it identifies the salon, so the visitor's AI
+  // app never needs to be told which salon to use.
   const mcpSalonHandle = salon.handler?.trim() || String(salon.id);
+  const mcpServerUrl = `${API_BASE.replace(/\/+$/, "")}/mcp/${encodeURIComponent(mcpSalonHandle)}`;
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
+  const turnCounter = useRef(0);
+  const prevMessageCount = useRef(0);
+  const prevStreaming = useRef(false);
+
+  // Auto-scroll on real events only — never on in-place updates like an app reporting what the
+  // visitor is doing in it, which would yank the page while they tap inside the app.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const bottom = bottomRef.current;
+    if (!bottom) return;
+    const last = messages[messages.length - 1];
+    const scroller = bottom.closest(".overflow-y-auto") as HTMLElement | null;
+    const nearBottom = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160;
+    const added = messages.length !== prevMessageCount.current;
+    prevMessageCount.current = messages.length;
+    const streaming = last?.role === "assistant" && Boolean(last.streaming);
+    const finished = prevStreaming.current && !streaming;
+    prevStreaming.current = streaming;
+
+    if (added) {
+      bottom.scrollIntoView({ behavior: "smooth" });
+    } else if (finished && last?.role === "assistant" && last.mcpAppCall) {
+      // The app expands in now: show the reply from its first line with the app opening below,
+      // rather than jumping to the bottom of a tall app.
+      document.querySelector(`[data-turn="${last.turnId}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (nearBottom) {
+      // Tokens arriving / chips appearing: follow, but only if the reader is already at the bottom.
+      bottom.scrollIntoView({ behavior: streaming ? "auto" : "smooth", block: "end" });
+    }
   }, [messages, thinking]);
 
   // Follow the saved layout preference when it changes. At runtime `theme.chatLayout` is
@@ -578,6 +728,10 @@ export function GenerativeUIWebsite({
         if (clue) parts.push(clue);
       }
       if (m.pendingBooking) parts.push(bookingStatusSummary(m.pendingBooking));
+      if (m.mcpAppCall) {
+        const app = MCP_APPS[m.mcpAppTool ?? "salon_explorer"]?.title ?? "salon";
+        parts.push(`[The interactive ${app} app is on screen just below the latest reply${m.mcpAppContext ? `. ${m.mcpAppContext}` : "."} Nothing is booked or ordered unless the app itself confirmed it.]`);
+      }
       return parts.length ? parts.join("\n") : undefined;
     }
     return undefined;
@@ -587,15 +741,45 @@ export function GenerativeUIWebsite({
     return isBooking && !NO_CTA_PATTERN.test(userText) ? "book" : undefined;
   }
 
-  function resolveReply(userText: string, uiState: string | undefined) {
-    requestChatReply(salon.id, sessionId, isBooking ? "booking" : "website", userText, uiState).then(
-      ({ text: reply, toolsUsed, pendingBooking, components: rawComponents, suggestedQuestions, mcpAppCall }) => {
+  // Patch the assistant message for one turn (stream events can land after the visitor moved on).
+  function patchTurn(turnId: number, patch: (m: Extract<Message, { role: "assistant" }>) => Partial<Extract<Message, { role: "assistant" }>>) {
+    setMessages((prev) => prev.map((m) => (m.role === "assistant" && m.turnId === turnId ? { ...m, ...patch(m) } : m)));
+  }
+
+  function resolveReply(userText: string, uiState: string | undefined, turnId: number) {
+    // Tokens can arrive faster than the screen repaints; batch them into one update per frame.
+    let pending = "";
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      const chunk = pending;
+      pending = "";
+      if (chunk) patchTurn(turnId, (m) => ({ text: m.text + chunk }));
+    };
+    const handlers: StreamHandlers = {
+      onDelta: (chunk) => {
+        pending += chunk;
+        if (!frame) frame = window.requestAnimationFrame(flush);
+      },
+      onApp: (tool, args) => patchTurn(turnId, () => ({
+        mcpAppTool: tool,
+        mcpAppCall: args,
+        tool: { name: MCP_APPS[tool]?.title.toLowerCase() ?? tool, label: `Opening ${MCP_APPS[tool]?.title ?? "the app"}…`, done: false },
+      })),
+      onSuggestions: (questions) => patchTurn(turnId, () => ({ suggested: questions.length ? questions : undefined })),
+    };
+    streamChatReply(salon.id, sessionId, isBooking ? "booking" : "website", userText, uiState, handlers).then(
+      ({ text: reply, toolsUsed, pendingBooking, components: rawComponents, suggestedQuestions, mcpAppCall, mcpAppTool }) => {
         const cta = replyCta(userText);
         let components = normalizeComponents(rawComponents, services);
         const cleanedReply = stripStageDirections(reply);
+        if (frame) { window.cancelAnimationFrame(frame); frame = 0; }
+        pending = "";
         setMessages((prev) => {
           const next = [...prev];
-          const lastIdx = next.length - 1;
+          const found = next.findIndex((m) => m.role === "assistant" && m.turnId === turnId);
+          const lastIdx = found >= 0 ? found : next.length - 1;
+          const streamed = next[lastIdx]?.role === "assistant" ? next[lastIdx] : undefined;
 
           // A booking picker that's still in progress always follows the conversation down to the
           // newest assistant turn, so it stays next to the last chat instead of being orphaned
@@ -629,16 +813,24 @@ export function GenerativeUIWebsite({
             }
           }
 
+          // Keep the app's argument object if the stream already opened it — a new (equal) object
+          // would make the embedded app reconnect and lose what the visitor has done in it.
+          const keepApp = streamed?.mcpAppCall && mcpAppCall
+            && JSON.stringify(streamed.mcpAppCall) === JSON.stringify(mcpAppCall);
           next[lastIdx] = {
             role: "assistant",
+            turnId,
+            streaming: false,
             text: cleanedReply,
             tool: toolsUsed.length ? { name: friendlyToolLabel(toolsUsed), label: "salon-data", done: true } : undefined,
             time: nowTime(),
             cta,
             pendingBooking: pendingBooking ? { ...pendingBooking, status: "proposed" } : undefined,
             components: components.length ? components : undefined,
-            suggested: suggestedQuestions.length ? suggestedQuestions : undefined,
-            mcpAppCall: mcpAppCall ?? undefined,
+            suggested: suggestedQuestions.length ? suggestedQuestions : streamed?.suggested,
+            mcpAppCall: keepApp ? streamed!.mcpAppCall : mcpAppCall ?? undefined,
+            mcpAppTool: mcpAppTool ?? undefined,
+            mcpAppContext: keepApp ? streamed?.mcpAppContext : undefined,
           };
           return next;
         });
@@ -659,8 +851,9 @@ export function GenerativeUIWebsite({
     setMessages((prev) => [...prev, { role: "user", text, time: nowTime() }]);
     setThinking(true);
     const tool: ToolCard = { name: "salon-data", label: "Thinking…", done: false };
-    setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime() }]);
-    resolveReply(text, uiState);
+    const turnId = ++turnCounter.current;
+    setMessages((prev) => [...prev, { role: "assistant", text: "", tool, time: nowTime(), turnId, streaming: true }]);
+    resolveReply(text, uiState, turnId);
   }
 
   // A card-tagged quick-action renders instantly from data already on the page — no LLM call,
@@ -1047,32 +1240,47 @@ export function GenerativeUIWebsite({
 
   // Starter prompts keep the empty state chat-first. Unlike the former fixed action cards,
   // these go through the normal conversation so the assistant can choose the right response/UI.
+  // Quick-action chips on the landing view: short labels, the detail goes in the tooltip.
+  const hoursToday = todayHours(salon);
+  const bookable = salon.features?.includes("BOOKING") && activeServicesCount > 0;
   const starterQuestions = [
     activeServicesCount > 0 && {
-      label: "Explore services",
+      label: "Services",
       hint: `${activeServicesCount} treatments and prices`,
       question: isBooking ? "What services can I book?" : "Show me the salon services",
-      icon: Sparkles,
+      icon: Scissors,
     },
     activeStaffCount > 0 && {
-      label: "Meet the team",
+      label: "Our team",
       hint: `${activeStaffCount} team members`,
       question: "Tell me about the stylists",
       icon: Users,
     },
-    (salon.operatingHours?.length ?? 0) > 0 && {
-      label: "Opening hours",
-      hint: todayHours(salon) ?? "See this week's hours",
-      question: "What are your opening hours?",
-      icon: Clock,
-    },
-    salon.features?.includes("BOOKING") && activeServicesCount > 0 && {
-      label: "Book an appointment",
-      hint: "See available services and times",
+    bookable && {
+      label: "Book now",
+      hint: "Pick a service, stylist and time",
       question: "I'd like to book an appointment",
       icon: CalendarCheck,
     },
-  ].filter(Boolean) as { label: string; hint: string; question: string; icon: React.ComponentType<{ className?: string }> }[];
+    bookable && {
+      label: "This week",
+      hint: "Every open time this week",
+      question: "What's free this week?",
+      icon: CalendarRange,
+    },
+    (salon.operatingHours?.length ?? 0) > 0 && {
+      label: hoursToday && hoursToday !== "Closed today" ? `Today · ${hoursToday}` : hoursToday ?? "Opening hours",
+      hint: "See this week's hours",
+      question: "What are your opening hours?",
+      icon: Clock,
+    },
+    salon.features?.includes("WEBSHOP") && !isBooking && {
+      label: "Shop",
+      hint: "Products you can order",
+      question: "Show me the shop",
+      icon: ShoppingBag,
+    },
+  ].filter(Boolean) as { label: string; hint: string; question: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }[];
 
   const chipStyle = {
     backgroundColor: `${theme.accentColor}10`,
@@ -1197,7 +1405,7 @@ export function GenerativeUIWebsite({
             </div>
           </div>
         ) : (
-          <div key={i} className="flex items-start gap-2.5 sm:gap-3">
+          <div key={i} data-turn={m.turnId} className="flex scroll-mt-4 items-start gap-2.5 sm:gap-3">
             <div
               className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
               style={{ backgroundColor: avatarBg, color: avatarText }}
@@ -1205,7 +1413,7 @@ export function GenerativeUIWebsite({
               {initials(salon.name)[0]}
             </div>
             <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
-              {m.tool && (
+              {m.tool && !(m.streaming && m.text && !m.tool.done) && (
                 <div
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium"
                   style={{
@@ -1222,7 +1430,15 @@ export function GenerativeUIWebsite({
                   className="rounded-2xl px-3.5 py-3 sm:px-4"
                   style={{ color: msgText, backgroundColor: asBubbleBg, border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow }}
                 >
-                  {m.text && <MessageText text={m.text} />}
+                  {m.text && <MessageText text={m.streaming ? withoutOpenBold(m.text) : m.text} />}
+                  {m.streaming && m.text && (
+                    // Typing caret while the reply is still streaming in.
+                    <span
+                      aria-hidden
+                      className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] rounded-sm motion-safe:animate-pulse"
+                      style={{ backgroundColor: theme.accentColor }}
+                    />
+                  )}
                   {m.cta === "book" && bookCtaBtn}
                 </div>
               )}
@@ -1230,41 +1446,64 @@ export function GenerativeUIWebsite({
                   inside a padded bubble stacks 3 layers of horizontal padding and is unusably
                   tight on phones. Several can render in one turn; they stack in order. */}
               {m.pendingBooking && bookingCard(i, m.pendingBooking)}
-              {m.mcpAppCall && (
+              {m.mcpAppCall && (() => {
+                const appTool = m.mcpAppTool ?? "salon_explorer";
+                const appMeta = MCP_APPS[appTool] ?? MCP_APPS.salon_explorer;
+                const AppIcon = MCP_APP_ICONS[appTool] ?? Sparkles;
+                // The model opens the app before it writes its sentence. Keep the app loading out of
+                // sight while the text streams, then expand it in once the text is done — so the
+                // reply reads text first, app second, and the app is usually ready by then.
+                const holdApp = Boolean(m.streaming);
+                return (
+                <>
+                {/* Before any text, the thinking dots and the "Opening …" pill already say it. */}
+                {holdApp && m.text && (
+                  <p role="status" className="flex items-center gap-2 pl-1 text-xs font-medium" style={{ color: msgDim }}>
+                    <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" style={{ color: theme.accentColor }} aria-hidden />
+                    {translateUi("Preparing {app}…", { app: translateUi(appMeta.title) })}
+                  </p>
+                )}
+                {/* The app spans the whole thread column — from the avatar's left edge to the user
+                    bubbles' right edge — so it lines up with the conversation on every width (and
+                    inside the windowed chat card). The negative margin is exactly the avatar (2rem)
+                    plus the row gap; the extra 0.25rem each side leaves room for the card shadow
+                    inside this wrapper's clip. The grid-rows 0fr → 1fr trick animates the height. */}
+                <div
+                  className="-ml-[2.875rem] -mr-1 grid w-[calc(100%+3.125rem)] px-1 pb-2 -mb-2 motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-500 motion-safe:ease-out sm:-ml-[3rem] sm:w-[calc(100%+3.25rem)]"
+                  style={{ gridTemplateRows: holdApp ? "0fr" : "1fr", opacity: holdApp ? 0 : 1 }}
+                  aria-hidden={holdApp || undefined}
+                >
+                <div className="min-h-0 overflow-hidden">
                 <section
                   className="overflow-hidden rounded-2xl border"
-                  aria-label={translateUi("Interactive salon guide")}
-                  style={{
-                    backgroundColor: asBubbleBg,
-                    borderColor: bubbleBorder,
-                    boxShadow: bubbleShadow,
-                    width: "min(calc(100% + 8rem), calc(100vw - 2rem), 960px)",
-                    position: "relative",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                  }}
+                  aria-label={translateUi(appMeta.title)}
+                  style={{ backgroundColor: asBubbleBg, borderColor: bubbleBorder, boxShadow: bubbleShadow }}
                 >
-                  <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
+                  <div className="flex items-center gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3" style={{ borderBottom: `1px solid ${bubbleBorder}` }}>
                     <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9"
                       style={{ color: accentText, backgroundColor: theme.accentColor }}
                     >
-                      <Sparkles className="h-4 w-4" />
+                      <AppIcon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold" style={{ color: msgText }}>{translateUi("Interactive salon guide")}</p>
-                      <p className="text-xs" style={{ color: msgDim }}>{translateUi("Live details, services, team, and booking")}</p>
+                      <p className="truncate text-sm font-semibold" style={{ color: msgText }}>{translateUi(appMeta.title)}</p>
+                      <p className="truncate text-xs" style={{ color: msgDim }}>{translateUi(appMeta.subtitle)}</p>
                     </div>
                     <span
-                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                      className="hidden rounded-full px-2.5 py-1 text-[10px] font-semibold sm:inline-block"
                       style={{ color: theme.accentColor, backgroundColor: `${theme.accentColor}14` }}
                     >
                       {translateUi("Interactive")}
                     </span>
                   </div>
                   <McpAppFrame
+                    toolName={appTool}
                     toolArguments={m.mcpAppCall}
-                    title={`${salon.name} interactive guide`}
+                    title={`${salon.name} · ${appMeta.title}`}
+                    onMessage={sendMessage}
+                    onContextChange={(note) => setMessages((prev) => prev.map((msg, idx) =>
+                      idx === i && msg.role === "assistant" ? { ...msg, mcpAppContext: note } : msg))}
                     className="overflow-hidden rounded-none border-0"
                     hostTheme={{
                       accent: theme.accentColor,
@@ -1284,7 +1523,11 @@ export function GenerativeUIWebsite({
                     }}
                   />
                 </section>
-              )}
+                </div>
+                </div>
+                </>
+                );
+              })()}
               {m.components && m.components.length > 0 && (() => {
                 const rendered = m.components.map((c) => renderComponent(i, c));
                 if (!rendered.some(Boolean) && !m.text) {
@@ -1321,7 +1564,11 @@ export function GenerativeUIWebsite({
         )
       )}
 
-      {thinking && (
+      {thinking && !(() => {
+        // Once the streamed reply shows text or an app, it replaces the "thinking" dots.
+        const last = messages[messages.length - 1];
+        return last?.role === "assistant" && last.streaming && Boolean(last.text);
+      })() && (
         <div className="flex items-start gap-3">
           <div
             className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
@@ -1361,54 +1608,39 @@ export function GenerativeUIWebsite({
 
   // ── Empty state ──────────────────────────────────────────────────────────
 
+  // Landing view: one greeting, the composer, and a row of quick-action chips. The salon name
+  // is already in the top bar, so it's only a quiet line here.
   const emptyState = (
-    <div className="min-h-full flex flex-col items-center justify-center px-5 py-10 sm:px-8 gai-fade-in">
-      <div className="w-full max-w-2xl">
-        <div className="mb-7 text-center">
-          <div
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
-            style={{ color: accentText, backgroundColor: theme.accentColor, boxShadow: `0 8px 24px ${theme.accentColor}35` }}
-          >
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <AnimatedSalonName text={isBooking ? `Book at ${salon.name}` : salon.name} color={theme.accentColor} />
-          <h2 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: msgText }}>
-            {translateUi(isBooking ? "What would you like to book?" : "What can we help you discover?")}
-          </h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed" style={{ color: msgDim }}>
-            {translateUi("Ask about services, stylists, opening hours, or find a time to visit.")}
+    <div className="min-h-full flex flex-col items-center justify-center px-4 py-10 sm:px-8 gai-fade-in">
+      <div className="w-full max-w-[760px]">
+        <div className="mb-6 text-center sm:mb-8">
+          <p className="text-sm font-medium" style={{ color: theme.accentColor }}>
+            {isBooking ? translateUi("Book at {name}", { name: salon.name }) : translateUi("Welcome to {name}", { name: salon.name })}
           </p>
+          <h2 className="mt-1.5 text-2xl font-semibold tracking-tight sm:text-[2rem]" style={{ color: msgText }}>
+            {translateUi(isBooking ? "What would you like to book?" : "How can we help?")}
+          </h2>
         </div>
 
-        <div className="mb-5">{renderComposer()}</div>
+        {renderComposer()}
 
         {starterQuestions.length > 0 && (
-          <div>
-            <p className="mb-2.5 px-1 text-xs font-medium" style={{ color: msgDim }}>{translateUi("Popular questions")}</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {starterQuestions.map(({ label, hint, question, icon: Icon }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => sendMessage(question)}
-                  disabled={thinking}
-                  className="group flex min-h-[68px] items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ ...chipStyle, borderColor: bubbleBorder, backgroundColor: asBubbleBg }}
-                >
-                  <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
-                    style={{ color: theme.accentColor, backgroundColor: `${theme.accentColor}12` }}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold" style={{ color: msgText }}>{translateUi(label)}</span>
-                    <span className="mt-0.5 block truncate text-xs" style={{ color: msgDim }}>{translateUi(hint)}</span>
-                  </span>
-                  <ArrowUp className="h-4 w-4 shrink-0 rotate-45 opacity-40 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-80" style={{ color: theme.accentColor }} />
-                </button>
-              ))}
-            </div>
+          <div className="mt-5 flex flex-wrap justify-center gap-2" role="list" aria-label={translateUi("Quick actions")}>
+            {starterQuestions.map(({ label, hint, question, icon: Icon }) => (
+              <button
+                key={question}
+                type="button"
+                role="listitem"
+                title={translateUi(hint)}
+                onClick={() => sendMessage(question)}
+                disabled={thinking}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-all hover:shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ color: msgText, borderColor: bubbleBorder, backgroundColor: asBubbleBg }}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: theme.accentColor }} />
+                <span>{translateUi(label)}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -1490,7 +1722,9 @@ export function GenerativeUIWebsite({
           rows={1}
           maxLength={2000}
           aria-label={translateUi("Ask a question")}
-          placeholder={isBooking ? translateUi("Search services or ask about booking…") : translateUi("Search services, stylists, hours, or ask anything…")}
+          placeholder={narrowScreen
+            ? translateUi(isBooking ? "Ask about booking…" : "Ask us anything…")
+            : isBooking ? translateUi("Search services or ask about booking…") : translateUi("Search services, stylists, hours, or ask anything…")}
           className="flex-1 resize-none bg-transparent py-1.5 text-sm leading-relaxed outline-none placeholder:opacity-60"
           style={{ color: topText, maxHeight: "160px" }}
           onChange={(e) => {
@@ -1514,9 +1748,9 @@ export function GenerativeUIWebsite({
         </button>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
-        <span className="text-[10px]" style={{ color: msgDim }}>
+        <span className="hidden text-[10px] sm:inline" style={{ color: msgDim }}>
           {translateUi("Press Enter to ask · Shift + Enter for a new line")}</span>
-        {started && <span className="text-[10px]" style={{ color: msgDim }}>·</span>}
+        {started && <span className="hidden text-[10px] sm:inline" style={{ color: msgDim }}>·</span>}
         {started && <span className="basis-full text-[10px] text-center" style={{ color: msgDim }}>{translateUi("The assistant can make mistakes — please verify important details. ")}</span>}
       </div>
     </div>
@@ -1607,60 +1841,23 @@ export function GenerativeUIWebsite({
               <div className="min-w-0 flex-1">
                 <h2 id="mcp-connect-title" className="text-base font-bold">{translateUi("Use this salon in your AI app")}</h2>
                 <p className="mt-1 text-xs leading-relaxed" style={{ color: topDim }}>
-                  {translateUi("Add this remote MCP server to a compatible AI client. It can look up salon details and availability; bookings require customer confirmation.")}
+                  {translateUi("Connect {name} to Claude, ChatGPT or another AI app that supports MCP, then browse services, the team, availability and the shop right in your chat.", { name: salon.name })}
                 </p>
               </div>
               <button type="button" onClick={() => setMcpDetailsOpen(false)} aria-label={translateUi("Close")}
                 className="rounded-lg p-2" style={{ color: topDim }}><X className="h-4 w-4" /></button>
             </div>
 
-            {[
-              { label: translateUi("MCP server URL"), value: mcpServerUrl, key: "url" },
-              { label: translateUi("Salon ID / handle"), value: mcpSalonHandle, key: "salon" },
-            ].map(({ label, value, key }) => (
-              <div key={key} className="mb-3 rounded-xl border p-3" style={{ borderColor: topBorder }}>
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold" style={{ color: topDim }}>{label}</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(value);
-                        setCopiedMcpField(key);
-                        window.setTimeout(() => setCopiedMcpField((current) => current === key ? null : current), 1600);
-                      } catch { setCopiedMcpField(null); }
-                    }}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold"
-                    style={{ color: theme.accentColor, backgroundColor: `${theme.accentColor}12` }}
-                  >
-                    <Copy className="h-3 w-3" />
-                    {copiedMcpField === key ? translateUi("Copied") : translateUi("Copy")}
-                  </button>
-                </div>
-                <code className="block break-all text-xs leading-relaxed">{value}</code>
-              </div>
-            ))}
-
-            <p className="mb-2 text-xs font-semibold">{translateUi("Add it to your AI client")}</p>
-            <ol className="space-y-2 pl-5 text-xs leading-relaxed" style={{ color: topText }}>
-              <li>{translateUi("Claude: open Settings → Connectors → Add custom connector, then paste the server URL.")}</li>
-              <li>{translateUi("ChatGPT: open Settings → Apps and create a custom MCP app with the server URL. Developer mode or workspace access may be required.")}</li>
-              <li>{translateUi("Other clients: add the URL as a remote Streamable HTTP MCP server. When asked to identify the salon, use this handle:")}
-                <code className="mt-1 block break-all rounded-lg p-2" style={{ backgroundColor: `${theme.accentColor}10` }}>{mcpSalonHandle}</code>
-                <code className="mt-1 block break-all rounded-lg p-2" style={{ backgroundColor: `${theme.accentColor}10` }}>
-                  salon_explorer · salonIdOrHandler: "{mcpSalonHandle}" · view: "services"
-                </code>
-              </li>
-            </ol>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
-              <a href="https://support.anthropic.com/en/articles/11503834-building-custom-integrations-via-remote-mcp-servers" target="_blank" rel="noreferrer"
-                className="underline" style={{ color: theme.accentColor }}>{translateUi("Claude setup guide")}</a>
-              <a href="https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt" target="_blank" rel="noreferrer"
-                className="underline" style={{ color: theme.accentColor }}>{translateUi("ChatGPT setup guide")}</a>
-            </div>
-            <p className="mt-3 text-[10px] leading-relaxed" style={{ color: topDim }}>
-              {translateUi("Claude Desktop remote connectors are configured in Settings, not in claude_desktop_config.json. ChatGPT MCP setup is currently web-only and depends on account and workspace settings.")}
-            </p>
+            <McpConnectGuide
+              serverUrl={mcpServerUrl}
+              handle={mcpSalonHandle}
+              salonName={salon.name}
+              accent={theme.accentColor}
+              text={topText}
+              dim={topDim}
+              border={topBorder}
+              t={translateUi}
+            />
           </section>
         </div>
       )}

@@ -2,7 +2,10 @@ package net.samitkumar.multi_tenant_salon.chat.internal;
 
 import net.samitkumar.multi_tenant_salon.chat.GenUiEventType;
 import net.samitkumar.multi_tenant_salon.chat.GenUiInteractionEvent;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,7 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import reactor.core.publisher.Flux;
 
 @RestController
 class ChatController {
@@ -38,7 +43,8 @@ class ChatController {
 
     record ChatResponseBody(String sessionId, String message, List<UiComponent> components,
                             List<String> suggestedQuestions, List<String> toolsUsed,
-                            PendingBooking pendingBooking, java.util.Map<String, Object> mcpAppCall) {}
+                            PendingBooking pendingBooking, java.util.Map<String, Object> mcpAppCall,
+                            String mcpAppTool) {}
 
     record ChatFollowupsRequest(String sessionId, String context, String uiState) {}
 
@@ -51,7 +57,39 @@ class ChatController {
                 salonId, conversationId(salonId, sessionId), request.context(), request.message(), request.uiState());
         publishUsageEvents(salonId, sessionId, reply);
         return new ChatResponseBody(sessionId, reply.message(), reply.components(), reply.suggestedQuestions(),
-                reply.toolsUsed(), reply.pendingBooking(), reply.mcpAppCall());
+                reply.toolsUsed(), reply.pendingBooking(), reply.mcpAppCall(), reply.mcpAppTool());
+    }
+
+    /**
+     * The streaming variant of {@link #chat}: Server-Sent Events, in order —
+     * {@code session} ({@code {sessionId}}), any number of {@code delta} ({@code {text}}) and
+     * {@code app} ({@code {tool, arguments}}, as soon as a Salon MCP App opens), then {@code done}
+     * (the same body {@code POST .../chat} returns, minus the suggestions) and finally
+     * {@code suggestions} ({@code {questions}}). A failure ends with {@code error} carrying a
+     * {@code done}-shaped body with a friendly message.
+     */
+    @PostMapping(value = "/api/salon/{salonId}/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    Flux<ServerSentEvent<Object>> chatStream(@PathVariable String salonId, @RequestBody ChatRequest request,
+                                             HttpServletResponse response) {
+        // Proxies (nginx, ingress) must pass tokens through as they arrive.
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        var sessionId = sessionId(request.sessionId());
+        Flux<ServerSentEvent<Object>> events = chatAssistantService
+                .stream(salonId, conversationId(salonId, sessionId), request.context(), request.message(), request.uiState())
+                .map(event -> {
+                    if (event.reply() == null) return sse(event.type(), event.data());
+                    if ("done".equals(event.type())) publishUsageEvents(salonId, sessionId, event.reply());
+                    var reply = event.reply();
+                    return sse(event.type(), new ChatResponseBody(sessionId, reply.message(), reply.components(),
+                            reply.suggestedQuestions(), reply.toolsUsed(), reply.pendingBooking(),
+                            reply.mcpAppCall(), reply.mcpAppTool()));
+                });
+        return Flux.concat(Flux.just(sse("session", Map.of("sessionId", sessionId))), events);
+    }
+
+    private static ServerSentEvent<Object> sse(String type, Object data) {
+        return ServerSentEvent.builder(data).event(type).build();
     }
 
     /**
