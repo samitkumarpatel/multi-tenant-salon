@@ -21,3 +21,11 @@ every interactive element, with no one to interoperate with yet.
 
 **Revisit if:** there's ever a concrete need for this salon assistant to be discoverable/usable
 from a real external MCP client, not just this site's own chat window.
+
+---
+
+## Voice for the website chat — planned, not started (2026-10-20)
+
+Plan and current-setup review in [voice-chat.md](voice-chat.md): Phase 1 browser speech
+(Web Speech API, no backend change), optional Phase 2 server speech (Azure AI Speech). Waiting
+on review of the open decisions at the end of that page before implementing.
