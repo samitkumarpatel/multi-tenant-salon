@@ -9,6 +9,7 @@ import net.samitkumar.multi_tenant_salon.booking.SalonAvailability;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
+import net.samitkumar.multi_tenant_salon.salon.SalonOpeningDay;
 import net.samitkumar.multi_tenant_salon.salonservice.ServiceItem;
 import net.samitkumar.multi_tenant_salon.staff.StaffMember;
 import org.springframework.stereotype.Component;
@@ -88,6 +89,11 @@ class SalonMcpSupport {
 
     /** The fields every app payload starts with, so each UI can render its header without guessing. */
     Map<String, Object> base(String app, String view, SalonRef salon) {
+        return base(app, view, salon, openingCalendar(salon));
+    }
+
+    /** {@link #base(String, String, SalonRef)} for a caller that already loaded the opening calendar. */
+    Map<String, Object> base(String app, String view, SalonRef salon, List<SalonOpeningDay> opening) {
         var data = new LinkedHashMap<String, Object>();
         data.put("app", app);
         data.put("view", view);
@@ -95,7 +101,33 @@ class SalonMcpSupport {
         data.put("salonName", salon.salon().name());
         data.put("bookingEnabled", salon.has(SalonFeature.BOOKING));
         data.put("shopEnabled", salon.has(SalonFeature.WEBSHOP));
+        var contact = salon.salon().contact();
+        if (contact != null) {
+            var reach = nullableMap("phone", blankToNull(contact.phone()), "email", blankToNull(contact.email()));
+            if (!reach.isEmpty()) data.put("contact", reach);
+        }
+        var today = SalonMcpOpening.today(opening, LocalTime.now());
+        if (today != null) data.put("today", today);
         return data;
+    }
+
+    /** The salon's real opening from today, far enough ahead for the next opening and upcoming closures. */
+    List<SalonOpeningDay> openingCalendar(SalonRef salon) {
+        LocalDate today = LocalDate.now();
+        var days = salons.openingCalendar(salon.id(), today, SalonMcpOpening.horizon(today));
+        return days == null ? List.of() : days;
+    }
+
+    /** The salon's public address and maps link. */
+    static Map<String, Object> location(SalonRef salon) {
+        var l = salon.salon().location();
+        return nullableMap(
+                "address", l == null ? null : l.address(),
+                "city", l == null ? null : l.city(),
+                "state", l == null ? null : l.state(),
+                "country", l == null ? null : l.country(),
+                "zipCode", l == null ? null : l.zipCode(),
+                "mapsUrl", l == null ? null : l.mapsUrl());
     }
 
     static Map<String, Object> serviceMap(ServiceItem s) {

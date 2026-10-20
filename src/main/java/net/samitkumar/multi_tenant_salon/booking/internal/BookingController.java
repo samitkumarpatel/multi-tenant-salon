@@ -94,6 +94,11 @@ class BookingController {
         if (!hasEmail && !hasPhone) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Either email or phone number is required");
         }
+        // Customers can only book times still ahead; the salon admin may record a walk-in after the fact.
+        if (customerBooking && request.appointmentDate() != null && request.startTime() != null
+                && BookingService.startsInPast(request.appointmentDate(), request.startTime())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That time has already passed — choose a later time.");
+        }
         var booking = service.create(id, request.serviceId(), request.staffId(),
                 request.customerName(), request.customerEmail(), request.customerPhone(),
                 request.appointmentDate(), request.startTime(), request.notes(), paymentRequired);

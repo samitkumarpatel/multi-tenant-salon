@@ -68,11 +68,27 @@ spring:
         max-messages: ${CHAT_MEMORY_MAX_MESSAGES:20}
         # Hard cap on live conversations held in memory; least-recently-used evicted when full.
         max-conversations: ${CHAT_MEMORY_MAX_CONVERSATIONS:5000}
+    mcp:
+      # Extra origins (comma-separated) the Salon MCP App views may load images/videos from, on top
+      # of the media upload origin. MCP hosts (Claude, ChatGPT) block any origin not in the view's CSP.
+      app-resource-domains: ${MCP_APP_RESOURCE_DOMAINS:}
   ai:
     mcp:
       server:
         name: salon-platform
         version: 1.0.0
+        # Sent to clients in the initialize result; hosts such as Claude add it to the model's
+        # context. MCP App views render where the tool call sits in the reply, so ask for the
+        # text first and the app last.
+        instructions: >-
+          These tools open interactive Salon MCP Apps that show a salon's live services, team,
+          opening hours, booking and shop. When you open an app, first write a short reply of one
+          or two sentences saying what you are showing (for example "Here are Anna's profile and
+          services."), then call the app tool as the last step of your turn, so the visitor reads
+          your text and then sees the app below it. Do not state prices, times or availability
+          before the app shows them, and do not repeat the app's contents after it; only add text
+          after the app if the tool returned an error. Bookings and orders are made only when the
+          visitor confirms them inside the app — never say one was made.
         protocol: STREAMABLE
         type: SYNC
         annotation-scanner:

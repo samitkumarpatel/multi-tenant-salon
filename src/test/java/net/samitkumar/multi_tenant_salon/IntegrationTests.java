@@ -644,6 +644,37 @@ class IntegrationTests {
     }
 
     @Test
+    @Order(63)
+    void pastTimesAreNeitherOfferedNorBookableByCustomers() {
+        String yesterday = java.time.LocalDate.now().minusDays(1).toString();
+        client.get()
+                .uri(u -> u.path("/api/salon/{salonId}/booking/slots")
+                        .queryParam("serviceId", serviceId)
+                        .queryParam("date", yesterday)
+                        .build(salonId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0);
+
+        client.post()
+                .uri("/api/salon/{salonId}/booking", salonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                            "serviceId": %s,
+                            "staffId": %s,
+                            "customerName": "Late Larry",
+                            "customerEmail": "late@test.com",
+                            "appointmentDate": "%s",
+                            "startTime": "10:00"
+                        }
+                        """.formatted(serviceId, staffId, yesterday))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
     @Order(64)
     void confirmBooking() {
         client.post()

@@ -5,6 +5,7 @@ import {
   CheckoutFlow, dayStrip, handoffRow, serviceSelect, slotGrid,
   type Day, type Service, type Slot, type Staff,
 } from "../shared/booking";
+import { calendarClosures } from "../shared/opening";
 
 type StylistData = Data & {
   services?: Service[];
@@ -36,7 +37,9 @@ const rt: SalonApp<StylistData> = new SalonApp<StylistData>("Book by Stylist", "
 
   if (stylist && service && data.date && state.slot && state.phase === "checkout") {
     return [header, ...statusLine(rt), state.checkout.render(rt, { service, date: data.date, startTime: state.slot.startTime, endTime: state.slot.endTime, staff: stylist }, {
-      onBack: () => { state.phase = "pick"; state.checkout.reset(); rt.render(); },
+      // The stylist carousel, service select and day strip all live on the pick view.
+      edit: { service: backToPick, staff: backToPick, when: backToPick },
+      onBack: backToPick,
       onDone: () => { state.phase = "pick"; state.slot = undefined; state.checkout = new CheckoutFlow(); void rt.reload({ staffId: stylist.id }); },
     })];
   }
@@ -47,6 +50,12 @@ const rt: SalonApp<StylistData> = new SalonApp<StylistData>("Book by Stylist", "
     stylist ? stylistPanel(data, stylist, service) : h("p", { class: "muted center" }, "Pick a stylist to see the days they work and their open times."),
   ];
 });
+
+function backToPick() {
+  state.phase = "pick";
+  state.checkout.reset();
+  rt.render();
+}
 
 function load(args: Record<string, unknown>) {
   state.slot = undefined;
@@ -99,6 +108,7 @@ function stylistPanel(data: StylistData, stylist: Staff, service: Service | unde
           void load({ ...base, from, date });
         }, rt.busy || !service)
         : emptyState("Outside the booking window", "Go back to an earlier fortnight."),
+      calendarClosures(days),
       h("p", { class: "muted" }, workingDays
         ? `${firstName(stylist.name)} has open times on ${workingDays} of these days.${service ? "" : " Choose a service to see exact times."}`
         : `${firstName(stylist.name)} has no open times in this fortnight — try the next one.`)),

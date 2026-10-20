@@ -124,6 +124,13 @@ class SalonMcpShopAppTools {
                     "currency", text(order, "currency"),
                     "salonName", salon.salon().name(),
                     "lines", orderLines,
+                    // Ship vs collect, and where to collect — with today's opening so "come by" is actionable.
+                    "fulfilment", address == null ? "COLLECT" : "SHIP",
+                    "shipTo", address == null ? null : String.join(", ", java.util.stream.Stream.of(address.line1(), address.line2(),
+                            address.city(), address.state(), address.zipCode(), address.country()).filter(java.util.Objects::nonNull).toList()),
+                    "salonLocation", address == null ? SalonMcpSupport.location(salon) : null,
+                    "salonPhone", salon.salon().contact() == null ? null : blankToNull(salon.salon().contact().phone()),
+                    "today", address == null ? SalonMcpOpening.today(support.openingCalendar(salon), java.time.LocalTime.now()) : null,
                     "checkoutUrl", text(body, "checkoutUrl"),
                     "message", body.has("checkoutUrl") ? "Order created. Complete payment to finish." : "Order placed.");
             return support.result(Map.of("app", SHOP, "view", "order-confirmation", "order", confirmation));

@@ -1393,43 +1393,31 @@ export function GenerativeUIWebsite({
   // ── Message thread ──────────────────────────────────────────────────────
 
   const messageThread = (
-    <div className="mx-auto px-4 sm:px-6 py-6 space-y-6 max-w-[760px]">
+    // Claude-style thread: one centred reading column. The visitor's turns are soft neutral
+    // bubbles on the right; the assistant's replies are plain prose across the full column (no
+    // avatar gutter, no bubble), with tool activity as a quiet status line and apps/cards inline
+    // at the same left edge as the text.
+    <div className="mx-auto max-w-[760px] space-y-7 px-4 py-6 sm:px-6">
       {messages.map((m, i) =>
         m.role === "user" ? (
           <div key={i} className="flex justify-end">
             <div
-              className="max-w-[80%] px-4 py-2.5 text-[15px] leading-relaxed"
-              style={{ backgroundColor: theme.accentColor, color: accentText, borderRadius: "1.25rem 1.25rem 0.25rem 1.25rem" }}
+              className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed sm:max-w-[75%]"
+              style={{ backgroundColor: asBubbleBg, color: msgText }}
             >
               {m.text}
             </div>
           </div>
         ) : (
-          <div key={i} data-turn={m.turnId} className="flex scroll-mt-4 items-start gap-2.5 sm:gap-3">
-            <div
-              className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
-              style={{ backgroundColor: avatarBg, color: avatarText }}
-            >
-              {initials(salon.name)[0]}
-            </div>
-            <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
+          <div key={i} data-turn={m.turnId} className="scroll-mt-4 min-w-0 space-y-3">
               {m.tool && !(m.streaming && m.text && !m.tool.done) && (
-                <div
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium"
-                  style={{
-                    backgroundColor: m.tool.done ? `${theme.accentColor}10` : `${msgDim}15`,
-                    color: m.tool.done ? theme.accentColor : msgDim,
-                  }}
-                >
-                  {m.tool.done ? <Wrench className="w-2.5 h-2.5" /> : <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: msgDim }}>
+                  {m.tool.done ? <Wrench className="h-3 w-3" /> : <Loader2 className="h-3 w-3 motion-safe:animate-spin" />}
                   <span>{m.tool.done ? `Used ${m.tool.name}` : m.tool.label}</span>
                 </div>
               )}
               {(m.text || m.cta === "book") && (
-                <div
-                  className="rounded-2xl px-3.5 py-3 sm:px-4"
-                  style={{ color: msgText, backgroundColor: asBubbleBg, border: `1px solid ${bubbleBorder}`, boxShadow: bubbleShadow }}
-                >
+                <div className="text-[15px] leading-relaxed" style={{ color: msgText }}>
                   {m.text && <MessageText text={m.streaming ? withoutOpenBold(m.text) : m.text} />}
                   {m.streaming && m.text && (
                     // Typing caret while the reply is still streaming in.
@@ -1458,18 +1446,16 @@ export function GenerativeUIWebsite({
                 <>
                 {/* Before any text, the thinking dots and the "Opening …" pill already say it. */}
                 {holdApp && m.text && (
-                  <p role="status" className="flex items-center gap-2 pl-1 text-xs font-medium" style={{ color: msgDim }}>
+                  <p role="status" className="flex items-center gap-2 text-xs font-medium" style={{ color: msgDim }}>
                     <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" style={{ color: theme.accentColor }} aria-hidden />
                     {translateUi("Preparing {app}…", { app: translateUi(appMeta.title) })}
                   </p>
                 )}
-                {/* The app spans the whole thread column — from the avatar's left edge to the user
-                    bubbles' right edge — so it lines up with the conversation on every width (and
-                    inside the windowed chat card). The negative margin is exactly the avatar (2rem)
-                    plus the row gap; the extra 0.25rem each side leaves room for the card shadow
+                {/* The app spans the reading column, aligned with the reply text. The 0.25rem
+                    side padding (cancelled by the negative margin) leaves room for the card shadow
                     inside this wrapper's clip. The grid-rows 0fr → 1fr trick animates the height. */}
                 <div
-                  className="-ml-[2.875rem] -mr-1 grid w-[calc(100%+3.125rem)] px-1 pb-2 -mb-2 motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-500 motion-safe:ease-out sm:-ml-[3rem] sm:w-[calc(100%+3.25rem)]"
+                  className="-mx-1 -mb-2 grid px-1 pb-2 motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-500 motion-safe:ease-out"
                   style={{ gridTemplateRows: holdApp ? "0fr" : "1fr", opacity: holdApp ? 0 : 1 }}
                   aria-hidden={holdApp || undefined}
                 >
@@ -1559,7 +1545,6 @@ export function GenerativeUIWebsite({
                   </div>
                 </div>
               )}
-            </div>
           </div>
         )
       )}
@@ -1569,14 +1554,8 @@ export function GenerativeUIWebsite({
         const last = messages[messages.length - 1];
         return last?.role === "assistant" && last.streaming && Boolean(last.text);
       })() && (
-        <div className="flex items-start gap-3">
-          <div
-            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
-            style={{ backgroundColor: avatarBg, color: avatarText }}
-          >
-            {initials(salon.name)[0]}
-          </div>
-          <div className="flex items-center gap-1 pt-3">
+        <div className="flex items-center" role="status" aria-label={translateUi("Thinking…")}>
+          <div className="flex items-center gap-1 py-2">
             {[0, 150, 300].map((delay) => (
               <span key={delay} className="w-1.5 h-1.5 rounded-full animate-bounce"
                 style={{ backgroundColor: msgDim, animationDelay: `${delay}ms` }} />

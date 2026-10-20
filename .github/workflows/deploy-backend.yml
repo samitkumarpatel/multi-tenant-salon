@@ -6,6 +6,10 @@ on:
     paths:
       - "src/**"
       - "pom.xml"
+      # The Salon MCP App UIs are bundled into the image (static/mcp-app), so
+      # their source — and the shared frontend lockfile — must redeploy too.
+      - "frontend/apps/salon-mcp-app/**"
+      - "frontend/package-lock.json"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
@@ -33,6 +37,21 @@ jobs:
           distribution: 'graalvm'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           cache: "maven"
+
+      # Rebuild the Salon MCP App single-file UIs into src/main/resources/static/mcp-app
+      # so the image always ships HTML built from this commit's source, even if the
+      # committed copies are stale.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build Salon MCP App UIs
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build --workspace=apps/salon-mcp-app
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3

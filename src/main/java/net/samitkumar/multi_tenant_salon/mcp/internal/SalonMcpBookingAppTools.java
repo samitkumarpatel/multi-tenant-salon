@@ -40,6 +40,7 @@ class SalonMcpBookingAppTools {
     static final String BOOKING = "salon_booking";
     static final String BY_STYLIST = "salon_booking_by_stylist";
     static final String WEEK = "salon_booking_week";
+    static final String NEXT_AVAILABLE = "salon_next_available";
 
     /** How many days the stylist app's day strip shows per page. */
     private static final int STYLIST_DAYS = 14;
@@ -209,6 +210,56 @@ class SalonMcpBookingAppTools {
             data.put("days", days);
             return data;
         });
+    }
+
+    @McpTool(
+            name = NEXT_AVAILABLE,
+            title = "Next available times",
+            description = "App-only helper: the soonest open time for a service and/or stylist, the next few open days, and (for a service without a stylist) each eligible stylist's soonest time. Used by the salon apps to show \"Next free\" hints; never called by the assistant.",
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false),
+            metaProvider = SalonMcpAppMeta.NextAvailableTool.class
+    )
+    McpSchema.CallToolResult nextAvailable(
+            @McpToolParam(required = false, description = SalonMcpSupport.SALON_PARAM) String salonIdOrHandler,
+            @McpToolParam(required = false, description = "Service id; omit for any service (default slot length)") Long serviceId,
+            @McpToolParam(required = false, description = "Stylist id; omit for any stylist") Long staffId,
+            @McpToolParam(required = false, description = "How many open days to list (1-7, default 3)") Integer days,
+            McpTransportContext transport) {
+        return support.run("Availability is temporarily unavailable. Please try again.", () -> {
+            SalonRef salon = support.bookableSalon(salonIdOrHandler, transport);
+            ServiceItem service = serviceId == null ? null : requireService(salon, serviceId);
+            StaffMember stylist = staffId == null ? null : requireStaff(salon, staffId);
+            LocalDate today = LocalDate.now();
+            LocalDate last = salon.lastBookableDate();
+            int limit = days == null ? 3 : Math.clamp(days, 1, 7);
+            var data = new LinkedHashMap<String, Object>();
+            data.put("serviceId", service == null ? null : service.id());
+            data.put("staffId", stylist == null ? null : stylist.id());
+            var availability = bookings.queryAvailability(salon.id(), serviceId, staffId, today, last,
+                    SalonAvailability.Granularity.DAY, limit);
+            data.put("firstAvailable", firstAvailable(availability));
+            data.put("openDays", availability.days().stream().map(d -> nullableMap(
+                    "date", d.date().toString(), "weekday", d.weekday().name(),
+                    "firstOpenTime", d.firstOpenTime() == null ? null : d.firstOpenTime().toString(),
+                    "openSlotCount", d.openSlotCount())).toList());
+            if (service != null && stylist == null) {
+                // Each stylist who can do the service, with their own soonest time (null = nothing in the window).
+                data.put("byStaff", bookableStaff(salon).stream().filter(m -> SalonMcpSupport.offeredBy(service, m.id())).map(m -> {
+                    var first = firstAvailable(bookings.queryAvailability(salon.id(), service.id(), m.id(), today, last,
+                            SalonAvailability.Granularity.DAY, 1));
+                    return nullableMap("staffId", m.id(), "date", first == null ? null : first.get("date"),
+                            "startTime", first == null ? null : first.get("startTime"));
+                }).toList());
+            }
+            data.values().removeIf(java.util.Objects::isNull);
+            return data;
+        });
+    }
+
+    private static Map<String, Object> firstAvailable(SalonAvailability availability) {
+        var first = availability.firstAvailable();
+        return first == null ? null : nullableMap("date", first.date().toString(),
+                "startTime", first.startTime().toString(), "staffId", first.staffId());
     }
 
     /** Services and bookable stylists — every booking app lets the visitor switch either. */

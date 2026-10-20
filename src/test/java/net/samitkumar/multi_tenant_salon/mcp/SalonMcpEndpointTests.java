@@ -44,6 +44,32 @@ class SalonMcpEndpointTests {
     }
 
     @Test
+    void appViewsDeclareTheMediaOriginInTheirCspSoHostsLoadPhotos() {
+        String session = initialize("/mcp");
+        String team = rpc("/mcp", session, """
+                {"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"ui://salon/team.html"}}""");
+
+        // Tests run with LOCAL storage, so photos are served by the backend itself.
+        assertThat(team).contains("\"mimeType\":\"text/html;profile=mcp-app\"")
+                .contains("\"resourceDomains\":[\"http://localhost:8080\"]")
+                .contains("\"resource_domains\":[\"http://localhost:8080\"]");
+    }
+
+    @Test
+    void initializeTellsTheModelToWriteItsTextBeforeOpeningAnApp() {
+        var initialized = client.post().uri("/mcp")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Accept", "application/json, text/event-stream")
+                .body(INITIALIZE)
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class)
+                .getResponseBody();
+
+        assertThat(initialized).contains("\"instructions\"").contains("call the app tool as the last step of your turn");
+    }
+
+    @Test
     void anUnknownSalonUrlIsRejectedUpFront() {
         client.post().uri("/mcp/no-such-salon-" + UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON)

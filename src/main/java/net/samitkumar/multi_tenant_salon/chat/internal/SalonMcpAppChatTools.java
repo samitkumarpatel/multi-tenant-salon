@@ -41,22 +41,22 @@ class SalonMcpAppChatTools {
         this.onAppOpened = onAppOpened;
     }
 
-    @Tool(name = "salon_explorer", description = "Open the Salon info app: overview, opening hours, location and contact details. Use for 'where are you', 'when are you open', 'how do I contact you'.")
+    @Tool(name = "salon_explorer", description = "Open the Salon info app: overview, today's open/closed status, the coming week's real opening hours with holidays and closures applied, upcoming holidays, location and contact details. It links on to services, the team and booking in the same app. Use for 'where are you', 'when are you open', 'are you open on <holiday>', 'how do I contact you'.")
     String salonExplorer(
-            @ToolParam(description = "One of overview, hours, location") String view) {
+            @ToolParam(description = "One of overview, hours (dated week, holidays and closures), location") String view) {
         return open("salon_explorer", "view", view == null || view.isBlank() ? "overview" : view);
     }
 
-    @Tool(name = "salon_services", description = "Open the Explore services app: the full service menu by category with prices, durations, who performs each, search, and a Book button. Use for 'what do you offer', prices, 'how long does X take'.")
+    @Tool(name = "salon_services", description = "Open the Explore services app: the full service menu by category with prices, durations, search, and a detail card per service showing who performs it (linking to their profiles) and a Book button. Use for 'what do you offer', prices, 'how long does X take'. Pass serviceId to open straight on one service's detail card, e.g. 'tell me about the balayage'.")
     String salonServices(
             @ToolParam(required = false, description = "Category to open on: HAIR, MAKEUP, NAILS, SKIN_CARE, BEARD, MASSAGE, WAXING, OTHER") String category,
-            @ToolParam(required = false, description = "Service id to highlight") Long serviceId) {
+            @ToolParam(required = false, description = "Service id whose detail card to open") Long serviceId) {
         return open("salon_services", "category", category, "serviceId", serviceId);
     }
 
-    @Tool(name = "salon_team", description = "Open the Explore team app: stylists with photos, roles, specialisations, bios, portfolio and their services, with booking. Use for 'who works there', 'tell me about <stylist>', 'show me their work'. Pass staffId to open one stylist's profile.")
+    @Tool(name = "salon_team", description = "Open the Explore team app: stylists with photos, roles and specialisations, and a profile page per stylist with bio, portfolio, their services (linking to each service's details) and a Book button. Use for 'who works there', 'tell me about <stylist>', 'show me their work'. Pass staffId to open straight on one stylist's profile page.")
     String salonTeam(
-            @ToolParam(required = false, description = "Staff id whose profile to open") Long staffId,
+            @ToolParam(required = false, description = "Staff id whose profile page to open") Long staffId,
             @ToolParam(required = false, description = "Specialisation to filter by") String specialization) {
         return open("salon_team", "staffId", staffId, "specialization", specialization);
     }

@@ -8,6 +8,7 @@ import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonHoliday;
+import net.samitkumar.multi_tenant_salon.salon.SalonOpeningDay;
 import net.samitkumar.multi_tenant_salon.salon.SalonOperatingHoursUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DateTimeException;
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -258,33 +258,28 @@ class SalonService implements SalonApi {
 
     @Override
     public boolean isClosedOn(UUID salonId, LocalDate date) {
-        // 1. Explicit one-off closure date ranges
-        if (!closureRepository
-                .findBySalonIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(salonId, date, date)
-                .isEmpty()) {
-            return true;
-        }
-        // 2. Named holidays (recurring or year-specific)
-        if (!holidayRepository.findMatchingHolidays(
-                salonId, date.getMonthValue(), date.getDayOfMonth(), date.getYear()).isEmpty()) {
-            return true;
-        }
-        // 3. Regular weekly operating hours
-        var hours = repository.findById(salonId)
-                .map(s -> s.operatingHours() != null ? s.operatingHours() : List.<Salon.OperatingHours>of())
-                .orElse(List.of());
-        if (hours.isEmpty()) return false;
-        DayOfWeek dow = date.getDayOfWeek();
-        return hours.stream()
-                .filter(h -> h.day() == dow)
-                .findFirst()
-                .map(Salon.OperatingHours::closed)
-                .orElse(false);
+        // Same resolution as the opening calendar: closures, then holidays (incl. multi-day ranges), then weekly hours.
+        return closureReason(salonId, date).isPresent();
     }
 
     @Override
     public List<SalonHoliday> findHolidays(UUID salonId) {
         return holidayRepository.findBySalonId(salonId);
+    }
+
+    @Override
+    public List<SalonOpeningDay> openingCalendar(UUID salonId, LocalDate from, LocalDate to) {
+        if (to.isBefore(from)) return List.of();
+        return OpeningCalendar.resolve(findOperatingHours(salonId), closureRepository.findBySalonId(salonId),
+                holidayRepository.findBySalonId(salonId), from, to);
+    }
+
+    @Override
+    public Optional<String> closureReason(UUID salonId, LocalDate date) {
+        var day = OpeningCalendar.resolve(findOperatingHours(salonId),
+                closureRepository.findBySalonIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(salonId, date, date),
+                holidayRepository.findBySalonId(salonId), date);
+        return day.closed() ? Optional.of(day.reason()) : Optional.empty();
     }
 
     @Override

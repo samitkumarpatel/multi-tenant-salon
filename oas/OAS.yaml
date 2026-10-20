@@ -343,7 +343,8 @@ paths:
       description: |
         Customer-facing. Returns all time slots for a service on a specific date — both
         available and already-booked ones. Slots are derived from each eligible staff
-        member's weekly schedule or date-specific override.
+        member's weekly schedule or date-specific override. Times that have already started
+        (server clock) are never returned — a past date returns an empty list.
         Each slot carries a `booked` flag: `false` means the slot is open and selectable;
         `true` means it is taken (existing non-cancelled booking) and should be shown
         grayed-out / non-selectable in the UI.
@@ -420,7 +421,8 @@ paths:
         `bookingAdvanceDays`; the span is capped at 92 days) and returns one
         `DayAvailability` per date with a `status`:
         `OPEN` (≥1 unbooked slot), `SALON_CLOSED` (holiday, one-off closure, or a
-        non-working weekday — `reason` names it), `STAFF_OFF` (open but no candidate
+        non-working weekday — `reason` names it, e.g. the holiday's name, including
+        multi-day and recurring holidays), `STAFF_OFF` (open but no candidate
         stylist scheduled), or `FULLY_BOOKED`. `granularity=SLOT` also fills each day's
         `slots`. `limit` returns only the first N `OPEN` days (blocked days omitted).
         `firstAvailable` is the soonest bookable slot in the range, or null.
@@ -476,7 +478,8 @@ paths:
       description: |
         Customer-facing. Books an available slot for a service. `staffId` is optional — the
         system auto-assigns the first available staff member if omitted.
-        Returns HTTP 400 when `appointmentDate` falls within a salon closure.
+        Returns HTTP 400 when `appointmentDate` falls within a salon closure, or (on this
+        customer path only) when the requested date and start time have already passed.
         The initial booking status depends on the salon's `bookingRequiresConfirmation` setting:
         - `false` (default) → status is **CONFIRMED** immediately.
         - `true` → status is **PENDING**; an admin must confirm before the appointment is active.

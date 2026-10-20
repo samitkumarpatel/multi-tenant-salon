@@ -5,6 +5,7 @@ import {
   CheckoutFlow, handoffRow, serviceSelect, staffSelect, stylistChoice,
   type Day, type Service, type Slot, type Staff,
 } from "../shared/booking";
+import { calendarClosures } from "../shared/opening";
 
 type WeekData = Data & {
   services?: Service[];
@@ -40,7 +41,9 @@ const rt: SalonApp<WeekData> = new SalonApp<WeekData>("Week View Booking", "salo
       service, date: state.pick.date, startTime: state.pick.slot.startTime, endTime: state.pick.slot.endTime,
       staff: staff.find((m) => m.id === staffId),
     }, {
-      onBack: () => { state.phase = "pick"; state.checkout.reset(); rt.render(); },
+      // The service and stylist filters and the week grid all live on the pick view.
+      edit: { service: backToPick, staff: backToPick, when: backToPick },
+      onBack: backToPick,
       onDone: () => { void load({ serviceId: service.id, staffId: data.staffId, weekStart: data.weekStart }); },
     })];
   }
@@ -53,6 +56,12 @@ const rt: SalonApp<WeekData> = new SalonApp<WeekData>("Week View Booking", "salo
     service ? week(data, service, staff) : emptyState("Choose a service", "The week grid shows every open start time for the service you pick."),
   ];
 });
+
+function backToPick() {
+  state.phase = "pick";
+  state.checkout.reset();
+  rt.render();
+}
 
 function load(args: Record<string, unknown>) {
   state.pick = undefined;
@@ -79,9 +88,24 @@ function week(data: WeekData, service: Service, staff: Staff[]) {
       button("All day", () => { state.part = undefined; rt.render(); }, `chip${!state.part ? " active" : ""}`),
       PARTS.map((part) => button(part, () => { state.part = part; rt.render(); }, `chip${state.part === part ? " active" : ""}`)),
       data.hasPreviousWeek ? button("This week", () => void load({ ...nav }), "link-button") : null),
-    h("div", { class: "week-grid", role: "grid", "aria-label": `Open times for ${service.name}` }, days.map((day) => {
+    // Days with nothing to pick (closed, past, off, full) shrink to a thin labelled column so the
+    // open days get the width — on a phone that's the difference between scrolling and not.
+    h("div", {
+      class: "week-grid", role: "grid", "aria-label": `Open times for ${service.name}`,
+      style: { gridTemplateColumns: days.map((d) => visible(d.slots).length ? "minmax(76px, 1fr)" : "34px").join(" ") },
+    }, days.map((day) => {
       const slots = visible(day.slots);
       const isToday = day.date === todayIso();
+      if (!slots.length) {
+        const label = collapsedLabel(day);
+        return h("section", {
+          class: `week-col collapsed status-${day.status.toLowerCase()}${isToday ? " today" : ""}`, role: "row",
+          title: `${dateLabel(day.date, "long")}: ${day.reason ?? label}`, "aria-label": `${dateLabel(day.date, "long")}: ${day.reason ?? label}`,
+        },
+        h("span", { class: "day-chip-weekday" }, weekdayShort(day.date).slice(0, 2)),
+        h("span", { class: "week-col-num" }, String(dayOfMonth(day.date))),
+        h("span", { class: "week-col-reason" }, label));
+      }
       return h("section", { class: `week-col status-${day.status.toLowerCase()}${isToday ? " today" : ""}`, role: "row" },
         h("header", { class: "week-col-head" },
           h("span", { class: "day-chip-weekday" }, weekdayShort(day.date)),
@@ -99,6 +123,7 @@ function week(data: WeekData, service: Service, staff: Staff[]) {
           })
           : h("span", { class: "week-empty", title: day.reason ?? "" }, day.status === "OPEN" ? "—" : shortReason(day))));
     })),
+    calendarClosures(days),
     state.pick && !data.staffId ? stylistChoice(state.pick.slot, staff, state.pickStaffId, (id) => { state.pickStaffId = id; rt.render(); }) : null,
     state.pick ? h("div", { class: "sticky-cta" },
       h("span", null, `${dateLabel(state.pick.date)} · ${timeLabel(state.pick.slot.startTime)}`),
@@ -112,9 +137,16 @@ function week(data: WeekData, service: Service, staff: Staff[]) {
     ]));
 }
 
+/** The vertical label on a collapsed day: a holiday's name, else the short status. */
+function collapsedLabel(day: Day) {
+  if (day.status === "SALON_CLOSED" && day.reason && !/^The salon is closed on /.test(day.reason)) return day.reason;
+  if (day.status === "OPEN") return state.part ? `No ${state.part.toLowerCase()} times` : "No times";
+  return shortReason(day) === "—" ? "Not bookable" : shortReason(day);
+}
+
 function shortReason(day: Day) {
   switch (day.status) {
-    case "SALON_CLOSED": return "Closed";
+    case "SALON_CLOSED": return day.reason && !/^The salon is closed on /.test(day.reason) ? "Holiday" : "Closed";
     case "STAFF_OFF": return "Off";
     case "FULLY_BOOKED": return "Full";
     case "PAST": return "Past";

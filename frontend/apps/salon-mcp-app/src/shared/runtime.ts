@@ -119,6 +119,35 @@ export class SalonApp<T extends Data> {
     }, 400);
   }
 
+  /**
+   * Offers the visitor a file (e.g. a calendar entry). Hosts that support `ui/download-file`
+   * save it for them; otherwise the sandbox's own download is tried. Resolves false when neither
+   * worked (or the visitor cancelled).
+   */
+  async download(filename: string, mimeType: string, text: string) {
+    if (this.app.getHostCapabilities()?.downloadFile) {
+      try {
+        const { isError } = await this.app.downloadFile({
+          contents: [{ type: "resource", resource: { uri: `file:///${filename}`, mimeType, text } }],
+        });
+        return !isError;
+      } catch {
+        // Fall through to the in-frame download.
+      }
+    }
+    try {
+      const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
+      const link = h("a", { href: url, download: filename });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   openLink(url: string) {
     this.app.openLink({ url }).catch(() => window.open(url, "_blank", "noopener,noreferrer"));
   }

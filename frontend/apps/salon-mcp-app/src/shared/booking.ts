@@ -1,6 +1,8 @@
 import { avatar, button, emptyState, h } from "./dom";
 import { dateLabel, dayOfMonth, dayPart, duration, money, monthLabel, parseIso, timeLabel, toIso, todayIso, weekdayShort } from "./format";
 import type { SalonApp } from "./runtime";
+import { calendarClosures } from "./opening";
+import { buildIcs } from "./calendar";
 
 export type Service = { id: number; name: string; description?: string; price?: number; currency?: string; durationMinutes?: number; category?: string; staffIds?: number[] };
 export type Staff = { id: number; name: string; role?: string; avatarUrl?: string; specializations?: string[]; bio?: string; workMedia?: string[]; availableForBooking?: boolean; serviceIds?: number[] };
@@ -119,7 +121,8 @@ export function monthCalendar(opts: {
     h("div", { class: "cal-legend" },
       h("span", null, h("i", { class: "legend open" }), "Open"),
       h("span", null, h("i", { class: "legend full" }), "Fully booked"),
-      h("span", null, h("i", { class: "legend closed" }), "Closed / off")));
+      h("span", null, h("i", { class: "legend closed" }), "Closed / off")),
+    calendarClosures(opts.days));
 }
 
 /** A horizontally scrolling strip of day chips (used by the stylist app). */
@@ -157,6 +160,37 @@ export function selectionSummary(sel: Selection) {
 
 type Draft = { customerName: string; customerEmail: string; customerPhone: string; notes: string };
 
+/** Where each "Change" in the booking overview takes the visitor — each app wires its own steps. */
+export type SelectionEdits = { service?: () => void; staff?: () => void; when?: () => void };
+
+/**
+ * The booking overview: service, stylist and date & time as rows, each tappable to go back and
+ * change it. Shown on the details and review steps so the visitor always sees what they're booking.
+ */
+export function selectionCard(sel: Selection, edit: SelectionEdits = {}, disabled = false) {
+  const when = `${dateLabel(sel.date, "long")} · ${timeLabel(sel.startTime)}${sel.endTime ? ` – ${timeLabel(sel.endTime)}` : ""}`;
+  const rows: [string, string, string, string | undefined, (() => void) | undefined][] = [
+    ["✂️", "Service", sel.service.name, serviceSummary(sel.service) || undefined, edit.service],
+    ["👤", "Stylist", sel.staff?.name ?? "First available stylist", sel.staff ? undefined : "We'll match you with whoever is free", edit.staff],
+    ["📅", "Date & time", when, undefined, edit.when],
+  ];
+  return h("section", { class: "panel selection-card", "aria-label": "Your booking" },
+    h("h3", { class: "section-title" }, "Your booking"),
+    h("div", { class: "selection-rows" }, rows.map(([icon, label, value, meta, onEdit]) => {
+      const body = [
+        h("span", { class: "info-icon", "aria-hidden": "true" }, icon),
+        h("span", { class: "row-body" },
+          h("span", { class: "row-meta" }, label),
+          h("span", { class: "row-title" }, value),
+          meta ? h("span", { class: "row-meta" }, meta) : null),
+        onEdit ? h("span", { class: "selection-change" }, "Change") : null,
+      ];
+      return onEdit
+        ? button(body, onEdit, "selection-row", { disabled, "aria-label": `Change ${label.toLowerCase()}: ${value}` })
+        : h("div", { class: "selection-row static" }, body);
+    })));
+}
+
 /**
  * Details → review → confirm → confirmation, shared by every booking-capable app. Only a tap on
  * "Confirm booking" calls the app-only create_customer_booking tool.
@@ -166,6 +200,8 @@ export class CheckoutFlow {
   draft: Draft = { customerName: "", customerEmail: "", customerPhone: "", notes: "" };
   confirmation: Record<string, unknown> | undefined;
   error: string | undefined;
+  /** Outcome of "Add to calendar", shown under the actions. */
+  calendarNote: string | undefined;
 
   reset() {
     this.stage = "details";
@@ -173,9 +209,14 @@ export class CheckoutFlow {
     this.error = undefined;
   }
 
-  render(rt: SalonApp<any>, sel: Selection, actions: { onBack: () => void; onDone: () => void }) {
-    if (this.stage === "done" && this.confirmation) return this.renderConfirmation(rt, actions.onDone);
-    return this.stage === "review" ? this.renderReview(rt, sel) : this.renderDetails(rt, sel, actions.onBack);
+  render(rt: SalonApp<any>, sel: Selection, actions: { onBack: () => void; onDone: () => void; edit?: SelectionEdits }) {
+    if (this.stage === "done" && this.confirmation) return this.renderConfirmation(rt, sel, actions.onDone);
+    // Any change goes back to picking, so drop a half-finished review.
+    const edit = Object.fromEntries(Object.entries(actions.edit ?? {}).map(([key, go]) =>
+      [key, () => { this.stage = "details"; this.error = undefined; go(); }])) as SelectionEdits;
+    return h("div", { class: "stack" },
+      selectionCard(sel, edit, rt.busy),
+      this.stage === "review" ? this.renderReview(rt, sel) : this.renderDetails(rt, sel, actions.onBack));
   }
 
   private renderDetails(rt: SalonApp<any>, sel: Selection, onBack: () => void) {
@@ -213,26 +254,25 @@ export class CheckoutFlow {
       h("button", { type: "submit", class: "btn primary" }, "Review booking")));
     return h("section", { class: "panel" },
       h("h2", { class: "section-title" }, "Your details"),
-      h("p", { class: "muted" }, selectionSummary(sel)),
       form);
   }
 
   private renderReview(rt: SalonApp<any>, sel: Selection) {
+    // Service, stylist and time are in the overview card above; this lists the visitor's details.
     const rows: [string, string][] = [
-      ["Service", `${sel.service.name}${serviceSummary(sel.service) ? ` (${serviceSummary(sel.service)})` : ""}`],
-      ["When", `${dateLabel(sel.date, "long")} at ${timeLabel(sel.startTime)}`],
-      ["Stylist", sel.staff?.name ?? "First available"],
       ["Name", this.draft.customerName],
       ["Email", this.draft.customerEmail],
       ["Phone", this.draft.customerPhone],
       ["Notes", this.draft.notes],
     ];
     return h("section", { class: "panel" },
-      h("h2", { class: "section-title" }, "Review your booking"),
+      h("div", { class: "pane-head" },
+        h("h2", { class: "section-title" }, "Your details"),
+        button("Edit", () => { this.stage = "details"; rt.render(); }, "link-button")),
       h("dl", { class: "review-summary" }, rows.filter(([, v]) => v).map(([label, value]) =>
         h("div", { class: "review-row" }, h("dt", null, label), h("dd", null, value)))),
       this.error ? h("p", { class: "error", role: "alert" }, this.error) : null,
-      h("p", { class: "muted" }, "Tap Confirm booking to send this to the salon."),
+      h("p", { class: "muted" }, "Check everything above, then tap Confirm booking to send it to the salon."),
       h("div", { class: "review-actions" },
         button("Edit details", () => { this.stage = "details"; rt.render(); }, "btn"),
         button(rt.busy ? "Booking…" : "Confirm booking", () => void this.confirm(rt, sel), "btn primary", { disabled: rt.busy })));
@@ -263,18 +303,69 @@ export class CheckoutFlow {
     rt.render();
   }
 
-  private renderConfirmation(rt: SalonApp<any>, onDone: () => void) {
-    const c = this.confirmation!;
-    const confirmed = c.status === "CONFIRMED";
+  /**
+   * The booking confirmation: what was booked (the overview card, now read-only), its status in
+   * plain words, and what to do next — add it to a calendar, get directions, call the salon.
+   */
+  private renderConfirmation(rt: SalonApp<any>, sel: Selection, onDone: () => void) {
+    const c = this.confirmation! as Record<string, any>;
     const checkout = typeof c.checkoutUrl === "string" ? c.checkoutUrl : undefined;
-    return h("section", { class: "panel confirmation" },
-      h("div", { class: "confirmation-badge", "aria-hidden": "true" }, "✓"),
-      h("h2", { class: "section-title" }, confirmed ? "Booking confirmed" : checkout ? "Almost done — payment needed" : "Booking request sent"),
-      h("p", { class: "detail" }, `${String(c.serviceName ?? "")} · ${c.date ? dateLabel(String(c.date), "long") : ""} at ${timeLabel(c.startTime)}`),
-      c.staffName ? h("p", { class: "muted" }, `With ${String(c.staffName)}`) : null,
-      c.bookingId != null ? h("p", { class: "muted" }, `Booking reference #${String(c.bookingId)}`) : null,
-      checkout ? button("Continue to payment", () => rt.openLink(checkout), "btn primary") : null,
-      button("Book something else", onDone, "btn"));
+    const confirmed = c.status === "CONFIRMED" && !checkout;
+    const booked: Selection = {
+      ...sel,
+      date: typeof c.date === "string" ? c.date : sel.date,
+      startTime: typeof c.startTime === "string" ? c.startTime : sel.startTime,
+      endTime: typeof c.endTime === "string" ? c.endTime : sel.endTime,
+      // The salon assigns the stylist for "any stylist" bookings, so its answer wins.
+      staff: c.staffName
+        ? (sel.staff && sel.staff.id === Number(c.staffId) ? sel.staff : { id: Number(c.staffId ?? 0), name: String(c.staffName) })
+        : sel.staff,
+    };
+    const location = (c.location ?? {}) as Record<string, string>;
+    const address = [location.address, location.city, location.state, location.zipCode, location.country].filter(Boolean).join(", ");
+    const salonName = typeof c.salonName === "string" ? c.salonName : "the salon";
+    const directions = location.mapsUrl || (address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${salonName}, ${address}`)}` : undefined);
+    const phone = typeof c.salonPhone === "string" ? c.salonPhone : undefined;
+
+    const addToCalendar = async () => {
+      const ics = buildIcs({
+        uid: `booking-${c.bookingId ?? `${booked.date}-${booked.startTime}`}@${rt.salonId || "salon"}`,
+        title: `${booked.service.name} at ${salonName}`,
+        date: booked.date,
+        startTime: booked.startTime,
+        endTime: booked.endTime,
+        location: address || undefined,
+        description: [booked.staff ? `With ${booked.staff.name}.` : "", c.bookingId != null ? `Booking reference #${c.bookingId}.` : "", phone ? `Salon: ${phone}` : ""].filter(Boolean).join(" "),
+      });
+      this.calendarNote = (await rt.download(`${booked.service.name.replace(/[^\w-]+/g, "-").toLowerCase()}-${booked.date}.ics`, "text/calendar", ics))
+        ? "Calendar file ready — open it to add the appointment."
+        : "Couldn't save the calendar file here. Add it manually from the details above.";
+      rt.render();
+    };
+
+    return h("div", { class: "stack" },
+      h("section", { class: "panel confirmation" },
+        h("div", { class: `confirmation-badge${confirmed ? "" : " pending"}`, "aria-hidden": "true" }, confirmed ? "✓" : checkout ? "💳" : "⏳"),
+        h("h2", { class: "section-title" }, confirmed ? "You're booked!" : checkout ? "Almost done — payment needed" : "Request sent"),
+        h("p", { class: "muted" }, confirmed
+          ? `See you ${dateLabel(booked.date, "long")} at ${timeLabel(booked.startTime)}.`
+          : checkout
+            ? "Your time is held — complete the payment to confirm it."
+            : `${salonName} will confirm your booking shortly — we'll let you know.`),
+        h("span", { class: `status-pill ${confirmed ? "ok" : "warn"}` }, confirmed ? "Confirmed" : checkout ? "Payment pending" : "Waiting for the salon to confirm"),
+        c.bookingId != null ? h("p", { class: "muted" }, `Booking reference #${String(c.bookingId)}`) : null,
+        checkout ? button("Continue to payment", () => rt.openLink(checkout), "btn primary wide") : null),
+      selectionCard(booked),
+      address || phone ? h("section", { class: "panel" },
+        h("h3", { class: "section-title" }, salonName),
+        address ? h("p", { class: "detail" }, address) : null,
+        phone ? h("p", { class: "muted" }, `Need to change something? Call ${phone}.`) : null) : null,
+      h("div", { class: "action-row" },
+        button("📅 Add to calendar", () => void addToCalendar(), "btn"),
+        directions ? button("📍 Directions", () => rt.openLink(directions), "btn") : null,
+        phone ? button("📞 Call", () => rt.openLink(`tel:${phone.replace(/\s+/g, "")}`), "btn") : null),
+      this.calendarNote ? h("p", { class: "muted center", role: "status" }, this.calendarNote) : null,
+      button("Book something else", () => { this.calendarNote = undefined; onDone(); }, "btn wide"));
   }
 }
 

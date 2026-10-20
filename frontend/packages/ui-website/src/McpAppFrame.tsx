@@ -7,9 +7,9 @@ import { API_BASE } from "./api";
 
 /** The model-visible Salon MCP App tools and how the website labels each one. */
 export const MCP_APPS: Record<string, { title: string; subtitle: string }> = {
-  salon_explorer: { title: "Salon info", subtitle: "Overview, opening hours, location and contact" },
-  salon_services: { title: "Explore services", subtitle: "The full menu with prices, durations and booking" },
-  salon_team: { title: "Meet the team", subtitle: "Stylists, specialisations and their work" },
+  salon_explorer: { title: "Salon info", subtitle: "Today's hours, holidays, location — and links to services, team and booking" },
+  salon_services: { title: "Explore services", subtitle: "The menu, a card per service, its stylists and booking" },
+  salon_team: { title: "Meet the team", subtitle: "Stylist profiles, their work and services, and booking" },
   salon_booking: { title: "Book an appointment", subtitle: "Service, stylist, date and time — step by step" },
   salon_booking_by_stylist: { title: "Book by stylist", subtitle: "Pick a stylist and see when they're free" },
   salon_booking_week: { title: "Week view", subtitle: "Every open time this week at a glance" },
@@ -96,7 +96,7 @@ export function McpAppFrame({
         bridge = new AppBridge(
           client,
           { name: "Salon Website", version: "1.0.0" },
-          { openLinks: {}, serverTools: {}, logging: {}, message: { text: {} }, updateModelContext: { text: {} } },
+          { openLinks: {}, downloadFile: {}, serverTools: {}, logging: {}, message: { text: {} }, updateModelContext: { text: {} } },
           {
             hostContext: {
               theme: "light",
@@ -126,6 +126,24 @@ export function McpAppFrame({
         };
         bridge.onopenlink = async ({ url }) => {
           window.open(url, "_blank", "noopener,noreferrer");
+          return {};
+        };
+        // Apps hand over files (e.g. a booking's .ics) as embedded resources; save them from the page,
+        // since the sandboxed frame has no allow-downloads.
+        bridge.ondownloadfile = async ({ contents }) => {
+          const item = contents[0];
+          if (!item || item.type !== "resource") return { isError: true };
+          const resource = item.resource as { uri: string; mimeType?: string; text?: string; blob?: string };
+          const data = resource.text ?? (resource.blob ? Uint8Array.from(atob(resource.blob), (ch) => ch.charCodeAt(0)) : undefined);
+          if (data === undefined) return { isError: true };
+          const url = URL.createObjectURL(new Blob([data], { type: resource.mimeType ?? "application/octet-stream" }));
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = resource.uri.split("/").pop() || "download";
+          document.body.append(link);
+          link.click();
+          link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
           return {};
         };
         bridge.onmessage = async ({ content }) => {

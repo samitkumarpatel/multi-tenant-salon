@@ -233,7 +233,7 @@ class BookingService implements BookingApi {
 
     @Override
     public List<AvailableSlot> findAvailableSlots(UUID salonId, Long serviceId, LocalDate date, Long requestedStaffId) {
-        if (salonApi.isClosedOn(salonId, date)) {
+        if (date.isBefore(LocalDate.now()) || salonApi.isClosedOn(salonId, date)) {
             return List.of();
         }
 
@@ -288,7 +288,8 @@ class BookingService implements BookingApi {
                 final LocalTime slotStart = current;
                 boolean conflict = existingBookings.stream().anyMatch(b ->
                         slotStart.isBefore(b.endTime()) && slotEnd.isAfter(b.startTime()));
-                result.add(new AvailableSlot(staffId, slotStart, slotEnd, conflict));
+                // Today's times that have already started are never offered.
+                if (!startsInPast(date, slotStart)) result.add(new AvailableSlot(staffId, slotStart, slotEnd, conflict));
                 current = current.plusMinutes(duration);
             }
         }
@@ -415,8 +416,9 @@ class BookingService implements BookingApi {
                 closedReason = closure.get();
             } else if (hoursConfigured && (salonClosedWeekdays.contains(dow) || !weekdaysWithHours.contains(dow))) {
                 closedReason = "The salon is closed on " + prettyPlural(dow) + ".";
-            } else if (salonApi.isClosedOn(salonId, day)) {
-                closedReason = "The salon is closed that day.";
+            } else {
+                // Named holidays without a closure row (e.g. recurring ones past the materialised years).
+                closedReason = salonApi.closureReason(salonId, day).orElse(null);
             }
             if (closedReason != null) {
                 days.add(new SalonAvailability.DayAvailability(
@@ -441,7 +443,7 @@ class BookingService implements BookingApi {
                     final LocalTime slotStart = cur;
                     boolean taken = existing.stream().anyMatch(b ->
                             slotStart.isBefore(b.endTime()) && slotEnd.isAfter(b.startTime()));
-                    daySlots.add(new AvailableSlot(sid, slotStart, slotEnd, taken));
+                    if (!startsInPast(day, slotStart)) daySlots.add(new AvailableSlot(sid, slotStart, slotEnd, taken));
                     cur = cur.plusMinutes(step);
                 }
             }
@@ -459,7 +461,10 @@ class BookingService implements BookingApi {
                         : "No stylist is scheduled to work on " + prettyPlural(dow) + ".";
             } else if (free.isEmpty()) {
                 status = SalonAvailability.DayStatus.FULLY_BOOKED;
-                reason = "Every slot that day is already booked.";
+                // Today, the remaining times may simply have passed rather than been booked.
+                reason = day.equals(today) && daySlots.isEmpty()
+                        ? "There are no open times left today."
+                        : "Every slot that day is already booked.";
             } else {
                 status = SalonAvailability.DayStatus.OPEN;
             }
@@ -490,6 +495,12 @@ class BookingService implements BookingApi {
         }
 
         return new SalonAvailability(serviceId, serviceName, duration, staffId, start, end, days, firstAvailable);
+    }
+
+    /** Whether a slot on {@code date} starting at {@code start} has already begun (server clock). */
+    static boolean startsInPast(LocalDate date, LocalTime start) {
+        LocalDate today = LocalDate.now();
+        return date.isBefore(today) || (date.equals(today) && start.isBefore(LocalTime.now()));
     }
 
     /** The stylist's bookable window for a date: a one-off override wins over the weekly row; {@code null} = not working. */

@@ -17,6 +17,15 @@ public interface SalonApi {
     boolean isClosedOn(UUID salonId, LocalDate date);
     List<SalonClosure> findClosures(UUID salonId);
     List<SalonHoliday> findHolidays(UUID salonId);
+
+    /**
+     * The salon's real opening for every date from {@code from} through {@code to} (inclusive):
+     * weekly hours with holidays and one-off closures applied, each closed day carrying its reason.
+     */
+    List<SalonOpeningDay> openingCalendar(UUID salonId, LocalDate from, LocalDate to);
+
+    /** Why the salon is closed on a date — the holiday/closure name or the weekly day off — or empty when open. */
+    Optional<String> closureReason(UUID salonId, LocalDate date);
     boolean bookingRequiresConfirmation(UUID salonId);
 
     // Super-admin operations

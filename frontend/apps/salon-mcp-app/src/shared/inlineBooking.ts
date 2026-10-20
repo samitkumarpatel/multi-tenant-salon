@@ -44,8 +44,11 @@ export class InlineBooking {
     return this.service !== undefined;
   }
 
-  /** Opens the pane for a service (and optional stylist), loading this month's calendar. */
-  async start(rt: SalonApp<any>, service: Service, staff?: Staff, date?: string) {
+  /**
+   * Opens the pane for a service (and optional stylist), loading this month's calendar. With a
+   * date and start time (a "next available" shortcut) that time comes pre-selected, if still open.
+   */
+  async start(rt: SalonApp<any>, service: Service, staff?: Staff, date?: string, startTime?: string, slotStaffId?: number) {
     this.service = service;
     this.staff = staff;
     this.date = undefined;
@@ -54,6 +57,12 @@ export class InlineBooking {
     this.checkout = new CheckoutFlow();
     rt.context(`The visitor is booking ${service.name}${staff ? ` with ${staff.name}` : ""} and choosing a date.`);
     await this.load(rt, { month: date?.slice(0, 7) ?? this.month, date });
+    const slot = startTime ? this.slots.find((s) => s.startTime === startTime) : undefined;
+    if (slot) {
+      this.slot = slot;
+      this.slotStaffId = !staff && slotStaffId && slot.staffIds?.includes(slotStaffId) ? slotStaffId : undefined;
+      rt.render();
+    }
   }
 
   /** Adopts a `salon_booking` result the app already has (e.g. the model opened it on a date). */
@@ -115,16 +124,28 @@ export class InlineBooking {
     };
   }
 
-  render(rt: SalonApp<any>, opts: { onClose?: () => void; title?: string } = {}) {
+  /**
+   * @param opts.onChangeService / onChangeStaff — where the overview's "Change" goes for the
+   *   service and a fixed stylist (the app's own steps); date & time, and a stylist picked per
+   *   time, are changed back on this pane's calendar.
+   */
+  render(rt: SalonApp<any>, opts: { onClose?: () => void; title?: string; onChangeService?: () => void; onChangeStaff?: () => void } = {}) {
     const service = this.service;
     if (!service) return null;
     const busy = this.loading || rt.busy;
     const sel = this.selection();
     if (sel && this.phase === "checkout") {
+      const backToPick = () => { this.phase = "pick"; this.checkout.reset(); rt.render(); };
+      // The overview card names the service, stylist and time; once booked, the confirmation is the page.
       return h("div", { class: "stack" },
-        this.header(opts),
+        this.checkout.stage === "done" ? null : this.header({ ...opts, title: "Confirm your booking", meta: false }),
         this.checkout.render(rt, sel, {
-          onBack: () => { this.phase = "pick"; this.checkout.reset(); rt.render(); },
+          edit: {
+            service: opts.onChangeService,
+            staff: this.staff ? opts.onChangeStaff : backToPick,
+            when: backToPick,
+          },
+          onBack: backToPick,
           onDone: () => {
             this.checkout = new CheckoutFlow();
             this.phase = "pick";
@@ -165,12 +186,13 @@ export class InlineBooking {
         button("Continue", () => { this.phase = "checkout"; rt.render(); }, "btn primary")) : null);
   }
 
-  private header(opts: { onClose?: () => void; title?: string }) {
+  private header(opts: { onClose?: () => void; title?: string; meta?: boolean }) {
     const service = this.service!;
     return h("div", { class: "pane-head" },
       h("div", { class: "row-body" },
         h("span", { class: "row-title" }, opts.title ?? `Book ${service.name}`),
-        h("span", { class: "row-meta" }, [serviceSummary(service), this.staff ? `with ${this.staff.name}` : "any stylist"].filter(Boolean).join(" · "))),
+        opts.meta === false ? null
+          : h("span", { class: "row-meta" }, [serviceSummary(service), this.staff ? `with ${this.staff.name}` : "any stylist"].filter(Boolean).join(" · "))),
       opts.onClose ? button("✕", opts.onClose, "icon-button", { "aria-label": "Close booking" }) : null);
   }
 }

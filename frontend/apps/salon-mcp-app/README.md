@@ -7,9 +7,9 @@ as `ui://salon/<app>.html` with the MCP Apps MIME type (`SalonMcpAppResources`).
 
 | App (entry) | MCP tool | What it does |
 |---|---|---|
-| `explorer.html` | `salon_explorer` | Overview, opening hours, location, contact; launcher tiles to the other apps |
-| `services.html` | `salon_services` | Searchable, categorised service menu; book a service in place |
-| `team.html` | `salon_team` | Stylist cards, profiles with portfolio lightbox; book with a stylist |
+| `explorer.html` | `salon_explorer` | Connected salon guide, opening on the salon home card (today's status, dated hours with holidays, location, contact) |
+| `services.html` | `salon_services` | Connected salon guide, opening on the service menu (or one service's detail card) |
+| `team.html` | `salon_team` | Connected salon guide, opening on the team (or one stylist's profile page) |
 | `booking.html` | `salon_booking` | Step-by-step booking with a month calendar |
 | `booking-stylist.html` | `salon_booking_by_stylist` | Stylist first, then their working days and times |
 | `booking-week.html` | `salon_booking_week` | Mon–Sun grid of open times, week by week |
@@ -18,10 +18,17 @@ as `ui://salon/<app>.html` with the MCP Apps MIME type (`SalonMcpAppResources`).
 Layout: `src/apps/<app>.ts` is each app's view; `src/shared/` holds the runtime (`SalonApp` — host
 connection, tool calls, `ui/message` hand-offs, `ui/update-model-context`), DOM/format helpers, the
 booking building blocks (calendar, day strip, slot grid, `CheckoutFlow`), the reusable
-`InlineBooking` pane and the `StaffProfile` dialog. `src/style.css` is shared and themed from the
+`InlineBooking` pane, the `PortfolioGallery` lightbox, the opening-hours cards (`opening.ts`) and
+`SalonNavigator` (`navigator.ts`) — the back-stack router behind the explorer, services and team apps,
+which renders every section (home, hours, location, service menu, service card, team, stylist page,
+booking) and loads the other sections' data through their tools on demand. `nextAvailable.ts` caches the app-only
+`salon_next_available` lookups behind the "Next free" hints; `calendar.ts` builds the booking's
+`.ics`, which `SalonApp.download` hands to the host (`ui/download-file`). `src/style.css` is shared and themed from the
 host's MCP Apps style variables.
 
-Build it before packaging the backend:
+Build it before packaging the backend locally (`./mvnw` never runs npm; it packages the committed
+`static/mcp-app/*.html`). The `deploy-backend` workflow rebuilds it on every deploy, so the image
+always matches this source — but commit the regenerated HTML anyway so local builds match too:
 
 ```sh
 cd frontend

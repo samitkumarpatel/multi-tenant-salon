@@ -1,6 +1,7 @@
 import { button, emptyState, h } from "../shared/dom";
 import { money, plural } from "../shared/format";
 import { appHeader, SalonApp, statusLine, type Data } from "../shared/runtime";
+import { todayBadge, type Today } from "../shared/opening";
 
 type Variant = { id: number; label?: string; price?: number; compareAtPrice?: number; currency?: string; maxQuantity: number };
 type Product = {
@@ -286,24 +287,45 @@ function checkoutForm() {
   return h("section", { class: "panel" }, h("h2", { class: "section-title" }, "Checkout"), form);
 }
 
+/** A titled review block with a "Change" link back to where it was entered. */
+function reviewSection(title: string, onChange: () => void, ...children: (Node | null)[]) {
+  return h("section", { class: "panel" },
+    h("div", { class: "pane-head" },
+      h("h3", { class: "section-title" }, title),
+      button("Change", onChange, "link-button", { "aria-label": `Change ${title.toLowerCase()}`, disabled: rt.busy })),
+    ...children);
+}
+
+function lineThumb(product: Product) {
+  return product.images?.[0]
+    ? h("img", { class: "cart-thumb sm", src: product.images[0], alt: "" })
+    : h("span", { class: "cart-thumb sm product-placeholder" }, "🛍️");
+}
+
 function review() {
   const total = cartTotal();
   const d = state.draft;
   const address = [d.addressLine1, d.addressLine2, d.city, d.state, d.zipCode, d.country].filter(Boolean).join(", ");
-  return h("section", { class: "panel" },
+  const lines = [...state.cart.values()];
+  return h("div", { class: "stack" },
     h("h2", { class: "section-title" }, "Review your order"),
-    h("ul", { class: "mini-list" }, [...state.cart.values()].map((l) => h("li", null,
-      h("span", null, `${l.quantity}× ${l.product.name}${l.variant.label ? ` (${l.variant.label})` : ""}`),
-      h("span", null, money((l.variant.price ?? 0) * l.quantity, l.variant.currency))))),
-    h("div", { class: "total-row" }, h("span", null, "Subtotal"), h("strong", null, money(total.amount, total.currency))),
-    h("dl", { class: "review-summary" },
-      ([["Name", d.customerName], ["Email", d.customerEmail], ["Phone", d.customerPhone], ["Ship to", address || "Collect in the salon"]] as [string, string][])
-        .filter(([, v]) => v).map(([label, value]) => h("div", { class: "review-row" }, h("dt", null, label), h("dd", null, value)))),
+    reviewSection(`Your order · ${plural(cartCount(), "item")}`, () => go("cart"),
+      h("div", { class: "review-lines" }, lines.map((l) => h("div", { class: "review-line" },
+        lineThumb(l.product),
+        h("div", { class: "row-body" },
+          h("span", { class: "row-title" }, l.product.name),
+          h("span", { class: "row-meta" }, [l.variant.label, `${l.quantity} × ${money(l.variant.price, l.variant.currency)}`].filter(Boolean).join(" · "))),
+        h("span", { class: "price" }, money((l.variant.price ?? 0) * l.quantity, l.variant.currency))))),
+      h("div", { class: "total-row" }, h("span", null, "Subtotal"), h("strong", null, money(total.amount, total.currency)))),
+    reviewSection("Contact", () => go("checkout"),
+      h("dl", { class: "review-summary" },
+        ([["Name", d.customerName], ["Email", d.customerEmail], ["Phone", d.customerPhone]] as [string, string][])
+          .filter(([, v]) => v).map(([label, value]) => h("div", { class: "review-row" }, h("dt", null, label), h("dd", null, value))))),
+    reviewSection(address ? "Delivery" : "Collection", () => go("checkout"),
+      h("p", { class: "detail" }, address ? `Ship to ${address}` : "Collect in the salon — they'll let you know when it's ready.")),
     state.error ? h("p", { class: "error", role: "alert" }, state.error) : null,
-    h("p", { class: "muted" }, "Tap Place order to send this order to the salon."),
-    h("div", { class: "review-actions" },
-      button("Edit details", () => go("checkout"), "btn"),
-      button(rt.busy ? "Placing order…" : "Place order", () => void placeOrder(), "btn primary", { disabled: rt.busy })));
+    h("p", { class: "muted" }, "Shipping and payment are confirmed by the salon. Tap Place order to send it."),
+    button(rt.busy ? "Placing order…" : `Place order · ${money(total.amount, total.currency)}`, () => void placeOrder(), "btn primary wide", { disabled: rt.busy || !lines.length }));
 }
 
 async function placeOrder() {
@@ -327,20 +349,48 @@ async function placeOrder() {
   }
 }
 
+/**
+ * Order confirmation: the order number up front, what was ordered, and how it reaches the
+ * visitor — the shipping address, or where to collect it with today's opening status.
+ */
 function confirmation() {
   const order = state.order ?? {};
   const checkout = typeof order.checkoutUrl === "string" ? order.checkoutUrl : undefined;
-  return h("section", { class: "panel confirmation" },
-    h("div", { class: "confirmation-badge", "aria-hidden": "true" }, "✓"),
-    h("h2", { class: "section-title" }, checkout ? "Almost done — payment needed" : "Order placed"),
-    order.orderNumber ? h("p", { class: "detail" }, `Order ${order.orderNumber}`) : null,
-    Array.isArray(order.lines) && order.lines.length ? h("ul", { class: "mini-list" }, order.lines.map((l: Record<string, any>) => h("li", null,
-      h("span", null, `${l.quantity}× ${l.productName}${l.variantLabel ? ` (${l.variantLabel})` : ""}`),
-      h("span", null, money(l.lineTotal, order.currency))))) : null,
-    order.subtotal != null ? h("div", { class: "total-row" }, h("span", null, "Total"), h("strong", null, money(order.subtotal, order.currency))) : null,
-    h("p", { class: "muted" }, "A confirmation email is on its way."),
-    checkout ? button("Continue to payment", () => rt.openLink(checkout), "btn primary") : null,
-    button("Back to the shop", () => { state.order = undefined; go("browse"); }, "btn"));
+  const collect = order.fulfilment === "COLLECT";
+  const location = (order.salonLocation ?? {}) as Record<string, string>;
+  const salonAddress = [location.address, location.city, location.state, location.zipCode, location.country].filter(Boolean).join(", ");
+  const directions = location.mapsUrl || (salonAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.salonName ?? ""}, ${salonAddress}`)}` : undefined);
+  const today = order.today as Today | undefined;
+  const phone = typeof order.salonPhone === "string" ? order.salonPhone : undefined;
+  return h("div", { class: "stack" },
+    h("section", { class: "panel confirmation" },
+      h("div", { class: `confirmation-badge${checkout ? " pending" : ""}`, "aria-hidden": "true" }, checkout ? "💳" : "✓"),
+      h("h2", { class: "section-title" }, checkout ? "Almost done — payment needed" : "Thanks — your order is in"),
+      order.orderNumber ? h("p", { class: "order-number" }, h("span", { class: "row-meta" }, "Order number"), h("strong", null, String(order.orderNumber))) : null,
+      h("p", { class: "muted" }, checkout ? "Complete the payment to confirm your order." : "A confirmation email is on its way."),
+      checkout ? button("Continue to payment", () => rt.openLink(checkout), "btn primary wide") : null),
+    Array.isArray(order.lines) && order.lines.length ? h("section", { class: "panel" },
+      h("h3", { class: "section-title" }, "What you ordered"),
+      h("div", { class: "review-lines" }, order.lines.map((l: Record<string, any>) => h("div", { class: "review-line" },
+        h("div", { class: "row-body" },
+          h("span", { class: "row-title" }, String(l.productName ?? "")),
+          h("span", { class: "row-meta" }, [l.variantLabel, `Qty ${l.quantity}`].filter(Boolean).join(" · "))),
+        h("span", { class: "price" }, money(l.lineTotal, order.currency))))),
+      order.subtotal != null ? h("div", { class: "total-row" }, h("span", null, "Total"), h("strong", null, money(order.subtotal, order.currency))) : null) : null,
+    collect
+      ? h("section", { class: "panel" },
+        h("h3", { class: "section-title" }, "🛍️ Collect in the salon"),
+        h("p", { class: "muted" }, "The salon will let you know when it's ready to pick up."),
+        salonAddress ? h("p", { class: "detail" }, salonAddress) : null,
+        today ? todayBadge(today) : null,
+        h("div", { class: "action-row" },
+          directions ? button("📍 Directions", () => rt.openLink(directions), "btn") : null,
+          phone ? button("📞 Call", () => rt.openLink(`tel:${phone.replace(/\s+/g, "")}`), "btn") : null))
+      : h("section", { class: "panel" },
+        h("h3", { class: "section-title" }, "📦 Shipping to"),
+        h("p", { class: "detail" }, String(order.shipTo ?? "Your address")),
+        h("p", { class: "muted" }, "The salon confirms shipping and will email you the details.")),
+    button("Back to the shop", () => { state.order = undefined; go("browse"); }, "btn wide"));
 }
 
 rt.start();

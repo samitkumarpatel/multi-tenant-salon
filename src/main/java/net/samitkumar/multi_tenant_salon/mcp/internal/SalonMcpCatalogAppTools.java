@@ -36,14 +36,14 @@ class SalonMcpCatalogAppTools {
     @McpTool(
             name = SERVICES,
             title = "Explore services",
-            description = "Open the salon's interactive service menu: services grouped by category with prices, durations, descriptions and who performs them, plus search and category filters. When booking is enabled the visitor can book a service right inside the app. Pass category to open on one category (HAIR, MAKEUP, NAILS, SKIN_CARE, BEARD, MASSAGE, WAXING, OTHER) or serviceId to highlight one service.",
+            description = "Open the salon's interactive service menu: services grouped by category with prices, durations, descriptions and who performs them, plus search and category filters. Each service opens as its own detail card with the stylists who perform it (tap through to their profiles) and a Book button; booking happens right inside the app when online booking is enabled. Pass category to open on one category (HAIR, MAKEUP, NAILS, SKIN_CARE, BEARD, MASSAGE, WAXING, OTHER) or serviceId to open straight on that service's detail card.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false),
             metaProvider = SalonMcpAppMeta.ServicesTool.class
     )
     McpSchema.CallToolResult exploreServices(
             @McpToolParam(required = false, description = SalonMcpSupport.SALON_PARAM) String salonIdOrHandler,
             @McpToolParam(required = false, description = "Category to open on, e.g. HAIR or NAILS") String category,
-            @McpToolParam(required = false, description = "Service id to highlight") Long serviceId,
+            @McpToolParam(required = false, description = "Service id whose detail card to open") Long serviceId,
             McpTransportContext transport) {
         return support.run("Services are temporarily unavailable. Please try again.", () -> {
             SalonRef salon = support.activeSalon(salonIdOrHandler, transport);
@@ -61,13 +61,13 @@ class SalonMcpCatalogAppTools {
     @McpTool(
             name = TEAM,
             title = "Explore the team",
-            description = "Open the salon's interactive team app: every active stylist with role, specialisations, bio, portfolio photos/videos and the services they perform, with a specialisation filter. When booking is enabled the visitor can book with a stylist inside the app. Pass staffId to open straight on one stylist's profile.",
+            description = "Open the salon's interactive team app: every active stylist with role, specialisations and a specialisation filter. Each stylist opens as their own profile page with bio, portfolio photos/videos and the services they perform (tap through to each service's details) and a Book button when they take online bookings. Pass staffId to open straight on one stylist's profile page.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false),
             metaProvider = SalonMcpAppMeta.TeamTool.class
     )
     McpSchema.CallToolResult exploreTeam(
             @McpToolParam(required = false, description = SalonMcpSupport.SALON_PARAM) String salonIdOrHandler,
-            @McpToolParam(required = false, description = "Staff member id whose profile to open") Long staffId,
+            @McpToolParam(required = false, description = "Staff member id whose profile page to open") Long staffId,
             @McpToolParam(required = false, description = "Specialisation to filter by, e.g. Balayage") String specialization,
             McpTransportContext transport) {
         return support.run("The team is temporarily unavailable. Please try again.", () -> {
@@ -100,6 +100,7 @@ class SalonMcpCatalogAppTools {
 
     static Map<String, Object> staffChip(StaffMember m) {
         return SalonMcpSupport.nullableMap("id", m.id(), "name", m.name(),
+                "role", m.role() == null ? "" : m.role().name(),
                 "avatarUrl", SalonMcpSupport.value(m.avatarUrl()),
                 "availableForBooking", m.availableForBooking());
     }

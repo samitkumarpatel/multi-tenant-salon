@@ -6,6 +6,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import net.samitkumar.multi_tenant_salon.booking.BookingApi;
 import net.samitkumar.multi_tenant_salon.mcp.internal.SalonMcpSupport.SalonRef;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
+import net.samitkumar.multi_tenant_salon.salon.SalonOpeningDay;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.salonservice.ServiceItem;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
@@ -56,13 +57,13 @@ class SalonMcpTools {
     @McpTool(
             name = EXPLORER,
             title = "Salon info",
-            description = "Show a salon's live overview, opening hours, location and contact details in an interactive view. The salonIdOrHandler is the salon's public UUID or handler/slug. Prefer the dedicated apps for services (salon_services), the team (salon_team), booking (salon_booking, salon_booking_by_stylist, salon_booking_week) and the shop (salon_shop). This tool never creates or changes a booking.",
+            description = "Show a salon's live overview, opening hours, location and contact details in an interactive view. Opening hours are real dates: today's open/closed status with the next opening, the coming week with holidays and closures applied, and upcoming holidays. The view links on to the service menu, the team, stylist profiles and booking inside the same app. The salonIdOrHandler is the salon's public UUID or handler/slug. Prefer the dedicated apps for services (salon_services), the team (salon_team), booking (salon_booking, salon_booking_by_stylist, salon_booking_week) and the shop (salon_shop). This tool never creates or changes a booking.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false),
             metaProvider = SalonMcpAppMeta.ExplorerTool.class
     )
     McpSchema.CallToolResult exploreSalon(
             @McpToolParam(required = false, description = SalonMcpSupport.SALON_PARAM) String salonIdOrHandler,
-            @McpToolParam(description = "One of overview, hours, location (services, team and availability are kept for older clients)") String view,
+            @McpToolParam(required = false, description = "One of overview, hours (dated week, holidays and closures), location; defaults to overview (services, team and availability are kept for older clients)") String view,
             @McpToolParam(required = false, description = "Service id when checking availability") Long serviceId,
             @McpToolParam(required = false, description = "Staff member id when narrowing availability") Long staffId,
             @McpToolParam(required = false, description = "Availability date in yyyy-MM-dd format") String date,
@@ -70,18 +71,20 @@ class SalonMcpTools {
         return support.run("Salon information is temporarily unavailable. Please try again.", () -> {
             SalonRef salon = support.activeSalon(salonIdOrHandler, transport);
             String selected = view == null || view.isBlank() ? "overview" : view.toLowerCase();
-            Map<String, Object> data = support.base(EXPLORER, selected, salon);
+            var opening = support.openingCalendar(salon);
+            Map<String, Object> data = support.base(EXPLORER, selected, salon, opening);
             switch (selected) {
                 case "overview" -> {
                     data.put("salon", salonProfile(salon));
-                    data.put("items", salons.findOperatingHours(salon.id()));
+                    data.put("location", SalonMcpSupport.location(salon));
+                    putHours(data, salon, opening);
                 }
                 case "services" -> data.put("items", services.findAllBySalonId(salon.id()).stream()
                         .filter(ServiceItem::active).map(SalonMcpSupport::serviceMap).toList());
                 case "team" -> data.put("items", staff.findBySalonId(salon.id()).stream()
                         .filter(m -> m.status() == StaffStatus.ACTIVE).map(SalonMcpSupport::staffMap).toList());
-                case "hours" -> data.put("items", salons.findOperatingHours(salon.id()));
-                case "location" -> data.put("location", location(salon));
+                case "hours" -> putHours(data, salon, opening);
+                case "location" -> data.put("location", SalonMcpSupport.location(salon));
                 case "availability" -> availability(salon, data, serviceId, staffId, date);
                 default -> throw new IllegalArgumentException("Choose overview, hours, or location.");
             }
@@ -146,6 +149,12 @@ class SalonMcpTools {
                     "serviceName", service.name(),
                     "date", bookingDate.toString(),
                     "startTime", bookingTime.toString(),
+                    "endTime", booking.path("endTime").isMissingNode() || booking.path("endTime").isNull()
+                            ? bookingTime.plusMinutes(service.durationMinutes() == null ? 60 : service.durationMinutes()).toString()
+                            : booking.path("endTime").asText().substring(0, 5),
+                    // Where and how to reach the salon — the confirmation's directions, call and calendar entry.
+                    "location", SalonMcpSupport.location(salon),
+                    "salonPhone", salon.salon().contact() == null ? null : blankToNull(salon.salon().contact().phone()),
                     "staffId", bookedStaffId,
                     "staffName", bookedStaffId == null ? null
                             : staff.findByIdAndSalonId(bookedStaffId, salon.id()).map(StaffMember::name).orElse(null),
@@ -166,29 +175,26 @@ class SalonMcpTools {
         }
     }
 
+    /** Weekly template ({@code items}) plus the real dated week and the upcoming holidays/closures. */
+    private void putHours(Map<String, Object> data, SalonRef salon, List<SalonOpeningDay> opening) {
+        data.put("items", salons.findOperatingHours(salon.id()));
+        data.put("week", SalonMcpOpening.week(opening, 7));
+        data.put("upcomingClosures", SalonMcpOpening.upcomingClosures(
+                opening.stream().limit(SalonMcpOpening.UPCOMING_CLOSURE_DAYS).toList()));
+    }
+
     private static Map<String, Object> salonProfile(SalonRef salon) {
         var s = salon.salon();
         return nullableMap(
                 "name", s.name(),
                 "handler", s.handler(),
-                "location", location(salon),
+                "location", SalonMcpSupport.location(salon),
                 "contact", nullableMap(
                         "phone", s.contact() == null ? null : s.contact().phone(),
                         "email", s.contact() == null ? null : s.contact().email(),
                         "website", s.contact() == null ? null : s.contact().website()),
                 "bookingEnabled", salon.has(net.samitkumar.multi_tenant_salon.salon.SalonFeature.BOOKING),
                 "bookingAdvanceDays", salon.advanceDays());
-    }
-
-    private static Map<String, Object> location(SalonRef salon) {
-        var l = salon.salon().location();
-        return nullableMap(
-                "address", l == null ? null : l.address(),
-                "city", l == null ? null : l.city(),
-                "state", l == null ? null : l.state(),
-                "country", l == null ? null : l.country(),
-                "zipCode", l == null ? null : l.zipCode(),
-                "mapsUrl", l == null ? null : l.mapsUrl());
     }
 
     private void availability(SalonRef salon, Map<String, Object> data, Long serviceId, Long staffId, String dateText) {

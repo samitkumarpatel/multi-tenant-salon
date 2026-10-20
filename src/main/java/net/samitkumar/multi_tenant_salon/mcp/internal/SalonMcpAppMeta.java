@@ -68,18 +68,13 @@ public final class SalonMcpAppMeta {
         @Override public Map<String, Object> getMeta() { return appOnlyTool(BOOKING_URI); }
     }
 
+    /** salon_next_available — "next free" hints for the booking and guide apps, never called by the model. */
+    public static class NextAvailableTool implements MetaProvider {
+        @Override public Map<String, Object> getMeta() { return appOnlyTool(BOOKING_URI); }
+    }
+
     /** create_shop_order — callable from the shop app only, never by the model. */
     public static class CreateOrderTool implements MetaProvider {
         @Override public Map<String, Object> getMeta() { return appOnlyTool(SHOP_URI); }
-    }
-
-    /** Restricts every app view to its bundled assets and the host-provided tool bridge. */
-    public static class Resource implements MetaProvider {
-        @Override public Map<String, Object> getMeta() {
-            return Map.of("ui", Map.of("csp", Map.of(
-                    "resourceDomains", new String[0],
-                    "connectDomains", new String[0]
-            )));
-        }
     }
 }

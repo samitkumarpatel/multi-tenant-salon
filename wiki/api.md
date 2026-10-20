@@ -367,7 +367,7 @@ Choosing a time preserves its date and staff assignment and continues to contact
 
 `GET /api/salon/{salonId}/booking/slots?serviceId={serviceId}&date={date}[&staffId={staffId}]`
 
-Returns **all** slots within each eligible staff member's working window — both available and already-booked ones. The `booked` flag tells the UI how to render each slot.
+Returns **all** slots within each eligible staff member's working window — both available and already-booked ones. The `booked` flag tells the UI how to render each slot. Times that have already started are never returned: a past date returns `[]`, and today only lists slots starting after the current time (server clock). The [availability query](#query-availability-across-a-date-range) applies the same rule, so today shows `FULLY_BOOKED` with reason "There are no open times left today." once its last slot has started. Customer bookings (`POST /api/salon/{salonId}/booking`) for a time that has already started return `400`; the salon-admin path doesn't check this, so staff can still record walk-ins.
 
 **Response** `200 OK`
 
@@ -478,7 +478,7 @@ the earliest opening". All params optional:
 | `status` | Meaning |
 |---|---|
 | `OPEN` | At least one unbooked slot exists |
-| `SALON_CLOSED` | Holiday, one-off closure, or a non-working weekday — `reason` names it |
+| `SALON_CLOSED` | Holiday, one-off closure, or a non-working weekday — `reason` names it (the holiday/closure name, or "The salon is closed on Sundays."). Multi-day and recurring holidays are matched on every day of their range, the same rule `/booking/slots` and booking creation apply |
 | `STAFF_OFF` | Salon open, but no candidate stylist is scheduled that day |
 | `FULLY_BOOKED` | Stylist(s) working, every slot already taken |
 
@@ -801,9 +801,9 @@ the other arguments are optional too and only pre-select what the visitor would 
 
 | Tool | View | What the visitor can do | Optional arguments |
 |---|---|---|---|
-| `salon_explorer` | `ui://salon/explorer.html` | Overview, opening hours, location & contact; tiles that hand off to the other apps | `view` (`overview`/`hours`/`location`; `services`/`team`/`availability` kept for older clients), `serviceId`, `staffId`, `date` |
-| `salon_services` | `ui://salon/services.html` | Search, category chips, sort, expandable service rows with who performs them, book in place | `category` (e.g. `HAIR`), `serviceId` (highlighted) |
-| `salon_team` | `ui://salon/team.html` | Specialisation filter, stylist cards, profile with bio/services/portfolio lightbox, book with a stylist | `staffId` (opens their profile), `specialization` |
+| `salon_explorer` | `ui://salon/explorer.html` | Salon home card (address, contact, booking), today's status, the next 7 real dates with holidays/closures applied, upcoming holidays, regular weekly hours, location — and the connected guide below | `view` (`overview`/`hours`/`location`, default `overview`; `services`/`team`/`availability` kept for older clients), `serviceId`, `staffId`, `date` |
+| `salon_services` | `ui://salon/services.html` | Search, category chips, sort; a detail card per service (price, duration, description, who performs it → their profile, related services, Book) | `category` (e.g. `HAIR`), `serviceId` (opens its detail card) |
+| `salon_team` | `ui://salon/team.html` | Specialisation filter, stylist cards; a profile page per stylist (bio, specialisations, services → service card, portfolio lightbox, Book with …) | `staffId` (opens their profile page), `specialization` |
 | `salon_booking` | `ui://salon/booking.html` | Stepper: service → stylist (or any) → month calendar with OPEN/CLOSED/FULL days → grouped times → details → review → confirm | `serviceId`, `staffId`, `month` (`yyyy-MM`), `date` (`yyyy-MM-dd`) |
 | `salon_booking_by_stylist` | `ui://salon/booking-stylist.html` | Stylist carousel → their services → two-week day strip + "next available" → times → confirm | `staffId`, `serviceId`, `from`, `date` |
 | `salon_booking_week` | `ui://salon/booking-week.html` | Mon–Sun grid of every open time, prev/next week, morning/afternoon/evening filter, stylist choice → confirm | `serviceId`, `staffId`, `weekStart` (any day in the week) |
@@ -816,12 +816,61 @@ visitor's tap inside an app, and both require `customerConfirmed: true`:
   so salon confirmation and Stripe payment rules apply (a `checkoutUrl` is returned when payment is due).
 - `create_shop_order` — `items[] {variantId, quantity}` (capped at 10 each), name + email, optional
   phone and shipping address; calls `POST /api/salon/{salonId}/shop/orders` so stock and payment rules apply.
+  The `order` result adds `fulfilment` (`SHIP`/`COLLECT`), `shipTo`, and for collection `salonLocation`,
+  `salonPhone` and `today` (opening status), so the confirmation can say where and when to pick it up.
+
+`create_customer_booking`'s `booking` result also carries `endTime`, `location` (address + `mapsUrl`) and
+`salonPhone`; the confirmation card uses them for **Add to calendar** (an `.ics` built in the app and
+handed to the host via `ui/download-file`), **Directions** and **Call**.
+
+A third app-only tool, `salon_next_available` (read-only, `visibility: ["app"]`), backs the "Next free"
+hints: given an optional `serviceId`/`staffId` and `days` (1–7, default 3) it returns `firstAvailable
+{date, startTime, staffId}`, `openDays[] {date, weekday, firstOpenTime, openSlotCount}`, and — for a
+service without a stylist — `byStaff[] {staffId, date, startTime}` (each eligible stylist's soonest
+time). The wizard's stylist step, the service card ("Earliest available" + **Book this time**, which
+opens booking with that slot pre-selected) and the stylist page (next free + next open days) use it.
+
+The `initialize` result carries server `instructions` (`spring.ai.mcp.server.instructions`) asking
+the client's model to write a one- or two-sentence reply first and call the app tool last, so in
+hosts like Claude the text reads above the app instead of streaming in after it.
+
+Every `resources/read` of an app view carries its Content Security Policy in the contents'
+`_meta.ui.csp` (and ChatGPT's `openai/widgetCSP`). Hosts such as Claude block any origin not
+listed, so `resourceDomains` names where stylist photos, portfolio media and product images live:
+the media CDN origin (`MEDIA_STAFF_CDN_BASE_URL`) for `STORAGE_TYPE=S3|AZURE`, or the backend
+(`MEDIA_LOCAL_BASE_URL`) for `LOCAL`, plus any comma-separated extra origins in
+`MCP_APP_RESOURCE_DOMAINS` (e.g. images hosted elsewhere). `connectDomains` stays empty — the
+views only talk to the backend through the host's tool bridge.
 
 Booking apps need the `BOOKING` feature and the shop needs `WEBSHOP`; otherwise the tool returns an
 `isError` result with a visitor-friendly message (the website chat sees it as `view: "error"`).
 Apps use `ui/message` to hand off between each other through the chat ("See the whole week instead"),
 and `ui/update-model-context` to tell the assistant what the visitor is doing (the website forwards
 the latest note in `uiState`).
+
+**Connected salon guide.** `salon_explorer`, `salon_services` and `salon_team` share one in-app
+navigator: tabs (Salon · Services · Team · Hours), a back button and breadcrumb (e.g.
+`Team › Anna › Balayage › Book`), and pages for the salon home, hours, location, the service menu,
+one service, the team, one stylist, "book with" (pick the stylist's service) and booking. Moving
+between them stays in the same app — the other sections' data is fetched through their own tools on
+demand — so only the shop goes back through the chat. Book buttons skip steps when they can (a
+service with one stylist books with them; a stylist with one service goes straight to the
+calendar). When online booking is off, Book is replaced by call/email buttons; a stylist not taking
+online bookings keeps their profile with a notice instead of Book; deep links to a removed service or
+stylist show a not-found card that leads back to the list.
+
+**Opening hours and holidays.** Every app payload carries `today` — `status` `OPEN_NOW` /
+`OPENS_LATER` / `CLOSED_FOR_TODAY` (past closing) / `CLOSED_TODAY` (`closedBy` `CLOSED_HOLIDAY` /
+`CLOSED_SPECIAL` / `CLOSED_WEEKLY`, with `reason`) / `HOURS_NOT_SET`, plus `nextOpen {date, weekday,
+openTime, closeTime}` — shown as a badge in every app header. The explorer's `overview`/`hours`
+views add `week` (the next 7 dates: `status` `OPEN` / `CLOSED_WEEKLY` / `CLOSED_HOLIDAY` /
+`CLOSED_SPECIAL` / `HOURS_NOT_SET`, times or `reason`) and `upcomingClosures` (`{name, kind
+HOLIDAY|CLOSURE, from, to}` over the next 60 days, consecutive days merged), next to the weekly
+template in `items`. All of it comes from `SalonApi.openingCalendar` — the same resolution the
+booking calendar uses (closure row → named holiday, including multi-day and new-year-crossing
+recurring ranges → weekly hours), on the server clock. Booking calendars list named closures under
+the calendar so the holiday name is visible on touch screens too.
+
 
 **Flow**
 

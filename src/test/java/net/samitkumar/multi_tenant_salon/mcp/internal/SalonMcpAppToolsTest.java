@@ -111,6 +111,29 @@ class SalonMcpAppToolsTest {
     }
 
     @Test
+    void nextAvailableGivesTheSoonestTimeOpenDaysAndEachEligibleStylistsOwnSoonestTime() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        when(bookings.queryAvailability(eq(salonId), eq(2L), any(), any(), any(), eq(SalonAvailability.Granularity.DAY), any()))
+                .thenAnswer(inv -> {
+                    Long staffId = inv.getArgument(2);
+                    LocalTime start = staffId == null ? LocalTime.of(9, 0) : staffId == 7L ? LocalTime.of(10, 0) : LocalTime.of(14, 0);
+                    var day = openDay(tomorrow, List.of(new AvailableSlot(staffId == null ? 7L : staffId, start, start.plusMinutes(90), false)));
+                    return new SalonAvailability(2L, "Colour", 90, staffId, tomorrow, tomorrow, List.of(day),
+                            new SalonAvailability.FirstAvailable(tomorrow, start, staffId == null ? 7L : staffId));
+                });
+
+        var data = structured(booking().nextAvailable(salonId.toString(), 2L, null, null, null));
+
+        assertThat((Map<String, Object>) data.get("firstAvailable"))
+                .containsEntry("date", tomorrow.toString()).containsEntry("startTime", "09:00");
+        assertThat(list(data, "openDays")).extracting(d -> d.get("firstOpenTime")).containsExactly("09:00");
+        assertThat(list(data, "byStaff")).containsExactly(
+                Map.of("staffId", 7L, "date", tomorrow.toString(), "startTime", "10:00"),
+                Map.of("staffId", 8L, "date", tomorrow.toString(), "startTime", "14:00"));
+        verify(bookings).queryAvailability(eq(salonId), eq(2L), eq(null), any(), any(), eq(SalonAvailability.Granularity.DAY), eq(3));
+    }
+
+    @Test
     void bookingAppsRefuseSalonsWithoutOnlineBooking() {
         givenSalon(SalonFeature.WEBSHOP);
 
@@ -220,6 +243,10 @@ class SalonMcpAppToolsTest {
         Map<?, ?> order = (Map<?, ?>) structured(result).get("order");
         assertThat(order.get("orderNumber")).isEqualTo("ORD-5");
         assertThat(order.get("message")).isEqualTo("Order placed.");
+        // No address given → collected in the salon, so the confirmation says where.
+        assertThat(order.get("fulfilment")).isEqualTo("COLLECT");
+        assertThat(order.containsKey("salonLocation")).isTrue();
+        assertThat(order.containsKey("shipTo")).isFalse();
     }
 
     @Test
