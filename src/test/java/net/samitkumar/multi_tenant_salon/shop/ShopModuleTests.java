@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
@@ -294,8 +295,9 @@ class ShopModuleTests {
                 .jsonPath("$.totalElements").isEqualTo(0)
                 .jsonPath("$.statusCounts.NEW").isEqualTo(3);
 
-        // Date range on the order date.
-        var today = LocalDate.now();
+        // Date range on the order date. The API reads from/to as UTC days, so "today" must be the UTC
+        // date too — the JVM's local date is a day ahead between midnight and the UTC offset.
+        var today = LocalDate.now(ZoneOffset.UTC);
         client.get().uri(adminBase() + "/orders?from=" + today + "&to=" + today).exchange()
                 .expectStatus().isOk().expectBody()
                 .jsonPath("$.content.length()").isEqualTo(3);

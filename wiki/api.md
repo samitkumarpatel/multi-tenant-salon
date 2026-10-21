@@ -61,9 +61,9 @@ role / not the salon's owner → `403`.
 | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 | **Analytics Ingestion** | `/api/analytics/events` | Public, anonymous — client-side JS on the salon's public website reporting page views/clicks |
 
-Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`
+Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`, `/shop/...`, `/membership/...`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`, `/shop/...`, `/membership/...`, `/payments/...`
 
 ---
 
@@ -808,9 +808,10 @@ the other arguments are optional too and only pre-select what the visitor would 
 | `salon_booking_by_stylist` | `ui://salon/booking-stylist.html` | Stylist carousel → their services → two-week day strip + "next available" → times → confirm | `staffId`, `serviceId`, `from`, `date` |
 | `salon_booking_week` | `ui://salon/booking-week.html` | Mon–Sun grid of every open time, prev/next week, morning/afternoon/evening filter, stylist choice → confirm | `serviceId`, `staffId`, `weekStart` (any day in the week) |
 | `salon_shop` | `ui://salon/shop.html` | Search/category/brand filters, product grid, gallery + variants + stock, cart, checkout → review → place order | `categoryId`, `brandId`, `productId`, `query` |
+| `salon_membership` | `ui://salon/membership.html` | Plan cards (price, sign-up fee, included services, discounts, perks, "Most popular", spots left), side-by-side comparison, a detail page per plan, details → review → Stripe Checkout. Without online sign-up it shows how to contact the salon | `planId` (opens that plan) |
 
-Two write tools are `_meta.ui.visibility: ["app"]` — hidden from the model, callable only by a
-visitor's tap inside an app, and both require `customerConfirmed: true`:
+Three write tools are `_meta.ui.visibility: ["app"]` — hidden from the model, callable only by a
+visitor's tap inside an app, and all require `customerConfirmed: true`:
 
 - `create_customer_booking` — re-checks the slot, then calls `POST /api/salon/{salonId}/booking`
   so salon confirmation and Stripe payment rules apply (a `checkoutUrl` is returned when payment is due).
@@ -818,6 +819,11 @@ visitor's tap inside an app, and both require `customerConfirmed: true`:
   phone and shipping address; calls `POST /api/salon/{salonId}/shop/orders` so stock and payment rules apply.
   The `order` result adds `fulfilment` (`SHIP`/`COLLECT`), `shipTo`, and for collection `salonLocation`,
   `salonPhone` and `today` (opening status), so the confirmation can say where and when to pick it up.
+- `create_membership_checkout` — `planId`, name + email, optional phone; calls
+  `POST /api/salon/{salonId}/membership/checkout`, so capacity, duplicate and Stripe rules apply, and returns
+  `checkout.checkoutUrl`, a one-time Checkout for the first period that the app opens (`ui/open-link`). Nothing
+  is a membership until the visitor pays there; the QR email follows the webhook, and the renewal link follows
+  before the period ends. API refusals ("This plan is full") come back as the tool error.
 
 `create_customer_booking`'s `booking` result also carries `endTime`, `location` (address + `mapsUrl`) and
 `salonPhone`; the confirmation card uses them for **Add to calendar** (an `.ics` built in the app and
@@ -2417,6 +2423,107 @@ leave those four fields null.
 
 ---
 
+## Membership (Customer)
+
+Public membership catalogue, sign-up and renewal for the `MEMBERSHIP` feature. No auth. Every path
+returns `404` when the salon doesn't have the feature. Payment works **like the shop and the till**:
+every billing period is one **one-time Stripe Checkout** on the salon's connected account (payment area
+`MEMBERSHIP`; Payments → *Memberships* must be on), confirmed by the shared `StripePaymentEvent`.
+Nothing is charged automatically. The member gets their **QR code by email** after the first payment,
+and a **renewal link** before each period ends.
+
+### List plans on sale
+
+`GET /api/salon/{salonId}/membership/plans` (one plan: `GET …/membership/plans/{planId}`)
+
+**Response** `200 OK`:
+
+```json
+{
+  "onlineSignup": true,
+  "plans": [
+    {
+      "id": 3, "name": "Glow Monthly", "description": "Look great all month",
+      "price": 49.00, "currency": "EUR", "billingInterval": "MONTHLY",
+      "signupFee": 10.00, "serviceDiscountPercent": 10, "productDiscountPercent": null,
+      "maxMembers": 20, "spotsLeft": 4, "soldOut": false, "highlighted": true, "sortOrder": 0,
+      "status": "ACTIVE", "perks": ["Priority booking"],
+      "includedServices": [ { "serviceId": 1, "name": "Blow dry", "durationMinutes": 45, "price": 35.00, "currency": "EUR", "quantityPerCycle": 2 } ],
+      "includedValue": 70.00
+    }
+  ]
+}
+```
+
+`billingInterval` (`MONTHLY` / `QUARTERLY` / `YEARLY`) is how long one payment lasts. `includedValue` is
+the included services' list price per period. `spotsLeft` is set for capped plans only, and counts unpaid
+checkouts that are still within their 60-minute hold. When `onlineSignup` is `false` (Stripe membership
+payments off, or the account can't charge yet), show the plans with a "contact the salon" call to action.
+
+### Start a membership checkout
+
+`POST /api/salon/{salonId}/membership/checkout`
+
+```json
+{ "planId": 3, "customerName": "Ann Member", "customerEmail": "ann@example.com", "customerPhone": null, "returnUrl": "https://glow.salonsaas.org/membership" }
+```
+
+**Response** `201 Created` — `{ "subscriptionId": 42, "checkoutUrl": "https://checkout.stripe.com/…" }`.
+This creates a `PENDING_PAYMENT` membership and a `PENDING` sign-up payment (one period's price plus the
+sign-up fee). The Checkout's `payment_reference` is that payment's id, the same way a shop order's id is
+used. Redirect to `checkoutUrl`. Stripe returns the visitor to `returnUrl` (only if it belongs to the
+salon, otherwise the website's `/membership` page) with `?payment=success|cancel&reference=<paymentId>`.
+When the webhook confirms payment the membership becomes `ACTIVE` for one interval and the QR email
+goes out. An expired or failed checkout leaves it `INCOMPLETE`.
+
+**Response** `400` — missing plan or name, or an invalid email · `404` — plan not on sale ·
+`409` — online payment off, plan full, or this email already has the plan · `502` — Stripe refused.
+
+### Renew (the link in the reminder email)
+
+The reminder links to the website's `/membership?renew=<renewalToken>`, which uses:
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/salon/{salonId}/membership/renewals/{token}` | `{ subscriptionId, planName, firstName, price, currency, billingInterval, status, currentPeriodEnd, cancelAtPeriodEnd, canRenewNow, onlinePayment }` |
+| `POST /api/salon/{salonId}/membership/renewals/{token}/checkout` | `{ returnUrl? }` → `201 { subscriptionId, checkoutUrl }`. A `RENEWAL` payment of the member's own price and a one-time Checkout. Once paid, the new period starts where the current one ends (or now, if expired), and a scheduled cancellation is cleared. `409` for cancelled/never-paid memberships, or more than 31 days before the end |
+
+A job (`spring.application.membership.renewal-cron`, default every 15 min) emails the renewal link
+`renewal-reminder-days` (default 7) days before the end, once per period. When a period runs out it
+marks the membership `EXPIRED` and emails "renew here", or `CANCELLED` if the salon had scheduled that.
+Its updates are conditional, so several instances can run it safely.
+
+---
+
+## Membership (Admin)
+
+Owner-only, under `/api/salon-admin/{salonId}/membership`.
+
+| Method & path | Purpose |
+|---|---|
+| `GET /plans` | All plans (`DRAFT` / `ACTIVE` / `ARCHIVED`) with `activeMembers` |
+| `POST /plans` | Create — `{ name, description?, price, currency, billingInterval, signupFee?, serviceDiscountPercent?, productDiscountPercent?, maxMembers?, highlighted, status?, perks[], includedServices[{ serviceId, quantityPerCycle }] }`. `400` on invalid input (price > 0, 3-letter currency, discounts 0–100, limit ≥ 1, services of this salon). Defaults to `DRAFT` |
+| `GET` / `PUT /plans/{planId}` | Read / replace a plan. Price and interval changes affect **new** members only; memberships snapshot what was bought |
+| `DELETE /plans/{planId}` | `204`; `409` if the plan has (or had) members — archive it instead with `status: ARCHIVED` |
+| `PUT /plans/order` | `{ planIds: [...] }` → plans in their new order |
+| `GET /subscriptions?status=&planId=&q=` | Members, newest first. `q` matches name, email or member code |
+| `GET /subscriptions/{id}` | `{ subscription, payments[], activity[] }` — every sign-up/renewal payment (`PENDING` / `PAID` / `FAILED`, period covered, Checkout session) and the timeline |
+| `GET /subscriptions/{id}/qr.png` | The member's QR code (PNG) for printing or showing at the desk |
+| `POST /subscriptions/{id}/cancel` | `{ atPeriodEnd: true\|false, reason? }` (default `true`). No Stripe call is needed, since nothing renews by itself. At period end the member stays `ACTIVE`, gets no reminder, then ends; `false` (or an `EXPIRED` membership) ends it now. No refund is issued. The member is emailed |
+| `POST /subscriptions/{id}/resume` | Undo an end-of-period cancellation |
+| `POST /subscriptions/{id}/send-renewal-link` | Email the renewal link now (active or expired, not cancelling) |
+| `POST /subscriptions/{id}/notes` | `{ note }` — staff note on the timeline |
+| `POST /subscriptions/{id}/resend-welcome` | Email the QR code again (active members only) |
+| `GET /verify?code=` | Check-in lookup by the code in the QR (case and separators ignored) → member detail, or `404` |
+| `GET /overview` | Active / expired / pending counts, new & cancelled this month, renewals due in 7 / 30 days, monthly recurring revenue and money collected this month (per currency), per-plan breakdown, next renewals, latest activity |
+
+**Member statuses:** `PENDING_PAYMENT` (first checkout started) → `ACTIVE` (paid through
+`currentPeriodEnd`) → `EXPIRED` (not renewed; renewing reactivates it) or `CANCELLED` (by the salon).
+An abandoned or failed first checkout becomes `INCOMPLETE`. Self-service cancellation by the member is
+not built yet.
+
+---
+
 ## Admin — Payments (Stripe Connect)
 
 Owner-only, under `/api/salon-admin/{salonId}`. Stripe is configured server-side with
@@ -2427,7 +2534,7 @@ returns `503`.
 |---|---|
 | `GET /payments/stripe` | `{ stripe: { account, settings, configured, testMode, onboarding: { stage, requirements[] } } }` — `stage` is `NOT_STARTED` / `ACTION_REQUIRED` / `IN_REVIEW` / `READY`; `requirements` lists Stripe's currently/past-due items (`description`, `awaitingActionFrom: user\|stripe`, `deadline`); `testMode` is true on a sandbox key. Also refreshes the Accounts v2 account's `detailsSubmitted` (nothing currently/past due) / `chargesEnabled` (`card_payments` active) / `payoutsEnabled` (`stripe_balance.payouts` active) from Stripe |
 | `POST /payments/stripe/onboarding-link` | Creates the salon's Accounts v2 merchant account on first call (`dashboard: full`, Stripe collects fees and carries losses; country from the salon location — `409` if missing) and returns `{ url }` (single-use v2 Account Link). Stripe errors come back as `502` with Stripe's message in the reason. Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
-| `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD) is off or no Stripe account is connected yet. Areas may be selected before onboarding finishes; they only take effect once Stripe activates card payments (`chargesEnabled`) |
+| `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, membershipEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) is off or no Stripe account is connected yet. Areas may be selected before onboarding finishes; they only take effect once Stripe activates card payments (`chargesEnabled`) |
 | `POST /dashboard/sales/card-checkout` | Till / POS card sale — same body as `POST /dashboard/sales`; returns `{ sale, checkoutUrl }` with the sale `PENDING`. Returns to the dashboard cashier view |
 
 ### Stripe webhook
@@ -2436,7 +2543,7 @@ returns `503`.
 tolerance). Register as a **Connect** endpoint (events on connected accounts) for
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
 `checkout.session.async_payment_failed`, `checkout.session.expired`. It publishes `StripePaymentEvent`,
-consumed by the shop, booking and dashboard modules. Handlers are idempotent (only `PENDING` rows move).
+consumed by the shop, booking, dashboard and membership modules. Handlers are idempotent (only `PENDING` rows move).
 
 ---
 
@@ -2581,7 +2688,7 @@ Returns the full list of countries with their ISO codes, dial codes, and embedde
 |---|---|
 | `STATIC_WEBSITE` | Public-facing website for the salon |
 | `BOOKING` | Online appointment booking |
-| `MEMBERSHIP` | Customer membership / subscription plans |
+| `MEMBERSHIP` | Membership plans sold on the website, paid per period through Stripe Connect (like the shop), with renewal links and QR-code member check-in — see [Membership](#membership-customer) |
 | `WEBSHOP` | Online product shop |
 | `ANALYTICS` | Business analytics dashboard |
 | `LOYALTY_PROGRAM` | Customer loyalty and rewards |

@@ -13,13 +13,16 @@ class SalonMcpChatGatewayImpl implements SalonMcpChatGateway {
     private final SalonMcpCatalogAppTools catalog;
     private final SalonMcpBookingAppTools booking;
     private final SalonMcpShopAppTools shop;
+    private final SalonMcpMembershipAppTools membership;
 
     SalonMcpChatGatewayImpl(SalonMcpTools explorer, SalonMcpCatalogAppTools catalog,
-                            SalonMcpBookingAppTools booking, SalonMcpShopAppTools shop) {
+                            SalonMcpBookingAppTools booking, SalonMcpShopAppTools shop,
+                            SalonMcpMembershipAppTools membership) {
         this.explorer = explorer;
         this.catalog = catalog;
         this.booking = booking;
         this.shop = shop;
+        this.membership = membership;
     }
 
     @Override
@@ -37,6 +40,7 @@ class SalonMcpChatGatewayImpl implements SalonMcpChatGateway {
                     str(args, "weekStart"), null);
             case SalonMcpShopAppTools.SHOP -> shop.shop(salonId, num(args, "categoryId"), num(args, "brandId"),
                     num(args, "productId"), str(args, "query"), null);
+            case SalonMcpMembershipAppTools.MEMBERSHIP -> membership.membership(salonId, num(args, "planId"), null);
             default -> SalonMcpSupport.error("Unknown salon app.");
         };
         if (result.structuredContent() instanceof Map<?, ?> structured) {

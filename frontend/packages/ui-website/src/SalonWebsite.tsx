@@ -13,6 +13,7 @@ import { BookingWizard } from "./BookingWizard";
 import { SalonPolicyLinks } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { ShopView } from "./ShopView";
+import { MembershipView } from "./MembershipView";
 import { FEATURE_NAV } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
 import { CategoryIcon } from "./CategoryIcon";
@@ -792,6 +793,18 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   if (currentPage === "shop" && salon.features?.includes("WEBSHOP")) {
     return (
       <ShopView
+        salon={salon}
+        theme={theme}
+        policies={websitePolicies}
+        getPagePath={getPagePath}
+        onNavigate={(page) => onNavigate?.(page)}
+      />
+    );
+  }
+
+  if (currentPage === "membership" && salon.features?.includes("MEMBERSHIP")) {
+    return (
+      <MembershipView
         salon={salon}
         theme={theme}
         policies={websitePolicies}

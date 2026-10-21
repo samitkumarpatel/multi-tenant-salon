@@ -9,6 +9,11 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedE
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.membership.BillingInterval;
+import net.samitkumar.multi_tenant_salon.membership.MembershipActivatedEvent;
+import net.samitkumar.multi_tenant_salon.membership.MembershipCancelledEvent;
+import net.samitkumar.multi_tenant_salon.membership.MembershipCustomerNotifiedEvent;
+import net.samitkumar.multi_tenant_salon.membership.MembershipRenewalDueEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
@@ -18,6 +23,7 @@ import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
+import net.samitkumar.multi_tenant_salon.utility.QrCodes;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -27,6 +33,8 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Base64;
 import java.time.format.DateTimeFormatter;
 import java.util.Currency;
 import java.util.List;
@@ -531,6 +539,150 @@ class NotificationService {
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
+    // ── Memberships — customer-facing ─────────────────────────────────────────
+
+    /** Content-ID the welcome email's HTML uses to show the inline QR attachment. */
+    private static final String MEMBER_QR_CID = "member-qr";
+
+    void notifyMembershipActivated(MembershipActivatedEvent event) {
+        var subject = salonSubject(event.salonName(), switch (event.kind()) {
+            case WELCOME -> "Welcome! Your membership — ";
+            case RENEWED -> "Membership renewed — ";
+            case RESEND -> "Your membership card — ";
+        } + event.planName());
+        var price = formatMoney(event.price(), event.currency()) + " " + intervalLabel(event.billingInterval());
+        var renews = event.currentPeriodEnd() == null ? null : event.currentPeriodEnd().atZone(ZoneOffset.UTC).format(DATE_FMT);
+        var perks = event.perks() == null ? List.<String>of() : event.perks();
+        var intro = switch (event.kind()) {
+            case WELCOME -> "Thank you for joining! Your payment went through and your membership is active.";
+            case RENEWED -> "Thank you for renewing! Your payment went through and your membership continues.";
+            case RESEND -> "Here's your membership card again.";
+        };
+        var text = """
+                Hi %s,
+
+                %s
+
+                Plan        : %s
+                Price       : %s
+                Member code : %s
+                %s%s
+                Show the QR code in this email (or tell the salon your member code) at your next visit.
+                %s
+                %s
+                """.formatted(event.customerName(), intro, event.planName(), price, event.memberCode(),
+                renews == null ? "" : "Member until: " + renews + " — we'll email you a renewal link before then\n",
+                perks.isEmpty() ? "" : "\nYour perks:\n" + perks.stream().map(p -> "  - " + p).collect(Collectors.joining("\n")) + "\n",
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;max-width:360px;text-align:center">
+                  <p style="margin:0 0 4px;font-size:18px"><strong>%s</strong></p>
+                  <p style="margin:0 0 12px;color:#64748b">%s</p>
+                  <img src="cid:%s" width="220" height="220" alt="Membership QR code" style="display:block;margin:0 auto">
+                  <p style="margin:12px 0 0;font-family:monospace;font-size:18px;letter-spacing:2px">%s</p>
+                  %s
+                </div>
+                <p>Show this QR code (or tell the salon your member code) at your next visit.</p>
+                %s
+                %s
+                %s
+                """.formatted(HtmlUtils.htmlEscape(event.customerName()), intro, HtmlUtils.htmlEscape(event.planName()), price,
+                MEMBER_QR_CID, event.memberCode(),
+                renews == null ? "" : "<p style=\"margin:8px 0 0;color:#64748b;font-size:13px\">Member until " + renews + "</p>",
+                perks.isEmpty() ? "" : "<p><strong>Your perks</strong></p><ul>"
+                        + perks.stream().map(p -> "<li>" + HtmlUtils.htmlEscape(p) + "</li>").collect(Collectors.joining()) + "</ul>",
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+        var qr = new MailjetAttachment("image/png", "membership-" + event.memberCode() + ".png", MEMBER_QR_CID,
+                Base64.getEncoder().encodeToString(QrCodes.png(event.memberCode(), 440)));
+
+        var status = dispatch(event.customerEmail(), event.customerName(), subject, text, html, List.of(qr));
+        acknowledge(event.customerEmail(), subject, text, status,
+                NotificationContext.membership(event.salonId(), event.subscriptionId()));
+    }
+
+    void notifyMembershipCancelled(MembershipCancelledEvent event) {
+        var endsOn = event.endsAt() == null ? null : event.endsAt().atZone(ZoneOffset.UTC).format(DATE_FMT);
+        var message = event.immediate() || endsOn == null
+                ? "Your " + event.planName() + " membership has been cancelled and has now ended. You won't be charged again."
+                : "Your " + event.planName() + " membership has been cancelled. It stays active until " + endsOn
+                        + " and won't renew after that.";
+        var subject = salonSubject(event.salonName(), "Membership cancelled — " + event.planName());
+        var text = """
+                Hi %s,
+
+                %s
+
+                Member code: %s
+                If this wasn't expected, please contact the salon.
+                %s
+                %s
+                """.formatted(event.customerName(), message, event.memberCode(),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <p><small>Member code: %s. If this wasn't expected, please contact the salon.</small></p>
+                %s
+                %s
+                """.formatted(HtmlUtils.htmlEscape(event.customerName()), HtmlUtils.htmlEscape(message), event.memberCode(),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.membership(event.salonId(), event.subscriptionId()));
+    }
+
+    void notifyMembershipRenewalDue(MembershipRenewalDueEvent event) {
+        var endDate = event.periodEnd() == null ? null : event.periodEnd().atZone(ZoneOffset.UTC).format(DATE_FMT);
+        var link = websiteUrl(event.salonHandler()) + "/membership?renew=" + event.renewalToken();
+        var price = formatMoney(event.price(), event.currency()) + " " + intervalLabel(event.billingInterval());
+        var subject = salonSubject(event.salonName(), (event.expired() ? "Your membership has ended — renew " : "Time to renew your ")
+                + event.planName() + (event.expired() ? "" : " membership"));
+        var message = event.expired()
+                ? "Your " + event.planName() + " membership ended" + (endDate == null ? "" : " on " + endDate)
+                        + ". Renew any time to pick up where you left off — you keep your member code."
+                : "Your " + event.planName() + " membership runs until " + endDate
+                        + ". Renew now so it continues without a gap — the new period starts when the current one ends.";
+        var text = """
+                Hi %s,
+
+                %s
+
+                Renew (%s): %s
+                %s
+                %s
+                """.formatted(event.customerName(), message, price, link,
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>%s</p>
+                <p><a href="%s" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:600">Renew — %s</a></p>
+                <p><small>Or open this link: %s</small></p>
+                %s
+                %s
+                """.formatted(HtmlUtils.htmlEscape(event.customerName()), HtmlUtils.htmlEscape(message), HtmlUtils.htmlEscape(link),
+                price, HtmlUtils.htmlEscape(link),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+                NotificationContext.membership(event.salonId(), event.subscriptionId()));
+    }
+
+    private static String intervalLabel(BillingInterval interval) {
+        return switch (interval) {
+            case MONTHLY -> "per month";
+            case QUARTERLY -> "every 3 months";
+            case YEARLY -> "per year";
+        };
+    }
+
     // ── Dispatch ──────────────────────────────────────────────────────────────
 
     private String adminSalonUrl(Object salonId) {
@@ -634,6 +786,11 @@ class NotificationService {
 
     /** The one place that actually talks to Mailjet. Never throws — a notification failure must not break the triggering business flow. */
     private DispatchStatus dispatch(String toEmail, String toName, String subject, String textBody, String htmlBody) {
+        return dispatch(toEmail, toName, subject, textBody, htmlBody, List.of());
+    }
+
+    private DispatchStatus dispatch(String toEmail, String toName, String subject, String textBody, String htmlBody,
+                                    List<MailjetAttachment> inlined) {
         if (!StringUtils.hasText(toEmail)) {
             log.warn("[NOTIFICATION] No recipient email — skipping send. subject='{}'", subject);
             return DispatchStatus.FAILED;
@@ -646,7 +803,7 @@ class NotificationService {
             var request = new MailjetRequest(List.of(new MailjetMessage(
                     new MailjetEmail(sender, senderName),
                     List.of(new MailjetEmail(toEmail, toName)),
-                    subject, textBody, htmlBody)));
+                    subject, textBody, htmlBody, inlined)));
             var result = mailjetClient.send(request);
             log.info("[NOTIFICATION] Sent '{}' to {} <{}> — result: {}", subject, toName, toEmail, result);
             return DispatchStatus.SENT;
@@ -668,6 +825,10 @@ class NotificationService {
                 eventPublisher.publishEvent(new OrderCustomerNotifiedEvent(
                         ctx.salonId(), ctx.relatedRef(), OrderCustomerNotifiedEvent.CHANNEL_EMAIL,
                         toEmail, subject, body, status.name(), Instant.now()));
+            } else if (NotificationContext.TYPE_MEMBERSHIP.equals(ctx.relatedType())) {
+                eventPublisher.publishEvent(new MembershipCustomerNotifiedEvent(
+                        ctx.salonId(), Long.valueOf(ctx.relatedRef()), MembershipCustomerNotifiedEvent.CHANNEL_EMAIL,
+                        toEmail, subject, status.name(), Instant.now()));
             }
         } catch (Exception e) {
             log.error("[NOTIFICATION] Failed to publish notification acknowledgement for subject='{}'", subject, e);

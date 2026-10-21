@@ -7,7 +7,7 @@ import org.springframework.web.client.support.RestClientHttpServiceGroupConfigur
 import org.springframework.web.service.registry.ImportHttpServices;
 
 @Configuration(proxyBeanMethods = false)
-@ImportHttpServices(group = "mcp-booking-api", types = {SalonMcpBookingClient.class, SalonMcpShopClient.class})
+@ImportHttpServices(group = "mcp-booking-api", types = {SalonMcpBookingClient.class, SalonMcpShopClient.class, SalonMcpMembershipClient.class})
 class SalonMcpBookingClientConfiguration {
     @Bean
     RestClientHttpServiceGroupConfigurer mcpBookingApiConfigurer(

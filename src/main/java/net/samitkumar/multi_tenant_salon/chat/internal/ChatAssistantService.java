@@ -36,6 +36,7 @@ class ChatAssistantService {
             - salon_booking_week: when they want to see a whole week of open times or compare days
               ("what's free next week").
             - salon_shop: products and buying them.
+            - salon_membership: membership plans — prices, what members get, joining.
             - salon_explorer: overview, opening hours (view=hours), location (view=location), contact.
             Pass only ids and dates you actually know from earlier tool results in this
             conversation; otherwise omit them and the app lets the visitor choose. Resolve relative

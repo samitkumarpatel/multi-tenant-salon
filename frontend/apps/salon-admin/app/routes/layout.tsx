@@ -98,7 +98,7 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
   { key: "STATIC_WEBSITE",  label: "Website",         hint: "Customise your public-facing page",       icon: Palette,        route: "website" },
   { key: "BOOKING",         label: "Bookings",         hint: "Appointments, availability, and booking rules", icon: CalendarCheck, route: "booking" },
   { key: "DASHBOARD",       label: "Dashboard",        hint: "Configure and open your operations dashboard", icon: Gauge, route: "dashboard-settings" },
-  { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: "coming-soon" },
+  { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: "membership" },
   { key: "WEBSHOP",         label: "Shop",            hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "shop" },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: "analytics" },
   { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "coming-soon" },

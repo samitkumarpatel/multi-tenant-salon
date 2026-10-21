@@ -16,7 +16,7 @@ import type { Data, SalonApp } from "./runtime";
  * on demand through the same tools.
  */
 
-type Base = Data & { bookingEnabled?: boolean; shopEnabled?: boolean; today?: Today; contact?: { phone?: string; email?: string } };
+type Base = Data & { bookingEnabled?: boolean; shopEnabled?: boolean; membershipEnabled?: boolean; today?: Today; contact?: { phone?: string; email?: string } };
 type Location = { address?: string; city?: string; state?: string; zipCode?: string; country?: string; mapsUrl?: string };
 type ExplorerData = Base & {
   salon?: { name: string; contact?: { phone?: string; email?: string; website?: string }; bookingAdvanceDays?: number };
@@ -269,6 +269,7 @@ export class SalonNavigator {
     ];
     if (data.bookingEnabled) tiles.push(["📅", "Book now", () => this.go({ name: "services" })]);
     if (data.shopEnabled) tiles.push(["🛍️", "Shop", () => this.rt.ask("Show me the shop")]);
+    if (data.membershipEnabled) tiles.push(["🎟️", "Membership", () => this.rt.ask("Show me the membership plans")]);
     return h("div", { class: "stack" },
       h("section", { class: "card info-grid" },
         address(loc) ? infoRow("📍", "Address", address(loc), loc.mapsUrl ? button("Map", () => this.rt.openLink(loc.mapsUrl!), "link-button") : null) : null,

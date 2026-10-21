@@ -1,7 +1,7 @@
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUp, Calendar, CalendarCheck, CalendarRange, CheckCircle2, Clock, Info, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, PlugZap, Scissors, Search, ShoppingBag, Sparkles, SquarePen, UserRound, Users, Wrench, X,
+  ArrowUp, BadgeCheck, Calendar, CalendarCheck, CalendarRange, CheckCircle2, Clock, Info, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, PlugZap, Scissors, Search, ShoppingBag, Sparkles, SquarePen, UserRound, Users, Wrench, X,
 } from "lucide-react";
 import { FONTS, fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -152,6 +152,7 @@ const MCP_APP_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   salon_booking_by_stylist: UserRound,
   salon_booking_week: CalendarRange,
   salon_shop: ShoppingBag,
+  salon_membership: BadgeCheck,
 };
 
 const TOOL_LABELS: Record<string, string> = {
@@ -1279,6 +1280,12 @@ export function GenerativeUIWebsite({
       hint: "Products you can order",
       question: "Show me the shop",
       icon: ShoppingBag,
+    },
+    salon.features?.includes("MEMBERSHIP") && !isBooking && {
+      label: "Membership",
+      hint: "Plans and member perks",
+      question: "Show me the membership plans",
+      icon: BadgeCheck,
     },
   ].filter(Boolean) as { label: string; hint: string; question: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }[];
 

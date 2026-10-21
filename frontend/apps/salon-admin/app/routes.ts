@@ -30,6 +30,13 @@ export default [
         route(":orderId", "routes/shop.order.tsx"),
       ]),
     ]),
+    route("membership", "routes/membership.tsx", [
+      index("routes/membership.overview.tsx"),
+      route("plans", "routes/membership.plans.tsx"),
+      route("members", "routes/membership.members.tsx"),
+      route("members/:subscriptionId", "routes/membership.member.tsx"),
+      route("check-in", "routes/membership.check-in.tsx"),
+    ]),
     route("analytics", "routes/analytics.tsx"),
     route("holiday", "routes/holiday.tsx"),
     route("coming-soon", "routes/coming-soon.tsx"),

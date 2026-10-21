@@ -14,6 +14,7 @@ export const MCP_APPS: Record<string, { title: string; subtitle: string }> = {
   salon_booking_by_stylist: { title: "Book by stylist", subtitle: "Pick a stylist and see when they're free" },
   salon_booking_week: { title: "Week view", subtitle: "Every open time this week at a glance" },
   salon_shop: { title: "Salon shop", subtitle: "Products, variants, cart and checkout" },
+  salon_membership: { title: "Membership", subtitle: "Plans, what members get, and joining online" },
 };
 
 type McpAppFrameProps = {

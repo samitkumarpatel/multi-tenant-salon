@@ -58,6 +58,11 @@ spring:
       salon-domain: ${SALON_DOMAIN:salonsaas.org}
       # Stripe-Version sent on Accounts v2 (/v2/core/**) calls; v1 Checkout calls use the account default.
       stripe-api-version: ${STRIPE_API_VERSION:2026-08-26.dahlia}
+    membership:
+      # Members pay per period (one-time Checkout, like the shop); this job emails renewal links and
+      # expires lapsed memberships.
+      renewal-cron: ${MEMBERSHIP_RENEWAL_CRON:0 */15 * * * *}
+      renewal-reminder-days: ${MEMBERSHIP_RENEWAL_REMINDER_DAYS:7}
     chat:
       # Base URL the AI assistant's tools use to call this app's own public /api/salon/** API.
       internal-api-base-url: ${INTERNAL_API_BASE_URL:http://localhost:8080}
@@ -82,7 +87,7 @@ spring:
         # text first and the app last.
         instructions: >-
           These tools open interactive Salon MCP Apps that show a salon's live services, team,
-          opening hours, booking and shop. When you open an app, first write a short reply of one
+          opening hours, booking, shop and memberships. When you open an app, first write a short reply of one
           or two sentences saying what you are showing (for example "Here are Anna's profile and
           services."), then call the app tool as the last step of your turn, so the visitor reads
           your text and then sees the app below it. Do not state prices, times or availability
@@ -142,6 +147,7 @@ spring:
         - classpath:db/V15__salon_languages.sql
         - classpath:db/V16__salon_policies.sql
         - classpath:db/V17__location_maps_url.sql
+        - classpath:db/V18__membership.sql
   modulith:
     events:
       jdbc:

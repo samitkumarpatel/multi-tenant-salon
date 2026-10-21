@@ -56,6 +56,19 @@ class SalonMcpEndpointTests {
     }
 
     @Test
+    void theMembershipAppIsListedWithItsUiAndAnAppOnlyCheckoutTool() {
+        String session = initialize("/mcp");
+        String tools = rpc("/mcp", session, """
+                {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""");
+        String ui = rpc("/mcp", session, """
+                {"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":"ui://salon/membership.html"}}""");
+
+        assertThat(tools).contains("\"name\":\"salon_membership\"").contains("\"name\":\"create_membership_checkout\"")
+                .contains("ui://salon/membership.html");
+        assertThat(ui).contains("\"mimeType\":\"text/html;profile=mcp-app\"").contains("Salon membership");
+    }
+
+    @Test
     void initializeTellsTheModelToWriteItsTextBeforeOpeningAnApp() {
         var initialized = client.post().uri("/mcp")
                 .contentType(MediaType.APPLICATION_JSON)

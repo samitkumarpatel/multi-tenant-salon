@@ -48,6 +48,7 @@ class SalonMcpAppToolsTest {
     private final StaffApi staff = mock(StaffApi.class);
     private final BookingApi bookings = mock(BookingApi.class);
     private final SalonMcpShopClient shopClient = mock(SalonMcpShopClient.class);
+    private final SalonMcpMembershipClient membershipClient = mock(SalonMcpMembershipClient.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final SalonMcpSupport support = new SalonMcpSupport(salons, mapper);
 
@@ -250,9 +251,67 @@ class SalonMcpAppToolsTest {
     }
 
     @Test
+    void membershipAppMapsThePublicCatalogue() {
+        givenSalon(SalonFeature.MEMBERSHIP);
+        when(membershipClient.plans(salonId.toString())).thenReturn("""
+                {"onlineSignup":true,"plans":[{"id":3,"name":"Glow","price":49.0,"currency":"EUR","billingInterval":"MONTHLY",
+                  "signupFee":10,"serviceDiscountPercent":10,"spotsLeft":2,"soldOut":false,"highlighted":true,"includedValue":70,
+                  "perks":["Priority booking"],"includedServices":[{"serviceId":1,"name":"Haircut","quantityPerCycle":2,"price":35}]}]}""");
+
+        var data = structured(membership().membership(salonId.toString(), 3L, null));
+
+        assertThat(data).containsEntry("app", "salon_membership").containsEntry("onlineSignup", true)
+                .containsEntry("planId", 3L).containsEntry("membershipEnabled", true);
+        var plan = list(data, "plans").getFirst();
+        assertThat(plan).containsEntry("name", "Glow").containsEntry("billingInterval", "MONTHLY")
+                .containsEntry("spotsLeft", 2).containsEntry("perks", List.of("Priority booking"));
+        assertThat((List<Map<String, Object>>) plan.get("includedServices"))
+                .singleElement().satisfies(s -> assertThat(s).containsEntry("name", "Haircut").containsEntry("quantityPerCycle", 2));
+    }
+
+    @Test
+    void membershipAppRequiresTheMembershipFeature() {
+        var result = membership().membership(salonId.toString(), null, null);
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result)).isEqualTo("This salon doesn't offer memberships.");
+    }
+
+    @Test
+    void membershipCheckoutNeedsConfirmationThenReturnsTheStripeUrl() {
+        givenSalon(SalonFeature.MEMBERSHIP);
+        var refused = membership().createMembershipCheckout(salonId.toString(), 3L, "Jane", "jane@example.com", null, false, null);
+        assertThat(refused.isError()).isTrue();
+        verify(membershipClient, never()).checkout(any(), any());
+
+        when(membershipClient.checkout(eq(salonId.toString()), any()))
+                .thenReturn("{\"subscriptionId\":9,\"checkoutUrl\":\"https://checkout.stripe.com/c/pay/cs_1\"}");
+        var result = membership().createMembershipCheckout(salonId.toString(), 3L, " Jane ", "jane@example.com", "", true, null);
+
+        var request = ArgumentCaptor.forClass(SalonMcpMembershipClient.CheckoutRequest.class);
+        verify(membershipClient).checkout(eq(salonId.toString()), request.capture());
+        assertThat(request.getValue()).isEqualTo(new SalonMcpMembershipClient.CheckoutRequest(3L, "Jane", "jane@example.com", null, null));
+        Map<?, ?> checkout = (Map<?, ?>) structured(result).get("checkout");
+        assertThat(checkout.get("checkoutUrl")).isEqualTo("https://checkout.stripe.com/c/pay/cs_1");
+        assertThat(checkout.get("subscriptionId")).isEqualTo(9L);
+    }
+
+    @Test
+    void membershipCheckoutPassesTheApisReasonThrough() {
+        givenSalon(SalonFeature.MEMBERSHIP);
+        when(membershipClient.checkout(eq(salonId.toString()), any())).thenThrow(new org.springframework.web.client.HttpClientErrorException(
+                org.springframework.http.HttpStatus.CONFLICT, "Conflict", "{\"detail\":\"This plan is full\"}".getBytes(), null));
+
+        var result = membership().createMembershipCheckout(salonId.toString(), 3L, "Jane", "jane@example.com", null, true, null);
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result)).isEqualTo("This plan is full");
+    }
+
+    @Test
     void chatGatewayRoutesEachAppToolAndReportsErrorsAsAnErrorView() {
         var explorer = new SalonMcpTools(support, salons, services, staff, bookings, mock(SalonMcpBookingClient.class), mapper);
-        var gateway = new SalonMcpChatGatewayImpl(explorer, catalog(), booking(), shop());
+        var gateway = new SalonMcpChatGatewayImpl(explorer, catalog(), booking(), shop(), membership());
 
         assertThat(gateway.open("salon_team", salonId.toString(), Map.of("staffId", "7")))
                 .containsEntry("app", "salon_team").containsEntry("staffId", 7L);
@@ -297,6 +356,7 @@ class SalonMcpAppToolsTest {
     private SalonMcpCatalogAppTools catalog() { return new SalonMcpCatalogAppTools(support, services, staff); }
     private SalonMcpBookingAppTools booking() { return new SalonMcpBookingAppTools(support, services, staff, bookings); }
     private SalonMcpShopAppTools shop() { return new SalonMcpShopAppTools(support, shopClient, mapper); }
+    private SalonMcpMembershipAppTools membership() { return new SalonMcpMembershipAppTools(support, membershipClient, mapper); }
 
     private void givenSalon(SalonFeature... features) {
         Salon salon = new Salon(salonId, "Test salon", "test-salon", null, null, null, List.of(),

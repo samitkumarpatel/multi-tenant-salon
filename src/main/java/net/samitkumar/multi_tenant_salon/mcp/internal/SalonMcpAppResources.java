@@ -104,6 +104,11 @@ class SalonMcpAppResources {
             mimeType = APP_MIME_TYPE)
     McpSchema.ReadResourceResult shop() { return html(SalonMcpAppMeta.SHOP_URI, "shop"); }
 
+    @McpResource(uri = SalonMcpAppMeta.MEMBERSHIP_URI, name = "Salon Membership UI", title = "Salon membership",
+            description = "Compare the salon's membership plans and join online with card payment.",
+            mimeType = APP_MIME_TYPE)
+    McpSchema.ReadResourceResult membership() { return html(SalonMcpAppMeta.MEMBERSHIP_URI, "membership"); }
+
     private McpSchema.ReadResourceResult html(String uri, String app) {
         String text;
         try {

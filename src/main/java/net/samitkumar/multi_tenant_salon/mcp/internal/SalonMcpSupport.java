@@ -101,6 +101,7 @@ class SalonMcpSupport {
         data.put("salonName", salon.salon().name());
         data.put("bookingEnabled", salon.has(SalonFeature.BOOKING));
         data.put("shopEnabled", salon.has(SalonFeature.WEBSHOP));
+        data.put("membershipEnabled", salon.has(SalonFeature.MEMBERSHIP));
         var contact = salon.salon().contact();
         if (contact != null) {
             var reach = nullableMap("phone", blankToNull(contact.phone()), "email", blankToNull(contact.email()));

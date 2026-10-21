@@ -12,6 +12,7 @@ public record SalonPaymentSettings(
         boolean shopEnabled,
         boolean bookingEnabled,
         boolean posEnabled,
+        boolean membershipEnabled,
         BookingPaymentType bookingPaymentType,
         int bookingDepositPercent,
         Instant updatedAt

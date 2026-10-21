@@ -8,7 +8,7 @@ import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import type { LayoutContext } from "~/lib/types";
 
 type Account = { stripeAccountId: string; detailsSubmitted: boolean; chargesEnabled: boolean; payoutsEnabled: boolean };
-type Settings = { salonId: string; shopEnabled: boolean; bookingEnabled: boolean; posEnabled: boolean; bookingPaymentType: "FULL" | "DEPOSIT"; bookingDepositPercent: number };
+type Settings = { salonId: string; shopEnabled: boolean; bookingEnabled: boolean; posEnabled: boolean; membershipEnabled: boolean; bookingPaymentType: "FULL" | "DEPOSIT"; bookingDepositPercent: number };
 // Checkout Sessions don't pin payment_method_types, so Stripe offers whatever the salon enables here
 // (salons have the full Stripe Dashboard on their own connected account).
 const STRIPE_PAYMENT_METHODS_URL = "https://dashboard.stripe.com/settings/payment_methods";
@@ -27,7 +27,8 @@ export default function PaymentsPage() {
   const { sid, payload } = useLoaderData<typeof clientLoader>();
   const { salon } = useOutletContext<LayoutContext>();
   const { toast, notify } = useToast();
-  const [settings, setSettings] = useState(payload.stripe.settings);
+  // Older APIs omit membershipEnabled; treat it as off.
+  const [settings, setSettings] = useState<Settings>({ ...payload.stripe.settings, membershipEnabled: Boolean(payload.stripe.settings.membershipEnabled) });
   const [busy, setBusy] = useState(false);
   const account = payload.stripe.account;
   const connected = Boolean(account?.detailsSubmitted && account?.chargesEnabled);
@@ -76,7 +77,7 @@ export default function PaymentsPage() {
     } finally { setBusy(false); }
   }
 
-  function toggle(key: "shopEnabled" | "bookingEnabled" | "posEnabled") {
+  function toggle(key: "shopEnabled" | "bookingEnabled" | "posEnabled" | "membershipEnabled") {
     setSettings((current) => ({ ...current, [key]: !current[key] }));
   }
 
@@ -84,6 +85,7 @@ export default function PaymentsPage() {
     { key: "shopEnabled" as const, feature: "WEBSHOP", title: "Online Shop", desc: "Take card payments for customer orders." },
     { key: "bookingEnabled" as const, feature: "BOOKING", title: "Online bookings", desc: "Collect a deposit or full payment when a customer books." },
     { key: "posEnabled" as const, feature: "DASHBOARD", title: "Till / POS", desc: "Offer Stripe Checkout for card payments at the salon. Cash can still be recorded manually." },
+    { key: "membershipEnabled" as const, feature: "MEMBERSHIP", title: "Memberships", desc: "Let customers join a membership plan from your website and pay automatically every period." },
   ];
   const availableAreas = areas.filter((area) => features.has(area.feature));
 

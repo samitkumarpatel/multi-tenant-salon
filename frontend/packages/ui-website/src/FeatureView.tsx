@@ -1,5 +1,5 @@
 import { useI18n } from "@salon/i18n";
-import { ArrowLeft, ShoppingBag, BadgeCheck, Gift, CalendarCheck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ShoppingBag, Gift, CalendarCheck, type LucideIcon } from "lucide-react";
 import { fontStack, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import type { SalonPolicy } from "./SalonPolicyLinks";
@@ -11,12 +11,6 @@ export const FEATURE_VIEWS: Record<string, { title: string; icon: LucideIcon; ta
     icon: ShoppingBag,
     tagline: "Salon-grade products, delivered",
     blurb: "Browse the products our stylists use and love — shampoos, styling, and care picked for you.",
-  },
-  membership: {
-    title: "Membership",
-    icon: BadgeCheck,
-    tagline: "Your look, on subscription",
-    blurb: "Join our membership for priority booking, member pricing, and exclusive perks every month.",
   },
   loyalty: {
     title: "Loyalty",

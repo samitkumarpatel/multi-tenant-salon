@@ -93,6 +93,12 @@ class SalonMcpAppChatTools {
         return open("salon_shop", "query", query, "productId", productId);
     }
 
+    @Tool(name = "salon_membership", description = "Open the Membership app: the salon's membership plans with prices, billing period, included services, discounts and perks, a comparison, and joining online by card. Use for 'do you have memberships', 'monthly plan', 'what do members get', joining.")
+    String salonMembership(
+            @ToolParam(required = false, description = "Membership plan id to open") Long planId) {
+        return open("salon_membership", "planId", planId);
+    }
+
     private String open(String tool, Object... pairs) {
         Map<String, Object> arguments = new LinkedHashMap<>();
         for (int i = 0; i + 1 < pairs.length; i += 2) {

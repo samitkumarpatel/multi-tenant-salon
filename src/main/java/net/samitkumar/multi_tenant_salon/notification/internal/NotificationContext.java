@@ -9,8 +9,13 @@ import java.util.UUID;
 record NotificationContext(UUID salonId, String relatedType, String relatedRef) {
 
     static final String TYPE_SHOP_ORDER = "SHOP_ORDER";
+    static final String TYPE_MEMBERSHIP = "MEMBERSHIP";
 
     static NotificationContext shopOrder(UUID salonId, String orderNumber) {
         return new NotificationContext(salonId, TYPE_SHOP_ORDER, orderNumber);
+    }
+
+    static NotificationContext membership(UUID salonId, Long subscriptionId) {
+        return new NotificationContext(salonId, TYPE_MEMBERSHIP, String.valueOf(subscriptionId));
     }
 }

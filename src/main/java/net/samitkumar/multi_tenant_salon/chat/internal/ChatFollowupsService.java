@@ -84,9 +84,11 @@ class ChatFollowupsService {
 
             Stay strictly within what the assistant can answer: this salon's services and
             pricing, staff, opening hours, location, contact details, and holidays/closures —
-            plus making a booking, but ONLY if "BOOKING" is in the salon's features list. Never
-            suggest questions about memberships, an online shop, loyalty or rewards, analytics,
-            or anything else, even when such a feature is enabled.
+            plus making a booking, but ONLY if "BOOKING" is in the salon's features list, and
+            its membership plans (what each plan includes, comparing plans, joining), but ONLY
+            if "MEMBERSHIP" is in the salon's features list. Never suggest questions about an
+            online shop, loyalty or rewards, analytics, or anything else, even when such a
+            feature is enabled.
 
             Make every suggestion useful as the visitor's very next message. When the answer or
             live app data gives a service, date, stylist, or time, carry that exact detail into

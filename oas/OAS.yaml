@@ -129,6 +129,15 @@ tags:
       Public storefront for the `WEBSHOP` feature — browse active products (with per-variant
       pricing and stock) and place an order. Checkout runs an atomic stock decrement and a
       dummy payment step (the order comes back `PAID`).
+  - name: Membership
+    description: |
+      Public membership catalogue, online sign-up and renewal for the `MEMBERSHIP` feature. Members pay each
+      period with a one-time Stripe Checkout on the salon's connected account (like shop orders), receive a QR
+      code (their member code) by email, and get a renewal link before the period ends.
+  - name: AdminMembership
+    description: |
+      Owner/admin management of membership plans and members — payment status and history, renewal links,
+      cancellation (now or at period end), QR check-in lookup, and the membership overview.
   - name: AdminShop
     description: |
       Owner/admin management of the shop: brands, categories, products and their variants,
@@ -3136,7 +3145,7 @@ paths:
         "400":
           description: Missing booking payment type or deposit outside 1–100
         "409":
-          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD) disabled, or no Stripe account connected yet
+          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) disabled, or no Stripe account connected yet
 
   /api/salon-admin/{salonId}/dashboard/sales/card-checkout:
     parameters:
@@ -3185,7 +3194,9 @@ paths:
         tolerance) against `STRIPE_WEBHOOK_SECRET`. Register it as a **Connect** endpoint for
         `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
         `checkout.session.async_payment_failed` and `checkout.session.expired`. Events for unknown
-        accounts or mismatched `metadata.salon_id` are acknowledged and ignored.
+        accounts or mismatched `metadata.salon_id` are acknowledged and ignored. Payment areas are
+        `SHOP`, `BOOKING`, `POS` and `MEMBERSHIP`, each a one-time Checkout whose `payment_reference`
+        is the order / booking / sale / membership-payment id.
       operationId: stripeWebhook
       security: []
       parameters:
@@ -3206,6 +3217,472 @@ paths:
         "503":
           description: Webhook secret not configured
 
+  # ─── Membership — Customer ───────────────────────────────────────────────────
+
+  /api/salon/{salonId}/membership/plans:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Membership]
+      summary: List membership plans on sale
+      description: |
+        Plans with status `ACTIVE`, in the salon's order. `onlineSignup` is true when the salon has
+        Stripe membership payments enabled and its account can charge — otherwise show the plans with
+        a "contact the salon" call to action. 404 when the salon doesn't have the `MEMBERSHIP` feature.
+      operationId: listPublicMembershipPlans
+      responses:
+        "200":
+          description: Plan catalogue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipCatalog" }
+        "404":
+          description: Salon not found, disabled, or without the MEMBERSHIP feature
+
+  /api/salon/{salonId}/membership/plans/{planId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: planId, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [Membership]
+      summary: Get one membership plan on sale
+      operationId: getPublicMembershipPlan
+      responses:
+        "200":
+          description: Plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipPlan" }
+        "404":
+          description: No such plan on sale
+
+  /api/salon/{salonId}/membership/checkout:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [Membership]
+      summary: Start a membership checkout
+      description: |
+        Works like the shop's checkout: creates a `PENDING_PAYMENT` membership (price and interval
+        snapshotted from the plan) and a `PENDING` sign-up payment of one period's price plus any sign-up
+        fee, then a one-time Stripe Checkout on the salon's connected account (payment area `MEMBERSHIP`,
+        reference = the payment id) — redirect to `checkoutUrl`. An unpaid checkout holds a place on a
+        capped plan for 60 minutes. Stripe returns the visitor to `returnUrl` (only if it belongs to the
+        salon; otherwise the website's `/membership` page) with `?payment=success|cancel&reference=<paymentId>`.
+
+        When the Connect webhook confirms payment the membership becomes `ACTIVE` until one billing interval
+        from now, and the member is emailed their QR code (encoding `memberCode`). Nothing renews by itself:
+        before the period ends the member is emailed a renewal link (see the `renewals` endpoints).
+      operationId: startMembershipCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MembershipCheckoutRequest" }
+      responses:
+        "201":
+          description: Checkout created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipCheckoutResponse" }
+        "400":
+          description: Missing plan, name, or a valid email address
+        "404":
+          description: Plan not on sale, or the salon has no MEMBERSHIP feature
+        "409":
+          description: Online sign-up not enabled, the plan is full, or this email is already a member of the plan
+        "502":
+          description: Stripe rejected the Checkout Session
+
+  /api/salon/{salonId}/membership/renewals/{token}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: token, required: true, schema: { type: string }, description: The renewal token from the member's reminder email }
+    get:
+      tags: [Membership]
+      summary: What the renewal link shows
+      operationId: getMembershipRenewal
+      responses:
+        "200":
+          description: Renewal view
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipRenewal" }
+        "404":
+          description: Unknown token, or the salon has no MEMBERSHIP feature
+
+  /api/salon/{salonId}/membership/renewals/{token}/checkout:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: token, required: true, schema: { type: string } }
+    post:
+      tags: [Membership]
+      summary: Pay for the next period
+      description: |
+        A `RENEWAL` payment of the member's snapshotted price and a one-time Checkout, exactly like sign-up.
+        Once paid, the new period starts where the current one ends (or now, if it has expired). Allowed for
+        `ACTIVE` memberships within 31 days of their end and for `EXPIRED` ones; renewing clears a scheduled
+        cancellation.
+      operationId: startMembershipRenewal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                returnUrl: { type: string, format: uri, nullable: true }
+      responses:
+        "201":
+          description: Checkout created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipCheckoutResponse" }
+        "404":
+          description: Unknown token
+        "409":
+          description: Cancelled or never-paid membership, too early to renew, or online payment off
+        "502":
+          description: Stripe rejected the Checkout Session
+
+  # ─── Membership — Admin ──────────────────────────────────────────────────────
+
+  /api/salon-admin/{salonId}/membership/plans:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminMembership]
+      summary: List all plans (any status) with member counts
+      operationId: adminListMembershipPlans
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MembershipPlan" }
+    post:
+      tags: [AdminMembership]
+      summary: Create a plan
+      operationId: createMembershipPlan
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MembershipPlanRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipPlan" }
+        "400":
+          description: Validation failed (name, price > 0, 3-letter currency, interval, discounts 0–100, limit ≥ 1, services of this salon)
+
+  /api/salon-admin/{salonId}/membership/plans/{planId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: planId, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [AdminMembership]
+      summary: Get a plan
+      operationId: adminGetMembershipPlan
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipPlan" }
+        "404":
+          description: Not found
+    put:
+      tags: [AdminMembership]
+      summary: Update a plan
+      description: Price and interval changes apply to new members only; existing subscriptions keep their snapshot.
+      operationId: updateMembershipPlan
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MembershipPlanRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipPlan" }
+        "400":
+          description: Validation failed
+        "404":
+          description: Not found
+    delete:
+      tags: [AdminMembership]
+      summary: Delete a plan that never had members
+      operationId: deleteMembershipPlan
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+        "409":
+          description: "The plan has (or had) members — archive it instead (status ARCHIVED)"
+
+  /api/salon-admin/{salonId}/membership/plans/order:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    put:
+      tags: [AdminMembership]
+      summary: Reorder plans
+      operationId: reorderMembershipPlans
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                planIds: { type: array, items: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: Plans in their new order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MembershipPlan" }
+
+  /api/salon-admin/{salonId}/membership/subscriptions:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminMembership]
+      summary: List members
+      description: Newest first. `q` matches name, email or member code.
+      operationId: listMembershipSubscriptions
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: status, schema: { $ref: "#/components/schemas/MembershipStatus" } }
+        - { in: query, name: planId, schema: { type: integer, format: int64 } }
+        - { in: query, name: q, schema: { type: string } }
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MembershipSubscription" }
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    get:
+      tags: [AdminMembership]
+      summary: Get a member with payments and timeline
+      operationId: getMembershipSubscription
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Member detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "404":
+          description: Not found
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}/qr.png:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    get:
+      tags: [AdminMembership]
+      summary: The member's QR code (encodes `memberCode`)
+      operationId: getMembershipQrCode
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: PNG image
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "404":
+          description: Not found
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    post:
+      tags: [AdminMembership]
+      summary: Cancel a membership
+      description: |
+        Nothing renews by itself, so no Stripe call is needed. `atPeriodEnd` (default `true`) keeps an
+        `ACTIVE` member until their paid period ends, sends no renewal reminder, then ends it (`CANCELLED`);
+        `false` (and any `EXPIRED` membership) ends it now. No refund is issued. The member is emailed either
+        way and can no longer renew from their link.
+      operationId: cancelMembershipSubscription
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                atPeriodEnd: { type: boolean, default: true }
+                reason: { type: string, nullable: true, description: Internal note, not sent to the member }
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "409":
+          description: Checkout not paid yet, or the membership has already ended
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}/resume:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    post:
+      tags: [AdminMembership]
+      summary: Undo an end-of-period cancellation
+      operationId: resumeMembershipSubscription
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "409":
+          description: The membership isn't set to cancel at period end
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}/notes:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    post:
+      tags: [AdminMembership]
+      summary: Add a staff note to the member's timeline
+      operationId: addMembershipNote
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string }
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "400":
+          description: Empty note
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}/resend-welcome:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    post:
+      tags: [AdminMembership]
+      summary: Email the member their QR code again
+      operationId: resendMembershipWelcome
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Member detail (the email is sent asynchronously and recorded on the timeline)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "409":
+          description: Not a current member
+
+  /api/salon-admin/{salonId}/membership/subscriptions/{subscriptionId}/send-renewal-link:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/MembershipSubscriptionId"
+    post:
+      tags: [AdminMembership]
+      summary: Email the member their renewal link now
+      operationId: sendMembershipRenewalLink
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Member detail (the email is sent asynchronously and recorded on the timeline)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "409":
+          description: Not an active or expired membership, or it is set to cancel
+
+  /api/salon-admin/{salonId}/membership/verify:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminMembership]
+      summary: Look up a member by the code in their QR (check-in)
+      description: Case and separators are ignored, so a scanned or typed code both work.
+      operationId: verifyMembership
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: code, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Member detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipDetail" }
+        "404":
+          description: No membership at this salon has that code
+
+  /api/salon-admin/{salonId}/membership/overview:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminMembership]
+      summary: Membership dashboard
+      description: |
+        Member counts (active, expired-not-renewed, pending), monthly recurring revenue (each active member's
+        price converted to a monthly amount; members set to cancel excluded), money collected this calendar
+        month (UTC), renewals due in 7 / 30 days, a per-plan breakdown, the next renewals and the latest
+        activity. Money is reported per currency.
+      operationId: getMembershipOverview
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Overview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipOverview" }
+
 components:
 
   securitySchemes:
@@ -3219,6 +3696,11 @@ components:
         Authentication is bypassed in local/mock security mode.
 
   parameters:
+    MembershipSubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     SalonId:
       name: salonId
       in: path
@@ -3358,6 +3840,221 @@ components:
         payoutsEnabled: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
+    MembershipBillingInterval:
+      type: string
+      enum: [MONTHLY, QUARTERLY, YEARLY]
+
+    MembershipStatus:
+      type: string
+      enum: [PENDING_PAYMENT, ACTIVE, EXPIRED, CANCELLED, INCOMPLETE]
+      description: |
+        `PENDING_PAYMENT` first checkout started · `ACTIVE` paid through `currentPeriodEnd` · `EXPIRED` the
+        period ran out without a renewal (can still renew) · `CANCELLED` ended by the salon ·
+        `INCOMPLETE` first checkout abandoned or its payment failed.
+
+    MembershipIncludedService:
+      type: object
+      properties:
+        serviceId: { type: integer, format: int64 }
+        name: { type: string }
+        durationMinutes: { type: integer, nullable: true }
+        price: { type: number, nullable: true }
+        currency: { type: string, nullable: true }
+        quantityPerCycle: { type: integer }
+
+    MembershipPlan:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        price: { type: number }
+        currency: { type: string, example: EUR }
+        billingInterval: { $ref: "#/components/schemas/MembershipBillingInterval" }
+        signupFee: { type: number, nullable: true }
+        serviceDiscountPercent: { type: integer, nullable: true }
+        productDiscountPercent: { type: integer, nullable: true }
+        maxMembers: { type: integer, nullable: true, description: Cap on members at once; null = unlimited }
+        spotsLeft: { type: integer, nullable: true, description: Capped plans only — counts unpaid checkouts still within their hold }
+        soldOut: { type: boolean }
+        highlighted: { type: boolean, description: Shown as "Most popular" }
+        sortOrder: { type: integer }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        perks: { type: array, items: { type: string } }
+        includedServices: { type: array, items: { $ref: "#/components/schemas/MembershipIncludedService" } }
+        includedValue: { type: number, nullable: true, description: List price of the included services per period }
+        activeMembers: { type: integer, description: Admin responses only }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    MembershipPlanRequest:
+      type: object
+      required: [name, price, currency, billingInterval]
+      properties:
+        name: { type: string, maxLength: 160 }
+        description: { type: string, nullable: true }
+        price: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        billingInterval: { $ref: "#/components/schemas/MembershipBillingInterval" }
+        signupFee: { type: number, nullable: true, minimum: 0 }
+        serviceDiscountPercent: { type: integer, nullable: true, minimum: 0, maximum: 100 }
+        productDiscountPercent: { type: integer, nullable: true, minimum: 0, maximum: 100 }
+        maxMembers: { type: integer, nullable: true, minimum: 1 }
+        highlighted: { type: boolean }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED], default: DRAFT }
+        perks: { type: array, items: { type: string, maxLength: 300 } }
+        includedServices:
+          type: array
+          items:
+            type: object
+            required: [serviceId]
+            properties:
+              serviceId: { type: integer, format: int64 }
+              quantityPerCycle: { type: integer, minimum: 1, default: 1 }
+
+    MembershipCatalog:
+      type: object
+      properties:
+        plans: { type: array, items: { $ref: "#/components/schemas/MembershipPlan" } }
+        onlineSignup: { type: boolean }
+
+    MembershipCheckoutRequest:
+      type: object
+      required: [planId, customerName, customerEmail]
+      properties:
+        planId: { type: integer, format: int64 }
+        customerName: { type: string }
+        customerEmail: { type: string, format: email, description: The QR code is emailed here }
+        customerPhone: { type: string, nullable: true }
+        returnUrl: { type: string, format: uri, nullable: true }
+
+    MembershipCheckoutResponse:
+      type: object
+      properties:
+        subscriptionId: { type: integer, format: int64 }
+        checkoutUrl: { type: string, format: uri }
+
+    MembershipSubscription:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        planId: { type: integer, format: int64 }
+        planName: { type: string }
+        memberCode: { type: string, example: M7K2Q9XZT, description: What the member's QR code encodes }
+        renewalToken: { type: string, description: Secret in the member's renewal link }
+        customerName: { type: string }
+        customerEmail: { type: string }
+        customerPhone: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/MembershipStatus" }
+        price: { type: number }
+        currency: { type: string }
+        billingInterval: { $ref: "#/components/schemas/MembershipBillingInterval" }
+        signupFee: { type: number, nullable: true }
+        source: { type: string, enum: [ONLINE, ADMIN] }
+        startedAt: { type: string, format: date-time, nullable: true }
+        currentPeriodEnd: { type: string, format: date-time, nullable: true, description: Paid through }
+        cancelAtPeriodEnd: { type: boolean }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        cancelReason: { type: string, nullable: true }
+        endedAt: { type: string, format: date-time, nullable: true }
+        renewalReminderFor: { type: string, format: date-time, nullable: true, description: Period end the last renewal reminder was sent for }
+        lastPaymentStatus: { type: string, enum: [PAID, FAILED], nullable: true }
+        lastPaymentAt: { type: string, format: date-time, nullable: true }
+        lastPaymentAmount: { type: number, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    MembershipPayment:
+      type: object
+      description: One one-time Stripe Checkout for one billing period. Its id is the checkout's payment_reference.
+      properties:
+        id: { type: integer, format: int64 }
+        subscriptionId: { type: integer, format: int64 }
+        kind: { type: string, enum: [SIGNUP, RENEWAL] }
+        status: { type: string, enum: [PENDING, PAID, FAILED] }
+        amount: { type: number }
+        currency: { type: string }
+        checkoutSessionId: { type: string, nullable: true }
+        periodStart: { type: string, format: date-time, nullable: true }
+        periodEnd: { type: string, format: date-time, nullable: true }
+        paidAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    MembershipRenewal:
+      type: object
+      properties:
+        subscriptionId: { type: integer, format: int64 }
+        planName: { type: string }
+        firstName: { type: string }
+        price: { type: number }
+        currency: { type: string }
+        billingInterval: { $ref: "#/components/schemas/MembershipBillingInterval" }
+        status: { $ref: "#/components/schemas/MembershipStatus" }
+        currentPeriodEnd: { type: string, format: date-time, nullable: true }
+        cancelAtPeriodEnd: { type: boolean }
+        canRenewNow: { type: boolean, description: Expired, or active within 31 days of its end }
+        onlinePayment: { type: boolean }
+
+    MembershipActivity:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        subscriptionId: { type: integer, format: int64 }
+        type:
+          type: string
+          enum: [CHECKOUT_STARTED, CHECKOUT_FAILED, ACTIVATED, RENEWAL_STARTED, RENEWED, PAYMENT_FAILED, EXPIRED,
+                 CANCELLATION_SCHEDULED, CANCELLATION_UNDONE, CANCELLED, CUSTOMER_NOTIFIED, NOTE]
+        message: { type: string }
+        actor: { type: string, example: stripe }
+        createdAt: { type: string, format: date-time }
+
+    MembershipDetail:
+      type: object
+      properties:
+        subscription: { $ref: "#/components/schemas/MembershipSubscription" }
+        payments: { type: array, items: { $ref: "#/components/schemas/MembershipPayment" } }
+        activity: { type: array, items: { $ref: "#/components/schemas/MembershipActivity" } }
+
+    MembershipMoney:
+      type: object
+      properties:
+        currency: { type: string }
+        amount: { type: number }
+
+    MembershipOverview:
+      type: object
+      properties:
+        activeMembers: { type: integer }
+        expiredMembers: { type: integer }
+        pendingCheckouts: { type: integer }
+        newThisMonth: { type: integer }
+        cancelledThisMonth: { type: integer }
+        renewalsNext7Days: { type: integer }
+        renewalsNext30Days: { type: integer }
+        monthlyRecurringRevenue: { type: array, items: { $ref: "#/components/schemas/MembershipMoney" } }
+        collectedThisMonth: { type: array, items: { $ref: "#/components/schemas/MembershipMoney" } }
+        plans:
+          type: array
+          items:
+            type: object
+            properties:
+              planId: { type: integer, format: int64 }
+              name: { type: string }
+              status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+              activeMembers: { type: integer }
+              maxMembers: { type: integer, nullable: true }
+              monthlyRecurringRevenue: { $ref: "#/components/schemas/MembershipMoney" }
+        upcomingRenewals: { type: array, items: { $ref: "#/components/schemas/MembershipSubscription" } }
+        recentActivity:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/MembershipActivity"
+              - type: object
+                properties:
+                  customerName: { type: string }
+                  planName: { type: string }
+
     SalonPaymentSettings:
       type: object
       properties:
@@ -3365,6 +4062,7 @@ components:
         shopEnabled: { type: boolean }
         bookingEnabled: { type: boolean }
         posEnabled: { type: boolean }
+        membershipEnabled: { type: boolean, description: Membership sign-up through Stripe subscription checkout }
         bookingPaymentType: { type: string, enum: [FULL, DEPOSIT] }
         bookingDepositPercent: { type: integer, minimum: 1, maximum: 100 }
         updatedAt: { type: string, format: date-time, nullable: true }
@@ -3376,6 +4074,7 @@ components:
         shopEnabled: { type: boolean }
         bookingEnabled: { type: boolean }
         posEnabled: { type: boolean }
+        membershipEnabled: { type: boolean }
         bookingPaymentType: { type: string, enum: [FULL, DEPOSIT] }
         bookingDepositPercent: { type: integer, minimum: 1, maximum: 100 }
 

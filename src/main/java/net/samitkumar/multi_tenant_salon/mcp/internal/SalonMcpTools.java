@@ -57,7 +57,7 @@ class SalonMcpTools {
     @McpTool(
             name = EXPLORER,
             title = "Salon info",
-            description = "Show a salon's live overview, opening hours, location and contact details in an interactive view. Opening hours are real dates: today's open/closed status with the next opening, the coming week with holidays and closures applied, and upcoming holidays. The view links on to the service menu, the team, stylist profiles and booking inside the same app. The salonIdOrHandler is the salon's public UUID or handler/slug. Prefer the dedicated apps for services (salon_services), the team (salon_team), booking (salon_booking, salon_booking_by_stylist, salon_booking_week) and the shop (salon_shop). This tool never creates or changes a booking.",
+            description = "Show a salon's live overview, opening hours, location and contact details in an interactive view. Opening hours are real dates: today's open/closed status with the next opening, the coming week with holidays and closures applied, and upcoming holidays. The view links on to the service menu, the team, stylist profiles and booking inside the same app. The salonIdOrHandler is the salon's public UUID or handler/slug. Prefer the dedicated apps for services (salon_services), the team (salon_team), booking (salon_booking, salon_booking_by_stylist, salon_booking_week) the shop (salon_shop) and memberships (salon_membership). This tool never creates or changes a booking.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false),
             metaProvider = SalonMcpAppMeta.ExplorerTool.class
     )

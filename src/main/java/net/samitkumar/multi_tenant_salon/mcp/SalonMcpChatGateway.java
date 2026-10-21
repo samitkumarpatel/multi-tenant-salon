@@ -7,7 +7,7 @@ import java.util.Set;
 public interface SalonMcpChatGateway {
     /** Model-visible app tools the website chat may open. */
     Set<String> APP_TOOLS = Set.of("salon_explorer", "salon_services", "salon_team", "salon_booking",
-            "salon_booking_by_stylist", "salon_booking_week", "salon_shop");
+            "salon_booking_by_stylist", "salon_booking_week", "salon_shop", "salon_membership");
 
     /**
      * Runs one app tool for {@code salonId} with the given tool arguments (without

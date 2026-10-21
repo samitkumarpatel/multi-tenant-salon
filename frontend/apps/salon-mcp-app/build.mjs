@@ -2,7 +2,7 @@
 // folder. vite-plugin-singlefile inlines a single entry per build, so each app is its own pass.
 import { build } from "vite";
 
-const apps = ["explorer", "services", "team", "booking", "booking-stylist", "booking-week", "shop"];
+const apps = ["explorer", "services", "team", "booking", "booking-stylist", "booking-week", "shop", "membership"];
 
 for (const [index, app] of apps.entries()) {
   await build({

@@ -19,6 +19,7 @@ public final class SalonMcpAppMeta {
     public static final String BOOKING_STYLIST_URI = "ui://salon/booking-stylist.html";
     public static final String BOOKING_WEEK_URI = "ui://salon/booking-week.html";
     public static final String SHOP_URI = "ui://salon/shop.html";
+    public static final String MEMBERSHIP_URI = "ui://salon/membership.html";
 
     private SalonMcpAppMeta() {}
 
@@ -63,6 +64,10 @@ public final class SalonMcpAppMeta {
         @Override public Map<String, Object> getMeta() { return tool(SHOP_URI); }
     }
 
+    public static class MembershipTool implements MetaProvider {
+        @Override public Map<String, Object> getMeta() { return tool(MEMBERSHIP_URI); }
+    }
+
     /** create_customer_booking — callable from any booking-capable app, never by the model. */
     public static class CreateBookingTool implements MetaProvider {
         @Override public Map<String, Object> getMeta() { return appOnlyTool(BOOKING_URI); }
@@ -76,5 +81,10 @@ public final class SalonMcpAppMeta {
     /** create_shop_order — callable from the shop app only, never by the model. */
     public static class CreateOrderTool implements MetaProvider {
         @Override public Map<String, Object> getMeta() { return appOnlyTool(SHOP_URI); }
+    }
+
+    /** create_membership_checkout — callable from the membership app only, never by the model. */
+    public static class CreateMembershipCheckoutTool implements MetaProvider {
+        @Override public Map<String, Object> getMeta() { return appOnlyTool(MEMBERSHIP_URI); }
     }
 }

@@ -343,3 +343,23 @@ button.crumb:hover { color: var(--text); text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ── Membership ─────────────────────────────────────────────────────────── */
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.plan-card { position: relative; display: grid; align-content: start; gap: 8px; padding: 16px 14px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.plan-card.highlighted, .detail-card.highlighted { border: 2px solid var(--accent); }
+.plan-ribbon { position: absolute; top: -10px; left: 12px; border-radius: 999px; padding: 3px 9px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 750; }
+.plan-open { display: grid; gap: 2px; border: 0; padding: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.plan-price { margin: 0; }
+.plan-price strong { font-size: 20px; font-weight: 800; }
+.plan-price.lg strong { font-size: 26px; }
+.plan-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.worth { color: var(--accent); font-size: 11.5px; font-weight: 700; }
+.benefits { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.benefits li { position: relative; padding-left: 18px; line-height: 1.4; }
+.benefits li::before { content: "✓"; position: absolute; left: 0; color: var(--accent); font-weight: 800; }
+.compare-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.compare { width: 100%; border-collapse: collapse; font-size: 12px; }
+.compare th, .compare td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.compare tbody tr:last-child th, .compare tbody tr:last-child td { border-bottom: 0; }
+.compare tbody th { color: var(--muted); font-weight: 650; white-space: nowrap; }

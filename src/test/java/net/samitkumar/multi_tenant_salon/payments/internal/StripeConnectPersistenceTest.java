@@ -42,7 +42,7 @@ class StripeConnectPersistenceTest {
         assertThat(saved.chargesEnabled()).isTrue();
         assertThat(saved.updatedAt()).isEqualTo(now.plusSeconds(5));
 
-        service.update(salonId, false, false, false, SalonPaymentSettings.BookingPaymentType.DEPOSIT, 30);
+        service.update(salonId, false, false, false, false, SalonPaymentSettings.BookingPaymentType.DEPOSIT, 30);
         var stored = settings.findById(salonId).orElseThrow();
         assertThat(stored.bookingPaymentType()).isEqualTo(SalonPaymentSettings.BookingPaymentType.DEPOSIT);
         assertThat(stored.bookingDepositPercent()).isEqualTo(30);
@@ -57,13 +57,13 @@ class StripeConnectPersistenceTest {
         var acct = "acct_" + salonId.toString().substring(0, 8);
 
         // No connected account at all: nothing to attach the areas to.
-        assertThatThrownBy(() -> service.update(salonId, true, false, false, SalonPaymentSettings.BookingPaymentType.FULL, 20))
+        assertThatThrownBy(() -> service.update(salonId, true, false, false, false, SalonPaymentSettings.BookingPaymentType.FULL, 20))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
 
         // Account created, onboarding unfinished: the choice is saved but stays off for customers.
         service.saveAccount(new StripeConnectedAccount(salonId, acct, "DK", false, false, false, Instant.now()));
-        var saved = service.update(salonId, true, true, false, SalonPaymentSettings.BookingPaymentType.FULL, 20);
+        var saved = service.update(salonId, true, true, false, false, SalonPaymentSettings.BookingPaymentType.FULL, 20);
         assertThat(saved.shopEnabled()).isTrue();
         assertThat(settings.findById(salonId).orElseThrow().bookingEnabled()).isTrue();
         assertThat(service.enabled(salonId, "SHOP")).isFalse();

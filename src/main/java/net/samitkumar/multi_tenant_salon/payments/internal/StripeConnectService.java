@@ -157,24 +157,24 @@ public class StripeConnectService implements PaymentGateway {
         return (String) response.get("url");
     }
 
-    SalonPaymentSettings update(UUID salonId, boolean shop, boolean booking, boolean pos,
+    SalonPaymentSettings update(UUID salonId, boolean shop, boolean booking, boolean pos, boolean membership,
                                 SalonPaymentSettings.BookingPaymentType bookingType, int depositPercent) {
         var salon = requireSalon(salonId);
         if ((shop && !hasFeature(salon, SalonFeature.WEBSHOP)) || (booking && !hasFeature(salon, SalonFeature.BOOKING))
-                || (pos && !hasFeature(salon, SalonFeature.DASHBOARD))) {
+                || (pos && !hasFeature(salon, SalonFeature.DASHBOARD)) || (membership && !hasFeature(salon, SalonFeature.MEMBERSHIP))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Enable the related salon feature first");
         }
         // Areas can be chosen as soon as the connected account exists; they only take effect once Stripe
         // activates card payments (see enabled()), since Stripe refuses charges on an account before that.
-        if ((shop || booking || pos) && accounts.findById(salonId).isEmpty()) {
+        if ((shop || booking || pos || membership) && accounts.findById(salonId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Connect a Stripe account before enabling payments");
         }
         if (depositPercent < 1 || depositPercent > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Deposit percentage must be between 1 and 100");
         }
-        var saved = new SalonPaymentSettings(salonId, shop, booking, pos, bookingType, depositPercent, Instant.now());
-        jdbc.sql("INSERT INTO salon_payment_settings (salon_id, shop_enabled, booking_enabled, pos_enabled, booking_payment_type, booking_deposit_percent, updated_at) VALUES (:id, :shop, :booking, :pos, :type, :deposit, :updated) ON CONFLICT (salon_id) DO UPDATE SET shop_enabled = EXCLUDED.shop_enabled, booking_enabled = EXCLUDED.booking_enabled, pos_enabled = EXCLUDED.pos_enabled, booking_payment_type = EXCLUDED.booking_payment_type, booking_deposit_percent = EXCLUDED.booking_deposit_percent, updated_at = EXCLUDED.updated_at")
-                .param("id", salonId).param("shop", shop).param("booking", booking).param("pos", pos)
+        var saved = new SalonPaymentSettings(salonId, shop, booking, pos, membership, bookingType, depositPercent, Instant.now());
+        jdbc.sql("INSERT INTO salon_payment_settings (salon_id, shop_enabled, booking_enabled, pos_enabled, membership_enabled, booking_payment_type, booking_deposit_percent, updated_at) VALUES (:id, :shop, :booking, :pos, :membership, :type, :deposit, :updated) ON CONFLICT (salon_id) DO UPDATE SET shop_enabled = EXCLUDED.shop_enabled, booking_enabled = EXCLUDED.booking_enabled, pos_enabled = EXCLUDED.pos_enabled, membership_enabled = EXCLUDED.membership_enabled, booking_payment_type = EXCLUDED.booking_payment_type, booking_deposit_percent = EXCLUDED.booking_deposit_percent, updated_at = EXCLUDED.updated_at")
+                .param("id", salonId).param("shop", shop).param("booking", booking).param("pos", pos).param("membership", membership)
                 .param("type", bookingType.name()).param("deposit", depositPercent).param("updated", timestamp(saved.updatedAt())).update();
         return saved;
     }
@@ -193,6 +193,7 @@ public class StripeConnectService implements PaymentGateway {
             case "SHOP" -> config.shopEnabled();
             case "BOOKING" -> config.bookingEnabled();
             case "POS" -> config.posEnabled();
+            case "MEMBERSHIP" -> config.membershipEnabled();
             default -> false;
         };
         return selected && canCharge(salonId);
@@ -237,8 +238,7 @@ public class StripeConnectService implements PaymentGateway {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A positive price is required to accept online payment");
         }
         var account = accounts.findById(salonId).orElseThrow();
-        var minorUnits = amount.movePointRight(currencyExponent(currency))
-                .setScale(0, RoundingMode.HALF_UP).longValueExact();
+        var minorUnits = minorUnits(amount, currency);
         var salon = salons.findById(salonId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Salon not found"));
         var returnPage = returnPage(salon, area, returnUrl);
         var form = new LinkedMultiValueMap<String, String>();
@@ -258,6 +258,10 @@ public class StripeConnectService implements PaymentGateway {
         return (String) response.get("url");
     }
 
+    private long minorUnits(BigDecimal amount, String currency) {
+        return amount.movePointRight(currencyExponent(currency)).setScale(0, RoundingMode.HALF_UP).longValueExact();
+    }
+
     /**
      * The page Stripe sends the customer back to. The customer's own page (so the per-origin
      * sessionStorage hand-off survives, e.g. on a connected custom domain) is used only when its origin
@@ -271,6 +275,9 @@ public class StripeConnectService implements PaymentGateway {
                     ? "https://" + salon.handler() + "." + salonDomain + "/"
                     : websiteAppUrl + "/?slug=" + salon.handler();
             case "BOOKING" -> bookingAppUrl + "/" + salon.handler();
+            case "MEMBERSHIP" -> websiteAppUrl.isBlank()
+                    ? "https://" + salon.handler() + "." + salonDomain + "/membership"
+                    : websiteAppUrl + "/membership?slug=" + salon.handler();
             default -> dashboardAppUrl + "/" + salon.id() + "?view=cashier&cashierView=pos";
         };
     }
@@ -335,21 +342,25 @@ public class StripeConnectService implements PaymentGateway {
             if (account == null) return;
             @SuppressWarnings("unchecked") var data = (Map<String, Object>) event.get("data");
             @SuppressWarnings("unchecked") var object = (Map<String, Object>) data.get("object");
-            @SuppressWarnings("unchecked") var metadata = (Map<String, Object>) object.get("metadata");
-            if (metadata == null || !account.salonId().toString().equals(metadata.get("salon_id"))) return;
-            var area = String.valueOf(metadata.get("payment_area"));
-            if (!java.util.Set.of("POS", "SHOP", "BOOKING").contains(area)) return;
-            var reference = String.valueOf(metadata.get("payment_reference"));
-            var sessionId = String.valueOf(object.get("id"));
-            var succeeded = ("checkout.session.completed".equals(type) && "paid".equals(object.get("payment_status")))
-                    || "checkout.session.async_payment_succeeded".equals(type);
-            var failed = "checkout.session.expired".equals(type) || "checkout.session.async_payment_failed".equals(type);
-            if (succeeded || failed) events.publishEvent(new StripePaymentEvent(account.salonId(), area, reference, sessionId, succeeded));
+            handleCheckoutSession(account.salonId(), type, object);
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Stripe webhook payload", e);
         }
+    }
+
+    private void handleCheckoutSession(UUID salonId, String type, Map<String, Object> object) {
+        var metadata = nested(object, "metadata");
+        if (!salonId.toString().equals(metadata.get("salon_id"))) return;
+        var area = String.valueOf(metadata.get("payment_area"));
+        if (!java.util.Set.of("POS", "SHOP", "BOOKING", "MEMBERSHIP").contains(area)) return;
+        var reference = String.valueOf(metadata.get("payment_reference"));
+        var sessionId = String.valueOf(object.get("id"));
+        var succeeded = ("checkout.session.completed".equals(type) && "paid".equals(object.get("payment_status")))
+                || "checkout.session.async_payment_succeeded".equals(type);
+        var failed = "checkout.session.expired".equals(type) || "checkout.session.async_payment_failed".equals(type);
+        if (succeeded || failed) events.publishEvent(new StripePaymentEvent(salonId, area, reference, sessionId, succeeded));
     }
 
     private void verifySignature(String payload, String signature) {
@@ -568,7 +579,7 @@ public class StripeConnectService implements PaymentGateway {
     }
 
     private SalonPaymentSettings defaults(Salon salon) {
-        return new SalonPaymentSettings(salon.id(), false, false, false,
+        return new SalonPaymentSettings(salon.id(), false, false, false, false,
                 SalonPaymentSettings.BookingPaymentType.FULL, 20, null);
     }
 

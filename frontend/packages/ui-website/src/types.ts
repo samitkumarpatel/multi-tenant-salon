@@ -385,3 +385,155 @@ export interface CartLine {
   /** Stock ceiling captured when the item was added, so the stepper can't exceed it. */
   maxQuantity: number;
 }
+
+// ── Membership ───────────────────────────────────────────────────────────────
+
+export type MembershipBillingInterval = "MONTHLY" | "QUARTERLY" | "YEARLY";
+export type MembershipPlanStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type MembershipStatus = "PENDING_PAYMENT" | "ACTIVE" | "EXPIRED" | "CANCELLED" | "INCOMPLETE";
+export type MembershipPaymentStatus = "PENDING" | "PAID" | "FAILED";
+export type MembershipActivityType =
+  | "CHECKOUT_STARTED" | "CHECKOUT_FAILED" | "ACTIVATED" | "RENEWAL_STARTED" | "RENEWED" | "PAYMENT_FAILED" | "EXPIRED"
+  | "CANCELLATION_SCHEDULED" | "CANCELLATION_UNDONE" | "CANCELLED" | "CUSTOMER_NOTIFIED" | "NOTE";
+
+/** A service included in a plan every billing period, with its live name and list price. */
+export interface MembershipIncludedService {
+  serviceId: number;
+  name: string;
+  durationMinutes?: number | null;
+  price?: number | null;
+  currency?: string | null;
+  quantityPerCycle: number;
+}
+
+export interface MembershipPlan {
+  id: number;
+  name: string;
+  description?: string | null;
+  price: number;
+  currency: string;
+  billingInterval: MembershipBillingInterval;
+  signupFee?: number | null;
+  serviceDiscountPercent?: number | null;
+  productDiscountPercent?: number | null;
+  /** Cap on members at once; null = unlimited. */
+  maxMembers?: number | null;
+  /** Set for capped plans only. */
+  spotsLeft?: number | null;
+  soldOut: boolean;
+  highlighted: boolean;
+  sortOrder: number;
+  status: MembershipPlanStatus;
+  perks: string[];
+  includedServices: MembershipIncludedService[];
+  /** List price of the included services per period, in the plan's currency. */
+  includedValue?: number | null;
+  /** Admin only. */
+  activeMembers?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** The public catalogue: plans on sale, and whether visitors can join online right now. */
+export interface MembershipCatalog {
+  plans: MembershipPlan[];
+  onlineSignup: boolean;
+}
+
+export interface MembershipSubscription {
+  id: number;
+  salonId: string;
+  planId: number;
+  planName: string;
+  memberCode: string;
+  /** Secret in the renewal link the member is emailed. */
+  renewalToken: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  status: MembershipStatus;
+  price: number;
+  currency: string;
+  billingInterval: MembershipBillingInterval;
+  signupFee?: number | null;
+  source: "ONLINE" | "ADMIN";
+  startedAt?: string | null;
+  /** Paid through — each payment buys one billing period. */
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  endedAt?: string | null;
+  /** The period end the last renewal reminder was sent for. */
+  renewalReminderFor?: string | null;
+  lastPaymentStatus?: MembershipPaymentStatus | null;
+  lastPaymentAt?: string | null;
+  lastPaymentAmount?: number | null;
+  createdAt: string;
+}
+
+/** One one-time Stripe Checkout for one billing period (sign-up or renewal). */
+export interface MembershipPayment {
+  id: number;
+  subscriptionId: number;
+  kind: "SIGNUP" | "RENEWAL";
+  status: MembershipPaymentStatus;
+  amount: number;
+  currency: string;
+  checkoutSessionId?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+}
+
+/** What a renewal link shows (public, by token). */
+export interface MembershipRenewal {
+  subscriptionId: number;
+  planName: string;
+  firstName: string;
+  price: number;
+  currency: string;
+  billingInterval: MembershipBillingInterval;
+  status: MembershipStatus;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
+  canRenewNow: boolean;
+  onlinePayment: boolean;
+}
+
+export interface MembershipActivity {
+  id: number;
+  subscriptionId: number;
+  type: MembershipActivityType;
+  message: string;
+  actor: string;
+  createdAt: string;
+}
+
+export interface MembershipDetail {
+  subscription: MembershipSubscription;
+  payments: MembershipPayment[];
+  activity: MembershipActivity[];
+}
+
+export interface MembershipMoney {
+  currency: string;
+  amount: number;
+}
+
+export interface MembershipOverview {
+  activeMembers: number;
+  /** Lapsed without renewing; can still renew from their link. */
+  expiredMembers: number;
+  pendingCheckouts: number;
+  newThisMonth: number;
+  cancelledThisMonth: number;
+  renewalsNext7Days: number;
+  renewalsNext30Days: number;
+  monthlyRecurringRevenue: MembershipMoney[];
+  collectedThisMonth: MembershipMoney[];
+  plans: { planId: number; name: string; status: MembershipPlanStatus; activeMembers: number; maxMembers?: number | null; monthlyRecurringRevenue: MembershipMoney }[];
+  upcomingRenewals: MembershipSubscription[];
+  recentActivity: (MembershipActivity & { customerName: string; planName: string })[];
+}

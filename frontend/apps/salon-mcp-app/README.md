@@ -14,6 +14,7 @@ as `ui://salon/<app>.html` with the MCP Apps MIME type (`SalonMcpAppResources`).
 | `booking-stylist.html` | `salon_booking_by_stylist` | Stylist first, then their working days and times |
 | `booking-week.html` | `salon_booking_week` | Mon–Sun grid of open times, week by week |
 | `shop.html` | `salon_shop` | Products, variants, cart and checkout |
+| `membership.html` | `salon_membership` | Membership plans, comparison, and joining via a one-time Stripe Checkout (`create_membership_checkout`, app-only) |
 
 Layout: `src/apps/<app>.ts` is each app's view; `src/shared/` holds the runtime (`SalonApp` — host
 connection, tool calls, `ui/message` hand-offs, `ui/update-model-context`), DOM/format helpers, the
@@ -44,6 +45,9 @@ when each tool call passes `salonIdOrHandler`.
 Bookings and orders are two-step app flows: the visitor enters their details, reviews, and taps
 **Confirm booking** / **Place order**. The app-only `create_customer_booking` and
 `create_shop_order` tools (`visibility: ["app"]`, never callable by the model) then call the same
-public endpoints the website uses, preserving salon confirmation, stock and payment rules. The MCP
+public endpoints the website uses, preserving salon confirmation, stock and payment rules. Memberships work the
+same way: `create_membership_checkout` (app-only) starts the one-time Stripe Checkout for the first period
+that the website uses, and the app opens it. Once Stripe confirms payment the membership becomes active and
+its QR code is emailed; a renewal link follows by email before the period ends. The MCP
 endpoint is permitted without a token so third-party hosts can connect; keep its tools scoped to
 public customer actions and do not expose salon administration or customer records.

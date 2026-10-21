@@ -7,6 +7,10 @@ export type {
   OrderLineActivity, OrderLineActivityType, ShopRefundStatus, ShopReturnStatus, ShopCreditNoteStatus,
   ShopOrderActivity, ShopOrderActivityType,
   CommunicationPreference,
+  MembershipBillingInterval, MembershipPlanStatus, MembershipStatus, MembershipPaymentStatus,
+  MembershipActivityType, MembershipIncludedService, MembershipPlan, MembershipCatalog,
+  MembershipSubscription, MembershipPayment, MembershipActivity, MembershipDetail, MembershipRenewal,
+  MembershipMoney, MembershipOverview,
 } from "@salon/ui-website";
 
 import type { Salon, WebsiteMode } from "@salon/ui-website";

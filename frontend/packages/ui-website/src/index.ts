@@ -39,9 +39,15 @@ export type {
   ShopRefundStatus, ShopReturnStatus, ShopCreditNoteStatus,
   ShopOrderActivity, ShopOrderActivityType,
   CommunicationPreference,
+  MembershipBillingInterval, MembershipPlanStatus, MembershipStatus, MembershipPaymentStatus,
+  MembershipActivityType, MembershipIncludedService, MembershipPlan, MembershipCatalog,
+  MembershipSubscription, MembershipPayment, MembershipActivity, MembershipDetail, MembershipRenewal,
+  MembershipMoney, MembershipOverview,
 } from "./types";
 
 export { ShopView } from "./ShopView";
+export { MembershipView, membershipBenefits } from "./MembershipView";
+export type { MembershipViewProps } from "./MembershipView";
 export type { ShopViewProps } from "./ShopView";
 export {
   useCart, readCart, addToCart, setCartQty, removeFromCart, clearCart, cartCount, cartSubtotal,

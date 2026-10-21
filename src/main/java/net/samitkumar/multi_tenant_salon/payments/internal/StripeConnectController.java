@@ -18,7 +18,7 @@ import java.util.UUID;
 @RequestMapping("/api/salon-admin/{salonId}/payments")
 class StripeConnectController {
     record ConnectStatus(StripeConnectService.Status stripe) {}
-    record UpdateSettings(boolean shopEnabled, boolean bookingEnabled, boolean posEnabled,
+    record UpdateSettings(boolean shopEnabled, boolean bookingEnabled, boolean posEnabled, boolean membershipEnabled,
                           SalonPaymentSettings.BookingPaymentType bookingPaymentType,
                           int bookingDepositPercent) {}
     record OnboardingLink(String url) {}
@@ -46,7 +46,7 @@ class StripeConnectController {
         if (request.bookingPaymentType() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking payment type is required");
         }
-        return payments.update(resolve(salonId), request.shopEnabled(), request.bookingEnabled(), request.posEnabled(),
+        return payments.update(resolve(salonId), request.shopEnabled(), request.bookingEnabled(), request.posEnabled(), request.membershipEnabled(),
                 request.bookingPaymentType(), request.bookingDepositPercent());
     }
 

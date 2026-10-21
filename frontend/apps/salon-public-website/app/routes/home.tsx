@@ -1,7 +1,7 @@
 import { useOutletContext, useLocation, useNavigate } from "react-router";
 import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
-import { SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, SalonPolicyLinks } from "@salon/ui-website";
+import { SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, SalonPolicyLinks } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
 
 export default function PublicWebsitePage() {
@@ -37,6 +37,19 @@ export default function PublicWebsitePage() {
     if (activePage === "shop" && data.salon.features?.includes("WEBSHOP")) {
       return (
         <ShopView
+          salon={data.salon}
+          theme={theme}
+          policies={data.websitePolicies}
+          getPagePath={(page) => `/${page}${search}`}
+          onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
+        />
+      );
+    }
+
+    // And /membership — the plans, with online sign-up through Stripe
+    if (activePage === "membership" && data.salon.features?.includes("MEMBERSHIP")) {
+      return (
+        <MembershipView
           salon={data.salon}
           theme={theme}
           policies={data.websitePolicies}
