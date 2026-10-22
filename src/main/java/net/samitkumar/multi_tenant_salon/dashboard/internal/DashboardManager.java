@@ -11,6 +11,7 @@ import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -25,7 +26,8 @@ import java.util.UUID;
 
 @Service
 class DashboardManager {
-    record CardCheckout(PosSale sale, String checkoutUrl) {}
+    record CardCheckout(PosSale sale, PaymentGateway.Checkout checkout) {}
+    record TerminalCheckout(PosSale sale, PaymentGateway.TerminalPayment terminalPayment) {}
     record CashierItem(PosSale.SourceType sourceType, Long sourceId, String name, String detail,
                        BigDecimal price, String currency, Integer availableQuantity) {}
     record SaleItemRequest(PosSale.SourceType sourceType, Long sourceId, int quantity) {}
@@ -37,10 +39,11 @@ class DashboardManager {
     private final ShopCatalogApi shopApi;
     private final PaymentGateway stripe;
     private final JdbcClient jdbc;
+    private final TransactionTemplate tx;
 
     DashboardManager(DashboardSettingsRepository settingsRepository, PosSaleRepository saleRepository,
                      SalonApi salonApi, SalonServiceApi serviceApi, ShopCatalogApi shopApi,
-                     PaymentGateway stripe, JdbcTemplate jdbcTemplate) {
+                     PaymentGateway stripe, JdbcTemplate jdbcTemplate, TransactionTemplate tx) {
         this.settingsRepository = settingsRepository;
         this.saleRepository = saleRepository;
         this.salonApi = salonApi;
@@ -48,6 +51,7 @@ class DashboardManager {
         this.shopApi = shopApi;
         this.stripe = stripe;
         this.jdbc = JdbcClient.create(jdbcTemplate);
+        this.tx = tx;
     }
 
     DashboardSettings settings(UUID salonId) {
@@ -149,14 +153,39 @@ class DashboardManager {
     }
 
     @Transactional
-    CardCheckout createCardCheckout(UUID salonId, String customerName, List<SaleItemRequest> requestedItems) {
+    CardCheckout createCardCheckout(UUID salonId, String customerName, List<SaleItemRequest> requestedItems,
+                                    boolean inlineCheckout) {
         stripe.requireEnabled(salonId, "POS");
-        var sale = createSale(salonId, customerName, PosSale.PaymentMethod.CARD, requestedItems);
-        var pending = saleRepository.save(new PosSale(sale.id(), sale.salonId(), sale.saleNumber(), sale.customerName(),
-                sale.paymentMethod(), sale.total(), sale.currency(), sale.createdAt(), "PENDING", null, sale.lines()));
-        var checkout = stripe.createCheckout(salonId, "POS", String.valueOf(pending.id()), pending.total(),
-                pending.currency(), "Salon purchase " + pending.saleNumber());
+        var pending = pendingCardSale(salonId, customerName, requestedItems);
+        var checkout = stripe.createCheckout(salonId, new PaymentGateway.CheckoutRequest("POS", String.valueOf(pending.id()),
+                pending.total(), pending.currency(), "Salon purchase " + pending.saleNumber(), null, null, inlineCheckout));
         return new CardCheckout(pending, checkout);
+    }
+
+    /**
+     * A card sale paid on one of the salon's card readers. The sale (and its stock hold) is committed first, so
+     * the reader's outcome — which can arrive within seconds — always finds it; the {@code StripePaymentEvent}
+     * then marks it paid, or failed with the stock put back.
+     */
+    TerminalCheckout createTerminalCheckout(UUID salonId, String customerName, List<SaleItemRequest> requestedItems,
+                                            Long terminalId) {
+        stripe.requireEnabled(salonId, "POS");
+        if (terminalId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a card reader");
+        var pending = tx.execute(status -> pendingCardSale(salonId, customerName, requestedItems));
+        try {
+            var payment = stripe.collectOnTerminal(salonId, "POS", String.valueOf(pending.id()), pending.total(),
+                    pending.currency(), "Salon purchase " + pending.saleNumber(), terminalId);
+            return new TerminalCheckout(pending, payment);
+        } catch (RuntimeException e) {
+            tx.executeWithoutResult(status -> recordStripePayment(salonId, pending.id(), "terminal-start-failed", false));
+            throw e;
+        }
+    }
+
+    private PosSale pendingCardSale(UUID salonId, String customerName, List<SaleItemRequest> requestedItems) {
+        var sale = createSale(salonId, customerName, PosSale.PaymentMethod.CARD, requestedItems);
+        return saleRepository.save(new PosSale(sale.id(), sale.salonId(), sale.saleNumber(), sale.customerName(),
+                sale.paymentMethod(), sale.total(), sale.currency(), sale.createdAt(), "PENDING", null, sale.lines()));
     }
 
     @Transactional

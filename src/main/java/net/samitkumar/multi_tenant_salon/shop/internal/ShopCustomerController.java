@@ -39,8 +39,9 @@ class ShopCustomerController {
 
     record CheckoutBody(String customerName, String customerEmail, String customerPhone,
                         ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
-                        CommunicationPreference communicationPreference, String returnUrl) {}
-    record CheckoutResponse(OrderView order, String checkoutUrl) {}
+                        CommunicationPreference communicationPreference, String returnUrl, Boolean inlineCheckout) {}
+    /** {@code checkoutUrl} for a redirect checkout; {@code checkout} also covers the in-page payment form. */
+    record CheckoutResponse(OrderView order, String checkoutUrl, PaymentGateway.Checkout checkout) {}
     /** What the storefront checkout needs to know before the customer pays. */
     record CheckoutOptions(boolean onlinePayment) {}
 
@@ -87,14 +88,15 @@ class ShopCustomerController {
                 body.shippingAddress(), body.items(), body.communicationPreference()), stripeEnabled);
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(order.id()).toUri();
         if (!stripeEnabled) return ResponseEntity.created(location).body(order);
-        String checkoutUrl;
+        PaymentGateway.Checkout checkout;
         try {
-            checkoutUrl = stripe.createCheckout(id, "SHOP", String.valueOf(order.id()), order.subtotal(),
-                    order.currency(), "Order " + order.orderNumber(), body.returnUrl());
+            checkout = stripe.createCheckout(id, new PaymentGateway.CheckoutRequest("SHOP", String.valueOf(order.id()),
+                    order.subtotal(), order.currency(), "Order " + order.orderNumber(), body.returnUrl(),
+                    body.customerEmail(), Boolean.TRUE.equals(body.inlineCheckout())));
         } catch (RuntimeException error) {
             shop.recordStripePayment(id, order.id(), "checkout-creation-failed", false);
             throw error;
         }
-        return ResponseEntity.created(location).body(new CheckoutResponse(order, checkoutUrl));
+        return ResponseEntity.created(location).body(new CheckoutResponse(order, checkout.url(), checkout));
     }
 }

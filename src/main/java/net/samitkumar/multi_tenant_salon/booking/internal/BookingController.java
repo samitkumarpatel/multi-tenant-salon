@@ -27,7 +27,8 @@ class BookingController {
     private final PaymentGateway stripe;
     private final SalonServiceApi services;
 
-    record BookingCheckout(Booking booking, String checkoutUrl) {}
+    /** {@code checkoutUrl} for a redirect checkout; {@code checkout} also covers the in-page payment form. */
+    record BookingCheckout(Booking booking, String checkoutUrl, PaymentGateway.Checkout checkout) {}
 
     BookingController(BookingService service, SalonApi salonApi, PaymentGateway stripe, SalonServiceApi services) {
         this.service = service;
@@ -39,7 +40,7 @@ class BookingController {
     record CreateBookingRequest(Long serviceId, Long staffId, String customerName,
                                 String customerEmail, String customerPhone,
                                 LocalDate appointmentDate, LocalTime startTime, String notes,
-                                String returnUrl) {}
+                                String returnUrl, Boolean inlineCheckout) {}
 
     record UpdateBookingRequest(LocalDate appointmentDate, LocalTime startTime, Long staffId, String notes) {}
 
@@ -111,10 +112,11 @@ class BookingController {
                     amount = amount.multiply(java.math.BigDecimal.valueOf(paymentConfig.depositPercent()))
                             .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 }
-                var checkout = stripe.createCheckout(id, "BOOKING", String.valueOf(booking.id()), amount,
-                        serviceItem.currency() == null ? "USD" : serviceItem.currency(), "Booking payment — " + serviceItem.name(),
-                        request.returnUrl());
-                return ResponseEntity.ok(new BookingCheckout(booking, checkout));
+                var checkout = stripe.createCheckout(id, new PaymentGateway.CheckoutRequest("BOOKING", String.valueOf(booking.id()),
+                        amount, serviceItem.currency() == null ? "USD" : serviceItem.currency(),
+                        "Booking payment — " + serviceItem.name(), request.returnUrl(), request.customerEmail(),
+                        Boolean.TRUE.equals(request.inlineCheckout())));
+                return ResponseEntity.ok(new BookingCheckout(booking, checkout.url(), checkout));
             } catch (RuntimeException error) {
                 service.delete(id, booking.id());
                 throw error;

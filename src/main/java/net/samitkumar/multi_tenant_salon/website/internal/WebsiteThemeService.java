@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.website.internal;
 
 import net.samitkumar.multi_tenant_salon.website.WebsiteTheme;
+import net.samitkumar.multi_tenant_salon.website.WebsiteThemeApi;
 import net.samitkumar.multi_tenant_salon.website.WebsiteType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,7 +13,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-class WebsiteThemeService {
+class WebsiteThemeService implements WebsiteThemeApi {
 
     private final WebsiteThemeRepository repository;
     private final JdbcTemplate jdbc;
@@ -20,6 +21,11 @@ class WebsiteThemeService {
     WebsiteThemeService(WebsiteThemeRepository repository, JdbcTemplate jdbc) {
         this.repository = repository;
         this.jdbc = jdbc;
+    }
+
+    @Override
+    public WebsiteTheme theme(UUID salonId) {
+        return getTheme(salonId);
     }
 
     WebsiteTheme getTheme(UUID salonId) {

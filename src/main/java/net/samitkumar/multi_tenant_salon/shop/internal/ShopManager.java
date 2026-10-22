@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.shop.internal;
 
 import lombok.extern.slf4j.Slf4j;
+import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.shop.Brand;
 import net.samitkumar.multi_tenant_salon.shop.Category;
@@ -21,6 +22,7 @@ import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderLineView;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderPage;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderView;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.ProductView;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -64,11 +66,14 @@ class ShopManager {
     private final SalonApi salonApi;
     private final ApplicationEventPublisher eventPublisher;
     private final JdbcClient jdbcClient;
+    // Module tests may run the shop without the payments module; then refunds stay bookkeeping-only.
+    private final ObjectProvider<PaymentGateway> payments;
 
     ShopManager(BrandRepository brandRepo, CategoryRepository categoryRepo, ProductRepository productRepo,
                 ProductVariantRepository variantRepo, ShopOrderRepository orderRepo,
                 OrderLineActivityRepository activityRepo, ShopOrderActivityRepository orderActivityRepo,
-                SalonApi salonApi, ApplicationEventPublisher eventPublisher, JdbcTemplate jdbcTemplate) {
+                SalonApi salonApi, ApplicationEventPublisher eventPublisher, JdbcTemplate jdbcTemplate,
+                ObjectProvider<PaymentGateway> payments) {
         this.brandRepo = brandRepo;
         this.categoryRepo = categoryRepo;
         this.productRepo = productRepo;
@@ -79,6 +84,7 @@ class ShopManager {
         this.salonApi = salonApi;
         this.eventPublisher = eventPublisher;
         this.jdbcClient = JdbcClient.create(jdbcTemplate);
+        this.payments = payments;
     }
 
     public record VariantSpec(Long id, String sku, String label, BigDecimal price, BigDecimal compareAtPrice,
@@ -687,6 +693,10 @@ class ShopManager {
         if (!"APPROVED".equals(order.refundStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only APPROVED refunds can be accepted");
         }
+        // Paid by card online: the money goes back to that card now (Stripe), not only on the credit note.
+        var gateway = payments.getIfAvailable();
+        var cardRefund = gateway == null ? Optional.<PaymentGateway.Refund>empty()
+                : gateway.refundIfPaid(salonId, "SHOP", String.valueOf(orderId), order.refundAmount(), order.refundReason(), "admin");
         var ref = "CN-" + Long.toString(System.nanoTime() & Long.MAX_VALUE, 36).toUpperCase(Locale.ROOT);
         // OffsetDateTime, not Instant: pgjdbc can't infer a SQL type for java.time.Instant
         // on a raw JdbcClient param (Spring Data JDBC entity saves handle it via converters).
@@ -702,7 +712,8 @@ class ShopManager {
                 .param("salon", salonId)
                 .update();
         recordOrderActivity(orderId, salonId, "REFUND_ACCEPTED",
-                "Refund of " + order.refundAmount() + " " + order.currency() + " processed — credit note " + ref + " created",
+                "Refund of " + order.refundAmount() + " " + order.currency() + " processed — credit note " + ref + " created"
+                        + cardRefund.map(r -> "; refunded to the customer's card (" + r.status() + ")").orElse(""),
                 "admin", true, order.customerEmail(), order.customerPhone());
         return getOrder(salonId, orderId).orElseThrow();
     }

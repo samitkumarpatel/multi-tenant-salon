@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { BadgeCheck, Camera, CheckCircle2, CreditCard, Loader2, ScanLine, Send, XCircle } from "lucide-react";
 import { isNotFoundError } from "@salon/ui-shared";
-import type { MembershipDetail, MembershipPlan, MembershipStatus, MembershipSubscription } from "@salon/ui-website";
+import type { CheckoutInstructions, CheckoutResult, MembershipDetail, MembershipPlan, MembershipStatus, MembershipSubscription } from "@salon/ui-website";
+import { StripeCheckoutPanel, beginCheckout } from "@salon/ui-website";
+import { TerminalPaymentDialog, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import { ADMIN_API, apiFetch } from "~/lib/api";
 import { AUTH_MODE, getAccessToken } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
@@ -66,8 +68,10 @@ async function memberQrUrl(sid: string, subscriptionId: number): Promise<string>
 }
 
 /** Check-in (scan or type a member code) and selling a membership at the till. */
-export function MembershipDesk({ sid, view, cardEnabled, notify }: {
+export function MembershipDesk({ sid, view, cardEnabled, notify, terminals = [], testMode = false }: {
   sid: string; view: MembershipDeskView; cardEnabled: boolean; notify: Notify;
+  /** The salon's card readers; card sales go to one of them by default. */
+  terminals?: Terminal[]; testMode?: boolean;
 }) {
   const { t: translateUi } = useI18n();
   const [plans, setPlans] = useState<MembershipPlan[] | null>(null);
@@ -80,7 +84,8 @@ export function MembershipDesk({ sid, view, cardEnabled, notify }: {
   }, [sid]);
 
   return view === "sell"
-    ? <SellMembership sid={sid} plans={plans} plansError={plansError} cardEnabled={cardEnabled} notify={notify} />
+    ? <SellMembership sid={sid} plans={plans} plansError={plansError} cardEnabled={cardEnabled} notify={notify}
+        terminals={terminals} testMode={testMode} />
     : <CheckIn sid={sid} plans={plans ?? []} notify={notify} translateUi={translateUi} />;
 }
 
@@ -257,8 +262,9 @@ type SaleOutcome =
   | { kind: "waiting"; subscription: MembershipSubscription | null }
   | { kind: "cancelled" };
 
-function SellMembership({ sid, plans, plansError, cardEnabled, notify }: {
+function SellMembership({ sid, plans, plansError, cardEnabled, notify, terminals, testMode }: {
   sid: string; plans: MembershipPlan[] | null; plansError: string | null; cardEnabled: boolean; notify: Notify;
+  terminals: Terminal[]; testMode: boolean;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const [params, setParams] = useSearchParams();
@@ -269,9 +275,28 @@ function SellMembership({ sid, plans, plansError, cardEnabled, notify }: {
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [saving, setSaving] = useState(false);
   const [outcome, setOutcome] = useState<SaleOutcome | null>(null);
+  const [cardVia, setCardVia] = useState<number | "online">(terminals[0]?.id ?? "online");
+  const [readerPayment, setReaderPayment] = useState<{ subscriptionId: number; payment: TerminalPayment } | null>(null);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
 
   const plan = plans?.find((p) => p.id === planId) ?? null;
   const total = plan ? plan.price + (plan.signupFee ?? 0) : 0;
+
+  /** The membership activates when the server handles the reader's outcome — a moment after it settles. */
+  async function waitForActive(subscriptionId: number) {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        const detail = await apiFetch<MembershipDetail>(`${ADMIN_API}/${sid}/membership/subscriptions/${subscriptionId}`);
+        if (detail.subscription.status === "ACTIVE") {
+          await showActive(subscriptionId);
+          notify(translateUi("Membership sold — the welcome email with the QR code is on its way."));
+          return;
+        }
+        setOutcome({ kind: "waiting", subscription: detail.subscription });
+      } catch { /* keep trying */ }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
 
   async function showActive(subscriptionId: number) {
     const detail = await apiFetch<MembershipDetail>(`${ADMIN_API}/${sid}/membership/subscriptions/${subscriptionId}`);
@@ -319,13 +344,20 @@ function SellMembership({ sid, plans, plansError, cardEnabled, notify }: {
     setSaving(true);
     try {
       const returnUrl = `${window.location.origin}${window.location.pathname}?view=membership&membershipView=sell`;
-      const response = await apiFetch<{ subscriptionId: number; checkoutUrl: string | null }>(`${ADMIN_API}/${sid}/membership/desk-sales`, {
+      const onReader = method === "CARD" && cardVia !== "online";
+      const response = await apiFetch<{ subscriptionId: number; terminalPayment?: TerminalPayment | null } & CheckoutResult>(`${ADMIN_API}/${sid}/membership/desk-sales`, {
         method: "POST",
-        body: JSON.stringify({ planId: plan.id, customerName: name.trim(), customerEmail: email.trim(), customerPhone: phone.trim() || null, paymentMethod: method, returnUrl }),
+        body: JSON.stringify({ planId: plan.id, customerName: name.trim(), customerEmail: email.trim(), customerPhone: phone.trim() || null,
+          paymentMethod: method, returnUrl, inlineCheckout: true, terminalId: onReader ? cardVia : null }),
       });
-      if (response.checkoutUrl) {
+      if (response.terminalPayment) {
+        setReaderPayment({ subscriptionId: response.subscriptionId, payment: response.terminalPayment });
+        return;
+      }
+      if (response.checkoutUrl || response.checkout) {
         try { sessionStorage.setItem(PENDING_CARD_KEY, JSON.stringify({ subscriptionId: response.subscriptionId })); } catch { /* optional */ }
-        window.location.assign(response.checkoutUrl);
+        const inline = beginCheckout(response);
+        if (inline) setInlineCheckout(inline);
         return;
       }
       await showActive(response.subscriptionId);
@@ -436,6 +468,13 @@ function SellMembership({ sid, plans, plansError, cardEnabled, notify }: {
             <option value="CARD" disabled={!cardEnabled}>{translateUi("Card")}{cardEnabled ? translateUi(" · Stripe") : translateUi(" · enable membership payments in Admin")}</option>
             <option value="OTHER">{translateUi("Other")}</option>
           </select>
+          {method === "CARD" && terminals.length > 0 && (
+            <select className={inputCls} value={String(cardVia)} aria-label={translateUi("Take the card payment on")}
+              onChange={(e) => setCardVia(e.target.value === "online" ? "online" : Number(e.target.value))}>
+              {terminals.map((reader) => <option key={reader.id} value={reader.id}>{translateUi("Card reader")}: {reader.label}{reader.status === "offline" ? ` · ${translateUi("offline")}` : ""}</option>)}
+              <option value="online">{translateUi("Card form on this screen")}</option>
+            </select>
+          )}
           <div className="flex justify-between border-t border-slate-100 pt-3 text-sm font-bold text-slate-800">
             <span>{translateUi("Total today")}</span><span>{plan ? formatPrice(total, plan.currency, uiLocale) : "—"}</span>
           </div>
@@ -445,6 +484,15 @@ function SellMembership({ sid, plans, plansError, cardEnabled, notify }: {
           </button>
         </form>
       </section>
+      {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={plan?.name} customerEmail={email.trim()} />}
+      {readerPayment && (
+        <TerminalPaymentDialog sid={sid} payment={readerPayment.payment} terminals={terminals} testMode={testMode}
+          onFinished={(done) => {
+            if (done.status !== "SUCCEEDED") { setOutcome({ kind: "cancelled" }); return; }
+            void waitForActive(readerPayment.subscriptionId);
+          }}
+          onClose={() => setReaderPayment(null)} />
+      )}
     </div>
   );
 }

@@ -1244,6 +1244,36 @@ Please fix the highlighted fields.|Ret venligst de markerede felter.|Rätta de m
 By placing your order you agree to the salon's policies.|Ved at afgive din ordre accepterer du salonens politikker.|Genom att lägga din order godkänner du salongens villkor.|Ved å legge inn bestillingen godtar du salongens retningslinjer.|En passant commande, vous acceptez les conditions du salon.|Mit Ihrer Bestellung akzeptieren Sie die Richtlinien des Salons.
 Thanks, {name}! Your order number is|Tak, {name}! Dit ordrenummer er|Tack, {name}! Ditt ordernummer är|Takk, {name}! Bestillingsnummeret ditt er|Merci, {name} ! Votre numéro de commande est|Danke, {name}! Ihre Bestellnummer lautet
 You'll collect this order at the salon.|Du afhenter denne ordre i salonen.|Du hämtar den här ordern i salongen.|Du henter denne bestillingen i salongen.|Vous retirerez cette commande au salon.|Sie holen diese Bestellung im Salon ab.
+Processing…|Behandler…|Behandlar…|Behandler…|Traitement…|Wird verarbeitet…
+Pay for your order|Betal for din ordre|Betala din beställning|Betal for bestillingen|Payer votre commande|Bestellung bezahlen
+The payment form couldn't be loaded. Check your connection and try again.|Betalingsformularen kunne ikke indlæses. Tjek din forbindelse, og prøv igen.|Betalningsformuläret kunde inte laddas. Kontrollera anslutningen och försök igen.|Betalingsskjemaet kunne ikke lastes. Sjekk tilkoblingen og prøv igjen.|Le formulaire de paiement n'a pas pu être chargé. Vérifiez votre connexion et réessayez.|Das Zahlungsformular konnte nicht geladen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.
+Card payment|Kortbetaling|Kortbetalning|Kortbetaling|Paiement par carte|Kartenzahlung
+Card reader|Kortlæser|Kortläsare|Kortleser|Terminal de paiement|Kartenlesegerät
+Card readers|Kortlæsere|Kortläsare|Kortlesere|Terminaux de paiement|Kartenlesegeräte
+Card form on this screen|Kortformular på denne skærm|Kortformulär på den här skärmen|Kortskjema på denne skjermen|Formulaire de carte sur cet écran|Kartenformular auf diesem Bildschirm
+Take the card payment on|Tag kortbetalingen på|Ta kortbetalningen på|Ta kortbetalingen på|Encaisser la carte sur|Kartenzahlung annehmen auf
+Ask the customer to tap, insert or swipe their card on {reader}|Bed kunden om at holde, indsætte eller swipe kortet på {reader}|Be kunden att blippa, sätta in eller dra kortet på {reader}|Be kunden om å holde, sette inn eller dra kortet på {reader}|Demandez au client de présenter, insérer ou glisser sa carte sur {reader}|Bitten Sie den Kunden, die Karte an {reader} vorzuhalten, einzustecken oder durchzuziehen
+the reader|kortlæseren|kortläsaren|kortleseren|le terminal|dem Lesegerät
+Payment canceled|Betaling annulleret|Betalningen avbröts|Betaling avbrutt|Paiement annulé|Zahlung abgebrochen
+Test mode: tap a test card|Testtilstand: hold et testkort|Testläge: blippa ett testkort|Testmodus: hold et testkort|Mode test : présenter une carte de test|Testmodus: Testkarte vorhalten
+Check status|Tjek status|Kontrollera status|Sjekk status|Vérifier le statut|Status prüfen
+Cancel payment|Annuller betaling|Avbryt betalning|Avbryt betaling|Annuler le paiement|Zahlung abbrechen
+offline|offline|offline|frakoblet|hors ligne|offline
+Card payment received.|Kortbetaling modtaget.|Kortbetalning mottagen.|Kortbetaling mottatt.|Paiement par carte reçu.|Kartenzahlung erhalten.
+Card payment was not completed.|Kortbetalingen blev ikke gennemført.|Kortbetalningen slutfördes inte.|Kortbetalingen ble ikke fullført.|Le paiement par carte n'a pas abouti.|Die Kartenzahlung wurde nicht abgeschlossen.
+Payouts|Udbetalinger|Utbetalningar|Utbetalinger|Virements|Auszahlungen
+Payments & disputes|Betalinger og indsigelser|Betalningar och tvister|Betalinger og tvister|Paiements et litiges|Zahlungen und Streitfälle
+Transactions|Transaktioner|Transaktioner|Transaksjoner|Transactions|Transaktionen
+Refund to card|Refunder til kort|Återbetala till kort|Refunder til kort|Rembourser sur la carte|Auf Karte erstatten
+Refund sent to the customer’s card.|Refusion sendt til kundens kort.|Återbetalning skickad till kundens kort.|Refusjon sendt til kundens kort.|Remboursement envoyé sur la carte du client.|Erstattung an die Karte des Kunden gesendet.
+Stripe checkout page|Stripes betalingsside|Stripes kassasida|Stripes betalingsside|Page de paiement Stripe|Stripe-Bezahlseite
+Stripe form on your page|Stripe-formular på din side|Stripe-formulär på din sida|Stripe-skjema på siden din|Formulaire Stripe sur votre page|Stripe-Formular auf Ihrer Seite
+Your branded payment form|Din egen betalingsformular|Ditt eget betalningsformulär|Ditt eget betalingsskjema|Votre formulaire de paiement personnalisé|Ihr eigenes Zahlungsformular
+How customers pay|Sådan betaler kunderne|Så betalar kunderna|Slik betaler kundene|Mode de paiement des clients|So zahlen Kunden
+Set up payments|Opsæt betalinger|Konfigurera betalningar|Konfigurer betalinger|Configurer les paiements|Zahlungen einrichten
+Add reader|Tilføj kortlæser|Lägg till kortläsare|Legg til kortleser|Ajouter un terminal|Lesegerät hinzufügen
+Remove reader|Fjern kortlæser|Ta bort kortläsare|Fjern kortleser|Retirer le terminal|Lesegerät entfernen
+Registration code|Registreringskode|Registreringskod|Registreringskode|Code d'enregistrement|Registrierungscode
 `.trim().split("\n").map((row) => row.split("|"));
 
 export const messages: Record<string, Record<Exclude<Language, "en">, string>> = Object.fromEntries(

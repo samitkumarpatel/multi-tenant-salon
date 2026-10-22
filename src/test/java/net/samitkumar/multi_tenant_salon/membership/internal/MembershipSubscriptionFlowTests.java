@@ -3,6 +3,8 @@ package net.samitkumar.multi_tenant_salon.membership.internal;
 import com.jayway.jsonpath.JsonPath;
 import net.samitkumar.multi_tenant_salon.MultiTenantSalonApplication;
 import net.samitkumar.multi_tenant_salon.TestcontainersConfiguration;
+import net.samitkumar.multi_tenant_salon.payments.CheckoutUi;
+import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
 import net.samitkumar.multi_tenant_salon.payments.StripePaymentEvent;
 import net.samitkumar.multi_tenant_salon.payments.internal.StripeConnectService;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -75,8 +78,8 @@ class MembershipSubscriptionFlowTests {
                           "signupFee": 10, "maxMembers": 1, "status": "ACTIVE", "perks": ["Priority booking"] }""")
                 .exchange().expectStatus().isCreated().expectBody().returnResult().getResponseBody(), "$.id");
         when(stripe.enabled(salonId, "MEMBERSHIP")).thenReturn(true);
-        when(stripe.createCheckout(eq(salonId), eq("MEMBERSHIP"), anyString(), any(), any(), any(), any()))
-                .thenReturn("https://checkout.stripe.test/session");
+        when(stripe.createCheckout(eq(salonId), any())).thenReturn(new PaymentGateway.Checkout(CheckoutUi.REDIRECT,
+                "https://checkout.stripe.test/session", null, null, null, null, null, null));
     }
 
     private String adminBase() { return "/api/salon-admin/" + salonId + "/membership"; }
@@ -93,8 +96,10 @@ class MembershipSubscriptionFlowTests {
         // The first charge is one period plus the sign-up fee, through the same one-time checkout the shop uses.
         assertThat(signup.get("kind")).isEqualTo("SIGNUP");
         assertThat(new BigDecimal(signup.get("amount").toString())).isEqualByComparingTo("59.00");
-        verify(stripe).createCheckout(eq(salonId), eq("MEMBERSHIP"), eq(String.valueOf(signup.get("id"))),
-                eq(new BigDecimal("59.00")), eq("EUR"), eq("Glow Monthly membership — Flow Salon"), any());
+        verify(stripe).createCheckout(eq(salonId), argThat(r -> r.area().equals("MEMBERSHIP")
+                && r.reference().equals(String.valueOf(signup.get("id"))) && r.amount().compareTo(new BigDecimal("59.00")) == 0
+                && r.currency().equals("EUR") && r.itemName().equals("Glow Monthly membership — Flow Salon")
+                && r.customerEmail().equals("ann@example.com")));
 
         // The unpaid checkout holds the plan's only place.
         client.post().uri(publicBase() + "/checkout").contentType(MediaType.APPLICATION_JSON)
@@ -200,7 +205,7 @@ class MembershipSubscriptionFlowTests {
 
     @Test
     void stripeRefusingTheCheckoutLeavesNoPendingMembership() {
-        when(stripe.createCheckout(eq(salonId), eq("MEMBERSHIP"), anyString(), any(), any(), any(), any()))
+        when(stripe.createCheckout(eq(salonId), any()))
                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Stripe request failed"));
 
         client.post().uri(publicBase() + "/checkout").contentType(MediaType.APPLICATION_JSON)
@@ -240,7 +245,7 @@ class MembershipSubscriptionFlowTests {
         assertThat(JsonPath.<List<String>>read(detail, "$.activity[?(@.type == 'ACTIVATED')].message"))
                 .singleElement().asString().contains("in cash at the desk");
         assertThat(awaitEmail(subId, "Welcome!")).contains("walkin@example.com");
-        verify(stripe, org.mockito.Mockito.never()).createCheckout(eq(salonId), eq("MEMBERSHIP"), anyString(), any(), any(), any(), any());
+        verify(stripe, org.mockito.Mockito.never()).createCheckout(eq(salonId), any());
 
         // The desk sale takes the capped plan's only place, like an online sign-up.
         client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
@@ -259,8 +264,32 @@ class MembershipSubscriptionFlowTests {
         var payment = latestPayment(subId);
         assertThat(payment.get("method")).isEqualTo("CARD");
         assertThat(JsonPath.<String>read(detail(subId), "$.subscription.status")).isEqualTo("PENDING_PAYMENT");
-        verify(stripe).createCheckout(eq(salonId), eq("MEMBERSHIP"), eq(String.valueOf(payment.get("id"))),
-                eq(new BigDecimal("59.00")), eq("EUR"), any(), eq(desk));
+        verify(stripe).createCheckout(eq(salonId), argThat(r -> r.area().equals("MEMBERSHIP")
+                && r.reference().equals(String.valueOf(payment.get("id"))) && r.amount().compareTo(new BigDecimal("59.00")) == 0
+                && r.currency().equals("EUR") && desk.equals(r.returnUrl()) && !r.inlineCheckout()));
+
+        pay(payment, true);
+        assertThat(JsonPath.<String>read(detail(subId), "$.subscription.status")).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void cardReaderSaleAtTheDeskSettlesFromTheReaderOutcome() {
+        when(stripe.collectOnTerminal(eq(salonId), eq("MEMBERSHIP"), anyString(), any(), eq("EUR"), any(), eq(5L)))
+                .thenAnswer(call -> new PaymentGateway.TerminalPayment(900L, "PENDING", 5L, "Front desk",
+                        call.getArgument(3), "EUR", null));
+        var body = client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Reader Customer", "reader@example.com", "CARD").replace("}", ", \"terminalId\": 5 }"))
+                .exchange().expectStatus().isCreated().expectBody()
+                .jsonPath("$.checkoutUrl").doesNotExist()
+                .jsonPath("$.terminalPayment.terminalLabel").isEqualTo("Front desk")
+                .jsonPath("$.terminalPayment.status").isEqualTo("PENDING")
+                .returnResult().getResponseBody();
+        long subId = json(body, "$.subscriptionId");
+        var payment = latestPayment(subId);
+        verify(stripe).collectOnTerminal(eq(salonId), eq("MEMBERSHIP"), eq(String.valueOf(payment.get("id"))),
+                argThat(amount -> amount.compareTo(new BigDecimal("59.00")) == 0), eq("EUR"), any(), eq(5L));
+        verify(stripe, org.mockito.Mockito.never()).createCheckout(eq(salonId), any());
+        assertThat(JsonPath.<String>read(detail(subId), "$.subscription.status")).isEqualTo("PENDING_PAYMENT");
 
         pay(payment, true);
         assertThat(JsonPath.<String>read(detail(subId), "$.subscription.status")).isEqualTo("ACTIVE");

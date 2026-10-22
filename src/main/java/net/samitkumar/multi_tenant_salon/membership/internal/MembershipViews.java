@@ -1,5 +1,7 @@
 package net.samitkumar.multi_tenant_salon.membership.internal;
 
+import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import net.samitkumar.multi_tenant_salon.membership.BillingInterval;
 import net.samitkumar.multi_tenant_salon.membership.MembershipActivity;
@@ -35,7 +37,16 @@ final class MembershipViews {
     /** The public catalogue: plans on sale, and whether visitors can join online right now. */
     record Catalog(List<PlanView> plans, boolean onlineSignup) {}
 
-    record CheckoutResult(Long subscriptionId, String checkoutUrl) {}
+    /**
+     * {@code checkoutUrl}: where to send the customer for a redirect checkout (null otherwise). {@code checkout}:
+     * the full instructions, also for an in-page form. {@code terminalPayment}: a card-reader payment at the desk.
+     */
+    record CheckoutResult(Long subscriptionId, String checkoutUrl, PaymentGateway.Checkout checkout,
+                          PaymentGateway.TerminalPayment terminalPayment) {
+        static CheckoutResult of(Long subscriptionId, PaymentGateway.Checkout checkout) {
+            return new CheckoutResult(subscriptionId, checkout == null ? null : checkout.url(), checkout, null);
+        }
+    }
 
     /**
      * What the renewal link shows: whose membership, what the next period costs, and whether it can be

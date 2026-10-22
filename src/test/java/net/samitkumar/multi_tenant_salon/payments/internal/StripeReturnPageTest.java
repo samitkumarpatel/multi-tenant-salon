@@ -6,9 +6,7 @@ import net.samitkumar.multi_tenant_salon.utility.CountryApi;
 import net.samitkumar.multi_tenant_salon.website.WebsiteDomainApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
 import java.util.UUID;
@@ -22,18 +20,14 @@ class StripeReturnPageTest {
     Salon salon;
     StripeConnectService service;
 
-    @SuppressWarnings("unchecked")
     @BeforeEach void setup() {
         salon = mock(Salon.class);
         when(salon.id()).thenReturn(salonId);
         when(salon.handler()).thenReturn("glow");
         when(domains.isActiveOriginFor(salonId, "https://www.glow.dk")).thenReturn(true);
-        ObjectProvider<WebsiteDomainApi> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(domains);
-        service = new StripeConnectService(mock(StripeConnectedAccountRepository.class), mock(SalonPaymentSettingsRepository.class),
-                mock(SalonApi.class), mock(CountryApi.class), RestClient.builder(), "sk", "https://admin.salonsaas.org",
-                "https://dashboard.salonsaas.org", "whsec", "https://book.salonsaas.org/", "", "salonsaas.org",
-                mock(ApplicationEventPublisher.class), mock(JdbcTemplate.class), provider, "2026-08-26.dahlia");
+        service = StripeTestSupport.service(mock(StripeConnectedAccountRepository.class), mock(SalonApi.class),
+                mock(CountryApi.class), StripeTestSupport.client(RestClient.builder(), null), mock(PaymentLedger.class),
+                mock(ApplicationEventPublisher.class), domains, null, "https://book.salonsaas.org/");
     }
 
     @Test void returnsToTheSalonsActiveCustomDomain() {

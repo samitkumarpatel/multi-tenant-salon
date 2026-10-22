@@ -60,7 +60,7 @@ servers:
 
 tags:
   - name: AdminPayments
-    description: Stripe Connect (Accounts v2) onboarding, per-area payment settings, POS card checkout and the Connect webhook.
+    description: Stripe Connect (Accounts v2) onboarding and embedded account components, per-area payment settings and checkout style, card readers (Stripe Terminal), the payment ledger with refunds, and the Connect webhook.
   - name: SalonOnboarding
     description: |
       New salon tenant registration and platform-level salon listing.
@@ -497,8 +497,9 @@ paths:
 
         **Stripe booking payments:** when the salon has booking payments enabled (see
         `/api/salon-admin/{salonId}/payments/settings`), the booking is created `PENDING` with
-        `paymentStatus: PENDING` and the response is **200** `{ booking, checkoutUrl }` — redirect the
-        customer to `checkoutUrl`. The Connect webhook later marks it `PAID` (→ CONFIRMED, or PENDING
+        `paymentStatus: PENDING` and the response is **200** `{ booking, checkoutUrl, checkout }` — redirect
+        the customer to `checkoutUrl`, or (with `inlineCheckout: true` and an in-page checkout style chosen by
+        the salon) mount Stripe's form from `checkout`. The Connect webhook later marks it `PAID` (→ CONFIRMED, or PENDING
         when confirmation is required) or `FAILED` (→ CANCELLED). Amount is the full service price
         or the configured deposit percentage.
       operationId: createBooking
@@ -2581,8 +2582,8 @@ paths:
         email. Omit `shippingAddress` (or send it empty) for collect-in-salon orders.
 
         **Stripe shop payments:** when the salon has shop payments enabled, the order is created with
-        `paymentStatus: PENDING` and the 201 body is `{ order, checkoutUrl }` — redirect to
-        `checkoutUrl`. The Connect webhook marks it `PAID` (emits OrderPlacedEvent) or `FAILED`
+        `paymentStatus: PENDING` and the 201 body is `{ order, checkoutUrl, checkout }` — redirect to
+        `checkoutUrl`, or mount Stripe's form from `checkout` (see `PaymentCheckout`). The Connect webhook marks it `PAID` (emits OrderPlacedEvent) or `FAILED`
         (stock is restored). Returns 502 if Stripe rejects the Checkout Session.
       operationId: placeShopOrder
       requestBody:
@@ -3185,9 +3186,10 @@ paths:
       - $ref: "#/components/parameters/SalonId"
     put:
       tags: [AdminPayments]
-      summary: Enable/disable Stripe payments per area
+      summary: Payment areas and how customers pay in each
       description: |
-        Areas can be selected as soon as the connected account exists. A selected area only takes effect
+        Turns card payments on/off per area and picks each area's checkout style (`checkoutUi`). Areas left out
+        of `areas` keep their setting. Areas can be selected as soon as the connected account exists. A selected area only takes effect
         for customers once Stripe has activated card payments on the account; until then shop, booking
         and till behave as if the area were off.
       operationId: updatePaymentSettings
@@ -3209,7 +3211,7 @@ paths:
         "400":
           description: Missing booking payment type or deposit outside 1–100
         "409":
-          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) disabled, or no Stripe account connected yet
+          description: Related salon feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) disabled, no Stripe account connected yet, or an in-page checkout style without STRIPE_PUBLISHABLE_KEY
 
   /api/salon-admin/{salonId}/dashboard/sales/card-checkout:
     parameters:
@@ -3218,9 +3220,10 @@ paths:
       tags: [AdminPayments]
       summary: Take a Till / POS card payment through Stripe Checkout
       description: |
-        Records the sale with `paymentStatus: PENDING` and returns a Checkout URL that returns to the
-        dashboard cashier view. The webhook marks it `PAID`, or `FAILED` (product stock restored).
-        Card-present Stripe Terminal readers are not supported.
+        Records the sale with `paymentStatus: PENDING` and starts a Checkout that returns to the dashboard
+        cashier view — a redirect `checkoutUrl`, or (with `inlineCheckout: true` and an in-page style for POS)
+        Stripe's form from `checkout`. The webhook marks it `PAID`, or `FAILED` (product stock restored).
+        For a card reader use `/dashboard/sales/terminal-checkout`.
       operationId: createPosCardCheckout
       security:
         - BearerAuth: []
@@ -3235,19 +3238,318 @@ paths:
                 items:
                   type: array
                   items: { type: object }
+                inlineCheckout: { type: boolean, nullable: true }
       responses:
         "200":
-          description: Pending sale and Checkout URL
+          description: Pending sale and its checkout
           content:
             application/json:
               schema:
                 type: object
-                required: [sale, checkoutUrl]
+                required: [sale]
                 properties:
                   sale: { type: object }
-                  checkoutUrl: { type: string, format: uri }
+                  checkoutUrl: { type: string, format: uri, nullable: true }
+                  checkout: { $ref: "#/components/schemas/PaymentCheckout" }
         "409":
           description: POS payments not enabled or Stripe not ready
+
+  /api/salon-admin/{salonId}/dashboard/sales/terminal-checkout:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminPayments]
+      summary: Take a Till / POS card payment on a card reader
+      description: |
+        Records the sale with `paymentStatus: PENDING` (committed first, stock held) and sends a card-present
+        PaymentIntent to the chosen Stripe Terminal reader (server-driven). Follow the payment with
+        `GET /payments/terminal-payments/{paymentId}`; the sale becomes `PAID`, or `FAILED` with stock restored
+        when the payment is canceled. A declined card leaves the payment open for another card. Staff may call it.
+      operationId: createPosTerminalCheckout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [terminalId, items]
+              properties:
+                customerName: { type: string, nullable: true }
+                terminalId: { type: integer, format: int64 }
+                items:
+                  type: array
+                  items: { type: object }
+      responses:
+        "200":
+          description: Pending sale and the payment on the reader
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sale: { type: object }
+                  terminalPayment: { $ref: "#/components/schemas/TerminalPayment" }
+        "404":
+          description: Card reader not found
+        "409":
+          description: POS payments not enabled or Stripe not ready
+
+  /api/salon-admin/{salonId}/payments/stripe/account-session:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminPayments]
+      summary: Create a session for Stripe's embedded account components
+      description: |
+        Owner only. Creates an Account Session (creating the connected account first if the salon has none)
+        enabling `account_onboarding`, `account_management`, `notification_banner`, `payments` (refunds,
+        disputes, capture) and `payouts` (instant/standard payouts, payout schedule). The admin app renders
+        them with Connect.js, so onboarding, payouts, payments and disputes are handled without leaving the app.
+      operationId: createStripeAccountSession
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clientSecret: { type: string }
+                  publishableKey: { type: string }
+                  stripeAccountId: { type: string }
+        "409":
+          description: Salon has no valid country (needed to create the account)
+        "503":
+          description: Stripe keys or the publishable key are not configured
+
+  /api/salon-admin/{salonId}/payments/transactions:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminPayments]
+      summary: List card payments (payment ledger)
+      description: Every checkout and card-reader payment of the salon, newest first. Owner only.
+      operationId: listPaymentTransactions
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: area, schema: { type: string, enum: [SHOP, BOOKING, POS, MEMBERSHIP] } }
+        - { in: query, name: limit, schema: { type: integer, default: 100, minimum: 1, maximum: 500 } }
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentTransaction" }
+
+  /api/salon-admin/{salonId}/payments/transactions/{paymentId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: paymentId, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [AdminPayments]
+      summary: One payment with its refunds
+      operationId: getPaymentTransaction
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Payment and refunds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment: { $ref: "#/components/schemas/PaymentTransaction" }
+                  refunds:
+                    type: array
+                    items: { type: object }
+        "404":
+          description: Payment not found
+
+  /api/salon-admin/{salonId}/payments/transactions/{paymentId}/refunds:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: paymentId, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [AdminPayments]
+      summary: Refund a card payment
+      description: |
+        Refunds all or part of a completed card payment to the customer's card (Stripe refund on the salon's
+        account). `amount` omitted = everything not yet refunded. Never more than what is left; a refund that
+        Stripe later reports as failed is given back to the refundable balance. Owner only.
+      operationId: refundPaymentTransaction
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount: { type: number, nullable: true }
+                reason: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Refund created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentRefund" }
+        "409":
+          description: Not a completed card payment, already fully refunded, or amount above what is left
+        "502":
+          description: Stripe rejected the refund
+
+  /api/salon-admin/{salonId}/payments/terminals:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminPayments]
+      summary: List the salon's card readers
+      description: Staff may call it (the desk picks a reader). `refresh=true` re-reads online status from Stripe.
+      operationId: listPaymentTerminals
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: refresh, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: Card readers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentTerminal" }
+    post:
+      tags: [AdminPayments]
+      summary: Register a card reader
+      description: |
+        Owner only. Registers a Stripe Terminal reader by the pairing code it shows (`simulated-wpe` gives a
+        simulated reader in test mode). The first reader creates the salon's Terminal Location from its address.
+      operationId: registerPaymentTerminal
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [registrationCode]
+              properties:
+                registrationCode: { type: string }
+                label: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Reader registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentTerminal" }
+        "409":
+          description: No Stripe account, Dashboard feature off, or the salon address is incomplete
+        "502":
+          description: Stripe rejected the code
+
+  /api/salon-admin/{salonId}/payments/terminals/{terminalId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: terminalId, required: true, schema: { type: integer, format: int64 } }
+    put:
+      tags: [AdminPayments]
+      summary: Rename a card reader
+      operationId: renamePaymentTerminal
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label: { type: string }
+      responses:
+        "200":
+          description: Renamed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentTerminal" }
+    delete:
+      tags: [AdminPayments]
+      summary: Remove a card reader
+      operationId: removePaymentTerminal
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Removed (also at Stripe)
+
+  /api/salon-admin/{salonId}/payments/terminal-payments/{paymentId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: paymentId, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [AdminPayments]
+      summary: Follow a card-reader payment
+      description: |
+        Staff may call it. The outcome normally arrives by webhook; when the stored state is older than a few
+        seconds (or `refresh=true`), Stripe is asked directly, so a late webhook doesn't keep the desk waiting.
+      operationId: getTerminalPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: refresh, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: Payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TerminalPayment" }
+        "404":
+          description: Payment not found
+
+  /api/salon-admin/{salonId}/payments/terminal-payments/{paymentId}/{action}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: paymentId, required: true, schema: { type: integer, format: int64 } }
+      - in: path
+        name: action
+        required: true
+        schema: { type: string, enum: [cancel, retry, simulate] }
+    post:
+      tags: [AdminPayments]
+      summary: Cancel, retry or (test mode) simulate a card-reader payment
+      description: |
+        Staff may call it. `cancel` stops the reader and cancels the PaymentIntent (the sale / membership
+        payment fails); refused with 409 while the card is being authorised. `retry` sends the open payment to
+        a reader again — body `{ "terminalId": … }` to switch reader. `simulate` (Stripe test mode only)
+        presents a test card on a simulated reader — optional body `{ "cardNumber": "4000000000000002" }`.
+      operationId: actOnTerminalPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                terminalId: { type: integer, format: int64, nullable: true }
+                cardNumber: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Updated payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TerminalPayment" }
+        "409":
+          description: Already settled, card being processed, or not in test mode
 
   /api/payments/stripe/webhook:
     post:
@@ -3257,10 +3559,14 @@ paths:
         Unauthenticated; verified with the `Stripe-Signature` header (HMAC-SHA256, 5-minute
         tolerance) against `STRIPE_WEBHOOK_SECRET`. Register it as a **Connect** endpoint for
         `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-        `checkout.session.async_payment_failed` and `checkout.session.expired`. Events for unknown
-        accounts or mismatched `metadata.salon_id` are acknowledged and ignored. Payment areas are
-        `SHOP`, `BOOKING`, `POS` and `MEMBERSHIP`, each a one-time Checkout whose `payment_reference`
-        is the order / booking / sale / membership-payment id.
+        `checkout.session.async_payment_failed`, `checkout.session.expired` (online checkouts),
+        `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`,
+        `terminal.reader.action_failed` (card readers) and `refund.created`, `refund.updated`,
+        `refund.failed`, `charge.refund.updated` (refunds, including ones made in Stripe's embedded payments
+        component). Events for unknown accounts or mismatched `metadata.salon_id` are acknowledged and
+        ignored. Payment areas are `SHOP`, `BOOKING`, `POS` and `MEMBERSHIP`; `payment_reference` is the
+        order / booking / sale / membership-payment id. Every payment is recorded in the payment ledger
+        (`/payments/transactions`).
       operationId: stripeWebhook
       security: []
       parameters:
@@ -3395,6 +3701,7 @@ paths:
               type: object
               properties:
                 returnUrl: { type: string, format: uri, nullable: true }
+                inlineCheckout: { type: boolean, nullable: true }
       responses:
         "201":
           description: Checkout created
@@ -3714,8 +4021,10 @@ paths:
       description: >
         Same plan, capacity and duplicate rules as online sign-up; the membership's `source` is `ADMIN`.
         `CASH` / `OTHER` are paid on the spot — the membership is `ACTIVE` when this returns, the QR welcome
-        email is queued, and `checkoutUrl` is null. `CARD` opens the same one-time Stripe Checkout as online
-        sign-up (needs membership payments enabled); `returnUrl` may point at the salon desk app.
+        email is queued, and `checkoutUrl` is null. `CARD` with `terminalId` sends the payment to that card reader
+        (`terminalPayment` in the response — follow it with `/payments/terminal-payments/{paymentId}`); without it,
+        the same one-time Stripe Checkout as online sign-up (needs membership payments enabled); `returnUrl` may
+        point at the salon desk app.
       operationId: sellMembershipAtDesk
       security:
         - BearerAuth: []
@@ -3905,6 +4214,13 @@ components:
             testMode:
               type: boolean
               description: The server uses a Stripe sandbox/test secret key (`sk_test_…`)
+            inlineCheckoutAvailable:
+              type: boolean
+              description: The server has STRIPE_PUBLISHABLE_KEY, so areas can use the EMBEDDED / ELEMENTS checkout
+            publishableKey:
+              type: string
+              nullable: true
+              description: Platform publishable key for Stripe.js / Connect.js (embedded account components)
             onboarding:
               type: object
               properties:
@@ -4023,6 +4339,7 @@ components:
         customerEmail: { type: string, format: email, description: The QR code is emailed here }
         customerPhone: { type: string, nullable: true }
         returnUrl: { type: string, format: uri, nullable: true }
+        inlineCheckout: { type: boolean, nullable: true, description: The website can show Stripe's form in its page (see the shop order request) }
 
     MembershipDeskSaleRequest:
       type: object
@@ -4032,14 +4349,22 @@ components:
         customerName: { type: string }
         customerEmail: { type: string, format: email, description: The QR code is emailed here }
         customerPhone: { type: string, nullable: true }
-        paymentMethod: { type: string, enum: [CASH, CARD, OTHER], description: CARD goes through Stripe Checkout }
-        returnUrl: { type: string, format: uri, nullable: true, description: Where Stripe returns after a CARD payment }
+        paymentMethod: { type: string, enum: [CASH, CARD, OTHER], description: CARD goes to a card reader (terminalId) or through Stripe Checkout }
+        returnUrl: { type: string, format: uri, nullable: true, description: Where Stripe returns after a CARD checkout }
+        terminalId: { type: integer, format: int64, nullable: true, description: For CARD, the salon card reader to take the payment on }
+        inlineCheckout: { type: boolean, nullable: true, description: For a CARD checkout, the desk shows Stripe's form itself }
 
     MembershipCheckoutResponse:
       type: object
       properties:
         subscriptionId: { type: integer, format: int64 }
-        checkoutUrl: { type: string, format: uri, nullable: true, description: Null for a desk sale paid in cash or another way }
+        checkoutUrl: { type: string, format: uri, nullable: true, description: Redirect checkout URL; null for cash/other, a card reader, or an in-page form }
+        checkout:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/PaymentCheckout" }]
+        terminalPayment:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/TerminalPayment" }]
 
     MembershipSubscription:
       type: object
@@ -4165,14 +4490,30 @@ components:
                   customerName: { type: string }
                   planName: { type: string }
 
+    PaymentAreaSetting:
+      type: object
+      required: [area, enabled, checkoutUi]
+      properties:
+        area: { type: string, enum: [SHOP, BOOKING, POS, MEMBERSHIP] }
+        enabled: { type: boolean }
+        checkoutUi:
+          type: string
+          enum: [REDIRECT, EMBEDDED, ELEMENTS]
+          description: |
+            How customers pay online in this area. `REDIRECT` Stripe-hosted Checkout page (with the salon's
+            name and website colours); `EMBEDDED` Stripe's Checkout form inside the salon's page;
+            `ELEMENTS` the salon's own payment form (Stripe Payment Element styled with the website theme).
+            `EMBEDDED`/`ELEMENTS` need `STRIPE_PUBLISHABLE_KEY` on the server and apply only to clients
+            that send `inlineCheckout: true`.
+
     SalonPaymentSettings:
       type: object
       properties:
         salonId: { type: string, format: uuid }
-        shopEnabled: { type: boolean }
-        bookingEnabled: { type: boolean }
-        posEnabled: { type: boolean }
-        membershipEnabled: { type: boolean, description: Membership sign-up through Stripe subscription checkout }
+        areas:
+          type: array
+          description: One entry per area (SHOP, BOOKING, POS, MEMBERSHIP)
+          items: { $ref: "#/components/schemas/PaymentAreaSetting" }
         bookingPaymentType: { type: string, enum: [FULL, DEPOSIT] }
         bookingDepositPercent: { type: integer, minimum: 1, maximum: 100 }
         updatedAt: { type: string, format: date-time, nullable: true }
@@ -4181,26 +4522,107 @@ components:
       type: object
       required: [bookingPaymentType, bookingDepositPercent]
       properties:
-        shopEnabled: { type: boolean }
-        bookingEnabled: { type: boolean }
-        posEnabled: { type: boolean }
-        membershipEnabled: { type: boolean }
+        areas:
+          type: array
+          description: Areas to change; areas left out keep their current setting
+          items: { $ref: "#/components/schemas/PaymentAreaSetting" }
         bookingPaymentType: { type: string, enum: [FULL, DEPOSIT] }
         bookingDepositPercent: { type: integer, minimum: 1, maximum: 100 }
 
+    PaymentCheckout:
+      type: object
+      description: |
+        How to take the customer through payment. `REDIRECT`: open `url`. `EMBEDDED`: Stripe.js
+        `loadStripe(publishableKey, { stripeAccount: stripeAccountId })` then `createEmbeddedCheckoutPage`
+        with `clientSecret`. `ELEMENTS`: `initCheckoutElementsSdk({ clientSecret })` and a Payment Element,
+        styled from `branding`. Stripe sends the customer to `returnUrl` once paid; leaving the form goes to
+        `cancelUrl` — the same `?payment=success|cancel` pages the redirect checkout returns to.
+      properties:
+        ui: { type: string, enum: [REDIRECT, EMBEDDED, ELEMENTS] }
+        url: { type: string, format: uri, nullable: true }
+        clientSecret: { type: string, nullable: true }
+        publishableKey: { type: string, nullable: true }
+        stripeAccountId: { type: string, nullable: true }
+        returnUrl: { type: string, format: uri, nullable: true }
+        cancelUrl: { type: string, format: uri, nullable: true }
+        branding:
+          type: object
+          nullable: true
+          properties:
+            displayName: { type: string, nullable: true }
+            primaryColor: { type: string, nullable: true, description: Website accent colour (#RRGGBB) }
+            backgroundColor: { type: string, nullable: true, description: Website hero background (#RRGGBB) }
+            fontFamily: { type: string, nullable: true, description: Website font (Google Fonts family or preset) }
+
+    TerminalPayment:
+      type: object
+      description: A card payment running on a salon card reader
+      properties:
+        paymentId: { type: integer, format: int64 }
+        status: { type: string, enum: [PENDING, SUCCEEDED, FAILED, CANCELED] }
+        terminalId: { type: integer, format: int64, nullable: true }
+        terminalLabel: { type: string, nullable: true }
+        amount: { type: number }
+        currency: { type: string }
+        failureMessage: { type: string, nullable: true, description: Last reader problem (e.g. card declined); the payment stays open for a retry }
+
+    PaymentTerminal:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        stripeReaderId: { type: string }
+        label: { type: string }
+        deviceType: { type: string, nullable: true }
+        serialNumber: { type: string, nullable: true }
+        status: { type: string, nullable: true, enum: [online, offline, null] }
+        createdAt: { type: string, format: date-time }
+
+    PaymentTransaction:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        area: { type: string, enum: [SHOP, BOOKING, POS, MEMBERSHIP] }
+        reference: { type: string, description: Order / booking / sale / membership-payment id }
+        channel: { type: string, enum: [CHECKOUT, TERMINAL] }
+        checkoutUi: { type: string, nullable: true, enum: [REDIRECT, EMBEDDED, ELEMENTS, null] }
+        status: { type: string, enum: [PENDING, SUCCEEDED, FAILED, CANCELED, PARTIALLY_REFUNDED, REFUNDED] }
+        amount: { type: number }
+        currency: { type: string }
+        amountRefunded: { type: number }
+        description: { type: string, nullable: true }
+        customerEmail: { type: string, nullable: true }
+        checkoutSessionId: { type: string, nullable: true }
+        paymentIntentId: { type: string, nullable: true }
+        terminalId: { type: integer, format: int64, nullable: true }
+        failureMessage: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PaymentRefund:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        paymentId: { type: integer, format: int64 }
+        amount: { type: number }
+        currency: { type: string }
+        status: { type: string, description: "Stripe refund status: pending, requires_action, succeeded, failed, canceled" }
+
     BookingCheckoutResponse:
       type: object
-      required: [booking, checkoutUrl]
+      required: [booking]
       properties:
         booking: { $ref: "#/components/schemas/Booking" }
-        checkoutUrl: { type: string, format: uri }
+        checkoutUrl: { type: string, format: uri, nullable: true, description: Redirect checkout URL (null for an in-page form) }
+        checkout: { $ref: "#/components/schemas/PaymentCheckout" }
 
     ShopCheckoutResponse:
       type: object
-      required: [order, checkoutUrl]
+      required: [order]
       properties:
         order: { $ref: "#/components/schemas/ShopOrder" }
-        checkoutUrl: { type: string, format: uri }
+        checkoutUrl: { type: string, format: uri, nullable: true, description: Redirect checkout URL (null for an in-page form) }
+        checkout: { $ref: "#/components/schemas/PaymentCheckout" }
 
     WebsiteDomainSettings:
       type: object
@@ -5558,6 +5980,13 @@ components:
             when its origin belongs to this salon — the `<handler>.<SALON_DOMAIN>` subdomain, the salon's
             active custom domain, or a configured booking/website app. Anything else falls back to the
             default page. `payment`, `reference` and `session_id` query params are replaced on return.
+        inlineCheckout:
+          type: boolean
+          nullable: true
+          description: |
+            The client can show Stripe's form in its own page. Only then does the salon's chosen checkout
+            style for the area (`EMBEDDED` / `ELEMENTS`) apply; otherwise (MCP apps, chat, older clients)
+            the response is always a redirect `checkoutUrl`.
 
     UpdateBookingRequest:
       type: object
@@ -6178,3 +6607,10 @@ components:
             when its origin belongs to this salon — the `<handler>.<SALON_DOMAIN>` subdomain, the salon's
             active custom domain, or a configured booking/website app. Anything else falls back to the
             default page. `payment`, `reference` and `session_id` query params are replaced on return.
+        inlineCheckout:
+          type: boolean
+          nullable: true
+          description: |
+            The client can show Stripe's form in its own page. Only then does the salon's chosen checkout
+            style for the area (`EMBEDDED` / `ELEMENTS`) apply; otherwise (MCP apps, chat, older clients)
+            the response is always a redirect `checkoutUrl`.

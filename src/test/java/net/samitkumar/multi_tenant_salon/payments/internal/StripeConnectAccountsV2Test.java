@@ -4,15 +4,12 @@ import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.utility.Country;
 import net.samitkumar.multi_tenant_salon.utility.CountryApi;
-import net.samitkumar.multi_tenant_salon.website.WebsiteDomainApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
@@ -48,10 +45,8 @@ class StripeConnectAccountsV2Test {
         when(countries.findByName("Denmark")).thenReturn(Optional.of(new Country("Denmark", "dk", "+45", "DKK", null, null, null, null)));
         var builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        service = new StripeConnectService(accounts, mock(SalonPaymentSettingsRepository.class), salons, countries, builder,
-                "sk_test_x", "https://admin.salonsaas.org", "https://dashboard.salonsaas.org", "whsec_x",
-                "https://book.salonsaas.org", "", "salonsaas.org", mock(ApplicationEventPublisher.class),
-                mock(JdbcTemplate.class), mock(ObjectProvider.class), "2026-08-26.dahlia");
+        service = StripeTestSupport.service(accounts, salons, countries, StripeTestSupport.client(builder, null),
+                mock(PaymentLedger.class), mock(ApplicationEventPublisher.class), null, null, "https://book.salonsaas.org");
     }
 
     void expectNoExistingAccount() {

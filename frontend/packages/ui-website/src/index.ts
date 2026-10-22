@@ -23,6 +23,8 @@ export { DEFAULT_THEME, FONTS, loadGoogleFont, fontStack, isLightColor, contrast
 // so it stays out of the public website bundle.
 export { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice, formatDate, openDays } from "./constants";
 export { apiFetch, API_BASE } from "./api";
+export { beginCheckout, StripeCheckoutPanel } from "./StripeCheckout";
+export type { CheckoutInstructions, CheckoutResult, CheckoutUi, CheckoutBranding, StripeCheckoutPanelProps } from "./StripeCheckout";
 export { ApiError, errorFromResponse, networkError, friendlyMessage, isAuthError, isNotFoundError, reportApiError } from "./apiError";
 export { ErrorState, ErrorNote, RouteErrorBoundary } from "./ErrorState";
 export type { ErrorStateProps, ErrorNoteProps } from "./ErrorState";

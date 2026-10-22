@@ -74,17 +74,20 @@ A root-level `frontend/.env` file (modelled on `frontend/.env.example`) applies 
 
 ### Stripe Connect payments
 
-To enable Connect onboarding and checkout, configure the backend with `STRIPE_SECRET_KEY` and
-`STRIPE_WEBHOOK_SECRET`. Set `PAYMENTS_ADMIN_APP_URL`, `PAYMENTS_DASHBOARD_APP_URL`,
-`PAYMENTS_BOOKING_APP_URL`, `PAYMENTS_WEBSITE_APP_URL` (optional), and `SALON_DOMAIN` to the
-deployed frontend origins. Register a Connect webhook at `/api/payments/stripe/webhook` for
-connected-account `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-`checkout.session.async_payment_failed`, and `checkout.session.expired` events. For local work,
-forward Stripe CLI Connect events to `http://localhost:8080/api/payments/stripe/webhook` and use
-the CLI-provided signing secret as `STRIPE_WEBHOOK_SECRET`.
+To enable Connect onboarding and checkout, configure the backend with `STRIPE_SECRET_KEY`,
+`STRIPE_WEBHOOK_SECRET` and `STRIPE_PUBLISHABLE_KEY` (the publishable key enables the in-page checkout
+styles and Stripe's embedded account screens; without it every area uses the redirect checkout). Set
+`PAYMENTS_ADMIN_APP_URL`, `PAYMENTS_DASHBOARD_APP_URL`, `PAYMENTS_BOOKING_APP_URL`,
+`PAYMENTS_WEBSITE_APP_URL` (optional), and `SALON_DOMAIN` to the deployed frontend origins. Register a
+Connect webhook at `/api/payments/stripe/webhook` for the events listed in
+[wiki/stripe-connect.md](wiki/stripe-connect.md) (checkout sessions, payment intents, terminal reader
+failures and refunds). For local work, forward Stripe CLI Connect events to
+`http://localhost:8080/api/payments/stripe/webhook` and use the CLI-provided signing secret as
+`STRIPE_WEBHOOK_SECRET`.
 
-Till / POS card payments currently use Stripe Checkout in the browser; accepting physical
-card-present taps through Stripe Terminal readers is a separate hardware integration.
+Card readers work in test mode without hardware: in **Admin → Payments → Card readers** add a reader
+with the code `simulated-wpe`, then take a card payment on it from the desk and use *Test mode: tap a
+test card*.
 
 ## Port summary
 

@@ -208,6 +208,7 @@ module "backend" {
           PAYMENTS_ADMIN_APP_URL                                    = "https://${local.frontend_hostnames["admin-web"]}"
           PAYMENTS_DASHBOARD_APP_URL                                = "https://${local.frontend_hostnames["dashboard-web"]}"
           PAYMENTS_BOOKING_APP_URL                                  = "https://${local.frontend_hostnames["booking-web"]}"
+          STRIPE_PUBLISHABLE_KEY                                    = var.stripe_publishable_key
           SPRING_SQL_INIT_MODE                                      = "never"
           SPRING_MODULITH_EVENTS_JDBC_SCHEMA_INITIALIZATION_ENABLED = "false"
           SPRING_FLYWAY_ENABLED                                     = "true"

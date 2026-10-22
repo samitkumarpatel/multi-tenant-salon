@@ -95,6 +95,11 @@ class SalonDeskAccessIntegrationTest {
             get("/membership/plans", token).expectStatus().isOk();
             // Passes security; there is simply no member with that code.
             get("/membership/verify?code=NOPE", token).expectStatus().isNotFound();
+            // Card readers: the desk picks one and follows the payment on it.
+            get("/payments/terminals", token).expectStatus().isOk();
+            get("/payments/terminal-payments/999999", token).expectStatus().isNotFound();
+            client.post().uri("/api/salon-admin/" + salonId + "/payments/terminal-payments/999999/cancel")
+                    .header("Authorization", token).exchange().expectStatus().isNotFound();
 
             // Owner-only: salon settings, staff management, membership admin.
             client.put().uri("/api/salon-admin/" + salonId).header("Authorization", token)
@@ -105,6 +110,14 @@ class SalonDeskAccessIntegrationTest {
                     .exchange().expectStatus().isForbidden();
             get("/membership/overview", token).expectStatus().isForbidden();
             get("/membership/subscriptions", token).expectStatus().isForbidden();
+            // Registering readers, payment settings, transactions and refunds stay with the owner.
+            client.post().uri("/api/salon-admin/" + salonId + "/payments/terminals").header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+            get("/payments/transactions", token).expectStatus().isForbidden();
+            client.post().uri("/api/salon-admin/" + salonId + "/payments/transactions/1/refunds").header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+            client.post().uri("/api/salon-admin/" + salonId + "/payments/stripe/account-session").header("Authorization", token)
+                    .exchange().expectStatus().isForbidden();
             client.put().uri("/api/salon-admin/" + salonId + "/dashboard/settings").header("Authorization", token)
                     .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
         }

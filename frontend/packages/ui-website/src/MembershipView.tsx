@@ -2,6 +2,7 @@ import { useI18n } from "@salon/i18n";
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, BadgeCheck, Check, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
+import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { friendlyMessage } from "./apiError";
 import { formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -292,6 +293,7 @@ function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClo
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ringStyle = { ["--tw-ring-color" as string]: `${theme.accentColor}33` };
   const inputCls = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm outline-none transition bg-white text-slate-900 focus:ring-2 placeholder:text-slate-300";
@@ -310,19 +312,22 @@ function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClo
     setBusy(true);
     setError(null);
     try {
-      const result = await apiFetch<{ subscriptionId: number; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/membership/checkout`, {
+      const result = await apiFetch<{ subscriptionId: number } & CheckoutResult>(`${API_BASE}/api/salon/${salon.id}/membership/checkout`, {
         method: "POST",
         body: JSON.stringify({
           planId: plan.id, customerName: name.trim(), customerEmail: email.trim(),
-          customerPhone: phone.trim() || null, returnUrl: window.location.href,
+          customerPhone: phone.trim() || null, returnUrl: window.location.href, inlineCheckout: true,
         }),
       });
-      window.location.assign(result.checkoutUrl);
+      const inline = beginCheckout(result);
+      if (inline) setInlineCheckout(inline);
     } catch (err) {
       setError(friendlyMessage(err));
       setBusy(false);
     }
   }
+
+  if (inlineCheckout) return <StripeCheckoutPanel checkout={inlineCheckout} title={plan.name} customerEmail={email.trim()} />;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm sm:p-4"
@@ -406,6 +411,7 @@ function RenewPanel({ salon, token, theme, text, sub, cardBg, cardBorder, accent
   const [renewal, setRenewal] = useState<MembershipRenewal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -419,10 +425,11 @@ function RenewPanel({ salon, token, theme, text, sub, cardBg, cardBorder, accent
     setBusy(true);
     setError(null);
     try {
-      const result = await apiFetch<{ checkoutUrl: string }>(
+      const result = await apiFetch<CheckoutResult>(
         `${API_BASE}/api/salon/${salon.id}/membership/renewals/${encodeURIComponent(token)}/checkout`,
-        { method: "POST", body: JSON.stringify({ returnUrl: window.location.href }) });
-      window.location.assign(result.checkoutUrl);
+        { method: "POST", body: JSON.stringify({ returnUrl: window.location.href, inlineCheckout: true }) });
+      const inline = beginCheckout(result);
+      if (inline) setInlineCheckout(inline);
     } catch (err) {
       setError(friendlyMessage(err));
       setBusy(false);
@@ -439,6 +446,7 @@ function RenewPanel({ salon, token, theme, text, sub, cardBg, cardBorder, accent
 
   return (
     <div className="max-w-md mx-auto px-6 py-16">
+      {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={renewal?.planName} />}
       <div className="rounded-2xl p-6" style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}>
         <p className="text-xs font-bold uppercase tracking-[0.2em] mb-2" style={{ color: theme.accentColor }}>{translateUi("Renew membership")}</p>
         {!renewal && !error && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" style={{ color: sub }} /></div>}

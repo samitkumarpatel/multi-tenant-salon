@@ -526,14 +526,15 @@ rather than deriving it. `slots` is `null` unless `granularity=SLOT`; each entry
 | `startTime` | time | yes | |
 | `notes` | string | no | |
 | `returnUrl` | string | no | Page Stripe Checkout returns to (send `window.location.href`). Honoured only for this salon's `<handler>.salonsaas.org`, its **active custom domain**, or the configured booking/website app; otherwise the booking app page is used. |
+| `inlineCheckout` | boolean | no | The client can show Stripe's form in its page — then the salon's checkout style for bookings applies (see *Admin — Payments → Checkout styles*). |
 
 **Response** `201 Created` — booking object. Initial `status` depends on the salon setting:
 - `bookingRequiresConfirmation = false` (default) → `CONFIRMED`
 - `bookingRequiresConfirmation = true` → `PENDING` (admin must confirm)
 
 **Response** `200 OK` — only when the salon has **Stripe booking payments** enabled:
-`{ "booking": { …, "status": "PENDING", "paymentStatus": "PENDING" }, "checkoutUrl": "https://checkout.stripe.com/…" }`.
-Redirect to `checkoutUrl`; the Connect webhook sets `paymentStatus` to `PAID` (status → `CONFIRMED`, or
+`{ "booking": { …, "status": "PENDING", "paymentStatus": "PENDING" }, "checkoutUrl": "https://checkout.stripe.com/…", "checkout": { "ui": "REDIRECT", … } }`.
+Redirect to `checkoutUrl` (or, for an in-page checkout style, mount Stripe's form from `checkout`); the Connect webhook sets `paymentStatus` to `PAID` (status → `CONFIRMED`, or
 `PENDING` if confirmation is required) or `FAILED` (status → `CANCELLED`). The charge is the full
 service price or the configured deposit percentage. If Checkout creation fails the booking is deleted.
 
@@ -2282,7 +2283,8 @@ lines, then completes a **dummy payment** — the returned order is already `PAI
 
 **Stripe shop payments** — when the salon has shop payments enabled the order is created with
 `paymentStatus: "PENDING"` (no OrderPlacedEvent yet) and the `201` body is
-`{ "order": { … }, "checkoutUrl": "https://checkout.stripe.com/…" }`. Send `returnUrl`
+`{ "order": { … }, "checkoutUrl": "https://checkout.stripe.com/…", "checkout": { … } }` (send `inlineCheckout: true`
+to get the salon's in-page form when it chose one — see *Checkout styles*). Send `returnUrl`
 (`window.location.href`) so Stripe returns to the page the shopper is on — including a connected
 custom domain — with `?payment=success|cancel&reference=<orderId>&session_id=…`. `returnUrl` is honoured
 only for the salon's own hosts (see *Create a booking*). The Connect webhook marks the order `PAID`
@@ -2488,7 +2490,8 @@ payments off, or the account can't charge yet), show the plans with a "contact t
 { "planId": 3, "customerName": "Ann Member", "customerEmail": "ann@example.com", "customerPhone": null, "returnUrl": "https://glow.salonsaas.org/membership" }
 ```
 
-**Response** `201 Created` — `{ "subscriptionId": 42, "checkoutUrl": "https://checkout.stripe.com/…" }`.
+**Response** `201 Created` — `{ "subscriptionId": 42, "checkoutUrl": "https://checkout.stripe.com/…", "checkout": { … } }`
+(`inlineCheckout: true` in the request lets the salon's in-page checkout style apply).
 This creates a `PENDING_PAYMENT` membership and a `PENDING` sign-up payment (one period's price plus the
 sign-up fee). The Checkout's `payment_reference` is that payment's id, the same way a shop order's id is
 used. Redirect to `checkoutUrl`. Stripe returns the visitor to `returnUrl` (only if it belongs to the
@@ -2506,7 +2509,7 @@ The reminder links to the website's `/membership?renew=<renewalToken>`, which us
 | Method & path | Purpose |
 |---|---|
 | `GET /api/salon/{salonId}/membership/renewals/{token}` | `{ subscriptionId, planName, firstName, price, currency, billingInterval, status, currentPeriodEnd, cancelAtPeriodEnd, canRenewNow, onlinePayment }` |
-| `POST /api/salon/{salonId}/membership/renewals/{token}/checkout` | `{ returnUrl? }` → `201 { subscriptionId, checkoutUrl }`. A `RENEWAL` payment of the member's own price and a one-time Checkout. Once paid, the new period starts where the current one ends (or now, if expired), and a scheduled cancellation is cleared. `409` for cancelled/never-paid memberships, or more than 31 days before the end |
+| `POST /api/salon/{salonId}/membership/renewals/{token}/checkout` | `{ returnUrl?, inlineCheckout? }` → `201 { subscriptionId, checkoutUrl, checkout }` (see *Checkout styles*). A `RENEWAL` payment of the member's own price and a one-time Checkout. Once paid, the new period starts where the current one ends (or now, if expired), and a scheduled cancellation is cleared. `409` for cancelled/never-paid memberships, or more than 31 days before the end |
 
 A job (`spring.application.membership.renewal-cron`, default every 15 min) emails the renewal link
 `renewal-reminder-days` (default 7) days before the end, once per period. When a period runs out it
@@ -2534,7 +2537,7 @@ Owner-only, under `/api/salon-admin/{salonId}/membership`.
 | `POST /subscriptions/{id}/send-renewal-link` | Email the renewal link now (active or expired, not cancelling) |
 | `POST /subscriptions/{id}/notes` | `{ note }` — staff note on the timeline |
 | `POST /subscriptions/{id}/resend-welcome` | Email the QR code again (active members only) |
-| `POST /desk-sales` | Sell at the salon desk — `{ planId, customerName, customerEmail, customerPhone?, paymentMethod: CASH\|CARD\|OTHER, returnUrl? }` → `201 { subscriptionId, checkoutUrl }`. Same capacity/duplicate rules as online sign-up, `source: ADMIN`. `CASH`/`OTHER` activate the membership now and queue the QR email (`checkoutUrl` null); `CARD` returns a one-time Stripe Checkout (membership payments must be enabled, else `409`) that comes back to `returnUrl` — the desk app's origin is allowed |
+| `POST /desk-sales` | Sell at the salon desk — `{ planId, customerName, customerEmail, customerPhone?, paymentMethod: CASH\|CARD\|OTHER, returnUrl?, terminalId?, inlineCheckout? }` → `201 { subscriptionId, checkoutUrl, checkout, terminalPayment }`. Same capacity/duplicate rules as online sign-up, `source: ADMIN`. `CASH`/`OTHER` activate the membership now and queue the QR email (`checkoutUrl` null); `CARD` with `terminalId` takes the payment on that card reader (`terminalPayment`; follow it under `/payments/terminal-payments/{paymentId}`), otherwise returns a one-time Stripe Checkout (membership payments must be enabled, else `409`) that comes back to `returnUrl` — the desk app's origin is allowed |
 | `GET /verify?code=` | Check-in lookup by the code in the QR (case and separators ignored) → member detail, or `404` |
 | `GET /overview` | Active / expired / pending counts, new & cancelled this month, renewals due in 7 / 30 days, monthly recurring revenue and money collected this month (per currency), per-plan breakdown, next renewals, latest activity |
 
@@ -2547,24 +2550,60 @@ not built yet.
 
 ## Admin — Payments (Stripe Connect)
 
-Owner-only, under `/api/salon-admin/{salonId}`. Stripe is configured server-side with
-`STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`; without both, `configured` is `false` and onboarding
-returns `503`.
+Under `/api/salon-admin/{salonId}`; owner-only unless marked **desk** (also allowed for the salon's active
+staff through `SalonDeskAccess`). Stripe is configured server-side with `STRIPE_SECRET_KEY` +
+`STRIPE_WEBHOOK_SECRET` (without both, `configured` is `false` and onboarding returns `503`) and
+`STRIPE_PUBLISHABLE_KEY` (needed for the in-page checkout styles and Stripe's embedded account components).
 
 | Method & path | Purpose |
 |---|---|
-| `GET /payments/stripe` | `{ stripe: { account, settings, configured, testMode, onboarding: { stage, requirements[] } } }` — `stage` is `NOT_STARTED` / `ACTION_REQUIRED` / `IN_REVIEW` / `READY`; `requirements` lists Stripe's currently/past-due items (`description`, `awaitingActionFrom: user\|stripe`, `deadline`); `testMode` is true on a sandbox key. Also refreshes the Accounts v2 account's `detailsSubmitted` (nothing currently/past due) / `chargesEnabled` (`card_payments` active) / `payoutsEnabled` (`stripe_balance.payouts` active) from Stripe |
-| `POST /payments/stripe/onboarding-link` | Creates the salon's Accounts v2 merchant account on first call (`dashboard: full`, Stripe collects fees and carries losses; country from the salon location — `409` if missing) and returns `{ url }` (single-use v2 Account Link). Stripe errors come back as `502` with Stripe's message in the reason. Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
-| `PUT /payments/settings` | `{ shopEnabled, bookingEnabled, posEnabled, membershipEnabled, bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }`. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) is off or no Stripe account is connected yet. Areas may be selected before onboarding finishes; they only take effect once Stripe activates card payments (`chargesEnabled`) |
-| `POST /dashboard/sales/card-checkout` | Till / POS card sale — same body as `POST /dashboard/sales`; returns `{ sale, checkoutUrl }` with the sale `PENDING`. Returns to the dashboard cashier view |
+| `GET /payments/stripe` | **desk** — `{ stripe: { account, settings, configured, testMode, inlineCheckoutAvailable, publishableKey, onboarding: { stage, requirements[] } } }` — `stage` is `NOT_STARTED` / `ACTION_REQUIRED` / `IN_REVIEW` / `READY`; `requirements` lists Stripe's currently/past-due items (`description`, `awaitingActionFrom: user\|stripe`, `deadline`); `testMode` is true on a sandbox key; `inlineCheckoutAvailable` when the publishable key is set. Also refreshes the Accounts v2 account's `detailsSubmitted` / `chargesEnabled` / `payoutsEnabled` from Stripe |
+| `POST /payments/stripe/onboarding-link` | Creates the salon's Accounts v2 merchant account on first call (`dashboard: full`, Stripe collects fees and carries losses; country from the salon location — `409` if missing) and returns `{ url }` (single-use v2 Account Link) — the fallback when the embedded onboarding isn't available. Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
+| `POST /payments/stripe/account-session` | `{ clientSecret, publishableKey, stripeAccountId }` for Connect.js — creates the account first if needed. Enables the embedded `account_onboarding`, `account_management`, `notification_banner`, `payments` (refunds, disputes, capture) and `payouts` components, so onboarding, payouts, payments and disputes are handled inside the admin app. The account has full Stripe Dashboard access, so Stripe may ask the owner to confirm their Stripe login inside a component |
+| `PUT /payments/settings` | `{ areas: [{ area: SHOP\|BOOKING\|POS\|MEMBERSHIP, enabled, checkoutUi: REDIRECT\|EMBEDDED\|ELEMENTS }], bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }` → the saved settings (`areas` always lists all four). Areas left out keep their setting. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) is off, no Stripe account exists yet, or an in-page style is chosen without the publishable key. Areas may be selected before onboarding finishes; they only take effect once Stripe activates card payments |
+| `GET /payments/transactions?area=&limit=` | The payment ledger: every checkout and card-reader payment, newest first (`status` `PENDING` / `SUCCEEDED` / `FAILED` / `CANCELED` / `PARTIALLY_REFUNDED` / `REFUNDED`, `amountRefunded`, `channel` `CHECKOUT` / `TERMINAL`, `checkoutUi`, Stripe ids) |
+| `GET /payments/transactions/{paymentId}` | `{ payment, refunds[] }` |
+| `POST /payments/transactions/{paymentId}/refunds` | `{ amount?, reason? }` → `201` refund. Refunds to the customer's card on the salon's Stripe account; `amount` omitted = all that's left. `409` above the remaining amount or for a payment that didn't complete. A refund Stripe later fails is given back to the refundable balance |
+| `GET /payments/terminals?refresh=` | **desk** — card readers (`id`, `label`, `deviceType`, `serialNumber`, `status` online/offline). `refresh=true` re-reads status from Stripe |
+| `POST /payments/terminals` | `{ registrationCode, label? }` → `201` reader. Registers a Stripe Terminal reader by its pairing code (`simulated-wpe` in test mode gives a simulated reader). The first reader creates the salon's Terminal Location from the salon address (`409` if street, city or postal code is missing). Needs the Dashboard feature |
+| `PUT /payments/terminals/{terminalId}` / `DELETE …` | Rename (`{ label }`) / remove a reader (also at Stripe) |
+| `GET /payments/terminal-payments/{paymentId}?refresh=` | **desk** — follow a card-reader payment (`PaymentGateway.TerminalPayment`: `status` `PENDING` / `SUCCEEDED` / `FAILED` / `CANCELED`, `failureMessage` e.g. a decline). Asks Stripe directly when the stored state is stale or `refresh=true` |
+| `POST /payments/terminal-payments/{paymentId}/cancel` | **desk** — stop the reader and cancel; the sale / membership payment fails. `409` while the card is being authorised |
+| `POST /payments/terminal-payments/{paymentId}/retry` | **desk** — `{ terminalId? }` sends the open payment to a reader again (after a decline, or to another reader) |
+| `POST /payments/terminal-payments/{paymentId}/simulate` | **desk**, Stripe test mode only — `{ cardNumber? }` taps a test card on a simulated reader |
+| `POST /dashboard/sales/card-checkout` | **desk** — Till / POS card sale with an online form: same body as `POST /dashboard/sales` plus `inlineCheckout?`; returns `{ sale, checkoutUrl, checkout }` with the sale `PENDING`. Returns to the dashboard cashier view |
+| `POST /dashboard/sales/terminal-checkout` | **desk** — Till / POS card sale on a reader: same body plus `terminalId`; returns `{ sale, terminalPayment }`. The sale is committed first, then sent to the reader |
+
+### Checkout styles
+
+Every endpoint that starts an online payment (shop order, customer booking, membership sign-up/renewal,
+desk card sale) accepts `inlineCheckout: true` from clients that can show Stripe's form in their own page,
+and returns `{ …, checkoutUrl, checkout }` where `checkout` is `PaymentGateway.Checkout`:
+
+| `checkout.ui` | What the client does |
+|---|---|
+| `REDIRECT` | Open `url` (also in `checkoutUrl`). Stripe's hosted page carries the salon's name and website colours (`branding_settings`) |
+| `EMBEDDED` | `loadStripe(publishableKey, { stripeAccount: stripeAccountId })` → `createEmbeddedCheckoutPage({ fetchClientSecret })` with `clientSecret` (Stripe.js Dahlia, `@stripe/stripe-js@9`) |
+| `ELEMENTS` | `initCheckoutElementsSdk({ clientSecret, elementsOptions: { appearance } })` + Payment Element, styled from `checkout.branding` (website accent colour and font) |
+
+Stripe sends the customer to `returnUrl` once paid and leaving the form goes to `cancelUrl` — the same
+`?payment=success|cancel&reference=…&session_id=…` pages as the redirect checkout, so return handling is
+unchanged. Without `inlineCheckout` (MCP apps, the chat tools, older clients) the response is always a
+redirect `checkoutUrl`, whatever the salon chose. `ui/StripeCheckout.tsx` in `@salon/ui-website`
+(`beginCheckout` + `StripeCheckoutPanel`) implements the client side.
 
 ### Stripe webhook
 
 `POST /api/payments/stripe/webhook` — public, verified via the `Stripe-Signature` header (5-minute
 tolerance). Register as a **Connect** endpoint (events on connected accounts) for
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-`checkout.session.async_payment_failed`, `checkout.session.expired`. It publishes `StripePaymentEvent`,
-consumed by the shop, booking, dashboard and membership modules. Handlers are idempotent (only `PENDING` rows move).
+`checkout.session.async_payment_failed`, `checkout.session.expired`, `payment_intent.succeeded`,
+`payment_intent.payment_failed`, `payment_intent.canceled`, `terminal.reader.action_failed`,
+`refund.created`, `refund.updated`, `refund.failed` and `charge.refund.updated`. Checkout and card-reader
+outcomes publish `StripePaymentEvent` (consumed by the shop, booking, dashboard and membership modules —
+handlers are idempotent, only `PENDING` rows move) and settle the payment ledger; a card-reader payment is
+reported exactly once (conditional ledger update), and a declined card keeps it open for a retry. Refund
+events keep the ledger's refunded amounts in step, including refunds made in Stripe's embedded payments component.
 
 ---
 

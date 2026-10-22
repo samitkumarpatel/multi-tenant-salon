@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Public, anonymous membership catalogue, sign-up and renewal — {@code /api/salon/{salonId}/membership/**},
  * covered by the security config's {@code /api/salon/**} permit-all rule. Only plans on sale are
- * shown, and only for salons with the MEMBERSHIP feature. Sign-up and renewal each return a one-time
- * Stripe Checkout URL, as the shop's checkout does; the period starts (and the QR email goes out)
+ * shown, and only for salons with the MEMBERSHIP feature. Sign-up and renewal each start a one-time
+ * Stripe Checkout (a URL, or an in-page form when the website asks for one), as the shop's checkout does; the period starts (and the QR email goes out)
  * when Stripe confirms the payment. The renewal token in the reminder email is the only credential.
  */
 @RestController
@@ -44,7 +44,7 @@ class MembershipPublicController {
         return memberships.startCheckout(salonApi.resolveId(salonId), spec);
     }
 
-    record RenewalRequest(String returnUrl) {}
+    record RenewalRequest(String returnUrl, Boolean inlineCheckout) {}
 
     @GetMapping("/renewals/{token}")
     RenewalView renewal(@PathVariable String salonId, @PathVariable String token) {
@@ -55,6 +55,7 @@ class MembershipPublicController {
     @ResponseStatus(HttpStatus.CREATED)
     CheckoutResult renew(@PathVariable String salonId, @PathVariable String token,
                          @RequestBody(required = false) RenewalRequest req) {
-        return memberships.startRenewal(salonApi.resolveId(salonId), token, req == null ? null : req.returnUrl());
+        return memberships.startRenewal(salonApi.resolveId(salonId), token, req == null ? null : req.returnUrl(),
+                req != null && Boolean.TRUE.equals(req.inlineCheckout()));
     }
 }

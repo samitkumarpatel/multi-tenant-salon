@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { StaffSpotlight, StaffRating } from "./StaffMedia";
 import { apiFetch, API_BASE } from "./api";
+import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
@@ -1667,6 +1668,7 @@ export function BookingWizard({
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   const [paymentReturned, setPaymentReturned] = useState(false);
 
   useEffect(() => {
@@ -1740,7 +1742,7 @@ export function BookingWizard({
     setBusy(true);
     setError(null);
     try {
-      const result = await apiFetch<Booking | { booking: Booking; checkoutUrl: string }>(`${CUSTOMER_API}/${salon.id}/booking`, {
+      const result = await apiFetch<Booking | ({ booking: Booking } & CheckoutResult)>(`${CUSTOMER_API}/${salon.id}/booking`, {
         method: "POST",
         body: JSON.stringify({
           serviceId: service.id,
@@ -1753,12 +1755,14 @@ export function BookingWizard({
           notes: form.notes || null,
           // Stripe returns here (same origin) so the pending-booking hand-off in sessionStorage survives.
           returnUrl: window.location.href,
+          inlineCheckout: true,
         }),
       });
       const booking = "booking" in result ? result.booking : result;
-      if ("checkoutUrl" in result && result.checkoutUrl) {
+      if ("booking" in result && (result.checkoutUrl || result.checkout)) {
         window.sessionStorage.setItem(`booking-payment:${salon.id}`, JSON.stringify(booking));
-        window.location.assign(result.checkoutUrl);
+        const inline = beginCheckout(result);
+        if (inline) setInlineCheckout(inline);
         return;
       }
       setConfirmed(booking);
@@ -1781,6 +1785,8 @@ export function BookingWizard({
 
   return (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStackCss }}>
+      {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={service ? service.name : undefined}
+                                              customerEmail={form.email || null} />}
       {/* Accent ribbon */}
       <div className="h-1 shrink-0" style={{ background: `linear-gradient(90deg, ${accent.color}, ${accent.color}88)` }} />
       {paymentReturned && !confirmed && <div className="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm text-green-800">{translateUi("Payment received. Your appointment is being confirmed by the salon.")}</div>}

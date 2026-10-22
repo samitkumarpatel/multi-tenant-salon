@@ -92,11 +92,16 @@ class MembershipManager {
                     MembershipPlan.Status status, List<String> perks,
                     List<MembershipPlan.IncludedService> includedServices) {}
 
-    record CheckoutSpec(Long planId, String customerName, String customerEmail, String customerPhone, String returnUrl) {}
+    /** {@code inlineCheckout}: the website can show Stripe's form in the page (see {@link PaymentGateway.CheckoutRequest}). */
+    record CheckoutSpec(Long planId, String customerName, String customerEmail, String customerPhone, String returnUrl,
+                        Boolean inlineCheckout) {}
 
-    /** A sign-up taken at the salon desk; {@code returnUrl} is only used for {@code CARD}. */
+    /**
+     * A sign-up taken at the salon desk. For {@code CARD}, {@code terminalId} sends the payment to one of the
+     * salon's card readers; without it the desk opens a checkout ({@code returnUrl}, {@code inlineCheckout}).
+     */
     record DeskSaleSpec(Long planId, String customerName, String customerEmail, String customerPhone,
-                        MembershipPayment.Method paymentMethod, String returnUrl) {}
+                        MembershipPayment.Method paymentMethod, String returnUrl, Long terminalId, Boolean inlineCheckout) {}
 
     record SubscriptionFilter(MembershipSubscription.Status status, Long planId, String q) {}
 
@@ -266,14 +271,15 @@ class MembershipManager {
             activity(s.sub(), MembershipActivity.Type.CHECKOUT_STARTED, customer.name() + " started checkout for " + s.sub().planName(), "customer");
             return s;
         });
-        var url = checkout(salon, started.sub(), started.payment(), spec.returnUrl());
-        return new CheckoutResult(started.sub().id(), url);
+        return CheckoutResult.of(started.sub().id(),
+                checkout(salon, started.sub(), started.payment(), spec.returnUrl(), Boolean.TRUE.equals(spec.inlineCheckout())));
     }
 
     /**
-     * A sign-up taken at the salon desk. {@code CARD} is the same one-time Stripe Checkout as online
-     * sign-up, opened on the desk and returning there; {@code CASH}/{@code OTHER} are paid on the spot,
-     * so the membership is active (and the QR email queued) before this returns, with no checkout URL.
+     * A sign-up taken at the salon desk. {@code CARD} is either a card reader payment ({@code terminalId}) or
+     * the same one-time Stripe Checkout as online sign-up, opened on the desk and returning there; both settle
+     * through the {@code StripePaymentEvent}. {@code CASH}/{@code OTHER} are paid on the spot, so the membership
+     * is active (and the QR email queued) before this returns, with no checkout.
      */
     CheckoutResult sellAtDesk(UUID salonId, DeskSaleSpec spec) {
         var salon = requireMembershipSalon(salonId);
@@ -285,13 +291,19 @@ class MembershipManager {
         var started = tx.execute(status -> {
             var s = signUp(salonId, spec.planId(), customer, MembershipSubscription.Source.ADMIN, spec.paymentMethod());
             if (card) {
-                activity(s.sub(), MembershipActivity.Type.CHECKOUT_STARTED, "Card checkout started at the desk for " + customer.name(), DESK);
+                activity(s.sub(), MembershipActivity.Type.CHECKOUT_STARTED, (spec.terminalId() == null
+                        ? "Card checkout started at the desk for " : "Card reader payment started at the desk for ") + customer.name(), DESK);
             } else {
                 settle(s.payment(), s.sub(), null, DESK);
             }
             return s;
         });
-        return new CheckoutResult(started.sub().id(), card ? checkout(salon, started.sub(), started.payment(), spec.returnUrl()) : null);
+        if (!card) return CheckoutResult.of(started.sub().id(), null);
+        if (spec.terminalId() != null) {
+            return new CheckoutResult(started.sub().id(), null, null, onTerminal(salon, started.sub(), started.payment(), spec.terminalId()));
+        }
+        return CheckoutResult.of(started.sub().id(),
+                checkout(salon, started.sub(), started.payment(), spec.returnUrl(), Boolean.TRUE.equals(spec.inlineCheckout())));
     }
 
     private record Customer(String name, String email, String phone) {}
@@ -348,7 +360,7 @@ class MembershipManager {
     }
 
     /** Pays for the next period: a {@code RENEWAL} payment and a one-time checkout, like sign-up. */
-    CheckoutResult startRenewal(UUID salonId, String token, String returnUrl) {
+    CheckoutResult startRenewal(UUID salonId, String token, String returnUrl, boolean inlineCheckout) {
         var salon = requireMembershipSalon(salonId);
         requireOnlinePayment(salonId);
         var sub = byToken(salonId, token);
@@ -363,13 +375,25 @@ class MembershipManager {
             activity(sub, MembershipActivity.Type.RENEWAL_STARTED, sub.customerName() + " started a renewal checkout", "customer");
             return p;
         });
-        return new CheckoutResult(sub.id(), checkout(salon, sub, payment, returnUrl));
+        return CheckoutResult.of(sub.id(), checkout(salon, sub, payment, returnUrl, inlineCheckout));
     }
 
-    private String checkout(Salon salon, MembershipSubscription sub, MembershipPayment payment, String returnUrl) {
+    private PaymentGateway.Checkout checkout(Salon salon, MembershipSubscription sub, MembershipPayment payment,
+                                             String returnUrl, boolean inlineCheckout) {
         try {
-            return gateway.createCheckout(salon.id(), PAYMENT_AREA, String.valueOf(payment.id()), payment.amount(),
-                    payment.currency(), sub.planName() + " membership — " + salon.name(), returnUrl);
+            return gateway.createCheckout(salon.id(), new PaymentGateway.CheckoutRequest(PAYMENT_AREA, String.valueOf(payment.id()),
+                    payment.amount(), payment.currency(), sub.planName() + " membership — " + salon.name(), returnUrl,
+                    sub.customerEmail(), inlineCheckout));
+        } catch (RuntimeException e) {
+            tx.executeWithoutResult(status -> recordStripePayment(salon.id(), payment.id(), "checkout-creation-failed", false));
+            throw e;
+        }
+    }
+
+    private PaymentGateway.TerminalPayment onTerminal(Salon salon, MembershipSubscription sub, MembershipPayment payment, Long terminalId) {
+        try {
+            return gateway.collectOnTerminal(salon.id(), PAYMENT_AREA, String.valueOf(payment.id()), payment.amount(),
+                    payment.currency(), sub.planName() + " membership — " + sub.customerName(), terminalId);
         } catch (RuntimeException e) {
             tx.executeWithoutResult(status -> recordStripePayment(salon.id(), payment.id(), "checkout-creation-failed", false));
             throw e;

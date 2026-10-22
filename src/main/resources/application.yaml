@@ -51,6 +51,9 @@ spring:
     payments:
       stripe-secret-key: ${STRIPE_SECRET_KEY:}
       stripe-webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+      # Platform publishable key: lets the website/desk render Stripe's embedded or branded payment form
+      # on the salon's connected account. Without it every area falls back to the redirect checkout.
+      stripe-publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
       admin-app-url: ${PAYMENTS_ADMIN_APP_URL:https://admin.salonsaas.org}
       dashboard-app-url: ${PAYMENTS_DASHBOARD_APP_URL:https://dashboard.salonsaas.org}
       booking-app-url: ${PAYMENTS_BOOKING_APP_URL:https://book.salonsaas.org}
@@ -149,6 +152,8 @@ spring:
         - classpath:db/V17__location_maps_url.sql
         - classpath:db/V18__membership.sql
         - classpath:db/V19__membership_desk_sales.sql
+        - classpath:db/V20__payment_areas_and_ledger.sql
+        - classpath:db/V21__payment_terminals.sql
   modulith:
     events:
       jdbc:

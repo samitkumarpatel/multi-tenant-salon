@@ -38,7 +38,12 @@ public class SalonDeskAccess {
             rule(HttpMethod.GET, "/dashboard/sales"),
             rule(HttpMethod.POST, "/dashboard/sales"),
             rule(HttpMethod.POST, "/dashboard/sales/card-checkout"),
+            rule(HttpMethod.POST, "/dashboard/sales/terminal-checkout"),
             rule(HttpMethod.GET, "/payments/stripe"),
+            // card readers: pick one, follow / retry / cancel the payment on it (registering stays owner-only)
+            rule(HttpMethod.GET, "/payments/terminals"),
+            rule(HttpMethod.GET, "/payments/terminal-payments/{paymentId}"),
+            rule(HttpMethod.POST, "/payments/terminal-payments/{paymentId}/{action:cancel|retry|simulate}"),
             // appointments
             rule(HttpMethod.GET, "/booking"),
             rule(HttpMethod.GET, "/booking/slots"),

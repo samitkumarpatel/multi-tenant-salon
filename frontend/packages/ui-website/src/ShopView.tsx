@@ -4,6 +4,7 @@ import {
   ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Loader2, Minus, Plus, Search, ShoppingBag, SlidersHorizontal, Trash2, User, X,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
+import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { friendlyMessage } from "./apiError";
 import { DEFAULT_PRODUCT_EMOJI, formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
@@ -1295,6 +1296,7 @@ function CheckoutForm({
   });
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   // touched: set per-field on blur, or all at once when the customer tries to pay
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [attempted, setAttempted] = useState(false);
@@ -1380,7 +1382,7 @@ function CheckoutForm({
         line1: f.line1.trim() || undefined, line2: f.line2.trim() || undefined, city: f.city.trim() || undefined,
         state: f.state.trim() || undefined, country: f.country || undefined, zipCode: f.zipCode.trim() || undefined,
       } : null;
-      const result = await apiFetch<ShopOrder | { order: ShopOrder; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/shop/orders`, {
+      const result = await apiFetch<ShopOrder | ({ order: ShopOrder } & CheckoutResult)>(`${API_BASE}/api/salon/${salon.id}/shop/orders`, {
         method: "POST",
         body: JSON.stringify({
           customerName: f.customerName.trim(),
@@ -1392,13 +1394,17 @@ function CheckoutForm({
           communicationPreference: f.communicationPreference,
           // Stripe returns here (same origin) so the pending-order hand-off in sessionStorage survives.
           returnUrl: window.location.href,
+          // This page can show the salon's in-page payment form when the salon chose one.
+          inlineCheckout: true,
         }),
       });
       const order = "order" in result ? result.order : result;
-      if ("checkoutUrl" in result && result.checkoutUrl) {
+      if ("order" in result && (result.checkoutUrl || result.checkout)) {
         window.sessionStorage.setItem(`shop-pending-order:${salon.id}`, JSON.stringify(order));
-        window.location.assign(result.checkoutUrl);
-        return; // stay busy — the page is navigating to Stripe
+        const inline = beginCheckout(result);
+        if (!inline) return; // stay busy — the page is navigating to Stripe
+        setInlineCheckout(inline);
+        return;
       }
       onPlaced(order);
     } catch (e) {
@@ -1464,6 +1470,8 @@ function CheckoutForm({
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+      {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={translateUi("Pay for your order")}
+                                              customerEmail={f.customerEmail.trim() || null} />}
       <button type="button" onClick={onCancel} className="text-xs font-semibold mb-5 inline-flex items-center gap-1.5 cursor-pointer" style={{ color: sub }}>
         <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("Back to shop ")}</button>
       <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-6" style={{ color: theme.heroTextColor }}>

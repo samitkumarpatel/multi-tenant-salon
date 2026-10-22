@@ -1,7 +1,9 @@
 package net.samitkumar.multi_tenant_salon.payments.internal;
 
 import net.samitkumar.multi_tenant_salon.TestcontainersConfiguration;
+import net.samitkumar.multi_tenant_salon.payments.CheckoutUi;
 import net.samitkumar.multi_tenant_salon.payments.SalonPaymentSettings;
+import net.samitkumar.multi_tenant_salon.payments.SalonPaymentSettings.AreaSetting;
 import net.samitkumar.multi_tenant_salon.payments.StripeConnectedAccount;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class StripeConnectPersistenceTest {
     @Autowired StripeConnectService service;
     @Autowired StripeConnectedAccountRepository accounts;
-    @Autowired SalonPaymentSettingsRepository settings;
     @Autowired JdbcTemplate jdbc;
 
     @Test void upsertsConnectedAccountAndPaymentSettings() {
@@ -42,8 +44,8 @@ class StripeConnectPersistenceTest {
         assertThat(saved.chargesEnabled()).isTrue();
         assertThat(saved.updatedAt()).isEqualTo(now.plusSeconds(5));
 
-        service.update(salonId, false, false, false, false, SalonPaymentSettings.BookingPaymentType.DEPOSIT, 30);
-        var stored = settings.findById(salonId).orElseThrow();
+        service.update(salonId, List.of(), SalonPaymentSettings.BookingPaymentType.DEPOSIT, 30);
+        var stored = service.settings(salonId);
         assertThat(stored.bookingPaymentType()).isEqualTo(SalonPaymentSettings.BookingPaymentType.DEPOSIT);
         assertThat(stored.bookingDepositPercent()).isEqualTo(30);
         assertThat(stored.updatedAt()).isNotNull();
@@ -55,17 +57,19 @@ class StripeConnectPersistenceTest {
         jdbc.update("INSERT INTO salon_feature (salon_id, feature) VALUES (?, 'WEBSHOP')", salonId);
         jdbc.update("INSERT INTO salon_feature (salon_id, feature) VALUES (?, 'BOOKING')", salonId);
         var acct = "acct_" + salonId.toString().substring(0, 8);
+        var shop = new AreaSetting("SHOP", true, CheckoutUi.REDIRECT);
 
         // No connected account at all: nothing to attach the areas to.
-        assertThatThrownBy(() -> service.update(salonId, true, false, false, false, SalonPaymentSettings.BookingPaymentType.FULL, 20))
+        assertThatThrownBy(() -> service.update(salonId, List.of(shop), SalonPaymentSettings.BookingPaymentType.FULL, 20))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
 
         // Account created, onboarding unfinished: the choice is saved but stays off for customers.
         service.saveAccount(new StripeConnectedAccount(salonId, acct, "DK", false, false, false, Instant.now()));
-        var saved = service.update(salonId, true, true, false, false, SalonPaymentSettings.BookingPaymentType.FULL, 20);
-        assertThat(saved.shopEnabled()).isTrue();
-        assertThat(settings.findById(salonId).orElseThrow().bookingEnabled()).isTrue();
+        var saved = service.update(salonId, List.of(shop, new AreaSetting("BOOKING", true, CheckoutUi.REDIRECT)),
+                SalonPaymentSettings.BookingPaymentType.FULL, 20);
+        assertThat(saved.area("SHOP").enabled()).isTrue();
+        assertThat(service.settings(salonId).area("BOOKING").enabled()).isTrue();
         assertThat(service.enabled(salonId, "SHOP")).isFalse();
         assertThat(service.bookingConfig(salonId).enabled()).isFalse();
 

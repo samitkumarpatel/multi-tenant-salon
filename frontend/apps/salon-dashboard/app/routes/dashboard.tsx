@@ -12,11 +12,12 @@ import { ADMIN_API, CUSTOMER_API, apiFetch } from "~/lib/api";
 import { getDashboardSession } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
 import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
+import { TerminalPaymentDialog, loadTerminals, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import type {
   AvailableSlot, Booking, Country, OperatingHours, Salon, SalonClosure, SalonHoliday, ServiceItem, StaffAvailability,
   StaffAvailabilityOverride, StaffMember,
 } from "@salon/ui-website";
-import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
+import { CustomerDetailsFields, StripeCheckoutPanel, beginCheckout, type CheckoutInstructions, type CheckoutResult, type ContactMethod } from "@salon/ui-website";
 
 type DashboardView = "appointments" | "cashier" | "membership";
 type CashierView = "pos" | "invoices";
@@ -48,7 +49,18 @@ interface PosSale {
   paymentStatus?: "PENDING" | "PAID" | "FAILED";
   paymentReference?: string | null;
 }
-interface PaymentSetup { stripe: { account: { chargesEnabled: boolean } | null; settings: { posEnabled: boolean; membershipEnabled: boolean } } }
+interface PaymentSetup {
+  stripe: {
+    account: { chargesEnabled: boolean } | null;
+    testMode: boolean;
+    settings: { areas: { area: string; enabled: boolean; checkoutUi: string }[] };
+  };
+}
+
+/** The area takes card payments: switched on by the owner, and Stripe can charge the account. */
+function cardArea(setup: PaymentSetup | null, area: "POS" | "MEMBERSHIP") {
+  return Boolean(setup?.stripe.account?.chargesEnabled && setup.stripe.settings.areas?.some((a) => a.area === area && a.enabled));
+}
 
 interface CartLine extends CashierItem { quantity: number }
 
@@ -70,7 +82,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const settings = settingsResult.value;
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
   const membershipEnabled = Boolean(salon.features?.includes("MEMBERSHIP"));
-  const [bookings, staff, services, closures, holidays, cashierItems, sales, countries, paymentSetup] = await Promise.all([
+  const [bookings, staff, services, closures, holidays, cashierItems, sales, countries, paymentSetup, terminals] = await Promise.all([
     bookingEnabled ? apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`).catch((): Booking[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`).catch((): StaffMember[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`).catch((): ServiceItem[] => []) : Promise.resolve([]),
@@ -82,6 +94,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     settings.cashierEnabled ? apiFetch<PosSale[]>(`${ADMIN_API}/${sid}/dashboard/sales`).catch((): PosSale[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<Country[]>(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/salon-utility/countries`).catch((): Country[] => []) : Promise.resolve([] as Country[]),
     settings.cashierEnabled || membershipEnabled ? apiFetch<PaymentSetup>(`${ADMIN_API}/${sid}/payments/stripe`).catch((): null => null) : Promise.resolve(null),
+    settings.cashierEnabled || membershipEnabled ? loadTerminals(sid) : Promise.resolve([] as Terminal[]),
   ]);
   const schedules = bookingEnabled ? (await Promise.all(staff.map(async (member) => {
     const [availability, overrides] = await Promise.all([
@@ -90,7 +103,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     ]);
     return { staffId: member.id, availability, overrides };
   }))) : [];
-  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, countries, paymentSetup };
+  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, countries, paymentSetup, terminals };
 }
 
 const inputCls = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
@@ -118,8 +131,14 @@ export default function DashboardPage() {
     : appointmentEnabled ? "appointments" : initial.settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
 
   const [settings] = useState(initial.settings);
-  const cardPaymentEnabled = Boolean(initial.paymentSetup?.stripe.settings.posEnabled && initial.paymentSetup?.stripe.account?.chargesEnabled);
-  const membershipCardEnabled = Boolean(initial.paymentSetup?.stripe.settings.membershipEnabled && initial.paymentSetup?.stripe.account?.chargesEnabled);
+  const cardPaymentEnabled = cardArea(initial.paymentSetup, "POS");
+  const membershipCardEnabled = cardArea(initial.paymentSetup, "MEMBERSHIP");
+  const testMode = Boolean(initial.paymentSetup?.stripe.testMode);
+  const terminals = initial.terminals;
+  // Card payments go to a reader by default when the salon has one; "online" is Stripe's card form/checkout.
+  const [cardVia, setCardVia] = useState<number | "online">(initial.terminals[0]?.id ?? "online");
+  const [readerPayment, setReaderPayment] = useState<{ saleId: number; payment: TerminalPayment } | null>(null);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   const [bookings, setBookings] = useState(initial.bookings);
   const [cashierItems] = useState(initial.cashierItems);
   const [cashierSearch, setCashierSearch] = useState("");
@@ -230,20 +249,30 @@ export default function DashboardPage() {
     if (!cart.length) return;
     setSaving(true);
     try {
-      const response = await apiFetch<PosSale | { sale: PosSale; checkoutUrl: string }>(`${ADMIN_API}/${initial.sid}/dashboard/sales${paymentMethod === "CARD" ? "/card-checkout" : ""}`, {
+      const onReader = paymentMethod === "CARD" && cardVia !== "online";
+      const endpoint = paymentMethod !== "CARD" ? "" : onReader ? "/terminal-checkout" : "/card-checkout";
+      const response = await apiFetch<PosSale | ({ sale: PosSale } & CheckoutResult) | { sale: PosSale; terminalPayment: TerminalPayment }>(
+        `${ADMIN_API}/${initial.sid}/dashboard/sales${endpoint}`, {
         method: "POST",
         body: JSON.stringify({
           customerName: customerName.trim() || null,
           paymentMethod,
           items: cart.map(({ sourceType, sourceId, quantity }) => ({ sourceType, sourceId, quantity })),
+          inlineCheckout: true,
+          terminalId: onReader ? cardVia : null,
         }),
       });
       const sale = "sale" in response ? response.sale : response;
       setSales((current) => [sale, ...current]);
       setCart([]);
       setCustomerName("");
-      if ("checkoutUrl" in response) {
-        window.location.assign(response.checkoutUrl);
+      if ("terminalPayment" in response) {
+        setReaderPayment({ saleId: sale.id, payment: response.terminalPayment });
+        return;
+      }
+      if ("sale" in response) {
+        const inline = beginCheckout(response);
+        if (inline) setInlineCheckout(inline);
         return;
       }
       notify(`Sale ${sale.saleNumber} completed.`);
@@ -396,6 +425,13 @@ export default function DashboardPage() {
                 <select className={`${inputCls} mb-3`} value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PosSale["paymentMethod"])}>
                   <option value="CASH">{translateUi("Cash")}</option><option value="CARD" disabled={!cardPaymentEnabled}>{translateUi("Card")}{cardPaymentEnabled ? translateUi(" · Stripe") : translateUi(" · connect Stripe in Admin")}</option><option value="OTHER">{translateUi("Other")}</option>
                 </select>
+                {paymentMethod === "CARD" && terminals.length > 0 && (
+                  <select className={`${inputCls} mb-3`} aria-label={translateUi("Take the card payment on")} value={String(cardVia)}
+                    onChange={(event) => setCardVia(event.target.value === "online" ? "online" : Number(event.target.value))}>
+                    {terminals.map((reader) => <option key={reader.id} value={reader.id}>{translateUi("Card reader")}: {reader.label}{reader.status === "offline" ? ` · ${translateUi("offline")}` : ""}</option>)}
+                    <option value="online">{translateUi("Card form on this screen")}</option>
+                  </select>
+                )}
                 <button type="button" disabled={!cart.length || saving} onClick={completeSale}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-matcha-700 disabled:opacity-40 cursor-pointer">
                   <CreditCard className="h-4 w-4" /> {saving ? translateUi("Processing…") : paymentMethod === "CARD" ? translateUi("Continue to card payment") : translateUi("Record payment")}
@@ -422,7 +458,20 @@ export default function DashboardPage() {
       )}
 
       {view === "membership" && (
-        <MembershipDesk sid={initial.sid} view={membershipView} cardEnabled={membershipCardEnabled} notify={notify} />
+        <MembershipDesk sid={initial.sid} view={membershipView} cardEnabled={membershipCardEnabled} notify={notify}
+          terminals={terminals} testMode={testMode} />
+      )}
+
+      {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={translateUi("Card payment")} />}
+      {readerPayment && (
+        <TerminalPaymentDialog sid={initial.sid} payment={readerPayment.payment} terminals={terminals} testMode={testMode}
+          onFinished={(done) => {
+            setSales((current) => current.map((sale) => sale.id === readerPayment.saleId
+              ? { ...sale, paymentStatus: done.status === "SUCCEEDED" ? "PAID" : "FAILED" } : sale));
+            notify(done.status === "SUCCEEDED" ? translateUi("Card payment received.") : translateUi("Card payment was not completed."),
+              done.status === "SUCCEEDED" ? "success" : "error");
+          }}
+          onClose={() => setReaderPayment(null)} />
       )}
 
       {servicePickerTime && <AvailableServicePicker sid={initial.sid} date={servicePickerTime.date} time={servicePickerTime.time} staffId={servicePickerTime.staffId} services={initial.services} staff={initial.staff}

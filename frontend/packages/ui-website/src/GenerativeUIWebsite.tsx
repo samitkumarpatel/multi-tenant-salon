@@ -6,6 +6,7 @@ import {
 import { FONTS, fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
+import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import {
   BookingPickerCard, CardShell,
   type CardTokens, type PendingBookingFields, type PickerProgress,
@@ -443,6 +444,7 @@ export function GenerativeUIWebsite({
   // turn that used a data tool so every card and header shows what the salon
   // returns right now. `theme` stays a snapshot — it isn't salon data and rarely changes mid-visit.
   const [salon, setSalon] = useState(salonProp);
+  const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   const [staff, setStaff] = useState(staffProp);
   const [services, setServices] = useState(servicesProp);
 
@@ -1023,14 +1025,15 @@ export function GenerativeUIWebsite({
       return next;
     });
 
-    apiFetch<Booking | { booking: Booking; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/booking`, {
+    apiFetch<Booking | ({ booking: Booking } & CheckoutResult)>(`${API_BASE}/api/salon/${salon.id}/booking`, {
       method: "POST",
-      body: JSON.stringify({ ...payload, returnUrl: window.location.href }),
+      body: JSON.stringify({ ...payload, returnUrl: window.location.href, inlineCheckout: true }),
     })
       .then((result) => {
         const booking = "booking" in result ? result.booking : result;
-        if ("checkoutUrl" in result && result.checkoutUrl) {
-          window.location.assign(result.checkoutUrl);
+        if ("booking" in result && (result.checkoutUrl || result.checkout)) {
+          const inline = beginCheckout(result);
+          if (inline) setInlineCheckout(inline);
           return;
         }
         setMessages((prev) => {
@@ -1865,6 +1868,7 @@ export function GenerativeUIWebsite({
       style={isFullscreen ? { background: pageBg } : undefined}
     >
       {innerContent}
+      {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} />}
     </div>
   );
 }
