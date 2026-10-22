@@ -148,11 +148,24 @@ spring:
         - classpath:db/V16__salon_policies.sql
         - classpath:db/V17__location_maps_url.sql
         - classpath:db/V18__membership.sql
+        - classpath:db/V19__membership_desk_sales.sql
   modulith:
     events:
       jdbc:
         schema-initialization:
           enabled: true
+      # Delivered events move to event_publication_archive (pruned after app.events.archive-retention),
+      # so event_publication only holds what is still in flight or failed.
+      completion-mode: archive
+      # Publications stuck mid-delivery (the app stopped) are marked FAILED, then retried by
+      # EventPublicationMaintenance. Restart republishing stays off: with several replicas it would
+      # deliver the same event more than once.
+      republish-outstanding-events-on-restart: false
+      staleness:
+        check-intervall: ${EVENTS_STALENESS_CHECK:PT1M}
+        published: ${EVENTS_STALE_PUBLISHED:PT10M}
+        processing: ${EVENTS_STALE_PROCESSING:PT15M}
+        resubmitted: ${EVENTS_STALE_RESUBMITTED:PT15M}
   threads:
     virtual:
       enabled: true
@@ -179,3 +192,17 @@ logging:
     web: ${LOGGING_LEVEL:INFO}
     sql: ${LOGGING_LEVEL:INFO}
     org.springframework: ${LOGGING_LEVEL:INFO}
+
+app:
+  events:
+    # Fail fast (tests) or log (production) when a domain event is published outside a transaction.
+    fail-outside-transaction: false
+    retry:
+      interval: ${EVENTS_RETRY_INTERVAL:PT1M}
+      max-attempts: ${EVENTS_RETRY_MAX_ATTEMPTS:10}
+      initial-backoff: ${EVENTS_RETRY_INITIAL_BACKOFF:PT1M}
+      max-backoff: ${EVENTS_RETRY_MAX_BACKOFF:PT6H}
+      batch-size: 50
+      # Never resend something this old (e.g. left over from before an outage or this upgrade).
+      max-age: ${EVENTS_RETRY_MAX_AGE:P2D}
+    archive-retention: ${EVENTS_ARCHIVE_RETENTION:P90D}

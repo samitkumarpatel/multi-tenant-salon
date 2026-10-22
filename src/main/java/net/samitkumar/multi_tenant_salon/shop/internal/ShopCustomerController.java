@@ -41,6 +41,17 @@ class ShopCustomerController {
                         ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
                         CommunicationPreference communicationPreference, String returnUrl) {}
     record CheckoutResponse(OrderView order, String checkoutUrl) {}
+    /** What the storefront checkout needs to know before the customer pays. */
+    record CheckoutOptions(boolean onlinePayment) {}
+
+    /**
+     * Whether placing an order hands the customer to Stripe Checkout (Shop payments enabled on a
+     * connected account that can charge) — so the checkout page can tell the customer what happens next.
+     */
+    @GetMapping("/checkout-options")
+    CheckoutOptions checkoutOptions(@PathVariable String salonId) {
+        return new CheckoutOptions(stripe.enabled(salonApi.resolveId(salonId), "SHOP"));
+    }
 
     @GetMapping("/brands")
     List<Brand> listBrands(@PathVariable String salonId) {

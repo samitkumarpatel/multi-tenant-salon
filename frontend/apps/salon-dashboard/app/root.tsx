@@ -1,4 +1,4 @@
-import { I18nProvider, LanguageSelector, useI18n, ENGLISH_POLICY } from "@salon/i18n";
+import { I18nProvider, useI18n, ENGLISH_POLICY } from "@salon/i18n";
 import type { LanguagePolicy } from "@salon/i18n";
 import { useMatches } from "react-router";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "react-router";
@@ -38,7 +38,7 @@ function AppDocument() {
     <html lang={locale}>
       <head><meta charSet="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><Meta /><Links /></head>
       <body className="min-h-screen bg-cream font-sans text-slate-900 antialiased">
-        <NavProgress loading={state !== "idle"} /><LanguageSelector compact floating /><Outlet /><ScrollRestoration /><Scripts />
+        <NavProgress loading={state !== "idle"} /><Outlet /><ScrollRestoration /><Scripts />
       </body>
     </html>
   );

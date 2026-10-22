@@ -58,6 +58,17 @@ class StripeMembershipAreaTest {
         assertThat(service.returnPage(salon, "MEMBERSHIP", null)).isEqualTo("https://glow.salonsaas.org/membership");
     }
 
+    @Test void deskMembershipCheckoutReturnsToTheSalonDesk() {
+        var salon = mock(Salon.class);
+        when(salon.id()).thenReturn(salonId);
+        when(salon.handler()).thenReturn("glow");
+        var desk = "https://dashboard.salonsaas.org/" + salonId + "?view=membership&membershipView=sell";
+        assertThat(service.returnPage(salon, "MEMBERSHIP", desk + "&payment=success&reference=7")).isEqualTo(desk);
+        // Any other origin still falls back to the website's membership page — never an open redirect.
+        assertThat(service.returnPage(salon, "MEMBERSHIP", "https://evil.example/" + salonId))
+                .isEqualTo("https://glow.salonsaas.org/membership");
+    }
+
     @Test void completedMembershipCheckoutPublishesThePaymentEvent() {
         send("""
                 {"type":"checkout.session.completed","account":"acct_1","data":{"object":{

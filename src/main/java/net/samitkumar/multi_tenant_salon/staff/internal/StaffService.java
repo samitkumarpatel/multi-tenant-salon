@@ -118,6 +118,7 @@ public class StaffService implements StaffApi {
             new StaffOnboardedEvent.DaySchedule(DayOfWeek.SATURDAY,  LocalTime.of(9, 0), LocalTime.of(14, 0))
     );
 
+    @Transactional
     StaffMember onboardOwner(UUID salonId, String name, String email, String phone) {
         return onboard(salonId, name, email, phone, StaffRole.MANAGER, true, List.of(), null, List.of(), null);
     }

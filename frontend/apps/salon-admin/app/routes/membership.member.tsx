@@ -93,7 +93,7 @@ export default function MembershipMember() {
 
   return (
     <div className="space-y-5">
-      <Link to="../members" relative="path" className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 no-underline">
+      <Link to="../members" className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 no-underline">
         <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("All members")}
       </Link>
 

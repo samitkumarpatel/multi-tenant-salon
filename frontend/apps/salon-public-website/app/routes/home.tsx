@@ -3,6 +3,7 @@ import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
 import { SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, SalonPolicyLinks } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
+import { navigationSearch } from "../lib/navigation-search";
 
 export default function PublicWebsitePage() {
   const data = useOutletContext<TenantData | undefined>();
@@ -13,7 +14,7 @@ export default function PublicWebsitePage() {
   if (!data) return null;
 
   const activePage = location.pathname.slice(1) || undefined;
-  const search = location.search;
+  const search = navigationSearch(location.search);
 
   if (data.theme.websiteType === "GENERATIVE_UI") {
     const { theme } = data;

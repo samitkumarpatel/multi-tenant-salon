@@ -18,14 +18,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
 @Import(TestcontainersConfiguration.class)
@@ -33,6 +38,22 @@ class NotificationModuleTests {
 
     @Autowired
     ApplicationEventPublisher eventPublisher;
+    @Autowired
+    PlatformTransactionManager transactionManager;
+    @Autowired
+    JdbcTemplate jdbc;
+
+    /**
+     * Publishes like production code does — inside a transaction, so Spring Modulith stores the event —
+     * and waits until every module listener has handled it: delivered publications are archived out of
+     * {@code event_publication}, while a listener that threw would leave its row there as FAILED.
+     */
+    private void publishAndAwaitDelivery(Object event) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> eventPublisher.publishEvent(event));
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM event_publication WHERE event_type = ?", Integer.class, event.getClass().getName()))
+                .as("undelivered %s publications", event.getClass().getSimpleName()).isZero());
+    }
 
     // ── Salon events ─────────────────────────────────────────────────────────
 
@@ -42,8 +63,7 @@ class NotificationModuleTests {
                 UUID.randomUUID(), "Test Salon", "test-salon", "Jane Doe", "jane@test.com", "+1234567890",
                 List.of(SalonFeature.BOOKING, SalonFeature.STATIC_WEBSITE));
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -51,8 +71,7 @@ class NotificationModuleTests {
         var event = new SalonCreatedEvent(
                 UUID.randomUUID(), "Minimal Salon", "minimal-salon", "Bob", "bob@min.com", null, List.of());
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -60,8 +79,7 @@ class NotificationModuleTests {
         var event = new SalonUpdatedEvent(
                 UUID.randomUUID(), "Test Salon", "test-salon", "Jane Doe", "jane@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     // ── Booking lifecycle events ───────────────────────────────────────────────
@@ -75,8 +93,7 @@ class NotificationModuleTests {
                 BookingStatus.PENDING,
                 "Test Salon", "+1112223333", "salon@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -88,8 +105,7 @@ class NotificationModuleTests {
                 BookingStatus.CONFIRMED,
                 "Test Salon", "+1112223333", "salon@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -100,8 +116,7 @@ class NotificationModuleTests {
                 LocalDate.of(2027, 2, 10), LocalTime.of(14, 0), LocalTime.of(15, 0),
                 "Test Salon", "+1112223333", "salon@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -112,8 +127,7 @@ class NotificationModuleTests {
                 LocalDate.of(2027, 3, 5), LocalTime.of(9, 0), LocalTime.of(9, 30),
                 "Test Salon", null, null);
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -124,8 +138,7 @@ class NotificationModuleTests {
                 LocalDate.of(2027, 1, 20), LocalTime.of(11, 0), LocalTime.of(11, 45),
                 "Test Salon", "+1112223333", "salon@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -136,8 +149,7 @@ class NotificationModuleTests {
                 LocalDate.of(2027, 4, 1), LocalTime.of(16, 0), LocalTime.of(17, 0),
                 "Test Salon", "+1112223333", "salon@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -148,8 +160,7 @@ class NotificationModuleTests {
                 LocalDate.of(2027, 5, 15), LocalTime.of(10, 30), LocalTime.of(11, 30),
                 "Test Salon", "+1112223333", "salon@test.com");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -158,8 +169,7 @@ class NotificationModuleTests {
                 7L, UUID.randomUUID(), 3L, "Sam Stylist", "sam@salon.com",
                 1L, "Frank Client", LocalDate.of(2027, 7, 1), LocalTime.of(13, 0), LocalTime.of(14, 0));
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -168,8 +178,7 @@ class NotificationModuleTests {
                 8L, UUID.randomUUID(), 4L, "No Email Stylist", null,
                 1L, "Grace Client", LocalDate.of(2027, 7, 2), LocalTime.of(15, 0), LocalTime.of(16, 0));
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     // ── Staff onboarding ────────────────────────────────────────────────────────
@@ -180,8 +189,7 @@ class NotificationModuleTests {
                 UUID.randomUUID(), 20L, "New Hire", "newhire@salon.com", StaffRole.STYLIST,
                 "Test Salon", "test-salon", List.of());
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -190,8 +198,7 @@ class NotificationModuleTests {
                 UUID.randomUUID(), 21L, "No Email Hire", null, StaffRole.RECEPTIONIST,
                 "Test Salon", "test-salon", List.of());
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     // ── Calendar / availability events ────────────────────────────────────────
@@ -200,16 +207,14 @@ class NotificationModuleTests {
     void handlesStaffScheduleUpdatedEvent() {
         var event = new StaffScheduleUpdatedEvent(UUID.randomUUID(), 1L, "Sam Stylist", "sam@salon.com", 5);
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
     void handlesStaffScheduleUpdatedEventWithoutStaffEmail() {
         var event = new StaffScheduleUpdatedEvent(UUID.randomUUID(), 1L, "No Email Stylist", null, 5);
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -220,8 +225,7 @@ class NotificationModuleTests {
                 LocalTime.of(9, 0), LocalTime.of(13, 0),
                 true, "Half-day availability");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -232,8 +236,7 @@ class NotificationModuleTests {
                 null, null,
                 false, "Staff on leave");
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 
     @Test
@@ -241,7 +244,6 @@ class NotificationModuleTests {
         var event = new StaffAvailabilityOverrideRemovedEvent(
                 UUID.randomUUID(), 1L, "Sam Stylist", "sam@salon.com", 10L, LocalDate.of(2027, 6, 1));
 
-        assertThatCode(() -> eventPublisher.publishEvent(event))
-                .doesNotThrowAnyException();
+        publishAndAwaitDelivery(event);
     }
 }

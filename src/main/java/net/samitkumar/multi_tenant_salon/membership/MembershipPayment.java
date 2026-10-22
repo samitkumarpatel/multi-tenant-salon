@@ -8,9 +8,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * One Stripe Checkout for one billing period — the first (with any sign-up fee) or a renewal. Its id
- * is the checkout's payment reference, like a shop order's or a till sale's. Only a {@code PENDING}
- * row ever changes, once, to {@code PAID} or {@code FAILED}.
+ * One payment for one billing period — the first (with any sign-up fee) or a renewal. A {@code CARD}
+ * payment is a Stripe Checkout whose reference is this id, like a shop order's or a till sale's;
+ * {@code CASH}/{@code OTHER} are taken at the salon desk and recorded as paid on the spot. Only a
+ * {@code PENDING} row ever changes, once, to {@code PAID} or {@code FAILED}.
  */
 @Table("membership_payment")
 public record MembershipPayment(
@@ -19,6 +20,7 @@ public record MembershipPayment(
         UUID salonId,
         Kind kind,
         Status status,
+        Method method,
         BigDecimal amount,
         String currency,
         String checkoutSessionId,
@@ -30,4 +32,11 @@ public record MembershipPayment(
     public enum Kind { SIGNUP, RENEWAL }
 
     public enum Status { PENDING, PAID, FAILED }
+
+    /** Same choices as the till: {@code CARD} goes through Stripe Checkout. */
+    public enum Method { CARD, CASH, OTHER }
+
+    public MembershipPayment {
+        if (method == null) method = Method.CARD;
+    }
 }

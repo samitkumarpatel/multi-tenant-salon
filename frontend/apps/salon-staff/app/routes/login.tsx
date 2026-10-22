@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Mail, KeyRound, Scissors, ShieldCheck, ArrowLeft, Users, Lock } from "lucide-react";
@@ -117,9 +117,10 @@ function MockLogin() {
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
       <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
         <AppLogo size={24} textColor="#374151" />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
             {translateUi("Staff Portal ")}</span>
+          <LanguageSelector compact />
         </div>
       </header>
 
@@ -370,9 +371,10 @@ function OAuth2Login() {
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-y-auto">
       <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
         <AppLogo size={24} textColor="#374151" />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
             {translateUi("Staff Portal ")}</span>
+          <LanguageSelector compact />
         </div>
       </header>
 

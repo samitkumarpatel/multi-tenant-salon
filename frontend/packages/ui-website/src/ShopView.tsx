@@ -7,7 +7,7 @@ import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
 import { DEFAULT_PRODUCT_EMOJI, formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
-import type { SalonPolicy } from "./SalonPolicyLinks";
+import { SalonPolicyLinks, type SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont, shade } from "./theme";
 import { useCart } from "./shopCart";
 import { useWishlist } from "./shopWishlist";
@@ -217,9 +217,12 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
         <h1 className="text-3xl font-black tracking-tight mb-2" style={{ color: theme.heroTextColor }}>
           {translateUi("Order placed ")}</h1>
         <p className="text-sm mb-1" style={{ color: sub }}>
-          {placed.paymentStatus === "PENDING" ? translateUi("Payment received. We’re confirming your order.") : `Thanks, ${placed.customerName.split(" ")[0]}! Your order number is`}
+          {placed.paymentStatus === "PENDING" ? translateUi("Payment received. We’re confirming your order.") : translateUi("Thanks, {name}! Your order number is", { name: placed.customerName.split(" ")[0] })}
         </p>
         <p className="text-lg font-bold mb-6" style={{ color: theme.heroTextColor }}>{placed.orderNumber}</p>
+        {!placed.shippingAddress && (
+          <p className="text-sm -mt-4 mb-6" style={{ color: sub }}>{translateUi("You'll collect this order at the salon.")}</p>
+        )}
         <div
           className="rounded-xl p-4 text-left mb-6"
           style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}
@@ -251,20 +254,27 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
 
   if (step === "checkout") {
     return shell(
-      <CheckoutForm
-        salon={salon}
-        theme={theme}
-        lines={cart.lines}
-        currency={cart.currency}
-        subtotal={cart.subtotal}
-        countries={countries}
-        onCancel={() => setStep("browse")}
-        onPlaced={(order) => {
-          cart.clear();
-          setPlaced(order);
-          setStep("done");
-        }}
-      />,
+      <>
+        <CheckoutForm
+          salon={salon}
+          theme={theme}
+          lines={cart.lines}
+          currency={cart.currency}
+          subtotal={cart.subtotal}
+          countries={countries}
+          policies={policies}
+          onCancel={() => setStep("browse")}
+          onEditCart={() => setCartOpen(true)}
+          onPlaced={(order) => {
+            cart.clear();
+            setPlaced(order);
+            setStep("done");
+          }}
+        />
+        {/* The header's cart button and "Edit cart" open the drawer here too; its checkout
+            button just closes it, since the customer is already on the checkout page. */}
+        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} theme={theme} cart={cart} onCheckout={() => setCartOpen(false)} />
+      </>,
     );
   }
 
@@ -1246,8 +1256,13 @@ function CartDrawer({
 
 // ── Checkout ─────────────────────────────────────────────────────────────────
 
+type Fulfilment = "SHIP" | "COLLECT";
+
+/** Field ids in on-screen order — the first invalid one gets focus when the customer tries to pay. */
+const CHECKOUT_FIELDS = ["customerName", "customerEmail", "line1", "city", "country"] as const;
+
 function CheckoutForm({
-  salon, theme, lines, currency, subtotal, countries, onCancel, onPlaced,
+  salon, theme, lines, currency, subtotal, countries, policies, onCancel, onEditCart, onPlaced,
 }: {
   salon: Salon;
   theme: WebsiteTheme;
@@ -1255,7 +1270,9 @@ function CheckoutForm({
   currency: string;
   subtotal: number;
   countries: Country[];
+  policies: SalonPolicy[];
   onCancel: () => void;
+  onEditCart: () => void;
   onPlaced: (order: ShopOrder) => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -1270,6 +1287,7 @@ function CheckoutForm({
 
   const [f, setF] = useState({
     customerName: "", customerEmail: "", customerPhone: "",
+    fulfilment: "SHIP" as Fulfilment,
     line1: "", line2: "", city: "", state: "",
     country: salon.location?.country ?? "",
     zipCode: "",
@@ -1277,8 +1295,19 @@ function CheckoutForm({
   });
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // touched: set per-field on blur, or all at once when user clicks Pay
+  // touched: set per-field on blur, or all at once when the customer tries to pay
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [attempted, setAttempted] = useState(false);
+  // Whether placing the order hands the customer to Stripe Checkout; null until known.
+  const [onlinePayment, setOnlinePayment] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    apiFetch<{ onlinePayment: boolean }>(`${API_BASE}/api/salon/${salon.id}/shop/checkout-options`)
+      .then((o) => { if (live) setOnlinePayment(Boolean(o.onlinePayment)); })
+      .catch(() => { /* Unknown — keep the neutral wording. */ });
+    return () => { live = false; };
+  }, [salon.id]);
 
   const touch = (k: string) => setTouched((p) => ({ ...p, [k]: true }));
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -1286,50 +1315,78 @@ function CheckoutForm({
     touch(k);
   };
 
-  // Field-level validation
+  // Field-level validation — a shipped order needs somewhere to ship to; collecting needs no address.
+  const shipping = f.fulfilment === "SHIP";
   const errors: Record<string, string> = {};
-  if (!f.customerName.trim()) errors.customerName = "Full name is required.";
+  if (!f.customerName.trim()) errors.customerName = translateUi("Full name is required.");
   if (!f.customerEmail.trim()) {
-    errors.customerEmail = "Email is required.";
+    errors.customerEmail = translateUi("Email is required.");
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.customerEmail.trim())) {
-    errors.customerEmail = "Please enter a valid email address.";
+    errors.customerEmail = translateUi("Please enter a valid email address.");
+  }
+  if (shipping) {
+    if (!f.line1.trim()) errors.line1 = translateUi("Address line 1 is required.");
+    if (!f.city.trim()) errors.city = translateUi("City is required.");
+    if (!f.country.trim()) errors.country = translateUi("Country is required.");
   }
 
   const isValid = Object.keys(errors).length === 0 && lines.length > 0;
+  const showError = (field: string) => Boolean((touched[field] || attempted) && errors[field]);
 
   const inputCls = "w-full text-sm rounded-lg px-3 py-2 outline-none mt-1";
   const inputStyle = (field: string): React.CSSProperties => ({
     backgroundColor: inputBg,
-    border: `1px solid ${touched[field] && errors[field] ? errorColor : inputBorder}`,
+    border: `1px solid ${showError(field) ? errorColor : inputBorder}`,
     color: theme.heroTextColor,
   });
   const labelStyle: React.CSSProperties = { color: sub };
+  // Shared a11y wiring for a validated input: its id, invalid state and error description.
+  const fieldProps = (field: string, required = false) => ({
+    id: `checkout-${field}`,
+    required,
+    "aria-required": required || undefined,
+    "aria-invalid": showError(field) || undefined,
+    "aria-describedby": showError(field) ? `checkout-${field}-error` : undefined,
+  });
+  const fieldError = (field: string) => showError(field) ? (
+    <span id={`checkout-${field}-error`} className="block text-[11px] mt-1" style={{ color: errorColor }}>{errors[field]}</span>
+  ) : null;
+  const requiredMark = <span aria-hidden="true" style={{ color: errorColor }}>*</span>;
+  const sectionTitle = "text-[11px] font-bold uppercase tracking-widest mb-2";
 
   if (lines.length === 0) {
     return (
       <div className="max-w-md mx-auto px-6 py-20 text-center">
         <p className="text-sm mb-4" style={{ color: sub }}>{translateUi("Your cart is empty.")}</p>
-        <button onClick={onCancel} className="text-sm font-semibold cursor-pointer" style={{ color: theme.accentColor }}>
+        <button type="button" onClick={onCancel} className="text-sm font-semibold cursor-pointer" style={{ color: theme.accentColor }}>
           {translateUi("← Back to shop ")}</button>
       </div>
     );
   }
 
-  async function submit() {
-    if (!isValid) return;
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    if (!isValid) {
+      setAttempted(true);
+      const first = CHECKOUT_FIELDS.find((k) => errors[k]);
+      if (first) document.getElementById(`checkout-${first}`)?.focus();
+      return;
+    }
     setBusy(true);
     setSubmitError(null);
     try {
-      const address: ShopShippingAddress = {
-        line1: f.line1 || undefined, line2: f.line2 || undefined, city: f.city || undefined,
-        state: f.state || undefined, country: f.country || undefined, zipCode: f.zipCode || undefined,
-      };
+      const address: ShopShippingAddress | null = shipping ? {
+        line1: f.line1.trim() || undefined, line2: f.line2.trim() || undefined, city: f.city.trim() || undefined,
+        state: f.state.trim() || undefined, country: f.country || undefined, zipCode: f.zipCode.trim() || undefined,
+      } : null;
       const result = await apiFetch<ShopOrder | { order: ShopOrder; checkoutUrl: string }>(`${API_BASE}/api/salon/${salon.id}/shop/orders`, {
         method: "POST",
         body: JSON.stringify({
           customerName: f.customerName.trim(),
           customerEmail: f.customerEmail.trim(),
           customerPhone: f.customerPhone.trim() || undefined,
+          // No address = collect in salon (the same convention the MCP shop app uses).
           shippingAddress: address,
           items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           communicationPreference: f.communicationPreference,
@@ -1341,7 +1398,7 @@ function CheckoutForm({
       if ("checkoutUrl" in result && result.checkoutUrl) {
         window.sessionStorage.setItem(`shop-pending-order:${salon.id}`, JSON.stringify(order));
         window.location.assign(result.checkoutUrl);
-        return;
+        return; // stay busy — the page is navigating to Stripe
       }
       onPlaced(order);
     } catch (e) {
@@ -1350,56 +1407,110 @@ function CheckoutForm({
     }
   }
 
+  /** A themed radio-card group (role=radiogroup) for the delivery and notification choices.
+      A render helper, not a component, so the buttons keep their identity (and focus) across renders. */
+  function radioCards<T extends string>({ label, value, options, onChange }: {
+    label: string;
+    value: T;
+    options: { value: T; title: string; description: string }[];
+    onChange: (v: T) => void;
+  }) {
+    return (
+      <div role="radiogroup" aria-label={label} className="flex flex-col gap-2">
+        {options.map((opt) => {
+          const selected = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(opt.value)}
+              className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all cursor-pointer"
+              style={{
+                backgroundColor: selected ? `${theme.accentColor}18` : cardBg,
+                border: `1.5px solid ${selected ? theme.accentColor : cardBorder}`,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="mt-0.5 w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
+                style={{ border: `2px solid ${selected ? theme.accentColor : cardBorder}` }}
+              >
+                {selected && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.accentColor }} />}
+              </span>
+              <span>
+                <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>{opt.title}</span>
+                <span className="text-[11px]" style={{ color: sub }}>{opt.description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const salonAddress = [salon.location?.address, salon.location?.city].filter(Boolean).join(", ");
+  const total = formatPrice(subtotal, currency, uiLocale);
+  const payLabel = onlinePayment === false
+    ? translateUi("Place order · {amount}", { amount: total })
+    : translateUi("Pay {amount}", { amount: total });
+  const busyLabel = onlinePayment ? translateUi("Opening secure checkout…") : translateUi("Placing order…");
+  const paymentNote = onlinePayment === true
+    ? translateUi("You'll be taken to Stripe to pay securely.")
+    : onlinePayment === false
+      ? translateUi("No card is charged online — your order is placed right away.")
+      : null;
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-      <button onClick={onCancel} className="text-xs font-semibold mb-5 inline-flex items-center gap-1.5 cursor-pointer" style={{ color: sub }}>
+      <button type="button" onClick={onCancel} className="text-xs font-semibold mb-5 inline-flex items-center gap-1.5 cursor-pointer" style={{ color: sub }}>
         <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("Back to shop ")}</button>
       <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-6" style={{ color: theme.heroTextColor }}>
         {translateUi("Checkout ")}</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6">
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>{translateUi("Your details")}</p>
+      {/* No ancestor of the summary may set overflow (it would become the sticky container). */}
+      <form noValidate onSubmit={submit} className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6">
+        <div className="flex flex-col gap-6 min-w-0">
+          <section aria-labelledby="checkout-details-title">
+            <h2 id="checkout-details-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Your details")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Full name */}
-              <div className="flex flex-col">
-                <label className="text-xs" style={labelStyle}>
-                  {translateUi("Full name ")}<span style={{ color: errorColor }}>*</span>
-                  <input
-                    className={inputCls}
-                    style={inputStyle("customerName")}
-                    value={f.customerName}
-                    onChange={set("customerName")}
-                    onBlur={() => touch("customerName")}
-                    autoComplete="name"
-                  />
+              <div>
+                <label htmlFor="checkout-customerName" className="text-xs" style={labelStyle}>
+                  {translateUi("Full name ")}{requiredMark}
                 </label>
-                {touched.customerName && errors.customerName && (
-                  <span className="text-[11px] mt-1" style={{ color: errorColor }}>{errors.customerName}</span>
+                <input
+                  {...fieldProps("customerName", true)}
+                  className={inputCls}
+                  style={inputStyle("customerName")}
+                  value={f.customerName}
+                  onChange={set("customerName")}
+                  onBlur={() => touch("customerName")}
+                  autoComplete="name"
+                />
+                {fieldError("customerName")}
+              </div>
+
+              <div>
+                <label htmlFor="checkout-customerEmail" className="text-xs" style={labelStyle}>
+                  {translateUi("Email ")}{requiredMark}
+                </label>
+                <input
+                  {...fieldProps("customerEmail", true)}
+                  className={inputCls}
+                  style={inputStyle("customerEmail")}
+                  type="email"
+                  inputMode="email"
+                  value={f.customerEmail}
+                  onChange={set("customerEmail")}
+                  onBlur={() => touch("customerEmail")}
+                  autoComplete="email"
+                />
+                {fieldError("customerEmail") ?? (
+                  <span className="block text-[11px] mt-1" style={{ color: sub }}>{translateUi("We'll send your order confirmation here.")}</span>
                 )}
               </div>
 
-              {/* Email */}
-              <div className="flex flex-col">
-                <label className="text-xs" style={labelStyle}>
-                  {translateUi("Email ")}<span style={{ color: errorColor }}>*</span>
-                  <input
-                    className={inputCls}
-                    style={inputStyle("customerEmail")}
-                    type="email"
-                    value={f.customerEmail}
-                    onChange={set("customerEmail")}
-                    onBlur={() => touch("customerEmail")}
-                    autoComplete="email"
-                  />
-                </label>
-                {touched.customerEmail && errors.customerEmail && (
-                  <span className="text-[11px] mt-1" style={{ color: errorColor }}>{errors.customerEmail}</span>
-                )}
-              </div>
-
-              {/* Phone */}
               <div className="text-xs sm:col-span-2" style={labelStyle}>
                 {translateUi("Phone ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
                 <div className="mt-1">
@@ -1412,131 +1523,171 @@ function CheckoutForm({
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>{translateUi("Shipping address ")}<span className="text-[10px] font-normal normal-case tracking-normal" style={{ color: sub }}>{translateUi("(optional)")}</span></p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="text-xs sm:col-span-2" style={labelStyle}>
-                {translateUi("Address line 1 ")}<input className={inputCls} style={inputStyle("line1")} value={f.line1} onChange={set("line1")} autoComplete="address-line1" />
-              </label>
-              <label className="text-xs sm:col-span-2" style={labelStyle}>
-                {translateUi("Address line 2 ")}<input className={inputCls} style={inputStyle("line2")} value={f.line2} onChange={set("line2")} autoComplete="address-line2" />
-              </label>
-              <label className="text-xs" style={labelStyle}>
-                {translateUi("City ")}<input className={inputCls} style={inputStyle("city")} value={f.city} onChange={set("city")} autoComplete="address-level2" />
-              </label>
-              <label className="text-xs" style={labelStyle}>
-                {translateUi("State / region ")}<input className={inputCls} style={inputStyle("state")} value={f.state} onChange={set("state")} autoComplete="address-level1" />
-              </label>
-              <label className="text-xs" style={labelStyle}>
-                {translateUi("Country ")}{countries.length > 0 ? (
-                  <select
-                    className={inputCls}
-                    style={inputStyle("country")}
-                    value={f.country}
-                    onChange={set("country")}
-                    autoComplete="country-name"
-                  >
-                    <option value="">{translateUi("— Select country —")}</option>
-                    {countries.map((c) => (
-                      <option key={c.code} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input className={inputCls} style={inputStyle("country")} value={f.country} onChange={set("country")} autoComplete="country-name" />
-                )}
-              </label>
-              <label className="text-xs" style={labelStyle}>
-                {translateUi("ZIP / postcode ")}<input className={inputCls} style={inputStyle("zipCode")} value={f.zipCode} onChange={set("zipCode")} autoComplete="postal-code" />
-              </label>
-            </div>
-          </div>
+          <section aria-labelledby="checkout-delivery-title">
+            <h2 id="checkout-delivery-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Delivery")}</h2>
+            {radioCards<Fulfilment>({
+              label: translateUi("Delivery"),
+              value: f.fulfilment,
+              onChange: (v) => setF((p) => ({ ...p, fulfilment: v })),
+              options: [
+                { value: "SHIP", title: translateUi("Ship to me"), description: translateUi("Delivered to the address below") },
+                {
+                  value: "COLLECT",
+                  title: translateUi("Collect in salon"),
+                  description: salonAddress
+                    ? translateUi("Pick up at {address}", { address: salonAddress })
+                    : translateUi("Pick up your order at the salon"),
+                },
+              ],
+            })}
+          </section>
 
-          {/* Communication preference */}
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: theme.accentColor }}>
-              {translateUi("Order notifications ")}</p>
-            <div className="flex flex-col gap-2">
-              {(["IMPORTANT_ONLY", "ALL"] as const).map((opt) => {
-                const selected = f.communicationPreference === opt;
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setF((p) => ({ ...p, communicationPreference: opt }))}
-                    className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: selected ? `${theme.accentColor}18` : cardBg,
-                      border: `1.5px solid ${selected ? theme.accentColor : cardBorder}`,
-                    }}
-                  >
-                    <span
-                      className="mt-0.5 w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
-                      style={{ border: `2px solid ${selected ? theme.accentColor : cardBorder}` }}
+          {shipping && (
+            <section aria-labelledby="checkout-address-title">
+              <h2 id="checkout-address-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Shipping address ")}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label htmlFor="checkout-line1" className="text-xs" style={labelStyle}>{translateUi("Address line 1 ")}{requiredMark}</label>
+                  <input {...fieldProps("line1", true)} className={inputCls} style={inputStyle("line1")} value={f.line1} onChange={set("line1")} onBlur={() => touch("line1")} autoComplete="address-line1" />
+                  {fieldError("line1")}
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="checkout-line2" className="text-xs" style={labelStyle}>
+                    {translateUi("Address line 2 ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
+                  </label>
+                  <input {...fieldProps("line2")} className={inputCls} style={inputStyle("line2")} value={f.line2} onChange={set("line2")} autoComplete="address-line2" />
+                </div>
+                <div>
+                  <label htmlFor="checkout-city" className="text-xs" style={labelStyle}>{translateUi("City ")}{requiredMark}</label>
+                  <input {...fieldProps("city", true)} className={inputCls} style={inputStyle("city")} value={f.city} onChange={set("city")} onBlur={() => touch("city")} autoComplete="address-level2" />
+                  {fieldError("city")}
+                </div>
+                <div>
+                  <label htmlFor="checkout-state" className="text-xs" style={labelStyle}>
+                    {translateUi("State / region ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
+                  </label>
+                  <input {...fieldProps("state")} className={inputCls} style={inputStyle("state")} value={f.state} onChange={set("state")} autoComplete="address-level1" />
+                </div>
+                <div>
+                  <label htmlFor="checkout-country" className="text-xs" style={labelStyle}>{translateUi("Country ")}{requiredMark}</label>
+                  {countries.length > 0 ? (
+                    <select
+                      {...fieldProps("country", true)}
+                      className={inputCls}
+                      style={inputStyle("country")}
+                      value={f.country}
+                      onChange={set("country")}
+                      onBlur={() => touch("country")}
+                      autoComplete="country-name"
                     >
-                      {selected && (
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.accentColor }} />
-                      )}
-                    </span>
-                    <span>
-                      <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>
-                        {opt === "IMPORTANT_ONLY" ? translateUi("Important only") : translateUi("All updates")}
-                      </span>
-                      <span className="text-[11px]" style={{ color: sub }}>
-                        {opt === "IMPORTANT_ONLY"
-                          ? translateUi("Shipping, invoice, refund & credit notifications")
-                          : translateUi("Every status change and activity on your order")}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                      <option value="">{translateUi("— Select country —")}</option>
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input {...fieldProps("country", true)} className={inputCls} style={inputStyle("country")} value={f.country} onChange={set("country")} onBlur={() => touch("country")} autoComplete="country-name" />
+                  )}
+                  {fieldError("country")}
+                </div>
+                <div>
+                  <label htmlFor="checkout-zipCode" className="text-xs" style={labelStyle}>{translateUi("ZIP / postcode ")}</label>
+                  <input {...fieldProps("zipCode")} className={inputCls} style={inputStyle("zipCode")} value={f.zipCode} onChange={set("zipCode")} autoComplete="postal-code" />
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section aria-labelledby="checkout-notifications-title">
+            <h2 id="checkout-notifications-title" className={sectionTitle} style={{ color: theme.accentColor }}>
+              {translateUi("Order notifications ")}</h2>
+            {radioCards<"ALL" | "IMPORTANT_ONLY">({
+              label: translateUi("Order notifications "),
+              value: f.communicationPreference,
+              onChange: (v) => setF((p) => ({ ...p, communicationPreference: v })),
+              options: [
+                { value: "IMPORTANT_ONLY", title: translateUi("Important only"), description: translateUi("Shipping, invoice, refund & credit notifications") },
+                { value: "ALL", title: translateUi("All updates"), description: translateUi("Every status change and activity on your order") },
+              ],
+            })}
+          </section>
         </div>
 
-        <div
-          className="rounded-2xl p-4 h-fit"
+        {/* Order summary. In the two-column (md+) layout it sticks below the site's sticky h-14
+            header (top-20 = 56px header + breathing room) and is capped to the viewport, so the
+            Pay button stays in reach while the form scrolls; only the line list scrolls inside it.
+            On one column it simply follows the form — nothing sticky covers the inputs. */}
+        <aside
+          aria-labelledby="checkout-summary-title"
+          className="rounded-2xl p-4 flex flex-col self-start w-full md:sticky md:top-20 md:max-h-[calc(100dvh-7rem)]"
           style={{ backgroundColor: cardBg, border: `1px solid ${cardBorder}` }}
         >
-          <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: theme.accentColor }}>{translateUi("Order summary")}</p>
-          <div className="flex flex-col gap-2 mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+            <h2 id="checkout-summary-title" className="text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>{translateUi("Order summary")}</h2>
+            <button type="button" onClick={onEditCart} className="text-[11px] font-semibold underline underline-offset-2 cursor-pointer hover:opacity-75" style={{ color: sub }}>
+              {translateUi("Edit cart")}
+            </button>
+          </div>
+          <ul className="flex flex-col gap-2 mb-3 min-h-0 overflow-y-auto overscroll-contain">
             {lines.map((l) => (
-              <div key={l.variantId} className="flex items-start justify-between text-xs" style={{ color: theme.heroTextColor }}>
+              <li key={l.variantId} className="flex items-start justify-between text-xs" style={{ color: theme.heroTextColor }}>
                 <span className="pr-2">
                   {l.quantity} × {l.productName}
                   {l.variantLabel ? ` · ${l.variantLabel}` : ""}
                 </span>
-                <span>{formatPrice(l.unitPrice * l.quantity, l.currency, uiLocale)}</span>
-              </div>
+                <span className="shrink-0 tabular-nums">{formatPrice(l.unitPrice * l.quantity, l.currency, uiLocale)}</span>
+              </li>
             ))}
+          </ul>
+
+          <div className="shrink-0">
+            {!shipping && (
+              <div className="flex items-center justify-between text-xs pb-2" style={{ color: sub }}>
+                <span>{translateUi("Collect in salon")}</span>
+                <span>{translateUi("Free")}</span>
+              </div>
+            )}
+            <div className="border-t pt-3 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
+              <span>{translateUi("Total")}</span>
+              <span className="tabular-nums">{total}</span>
+            </div>
+
+            {attempted && !isValid && (
+              <p role="alert" className="text-xs mt-3" style={{ color: errorColor }}>
+                {translateUi("Please fix the highlighted fields.")}
+              </p>
+            )}
+            {submitError && (
+              <p role="alert" className="text-xs mt-3 p-2 rounded-lg" style={{ color: errorColor, backgroundColor: `${errorColor}14`, border: `1px solid ${errorColor}33` }}>
+                {submitError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={busy}
+              aria-busy={busy || undefined}
+              className="w-full mt-4 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              style={{ backgroundColor: theme.accentColor, color: accentText }}
+            >
+              {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+              {busy ? busyLabel : payLabel}
+            </button>
+
+            {paymentNote && (
+              <p className="text-[10px] text-center mt-2" style={{ color: sub }}>{paymentNote}</p>
+            )}
+            {policies.length > 0 && (
+              <div className="mt-3 flex flex-col items-center gap-1.5 text-center">
+                <p className="text-[10px]" style={{ color: sub }}>{translateUi("By placing your order you agree to the salon's policies.")}</p>
+                <SalonPolicyLinks policies={policies} color={sub} salonName={salon.name} />
+              </div>
+            )}
           </div>
-          <div className="border-t pt-3 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
-            <span>{translateUi("Total")}</span>
-            <span>{formatPrice(subtotal, currency, uiLocale)}</span>
-          </div>
-
-          {submitError && (
-            <p className="text-xs mt-3 p-2 rounded-lg" style={{ color: errorColor, backgroundColor: `${errorColor}14`, border: `1px solid ${errorColor}33` }}>
-              {submitError}
-            </p>
-          )}
-
-          <button
-            disabled={!isValid || busy}
-            onClick={submit}
-            className="w-full mt-4 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
-            style={{ backgroundColor: theme.accentColor, color: accentText }}
-          >
-            {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {busy ? translateUi("Processing…") : `Pay ${formatPrice(subtotal, currency, uiLocale)}`}
-          </button>
-
-          <p className="text-[10px] text-center mt-2" style={{ color: sub }}>
-            {translateUi("Payment is simulated — no card is charged. ")}</p>
-        </div>
-      </div>
+        </aside>
+      </form>
     </div>
   );
 }

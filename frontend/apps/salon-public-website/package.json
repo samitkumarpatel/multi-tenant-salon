@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:navigation": "node --experimental-strip-types --test tests/navigation-search.test.mjs",
     "test:domains": "node --experimental-strip-types --test tests/tenant-host.test.mjs",
     "dev": "react-router dev",
     "build": "react-router build",

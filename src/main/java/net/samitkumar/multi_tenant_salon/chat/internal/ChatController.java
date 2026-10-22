@@ -3,9 +3,12 @@ package net.samitkumar.multi_tenant_salon.chat.internal;
 import net.samitkumar.multi_tenant_salon.chat.GenUiEventType;
 import net.samitkumar.multi_tenant_salon.chat.GenUiInteractionEvent;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,17 +22,20 @@ import java.util.UUID;
 import reactor.core.publisher.Flux;
 
 @RestController
+@Slf4j
 class ChatController {
 
     private final ChatAssistantService chatAssistantService;
     private final ChatFollowupsService chatFollowupsService;
     private final ApplicationEventPublisher eventPublisher;
+    private final TransactionTemplate tx;
 
     ChatController(ChatAssistantService chatAssistantService, ChatFollowupsService chatFollowupsService,
-                   ApplicationEventPublisher eventPublisher) {
+                   ApplicationEventPublisher eventPublisher, PlatformTransactionManager transactionManager) {
         this.chatAssistantService = chatAssistantService;
         this.chatFollowupsService = chatFollowupsService;
         this.eventPublisher = eventPublisher;
+        this.tx = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -97,8 +103,17 @@ class ChatController {
      * {@code analytics} module listens and (only for salons with ANALYTICS enabled) records usage
      * the salon owner can see. Best-effort: this module never depends on whether anyone is
      * listening, so a listener failure can't affect the reply already returned to the visitor.
+     * Published in a transaction so Spring Modulith stores each event and retries a failed delivery.
      */
     private void publishUsageEvents(String salonId, String sessionId, ChatReply reply) {
+        try {
+            tx.executeWithoutResult(status -> publishUsageEventsInTransaction(salonId, sessionId, reply));
+        } catch (RuntimeException e) {
+            log.warn("[chat] Could not record usage events for salon {}", salonId, e);
+        }
+    }
+
+    private void publishUsageEventsInTransaction(String salonId, String sessionId, ChatReply reply) {
         var now = Instant.now();
         eventPublisher.publishEvent(new GenUiInteractionEvent(salonId, sessionId, GenUiEventType.MESSAGE_SENT, null, now));
         for (var component : reply.components()) {

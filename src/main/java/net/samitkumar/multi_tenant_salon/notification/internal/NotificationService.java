@@ -29,6 +29,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -784,7 +785,13 @@ class NotificationService {
         acknowledge(toEmail, subject, textBody, status, ctx);
     }
 
-    /** The one place that actually talks to Mailjet. Never throws — a notification failure must not break the triggering business flow. */
+    /**
+     * The one place that actually talks to Mailjet. Every caller is an {@code @ApplicationModuleListener},
+     * so this runs after the business change has committed and can't break it. A temporary failure
+     * (network, Mailjet 5xx/429) throws {@link NotificationDeliveryException}: Spring Modulith then marks
+     * the event publication failed and the retry job sends the email again later. A permanent one (no
+     * recipient, Mailjet rejecting the message) returns {@code FAILED} — retrying would never help.
+     */
     private DispatchStatus dispatch(String toEmail, String toName, String subject, String textBody, String htmlBody) {
         return dispatch(toEmail, toName, subject, textBody, htmlBody, List.of());
     }
@@ -807,9 +814,23 @@ class NotificationService {
             var result = mailjetClient.send(request);
             log.info("[NOTIFICATION] Sent '{}' to {} <{}> — result: {}", subject, toName, toEmail, result);
             return DispatchStatus.SENT;
-        } catch (Exception e) {
-            log.error("[NOTIFICATION] Failed to send '{}' to {} <{}>", subject, toName, toEmail, e);
-            return DispatchStatus.FAILED;
+        } catch (RestClientResponseException e) {
+            var code = e.getStatusCode();
+            if (code.is4xxClientError() && code.value() != 429) {
+                log.error("[NOTIFICATION] Mailjet rejected '{}' to {} <{}> ({}) — not retrying: {}",
+                        subject, toName, toEmail, code.value(), e.getResponseBodyAsString());
+                return DispatchStatus.FAILED;
+            }
+            throw new NotificationDeliveryException("Mailjet answered " + code.value() + " for '" + subject + "' to " + toEmail, e);
+        } catch (RuntimeException e) {
+            throw new NotificationDeliveryException("Could not reach Mailjet for '" + subject + "' to " + toEmail, e);
+        }
+    }
+
+    /** A temporary delivery failure; thrown so Spring Modulith keeps the event publication for a retry. */
+    static class NotificationDeliveryException extends RuntimeException {
+        NotificationDeliveryException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

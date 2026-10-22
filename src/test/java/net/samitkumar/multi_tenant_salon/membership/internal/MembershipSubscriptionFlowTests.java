@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -50,6 +52,7 @@ class MembershipSubscriptionFlowTests {
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired ApplicationEventPublisher events;
     @Autowired MembershipManager memberships;
+    @Autowired PlatformTransactionManager transactionManager;
     @MockitoBean StripeConnectService stripe;
 
     RestTestClient client;
@@ -220,6 +223,62 @@ class MembershipSubscriptionFlowTests {
     }
 
     @Test
+    void cashSaleAtTheDeskActivatesAtOnceAndSendsTheQrEmail() {
+        var body = client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Walk In", "walkin@example.com", "CASH"))
+                .exchange().expectStatus().isCreated().expectBody()
+                .jsonPath("$.checkoutUrl").doesNotExist()
+                .returnResult().getResponseBody();
+        long subId = json(body, "$.subscriptionId");
+
+        var detail = detail(subId);
+        assertThat(JsonPath.<String>read(detail, "$.subscription.status")).isEqualTo("ACTIVE");
+        assertThat(JsonPath.<String>read(detail, "$.subscription.source")).isEqualTo("ADMIN");
+        assertThat(JsonPath.<String>read(detail, "$.payments[0].status")).isEqualTo("PAID");
+        assertThat(JsonPath.<String>read(detail, "$.payments[0].method")).isEqualTo("CASH");
+        assertThat(new BigDecimal(JsonPath.read(detail, "$.payments[0].amount").toString())).isEqualByComparingTo("59.00");
+        assertThat(JsonPath.<List<String>>read(detail, "$.activity[?(@.type == 'ACTIVATED')].message"))
+                .singleElement().asString().contains("in cash at the desk");
+        assertThat(awaitEmail(subId, "Welcome!")).contains("walkin@example.com");
+        verify(stripe, org.mockito.Mockito.never()).createCheckout(eq(salonId), eq("MEMBERSHIP"), anyString(), any(), any(), any(), any());
+
+        // The desk sale takes the capped plan's only place, like an online sign-up.
+        client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Bo", "bo@example.com", "OTHER")).exchange().expectStatus().isEqualTo(409);
+    }
+
+    @Test
+    void cardSaleAtTheDeskWaitsForStripeLikeOnlineSignUp() {
+        var desk = "https://dashboard.salonsaas.org/" + salonId + "?view=membership&membershipView=sell";
+        var body = client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Card Customer", "card@example.com", "CARD").replace("}", ", \"returnUrl\": \"" + desk + "\" }"))
+                .exchange().expectStatus().isCreated().expectBody()
+                .jsonPath("$.checkoutUrl").isEqualTo("https://checkout.stripe.test/session")
+                .returnResult().getResponseBody();
+        long subId = json(body, "$.subscriptionId");
+        var payment = latestPayment(subId);
+        assertThat(payment.get("method")).isEqualTo("CARD");
+        assertThat(JsonPath.<String>read(detail(subId), "$.subscription.status")).isEqualTo("PENDING_PAYMENT");
+        verify(stripe).createCheckout(eq(salonId), eq("MEMBERSHIP"), eq(String.valueOf(payment.get("id"))),
+                eq(new BigDecimal("59.00")), eq("EUR"), any(), eq(desk));
+
+        pay(payment, true);
+        assertThat(JsonPath.<String>read(detail(subId), "$.subscription.status")).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void deskCardSaleNeedsOnlinePaymentButCashDoesNot() {
+        when(stripe.enabled(salonId, "MEMBERSHIP")).thenReturn(false);
+        client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Ann", "ann@example.com", "CARD")).exchange().expectStatus().isEqualTo(409);
+        client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Ann", "ann@example.com", "CASH")).exchange().expectStatus().isCreated();
+        client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"planId\": %d, \"customerName\": \"Ann\", \"customerEmail\": \"ann@example.com\" }".formatted(planId))
+                .exchange().expectStatus().isBadRequest();
+    }
+
+    @Test
     void sameEmailCantJoinTheSamePlanTwice() {
         jdbcTemplate.update("UPDATE membership_plan SET max_members = NULL WHERE id = ?", planId);
         long subId = checkout("Ann", "ann@example.com");
@@ -247,10 +306,23 @@ class MembershipSubscriptionFlowTests {
         return "{ \"planId\": %d, \"customerName\": \"%s\", \"customerEmail\": \"%s\" }".formatted(planId, name, email);
     }
 
-    /** What the Connect webhook publishes for the checkout of {@code payment} — exactly as for a shop order. */
+    private String deskSaleBody(String name, String email, String method) {
+        return "{ \"planId\": %d, \"customerName\": \"%s\", \"customerEmail\": \"%s\", \"paymentMethod\": \"%s\" }"
+                .formatted(planId, name, email, method);
+    }
+
+    /**
+     * What the Connect webhook publishes for the checkout of {@code payment} — exactly as for a shop
+     * order: inside a transaction, so Spring Modulith stores it, then delivered asynchronously. Waits
+     * until the membership module has handled it (delivered publications leave {@code event_publication}).
+     */
     private void pay(Map<String, Object> payment, boolean succeeded) {
-        events.publishEvent(new StripePaymentEvent(salonId, "MEMBERSHIP", String.valueOf(payment.get("id")),
-                "cs_" + payment.get("id"), succeeded));
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                events.publishEvent(new StripePaymentEvent(salonId, "MEMBERSHIP", String.valueOf(payment.get("id")),
+                        "cs_" + payment.get("id"), succeeded)));
+        await().atMost(Duration.ofSeconds(15)).until(() -> jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM event_publication WHERE event_type = ?", Integer.class,
+                StripePaymentEvent.class.getName()) == 0);
     }
 
     private Map<String, Object> latestPayment(long subId) {

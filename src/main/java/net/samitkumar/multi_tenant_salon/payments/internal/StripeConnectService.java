@@ -288,7 +288,9 @@ public class StripeConnectService implements PaymentGateway {
             var uri = URI.create(returnUrl.trim());
             var origin = origin(uri);
             if (origin == null) return null;
+            // The salon desk (dashboard app) sells memberships too, and its card checkout returns there.
             boolean allowed = origin.equals(origin(websiteAppUrl)) || origin.equals(origin(bookingAppUrl))
+                    || origin.equals(origin(dashboardAppUrl))
                     || origin.equals("https://" + salon.handler().toLowerCase(Locale.ROOT) + "." + salonDomain.toLowerCase(Locale.ROOT))
                     || isActiveCustomDomain(salon.id(), origin);
             if (!allowed) return null;
@@ -327,27 +329,36 @@ public class StripeConnectService implements PaymentGateway {
                 + "&session_id={CHECKOUT_SESSION_ID}";
     }
 
+    /**
+     * Verifies the signature and turns a checkout outcome into a {@link StripePaymentEvent}. Runs in a
+     * transaction so Spring Modulith stores the event before Stripe gets its 200: the feature module
+     * (membership, shop, booking, till) then receives it asynchronously, and a failed delivery is
+     * retried from {@code event_publication} rather than relying on Stripe to resend.
+     */
+    @org.springframework.transaction.annotation.Transactional
     void handleWebhook(String payload, String signature) {
         if (webhookSecret == null || webhookSecret.isBlank()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Stripe webhooks are not configured");
         }
         verifySignature(payload, signature);
+        String type;
+        String connectedAccountId;
+        Map<String, Object> object;
         try {
             @SuppressWarnings("unchecked") var event = (Map<String, Object>) new tools.jackson.databind.ObjectMapper().readValue(payload, Map.class);
-            var type = String.valueOf(event.get("type"));
-            if (!type.startsWith("checkout.session.")) return;
-            var connectedAccountId = (String) event.get("account");
-            if (connectedAccountId == null) return;
-            var account = accounts.findByStripeAccountId(connectedAccountId).orElse(null);
-            if (account == null) return;
+            type = String.valueOf(event.get("type"));
+            connectedAccountId = (String) event.get("account");
             @SuppressWarnings("unchecked") var data = (Map<String, Object>) event.get("data");
-            @SuppressWarnings("unchecked") var object = (Map<String, Object>) data.get("object");
-            handleCheckoutSession(account.salonId(), type, object);
-        } catch (ResponseStatusException e) {
-            throw e;
+            @SuppressWarnings("unchecked") var checkout = data == null ? null : (Map<String, Object>) data.get("object");
+            object = checkout;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Stripe webhook payload", e);
         }
+        if (!type.startsWith("checkout.session.") || connectedAccountId == null || object == null) return;
+        var account = accounts.findByStripeAccountId(connectedAccountId).orElse(null);
+        if (account == null) return;
+        // Anything failing from here (e.g. storing the event) is a 5xx, so Stripe resends the webhook.
+        handleCheckoutSession(account.salonId(), type, object);
     }
 
     private void handleCheckoutSession(UUID salonId, String type, Map<String, Object> object) {

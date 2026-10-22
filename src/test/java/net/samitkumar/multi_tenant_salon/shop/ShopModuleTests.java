@@ -326,6 +326,23 @@ class ShopModuleTests {
     }
 
     @Test
+    void checkoutRejectsMalformedEmail() {
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"customerName\": \"A\", \"customerEmail\": \"not-an-email\", \"items\": [ { \"variantId\": 1, \"quantity\": 1 } ] }")
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void checkoutOptionsReportNoOnlinePaymentWithoutStripe() {
+        client.get().uri(customerBase() + "/checkout-options")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.onlinePayment").isEqualTo(false);
+    }
+
+    @Test
     void crossSalonIsolation() {
         var otherSalon = UUID.randomUUID();
         jdbcTemplate.update(

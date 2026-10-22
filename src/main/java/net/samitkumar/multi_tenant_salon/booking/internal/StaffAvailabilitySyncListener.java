@@ -1,15 +1,12 @@
 package net.samitkumar.multi_tenant_salon.booking.internal;
 
+import org.springframework.modulith.events.ApplicationModuleListener;
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailability;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonOperatingHoursUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -32,14 +29,16 @@ class StaffAvailabilitySyncListener {
 
     private final StaffAvailabilityRepository availabilityRepo;
     private final StaffApi staffApi;
+    private final StaffScheduleLock scheduleLock;
 
-    StaffAvailabilitySyncListener(StaffAvailabilityRepository availabilityRepo, StaffApi staffApi) {
+    StaffAvailabilitySyncListener(StaffAvailabilityRepository availabilityRepo, StaffApi staffApi, StaffScheduleLock scheduleLock) {
         this.availabilityRepo = availabilityRepo;
         this.staffApi = staffApi;
+        this.scheduleLock = scheduleLock;
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /** Delivered (and retried on failure) by Spring Modulith; re-running the sync converges to the same windows. */
+    @ApplicationModuleListener
     void onOperatingHoursUpdated(SalonOperatingHoursUpdatedEvent event) {
         log.info("[StaffAvailabilitySyncListener] Received SalonOperatingHoursUpdatedEvent for salon={}", event.salonId());
 
@@ -49,6 +48,8 @@ class StaffAvailabilitySyncListener {
             return;
         }
         log.info("[StaffAvailabilitySyncListener] Syncing availability for {} staff member(s) in salon={}", activeStaff.size(), event.salonId());
+        // Same per-stylist lock as an owner saving hours, taken in id order so concurrent syncs can't deadlock.
+        activeStaff.stream().map(member -> member.id()).sorted().forEach(scheduleLock::lock);
 
         for (Salon.OperatingHours oh : event.operatingHours()) {
             if (oh.closed()) {

@@ -986,6 +986,45 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/salon-admin/my-desk-salons:
+    get:
+      tags: [SalonAdmin]
+      summary: Salons the caller may open the salon desk for (desk login)
+      description: |
+        Salons the caller owns or works at as **active** staff (any staff role — stylist,
+        receptionist, manager), read live from the database. The desk app picks one with the
+        DASHBOARD feature, or explains that the desk isn't turned on. Unlike `my-salons`, staff
+        salons are included; `my-salons` stays owner-only for the admin app.
+
+        **Desk access for staff.** A staff member's token is accepted on `/api/salon-admin/{salonId}/**`
+        only for the desk's own endpoints (salon read, desk settings, Till / POS sales and card checkout,
+        payment status, bookings list/create/edit/confirm/cancel/complete/no-show, closures, holidays,
+        services, staff and their availability, membership plans, check-in `verify`, member detail and QR,
+        renewal link, `desk-sales`), only when their token names that salon, the database confirms they
+        are still active staff there, and the salon has DASHBOARD. Everything else stays owner-only (`403`).
+
+        Identity comes from the token's `sub`; `email` is only a fallback for local/mock-mode use and is
+        ignored whenever a bearer token is present.
+      operationId: getMyDeskSalons
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - { name: email, in: query, required: false, schema: { type: string, format: email }, description: Mock-mode fallback only }
+      responses:
+        "200":
+          description: Salons the caller owns or is active staff at
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Salon"
+        "401":
+          description: No bearer token and no email fallback provided
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Admin — Salon Management ────────────────────────────────────────────────
 
   /api/salon-admin/{salonId}:
@@ -2505,6 +2544,30 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/salon/{salonId}/shop/checkout-options:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Shop]
+      summary: What happens at checkout
+      description: |
+        Whether placing an order hands the customer to Stripe Checkout (`onlinePayment: true` — shop
+        payments enabled on a connected account that can take charges). When `false`, `POST /orders`
+        completes immediately with the legacy dummy payment and no card is charged.
+      operationId: getShopCheckoutOptions
+      responses:
+        "200":
+          description: Checkout options
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [onlinePayment]
+                properties:
+                  onlinePayment:
+                    type: boolean
+                    description: true when checkout redirects to Stripe Checkout
+
   /api/salon/{salonId}/shop/orders:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -2514,7 +2577,8 @@ paths:
       description: |
         Validates each variant, atomically decrements stock, snapshots price/name onto the
         order lines, then completes a dummy payment — the returned order is `PAID`. Returns
-        409 if any item is out of stock, 400 for an empty cart or missing name/email.
+        409 if any item is out of stock, 400 for an empty cart, missing name/email or a malformed
+        email. Omit `shippingAddress` (or send it empty) for collect-in-salon orders.
 
         **Stripe shop payments:** when the salon has shop payments enabled, the order is created with
         `paymentStatus: PENDING` and the 201 body is `{ order, checkoutUrl }` — redirect to
@@ -2537,7 +2601,7 @@ paths:
                   - $ref: "#/components/schemas/ShopOrder"
                   - $ref: "#/components/schemas/ShopCheckoutResponse"
         "400":
-          description: Empty cart, or missing customer name / email
+          description: Empty cart, missing customer name / email, or a malformed email address
         "409":
           description: An item is out of stock or no longer available
 
@@ -3641,6 +3705,38 @@ paths:
         "409":
           description: Not an active or expired membership, or it is set to cancel
 
+  /api/salon-admin/{salonId}/membership/desk-sales:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminMembership]
+      summary: Sell a membership at the salon desk (Till / POS)
+      description: >
+        Same plan, capacity and duplicate rules as online sign-up; the membership's `source` is `ADMIN`.
+        `CASH` / `OTHER` are paid on the spot — the membership is `ACTIVE` when this returns, the QR welcome
+        email is queued, and `checkoutUrl` is null. `CARD` opens the same one-time Stripe Checkout as online
+        sign-up (needs membership payments enabled); `returnUrl` may point at the salon desk app.
+      operationId: sellMembershipAtDesk
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MembershipDeskSaleRequest" }
+      responses:
+        "201":
+          description: Membership created (and active, unless paying by card)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipCheckoutResponse" }
+        "400":
+          description: Missing plan, name, valid email or payment method
+        "404":
+          description: Plan not found or not on sale
+        "409":
+          description: Plan full, already a member of this plan, or card chosen without membership payments enabled
+
   /api/salon-admin/{salonId}/membership/verify:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -3928,11 +4024,22 @@ components:
         customerPhone: { type: string, nullable: true }
         returnUrl: { type: string, format: uri, nullable: true }
 
+    MembershipDeskSaleRequest:
+      type: object
+      required: [planId, customerName, customerEmail, paymentMethod]
+      properties:
+        planId: { type: integer, format: int64 }
+        customerName: { type: string }
+        customerEmail: { type: string, format: email, description: The QR code is emailed here }
+        customerPhone: { type: string, nullable: true }
+        paymentMethod: { type: string, enum: [CASH, CARD, OTHER], description: CARD goes through Stripe Checkout }
+        returnUrl: { type: string, format: uri, nullable: true, description: Where Stripe returns after a CARD payment }
+
     MembershipCheckoutResponse:
       type: object
       properties:
         subscriptionId: { type: integer, format: int64 }
-        checkoutUrl: { type: string, format: uri }
+        checkoutUrl: { type: string, format: uri, nullable: true, description: Null for a desk sale paid in cash or another way }
 
     MembershipSubscription:
       type: object
@@ -3966,12 +4073,15 @@ components:
 
     MembershipPayment:
       type: object
-      description: One one-time Stripe Checkout for one billing period. Its id is the checkout's payment_reference.
+      description: >
+        The payment for one billing period. A CARD payment is a one-time Stripe Checkout whose
+        payment_reference is this id; CASH / OTHER were taken at the salon desk and are paid on creation.
       properties:
         id: { type: integer, format: int64 }
         subscriptionId: { type: integer, format: int64 }
         kind: { type: string, enum: [SIGNUP, RENEWAL] }
         status: { type: string, enum: [PENDING, PAID, FAILED] }
+        method: { type: string, enum: [CARD, CASH, OTHER] }
         amount: { type: number }
         currency: { type: string }
         checkoutSessionId: { type: string, nullable: true }

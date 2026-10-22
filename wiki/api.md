@@ -1170,6 +1170,14 @@ GET /api/salon-admin/my-salons
 Authorization: Bearer eyJhbGciOi...
 ```
 
+### Look up the salons whose desk the caller may open
+
+`GET /api/salon-admin/my-desk-salons`
+
+Used by the salon desk (dashboard app) login. Like `my-salons`, but it also returns salons where the caller is **active staff** (any staff role), read live from the database. Same `email` mock-mode fallback, ignored when a token is present. `200` with the salons, `404` when there are none. The desk picks a salon with the DASHBOARD feature or explains that the desk isn't on.
+
+**Staff on the desk.** Under `/api/salon-admin/{salonId}/**`, a staff token is accepted only for the endpoints the desk uses — salon read, `dashboard/settings` (read), Till / POS (`cashier/items`, `sales`, `sales/card-checkout`), `payments/stripe` (read), bookings (list, slots, read, create, edit, confirm / cancel / complete / no-show), `availability`, closures, holidays, services, staff and their availability, and membership (`plans`, `verify`, member detail and `qr.png`, `send-renewal-link`, `desk-sales`). Each request requires that the token names that salon as staff, that the database still has them as active staff there (so removing or deactivating someone locks them out at once), and that the salon has DASHBOARD. Everything else stays owner-only and returns `403`.
+
 ---
 
 ## Admin — Salon Management
@@ -2243,6 +2251,15 @@ variants are returned.
 
 `GET /api/salon/{salonId}/shop/products/{productId}` → `200` / `404`.
 
+### Checkout options
+
+`GET /api/salon/{salonId}/shop/checkout-options` → `200 { "onlinePayment": true }`
+
+`onlinePayment` is `true` when placing an order redirects the customer to Stripe Checkout (shop
+payments enabled on a connected account that can take charges). When `false`, the order completes
+immediately with the dummy payment below and no card is charged. The website checkout uses it to
+label the pay button and explain what happens next.
+
 ### Place an order (checkout)
 
 `POST /api/salon/{salonId}/shop/orders`
@@ -2271,7 +2288,10 @@ custom domain — with `?payment=success|cancel&reference=<orderId>&session_id=�
 only for the salon's own hosts (see *Create a booking*). The Connect webhook marks the order `PAID`
 (emits **OrderPlacedEvent**) or `FAILED` (stock restored, `PAYMENT_FAILED` activity).
 
-**Response** `400 Bad Request` — empty cart, or missing `customerName` / `customerEmail`.
+Omit `shippingAddress` (or send it with every field empty) for a **collect-in-salon** order.
+
+**Response** `400 Bad Request` — empty cart, missing `customerName` / `customerEmail`, or a malformed
+`customerEmail`.
 
 **Response** `409 Conflict` — an item is out of stock or its product is inactive.
 
@@ -2507,13 +2527,14 @@ Owner-only, under `/api/salon-admin/{salonId}/membership`.
 | `DELETE /plans/{planId}` | `204`; `409` if the plan has (or had) members — archive it instead with `status: ARCHIVED` |
 | `PUT /plans/order` | `{ planIds: [...] }` → plans in their new order |
 | `GET /subscriptions?status=&planId=&q=` | Members, newest first. `q` matches name, email or member code |
-| `GET /subscriptions/{id}` | `{ subscription, payments[], activity[] }` — every sign-up/renewal payment (`PENDING` / `PAID` / `FAILED`, period covered, Checkout session) and the timeline |
+| `GET /subscriptions/{id}` | `{ subscription, payments[], activity[] }` — every sign-up/renewal payment (`PENDING` / `PAID` / `FAILED`, `method` `CARD` / `CASH` / `OTHER`, period covered, Checkout session) and the timeline |
 | `GET /subscriptions/{id}/qr.png` | The member's QR code (PNG) for printing or showing at the desk |
 | `POST /subscriptions/{id}/cancel` | `{ atPeriodEnd: true\|false, reason? }` (default `true`). No Stripe call is needed, since nothing renews by itself. At period end the member stays `ACTIVE`, gets no reminder, then ends; `false` (or an `EXPIRED` membership) ends it now. No refund is issued. The member is emailed |
 | `POST /subscriptions/{id}/resume` | Undo an end-of-period cancellation |
 | `POST /subscriptions/{id}/send-renewal-link` | Email the renewal link now (active or expired, not cancelling) |
 | `POST /subscriptions/{id}/notes` | `{ note }` — staff note on the timeline |
 | `POST /subscriptions/{id}/resend-welcome` | Email the QR code again (active members only) |
+| `POST /desk-sales` | Sell at the salon desk — `{ planId, customerName, customerEmail, customerPhone?, paymentMethod: CASH\|CARD\|OTHER, returnUrl? }` → `201 { subscriptionId, checkoutUrl }`. Same capacity/duplicate rules as online sign-up, `source: ADMIN`. `CASH`/`OTHER` activate the membership now and queue the QR email (`checkoutUrl` null); `CARD` returns a one-time Stripe Checkout (membership payments must be enabled, else `409`) that comes back to `returnUrl` — the desk app's origin is allowed |
 | `GET /verify?code=` | Check-in lookup by the code in the QR (case and separators ignored) → member detail, or `404` |
 | `GET /overview` | Active / expired / pending counts, new & cancelled this month, renewals due in 7 / 30 days, monthly recurring revenue and money collected this month (per currency), per-plan breakdown, next renewals, latest activity |
 

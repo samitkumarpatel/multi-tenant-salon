@@ -2,6 +2,7 @@ package net.samitkumar.multi_tenant_salon.identity.internal;
 
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.identity.UserIdentity;
+import net.samitkumar.multi_tenant_salon.identity.UserIdentityApi;
 import net.samitkumar.multi_tenant_salon.identity.UserIdentity.SalonAccess;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -12,7 +13,7 @@ import java.util.UUID;
 
 @Repository
 @Slf4j
-class UserIdentityRepository {
+class UserIdentityRepository implements UserIdentityApi {
 
     private final JdbcClient jdbcClient;
 
@@ -20,7 +21,8 @@ class UserIdentityRepository {
         this.jdbcClient = jdbcClient;
     }
 
-    Optional<UserIdentity> findByEmail(String email) {
+    @Override
+    public Optional<UserIdentity> findByEmail(String email) {
         log.info("Finding user identity for email: {}", email);
         List<SalonAccess> salons = jdbcClient
                 .sql("SELECT salon_id, role, active FROM user_identity WHERE email = :email")

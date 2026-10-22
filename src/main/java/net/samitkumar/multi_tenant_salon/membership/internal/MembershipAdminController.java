@@ -2,13 +2,16 @@ package net.samitkumar.multi_tenant_salon.membership.internal;
 
 import net.samitkumar.multi_tenant_salon.membership.MembershipPlan;
 import net.samitkumar.multi_tenant_salon.membership.MembershipSubscription;
+import net.samitkumar.multi_tenant_salon.membership.internal.MembershipManager.DeskSaleSpec;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipManager.PlanSpec;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipManager.SubscriptionFilter;
+import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.CheckoutResult;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.Overview;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.PlanView;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.SubscriptionDetail;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -124,6 +127,16 @@ class MembershipAdminController {
     @PostMapping("/subscriptions/{subscriptionId}/send-renewal-link")
     SubscriptionDetail sendRenewalLink(@PathVariable String salonId, @PathVariable Long subscriptionId) {
         return memberships.sendRenewalLink(salonApi.resolveId(salonId), subscriptionId);
+    }
+
+    /**
+     * Sell a membership at the salon desk. Cash/other activates it now ({@code checkoutUrl} is null);
+     * card returns a Stripe Checkout URL to open on the desk, which comes back to {@code returnUrl}.
+     */
+    @PostMapping("/desk-sales")
+    @ResponseStatus(HttpStatus.CREATED)
+    CheckoutResult sellAtDesk(@PathVariable String salonId, @RequestBody DeskSaleSpec spec) {
+        return memberships.sellAtDesk(salonApi.resolveId(salonId), spec);
     }
 
     /** Look a member up by the code in their QR (scanned or typed). */

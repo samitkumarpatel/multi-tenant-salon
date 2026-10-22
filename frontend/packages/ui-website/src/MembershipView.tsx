@@ -9,6 +9,7 @@ import { SalonPolicyLinks } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
 import PhoneInput from "./PhoneInput";
+import { findCountry } from "./countryMatch";
 import type { Country, MembershipBillingInterval, MembershipCatalog, MembershipPlan, MembershipRenewal, Salon, WebsiteTheme } from "./types";
 
 export interface MembershipViewProps {
@@ -60,8 +61,19 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
   const [joining, setJoining] = useState<MembershipPlan | null>(null);
   const [returned, setReturned] = useState<"success" | "cancel" | null>(null);
   const [renewToken, setRenewToken] = useState<string | null>(null);
+  // null while loading. Fetched up front (like the shop) so the join form's phone field can open
+  // on the salon's dialling code — PhoneInput picks its default once, when it mounts.
+  const [countries, setCountries] = useState<Country[] | null>(null);
 
   useEffect(() => { loadGoogleFont(theme.fontFamily); }, [theme.fontFamily]);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`)
+      .then((c) => alive && setCountries(c))
+      .catch(() => alive && setCountries([]));
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -85,7 +97,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
     const url = new URL(window.location.href);
     ["payment", "reference", "session_id", "renew"].forEach((k) => url.searchParams.delete(k));
     setRenewToken(null);
-    window.history.replaceState(null, "", url.toString());
+    window.history.replaceState(window.history.state, "", url.toString());
   }
 
   const goHome = () => onNavigate?.(null);
@@ -204,7 +216,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
 
       {joining && (
         <JoinDialog salon={salon} plan={joining} theme={theme} accentText={accentText} policies={policies}
-          onClose={() => setJoining(null)} />
+          countries={countries} onClose={() => setJoining(null)} />
       )}
     </>,
   );
@@ -270,14 +282,15 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
   );
 }
 
-function JoinDialog({ salon, plan, theme, accentText, policies, onClose }: {
-  salon: Salon; plan: MembershipPlan; theme: WebsiteTheme; accentText: string; policies: SalonPolicy[]; onClose: () => void;
+function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClose }: {
+  salon: Salon; plan: MembershipPlan; theme: WebsiteTheme; accentText: string; policies: SalonPolicy[];
+  /** null while the country list is still loading. */
+  countries: Country[] | null; onClose: () => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [countries, setCountries] = useState<Country[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ringStyle = { ["--tw-ring-color" as string]: `${theme.accentColor}33` };
@@ -285,9 +298,6 @@ function JoinDialog({ salon, plan, theme, accentText, policies, onClose }: {
   const firstCharge = plan.price + (plan.signupFee ?? 0);
   const valid = name.trim().length > 0 && EMAIL.test(email.trim());
 
-  useEffect(() => {
-    apiFetch<Country[]>(`${API_BASE}/api/salon-utility/countries`).then(setCountries).catch(() => {});
-  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); };
     window.addEventListener("keydown", onKey);
@@ -348,7 +358,12 @@ function JoinDialog({ salon, plan, theme, accentText, policies, onClose }: {
             <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
               <Phone className="w-3.5 h-3.5" /> {translateUi("Phone number")} <span className="font-normal text-slate-400">{translateUi("(optional)")}</span>
             </label>
-            <PhoneInput value={phone} onChange={setPhone} countries={countries} defaultCountry={salon.location?.country} />
+            {countries === null ? (
+              <div className="h-[46px] rounded-xl border border-stone-200 bg-stone-50 animate-pulse" aria-busy="true" />
+            ) : (
+              <PhoneInput value={phone} onChange={setPhone} countries={countries}
+                defaultCountry={findCountry(countries, salon.location?.country)?.name} />
+            )}
           </div>
         </div>
 

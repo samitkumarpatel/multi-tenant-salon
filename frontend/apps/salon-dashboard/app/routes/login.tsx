@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Mail, KeyRound, ShieldCheck, ArrowLeft, Lock, Store } from "lucide-react";
@@ -37,9 +37,10 @@ function LoginShell({ children }: { children: React.ReactNode }) {
 
       <header className="h-12 border-b border-slate-200 bg-white flex items-center px-6 shrink-0">
         <AppLogo size={24} textColor="#374151" />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
             {translateUi("Salon Dashboard ")}</span>
+          <LanguageSelector compact />
         </div>
       </header>
 
@@ -86,7 +87,7 @@ function NoDashboardCard({ email, hasSalon, onBack }: { email: string; hasSalon:
           ) : (
             <>
               {translateUi("We couldn't find a salon linked to")}{" "}
-              <span className="font-medium text-slate-700">{email}</span>{translateUi(". Create one in the admin portal to get started. ")}</>
+              <span className="font-medium text-slate-700">{email}</span>{translateUi(". Staff: ask your salon manager to add this email to the team. Owners: create a salon in the admin portal. ")}</>
           )}
         </CardHeader>
 
@@ -226,13 +227,13 @@ function MockLogin() {
       {step === "email" ? (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
           <CardHeader icon={KeyRound} title={translateUi("Open your Dashboard")}>
-            {translateUi("Enter the email address you used when registering your salon. ")}</CardHeader>
+            {translateUi("Enter your work email — the salon owner's, or the one your salon added you to the team with. ")}</CardHeader>
 
           <div className="px-6 py-5">
             <form onSubmit={handleEmailSubmit} className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  {translateUi("Owner email address ")}</label>
+                  {translateUi("Work email address ")}</label>
                 <div className="relative">
                   <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                   <input
@@ -240,7 +241,7 @@ function MockLogin() {
                     autoFocus
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setEmailErr(""); }}
-                    placeholder={"owner@example.com"}
+                    placeholder={"you@example.com"}
                     className={`${inputCls} pl-8 ${emailErr ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : ""}`}
                   />
                 </div>

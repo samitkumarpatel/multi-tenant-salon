@@ -58,7 +58,8 @@ public class MultiTenantSalonApplication {
 
 	@Bean
 	ThrowingCustomizer<HttpSecurity> httpSecurityCustomizer(
-			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
+			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
+			SalonDeskAccess deskAccess) {
 		if (issuerUri.contains("localhost")) {
 			log.warn("No OAuth2 issuer configured (still the localhost default) — running with security disabled for local development.");
 			return http -> http.csrf(AbstractHttpConfigurer::disable).cors(Customizer.withDefaults())
@@ -111,7 +112,7 @@ public class MultiTenantSalonApplication {
 								// got them past this gate.
 								.requestMatchers("/api/salon-staff", "/api/salon-staff/**").hasAnyRole("STAFF", "OWNER")
 								// Not scoped to a single salonId — just needs a valid caller identity.
-								.requestMatchers("/api/salon-admin/my-salons").authenticated()
+								.requestMatchers("/api/salon-admin/my-salons", "/api/salon-admin/my-desk-salons").authenticated()
 								// Only the {salonId}-templated patterns — NOT a bare "/api/salon-admin/**" catch-all.
 								// RequestMatcherDelegatingAuthorizationManager evaluates matchers in declaration
 								// order and uses the first match's path variables; a wildcard listed ahead of
@@ -143,6 +144,9 @@ public class MultiTenantSalonApplication {
 													&& "OWNER".equals(s.get("role"))
 													&& Boolean.TRUE.equals(s.get("active"))
 									);
+									// Not the owner: the salon's own staff may still use the desk's endpoints
+									// (SalonDeskAccess keeps the allowlist and re-checks membership live).
+									if (!allowed) allowed = deskAccess.allows(jwt, salonIdParam, context.getRequest());
 									return new AuthorizationDecision(allowed);
 								})
 

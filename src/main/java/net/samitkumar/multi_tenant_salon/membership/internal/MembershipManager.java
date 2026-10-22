@@ -83,6 +83,8 @@ class MembershipManager {
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH).withZone(ZoneOffset.UTC);
     private static final SecureRandom RANDOM = new SecureRandom();
+    /** Timeline actor for sales taken at the salon desk. */
+    private static final String DESK = "desk";
 
     record PlanSpec(String name, String description, BigDecimal price, String currency,
                     BillingInterval billingInterval, BigDecimal signupFee, Integer serviceDiscountPercent,
@@ -91,6 +93,10 @@ class MembershipManager {
                     List<MembershipPlan.IncludedService> includedServices) {}
 
     record CheckoutSpec(Long planId, String customerName, String customerEmail, String customerPhone, String returnUrl) {}
+
+    /** A sign-up taken at the salon desk; {@code returnUrl} is only used for {@code CARD}. */
+    record DeskSaleSpec(Long planId, String customerName, String customerEmail, String customerPhone,
+                        MembershipPayment.Method paymentMethod, String returnUrl) {}
 
     record SubscriptionFilter(MembershipSubscription.Status status, Long planId, String q) {}
 
@@ -252,45 +258,85 @@ class MembershipManager {
      */
     CheckoutResult startCheckout(UUID salonId, CheckoutSpec spec) {
         var salon = requireMembershipSalon(salonId);
-        if (spec == null || spec.planId() == null) throw badRequest("Choose a plan");
-        var name = spec.customerName() == null ? "" : spec.customerName().strip();
-        var email = spec.customerEmail() == null ? "" : spec.customerEmail().strip();
-        if (name.isEmpty()) throw badRequest("Enter your name");
-        if (!EMAIL.matcher(email).matches()) throw badRequest("Enter a valid email address");
+        if (spec == null) throw badRequest("Choose a plan");
+        var customer = customer(spec.customerName(), spec.customerEmail(), spec.customerPhone());
         requireOnlinePayment(salonId);
-        record Started(MembershipSubscription sub, MembershipPayment payment) {}
         var started = tx.execute(status -> {
-            var plan = plans.findByIdAndSalonId(spec.planId(), salonId)
-                    .filter(p -> p.status() == MembershipPlan.Status.ACTIVE)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Membership plan not found"));
-            // Serialize sign-ups per plan so two visitors can't both take the last place on a capped plan.
-            jdbc.sql("SELECT pg_advisory_xact_lock(:cls, :plan)")
-                    .param("cls", PLAN_LOCK_CLASS).param("plan", plan.id().intValue()).query().singleColumn();
-            boolean alreadyMember = jdbc.sql("""
-                    SELECT count(*) FROM membership_subscription
-                    WHERE salon_id = :salon AND plan_id = :plan AND lower(customer_email) = lower(:email) AND status = 'ACTIVE'""")
-                    .param("salon", salonId).param("plan", plan.id()).param("email", email)
-                    .query(Long.class).single() > 0;
-            if (alreadyMember) throw new ResponseStatusException(HttpStatus.CONFLICT, "You're already a member of this plan");
-            if (plan.maxMembers() != null && seatsHeldByPlan(salonId).getOrDefault(plan.id(), 0) >= plan.maxMembers()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "This plan is full");
-            }
-            var now = Instant.now();
-            var sub = subscriptions.save(MembershipSubscription.builder()
-                    .salonId(salonId).planId(plan.id()).planName(plan.name()).memberCode(newMemberCode()).renewalToken(newToken())
-                    .customerName(name).customerEmail(email).customerPhone(blankToNull(spec.customerPhone()))
-                    .status(MembershipSubscription.Status.PENDING_PAYMENT)
-                    .price(plan.price()).currency(plan.currency()).billingInterval(plan.billingInterval())
-                    .signupFee(plan.signupFee()).source(MembershipSubscription.Source.ONLINE)
-                    .createdAt(now).build());
-            var firstCharge = plan.signupFee() == null ? plan.price() : plan.price().add(plan.signupFee());
-            var payment = payments.save(new MembershipPayment(null, sub.id(), salonId, MembershipPayment.Kind.SIGNUP,
-                    MembershipPayment.Status.PENDING, firstCharge, plan.currency(), null, null, null, null, now));
-            activity(sub, MembershipActivity.Type.CHECKOUT_STARTED, name + " started checkout for " + plan.name(), "customer");
-            return new Started(sub, payment);
+            var s = signUp(salonId, spec.planId(), customer, MembershipSubscription.Source.ONLINE, MembershipPayment.Method.CARD);
+            activity(s.sub(), MembershipActivity.Type.CHECKOUT_STARTED, customer.name() + " started checkout for " + s.sub().planName(), "customer");
+            return s;
         });
         var url = checkout(salon, started.sub(), started.payment(), spec.returnUrl());
         return new CheckoutResult(started.sub().id(), url);
+    }
+
+    /**
+     * A sign-up taken at the salon desk. {@code CARD} is the same one-time Stripe Checkout as online
+     * sign-up, opened on the desk and returning there; {@code CASH}/{@code OTHER} are paid on the spot,
+     * so the membership is active (and the QR email queued) before this returns, with no checkout URL.
+     */
+    CheckoutResult sellAtDesk(UUID salonId, DeskSaleSpec spec) {
+        var salon = requireMembershipSalon(salonId);
+        if (spec == null) throw badRequest("Choose a plan");
+        if (spec.paymentMethod() == null) throw badRequest("Choose how the customer is paying");
+        var customer = customer(spec.customerName(), spec.customerEmail(), spec.customerPhone());
+        boolean card = spec.paymentMethod() == MembershipPayment.Method.CARD;
+        if (card) requireOnlinePayment(salonId);
+        var started = tx.execute(status -> {
+            var s = signUp(salonId, spec.planId(), customer, MembershipSubscription.Source.ADMIN, spec.paymentMethod());
+            if (card) {
+                activity(s.sub(), MembershipActivity.Type.CHECKOUT_STARTED, "Card checkout started at the desk for " + customer.name(), DESK);
+            } else {
+                settle(s.payment(), s.sub(), null, DESK);
+            }
+            return s;
+        });
+        return new CheckoutResult(started.sub().id(), card ? checkout(salon, started.sub(), started.payment(), spec.returnUrl()) : null);
+    }
+
+    private record Customer(String name, String email, String phone) {}
+
+    private record Started(MembershipSubscription sub, MembershipPayment payment) {}
+
+    private static Customer customer(String name, String email, String phone) {
+        var n = name == null ? "" : name.strip();
+        var e = email == null ? "" : email.strip();
+        if (n.isEmpty()) throw badRequest("Enter your name");
+        if (!EMAIL.matcher(e).matches()) throw badRequest("Enter a valid email address");
+        return new Customer(n, e, blankToNull(phone));
+    }
+
+    /** A {@code PENDING_PAYMENT} membership plus its {@code PENDING} first payment; call inside a transaction. */
+    private Started signUp(UUID salonId, Long planId, Customer customer, MembershipSubscription.Source source,
+                           MembershipPayment.Method method) {
+        if (planId == null) throw badRequest("Choose a plan");
+        var plan = plans.findByIdAndSalonId(planId, salonId)
+                .filter(p -> p.status() == MembershipPlan.Status.ACTIVE)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Membership plan not found"));
+        // Serialize sign-ups per plan so two visitors can't both take the last place on a capped plan.
+        jdbc.sql("SELECT pg_advisory_xact_lock(:cls, :plan)")
+                .param("cls", PLAN_LOCK_CLASS).param("plan", plan.id().intValue()).query().singleColumn();
+        boolean alreadyMember = jdbc.sql("""
+                SELECT count(*) FROM membership_subscription
+                WHERE salon_id = :salon AND plan_id = :plan AND lower(customer_email) = lower(:email) AND status = 'ACTIVE'""")
+                .param("salon", salonId).param("plan", plan.id()).param("email", customer.email())
+                .query(Long.class).single() > 0;
+        if (alreadyMember) throw new ResponseStatusException(HttpStatus.CONFLICT, "You're already a member of this plan");
+        if (plan.maxMembers() != null && seatsHeldByPlan(salonId).getOrDefault(plan.id(), 0) >= plan.maxMembers()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This plan is full");
+        }
+        var now = Instant.now();
+        var sub = subscriptions.save(MembershipSubscription.builder()
+                .salonId(salonId).planId(plan.id()).planName(plan.name()).memberCode(newMemberCode()).renewalToken(newToken())
+                .customerName(customer.name()).customerEmail(customer.email()).customerPhone(customer.phone())
+                .status(MembershipSubscription.Status.PENDING_PAYMENT)
+                .price(plan.price()).currency(plan.currency()).billingInterval(plan.billingInterval())
+                .signupFee(plan.signupFee()).source(source)
+                .createdAt(now).build());
+        var firstCharge = plan.signupFee() == null ? plan.price() : plan.price().add(plan.signupFee());
+        var payment = payments.save(new MembershipPayment(null, sub.id(), salonId, MembershipPayment.Kind.SIGNUP,
+                MembershipPayment.Status.PENDING, method, firstCharge, plan.currency(), null, null, null, null, now));
+        return new Started(sub, payment);
     }
 
     RenewalView renewal(UUID salonId, String token) {
@@ -312,7 +358,8 @@ class MembershipManager {
         }
         var payment = tx.execute(status -> {
             var p = payments.save(new MembershipPayment(null, sub.id(), salonId, MembershipPayment.Kind.RENEWAL,
-                    MembershipPayment.Status.PENDING, sub.price(), sub.currency(), null, null, null, null, Instant.now()));
+                    MembershipPayment.Status.PENDING, MembershipPayment.Method.CARD, sub.price(), sub.currency(),
+                    null, null, null, null, Instant.now()));
             activity(sub, MembershipActivity.Type.RENEWAL_STARTED, sub.customerName() + " started a renewal checkout", "customer");
             return p;
         });
@@ -373,6 +420,15 @@ class MembershipManager {
             }
             return;
         }
+        settle(payment, sub, sessionId, "stripe");
+    }
+
+    /**
+     * Marks a {@code PENDING} payment paid and starts (or extends) the period it buys — now, or where
+     * the current one ends when renewing early — for one interval. A no-op if it was already settled.
+     */
+    private void settle(MembershipPayment payment, MembershipSubscription sub, String sessionId, String actor) {
+        var now = Instant.now();
         var start = sub.status() == MembershipSubscription.Status.ACTIVE && sub.currentPeriodEnd() != null
                 && sub.currentPeriodEnd().isAfter(now) ? sub.currentPeriodEnd() : now;
         var end = sub.billingInterval().after(start);
@@ -381,7 +437,7 @@ class MembershipManager {
                   period_start = :start, period_end = :end
                 WHERE id = :id AND status = 'PENDING'""")
                 .param("session", sessionId).param("now", ts(now)).param("start", ts(start)).param("end", ts(end))
-                .param("id", paymentId).update();
+                .param("id", payment.id()).update();
         if (changed != 1) return;
         jdbc.sql("""
                 UPDATE membership_subscription SET status = 'ACTIVE', started_at = COALESCE(started_at, :now),
@@ -391,9 +447,14 @@ class MembershipManager {
                 WHERE id = :id""")
                 .param("now", ts(now)).param("end", ts(end)).param("amount", payment.amount()).param("id", sub.id()).update();
         boolean first = payment.kind() == MembershipPayment.Kind.SIGNUP;
+        var paidHow = switch (payment.method()) {
+            case CARD -> "";
+            case CASH -> " in cash at the desk";
+            case OTHER -> " at the desk";
+        };
         activity(sub, first ? MembershipActivity.Type.ACTIVATED : MembershipActivity.Type.RENEWED,
                 (first ? "Membership activated" : "Membership renewed") + " — paid " + money(payment.amount(), payment.currency())
-                        + ", member through " + DATE.format(end), "stripe");
+                        + paidHow + ", member through " + DATE.format(end), actor);
         publishActivated(reload(sub), first ? MembershipActivatedEvent.Kind.WELCOME : MembershipActivatedEvent.Kind.RENEWED);
     }
 

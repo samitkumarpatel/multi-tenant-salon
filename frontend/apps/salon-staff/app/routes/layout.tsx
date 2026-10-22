@@ -1,4 +1,4 @@
-import { useI18n } from "@salon/i18n";
+import { LanguageSelector, useI18n } from "@salon/i18n";
 import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResponse, useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState, useRef, useEffect } from "react";
@@ -261,6 +261,7 @@ export default function Layout() {
           <div className="hidden md:flex">
             <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} />
           </div>
+          <LanguageSelector compact />
           <StaffSwitcher session={session} />
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600 min-w-0">
             <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[session.role] ?? "bg-slate-300"}`} />

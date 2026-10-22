@@ -11,13 +11,14 @@ import { Toast, useToast } from "@salon/ui-shared";
 import { ADMIN_API, CUSTOMER_API, apiFetch } from "~/lib/api";
 import { getDashboardSession } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
+import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
 import type {
   AvailableSlot, Booking, Country, OperatingHours, Salon, SalonClosure, SalonHoliday, ServiceItem, StaffAvailability,
   StaffAvailabilityOverride, StaffMember,
 } from "@salon/ui-website";
 import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
-type DashboardView = "appointments" | "cashier";
+type DashboardView = "appointments" | "cashier" | "membership";
 type CashierView = "pos" | "invoices";
 
 interface DashboardSettings {
@@ -47,7 +48,7 @@ interface PosSale {
   paymentStatus?: "PENDING" | "PAID" | "FAILED";
   paymentReference?: string | null;
 }
-interface PaymentSetup { stripe: { account: { chargesEnabled: boolean } | null; settings: { posEnabled: boolean } } }
+interface PaymentSetup { stripe: { account: { chargesEnabled: boolean } | null; settings: { posEnabled: boolean; membershipEnabled: boolean } } }
 
 interface CartLine extends CashierItem { quantity: number }
 
@@ -68,6 +69,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   if (!settingsResult.value) throw settingsResult.error;
   const settings = settingsResult.value;
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
+  const membershipEnabled = Boolean(salon.features?.includes("MEMBERSHIP"));
   const [bookings, staff, services, closures, holidays, cashierItems, sales, countries, paymentSetup] = await Promise.all([
     bookingEnabled ? apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`).catch((): Booking[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`).catch((): StaffMember[] => []) : Promise.resolve([]),
@@ -79,7 +81,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
       : Promise.resolve([] as CashierItem[]),
     settings.cashierEnabled ? apiFetch<PosSale[]>(`${ADMIN_API}/${sid}/dashboard/sales`).catch((): PosSale[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<Country[]>(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/salon-utility/countries`).catch((): Country[] => []) : Promise.resolve([] as Country[]),
-    settings.cashierEnabled ? apiFetch<PaymentSetup>(`${ADMIN_API}/${sid}/payments/stripe`).catch((): null => null) : Promise.resolve(null),
+    settings.cashierEnabled || membershipEnabled ? apiFetch<PaymentSetup>(`${ADMIN_API}/${sid}/payments/stripe`).catch((): null => null) : Promise.resolve(null),
   ]);
   const schedules = bookingEnabled ? (await Promise.all(staff.map(async (member) => {
     const [availability, overrides] = await Promise.all([
@@ -108,19 +110,23 @@ export default function DashboardPage() {
   const returnedSessionId = params.get("session_id");
   const appointmentsView = params.get("appointmentsView");
   const todayView = params.get("todayView") === "stylist" ? "stylist" : "day";
+  const membershipEnabled = Boolean(initial.salon.features?.includes("MEMBERSHIP"));
+  const membershipView: MembershipDeskView = params.get("membershipView") === "sell" ? "sell" : "check-in";
   const view: DashboardView = requestedView === "cashier" && initial.settings.cashierEnabled
     ? "cashier"
-    : appointmentEnabled ? "appointments" : "cashier";
+    : requestedView === "membership" && membershipEnabled ? "membership"
+    : appointmentEnabled ? "appointments" : initial.settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
 
   const [settings] = useState(initial.settings);
   const cardPaymentEnabled = Boolean(initial.paymentSetup?.stripe.settings.posEnabled && initial.paymentSetup?.stripe.account?.chargesEnabled);
+  const membershipCardEnabled = Boolean(initial.paymentSetup?.stripe.settings.membershipEnabled && initial.paymentSetup?.stripe.account?.chargesEnabled);
   const [bookings, setBookings] = useState(initial.bookings);
   const [cashierItems] = useState(initial.cashierItems);
   const [cashierSearch, setCashierSearch] = useState("");
   const [cashierFilter, setCashierFilter] = useState<"ALL" | "SERVICE" | "PRODUCT">("ALL");
   const [sales, setSales] = useState(initial.sales);
   useEffect(() => {
-    if (paymentReturn !== "success") return;
+    if (paymentReturn !== "success" || view !== "cashier") return;
     let stopped = false;
     let attempts = 0;
     const poll = async () => {
@@ -138,7 +144,7 @@ export default function DashboardPage() {
     const timer = window.setInterval(() => { void poll(); }, 1500);
     void poll();
     return () => { stopped = true; window.clearInterval(timer); };
-  }, [paymentReturn, returnedSessionId, initial.sid]);
+  }, [paymentReturn, returnedSessionId, initial.sid, view]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PosSale["paymentMethod"]>("CASH");
   const [customerName, setCustomerName] = useState("");
@@ -253,14 +259,14 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
           </div>
           {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
         </div>
       </div>
 
-      {!appointmentEnabled && !settings.cashierEnabled && (
+      {!appointmentEnabled && !settings.cashierEnabled && !membershipEnabled && (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
           <h2 className="text-sm font-semibold text-slate-800">{translateUi("This salon desk is not available yet")}</h2>
           <p className="mt-1 text-xs text-slate-400">{translateUi("Ask the salon manager to enable appointments or cashier.")}</p>
@@ -413,6 +419,10 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      )}
+
+      {view === "membership" && (
+        <MembershipDesk sid={initial.sid} view={membershipView} cardEnabled={membershipCardEnabled} notify={notify} />
       )}
 
       {servicePickerTime && <AvailableServicePicker sid={initial.sid} date={servicePickerTime.date} time={servicePickerTime.time} staffId={servicePickerTime.staffId} services={initial.services} staff={initial.staff}

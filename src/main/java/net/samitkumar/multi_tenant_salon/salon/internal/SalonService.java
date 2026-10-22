@@ -196,6 +196,7 @@ class SalonService implements SalonApi {
         });
     }
 
+    @Transactional
     public Optional<Salon> updateFeatures(UUID id, List<SalonFeature> features) {
         log.info("[SalonService] Updating features for salon id={} features={}", id, features);
         return repository.findById(id).map(existing -> {
@@ -233,6 +234,7 @@ class SalonService implements SalonApi {
         });
     }
 
+    @Transactional
     Optional<Salon> updateBookingSettings(UUID id, Integer bookingAdvanceDays, Boolean bookingRequiresConfirmation) {
         log.info("[SalonService] Updating booking settings for salon id={}", id);
         return repository.findById(id).map(existing -> {
@@ -347,6 +349,7 @@ class SalonService implements SalonApi {
     }
 
     @Override
+    @Transactional
     public Optional<Salon> disable(UUID id) {
         log.info("[SalonService] Disabling salon id={}", id);
         return repository.findById(id).map(existing -> {
@@ -362,6 +365,7 @@ class SalonService implements SalonApi {
     }
 
     @Override
+    @Transactional
     public Optional<Salon> enable(UUID id) {
         log.info("[SalonService] Enabling salon id={}", id);
         return repository.findById(id).map(existing -> {

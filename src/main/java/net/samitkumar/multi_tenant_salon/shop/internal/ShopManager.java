@@ -51,6 +51,8 @@ import java.util.stream.Collectors;
 class ShopManager {
 
     private static final String DEFAULT_CURRENCY = "USD";
+    /** Same shape the storefront checks client-side: something@domain.tld, no spaces. */
+    private static final java.util.regex.Pattern EMAIL = java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
     private final BrandRepository brandRepo;
     private final CategoryRepository categoryRepo;
@@ -360,6 +362,9 @@ class ShopManager {
         }
         if (isBlank(req.customerName()) || isBlank(req.customerEmail())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and email are required");
+        }
+        if (!EMAIL.matcher(req.customerEmail().trim()).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid email address");
         }
 
         var lines = new ArrayList<ShopOrder.OrderLine>();

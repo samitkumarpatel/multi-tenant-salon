@@ -1222,6 +1222,28 @@ You're paid up for now — renewal opens a month before your membership ends.|Du
 Online renewal isn't available right now — please contact the salon.|Online fornyelse er ikke tilgængelig lige nu — kontakt venligst salonen.|Förnyelse online är inte tillgänglig just nu — kontakta salongen.|Fornyelse på nett er ikke tilgjengelig akkurat nå — kontakt salongen.|Le renouvellement en ligne n'est pas disponible pour le moment — veuillez contacter le salon.|Die Online-Verlängerung ist derzeit nicht verfügbar — bitte kontaktieren Sie den Salon.
 Renew for {price}|Forny for {price}|Förnya för {price}|Forny for {price}|Renouveler pour {price}|Für {price} verlängern
 See all membership plans|Se alle medlemskaber|Se alla medlemskap|Se alle medlemskap|Voir toutes les formules|Alle Mitgliedschaften ansehen
+Full name is required.|Fulde navn er påkrævet.|Fullständigt namn krävs.|Fullt navn er påkrevd.|Le nom complet est obligatoire.|Der vollständige Name ist erforderlich.
+Email is required.|E-mail er påkrævet.|E-post krävs.|E-post er påkrevd.|L'adresse e-mail est obligatoire.|Die E-Mail-Adresse ist erforderlich.
+Please enter a valid email address.|Indtast en gyldig e-mailadresse.|Ange en giltig e-postadress.|Skriv inn en gyldig e-postadresse.|Veuillez saisir une adresse e-mail valide.|Bitte geben Sie eine gültige E-Mail-Adresse ein.
+Address line 1 is required.|Adresselinje 1 er påkrævet.|Adressrad 1 krävs.|Adresselinje 1 er påkrevd.|La ligne d'adresse 1 est obligatoire.|Adresszeile 1 ist erforderlich.
+City is required.|By er påkrævet.|Ort krävs.|By er påkrevd.|La ville est obligatoire.|Die Stadt ist erforderlich.
+Place order · {amount}|Afgiv ordre · {amount}|Lägg order · {amount}|Legg inn bestilling · {amount}|Passer la commande · {amount}|Bestellung aufgeben · {amount}
+Pay {amount}|Betal {amount}|Betala {amount}|Betal {amount}|Payer {amount}|{amount} bezahlen
+Placing order…|Afgiver ordre…|Lägger order…|Legger inn bestilling…|Commande en cours…|Bestellung wird aufgegeben…
+You'll be taken to Stripe to pay securely.|Du sendes videre til Stripe for at betale sikkert.|Du skickas vidare till Stripe för att betala säkert.|Du sendes videre til Stripe for å betale trygt.|Vous serez redirigé vers Stripe pour payer en toute sécurité.|Sie werden zu Stripe weitergeleitet, um sicher zu bezahlen.
+No card is charged online — your order is placed right away.|Der trækkes ikke noget kort online — din ordre afgives med det samme.|Inget kort debiteras online — din order läggs direkt.|Ingen kort belastes på nett — bestillingen din legges inn med en gang.|Aucune carte n'est débitée en ligne — votre commande est passée immédiatement.|Es wird online keine Karte belastet — Ihre Bestellung wird sofort aufgegeben.
+We'll send your order confirmation here.|Vi sender din ordrebekræftelse hertil.|Vi skickar din orderbekräftelse hit.|Vi sender ordrebekreftelsen din hit.|Nous vous enverrons la confirmation de commande ici.|Wir senden Ihre Bestellbestätigung an diese Adresse.
+Delivery|Levering|Leverans|Levering|Livraison|Lieferung
+Ship to me|Send til mig|Skicka till mig|Send til meg|Livrer chez moi|An mich senden
+Delivered to the address below|Leveres til adressen nedenfor|Levereras till adressen nedan|Leveres til adressen nedenfor|Livré à l'adresse ci-dessous|Lieferung an die Adresse unten
+Collect in salon|Afhent i salonen|Hämta i salongen|Hent i salongen|Retrait au salon|Abholung im Salon
+Pick up at {address}|Afhent på {address}|Hämta på {address}|Hent på {address}|Retrait à {address}|Abholung bei {address}
+Pick up your order at the salon|Afhent din ordre i salonen|Hämta din order i salongen|Hent bestillingen din i salongen|Retirez votre commande au salon|Holen Sie Ihre Bestellung im Salon ab
+Edit cart|Rediger kurv|Redigera varukorg|Rediger handlekurv|Modifier le panier|Warenkorb bearbeiten
+Please fix the highlighted fields.|Ret venligst de markerede felter.|Rätta de markerade fälten.|Rett de markerte feltene.|Veuillez corriger les champs signalés.|Bitte korrigieren Sie die markierten Felder.
+By placing your order you agree to the salon's policies.|Ved at afgive din ordre accepterer du salonens politikker.|Genom att lägga din order godkänner du salongens villkor.|Ved å legge inn bestillingen godtar du salongens retningslinjer.|En passant commande, vous acceptez les conditions du salon.|Mit Ihrer Bestellung akzeptieren Sie die Richtlinien des Salons.
+Thanks, {name}! Your order number is|Tak, {name}! Dit ordrenummer er|Tack, {name}! Ditt ordernummer är|Takk, {name}! Bestillingsnummeret ditt er|Merci, {name} ! Votre numéro de commande est|Danke, {name}! Ihre Bestellnummer lautet
+You'll collect this order at the salon.|Du afhenter denne ordre i salonen.|Du hämtar den här ordern i salongen.|Du henter denne bestillingen i salongen.|Vous retirerez cette commande au salon.|Sie holen diese Bestellung im Salon ab.
 `.trim().split("\n").map((row) => row.split("|"));
 
 export const messages: Record<string, Record<Exclude<Language, "en">, string>> = Object.fromEntries(

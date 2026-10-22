@@ -478,6 +478,8 @@ export interface MembershipPayment {
   subscriptionId: number;
   kind: "SIGNUP" | "RENEWAL";
   status: MembershipPaymentStatus;
+  /** CARD is a Stripe Checkout; CASH/OTHER were taken at the salon desk. */
+  method: "CARD" | "CASH" | "OTHER";
   amount: number;
   currency: string;
   checkoutSessionId?: string | null;

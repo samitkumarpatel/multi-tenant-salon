@@ -4,7 +4,8 @@ import { AUTH_MODE, clearDashboardSession, getAccessToken } from "~/lib/auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 export const ADMIN_API = `${API_BASE}/api/salon-admin`;
 export const CUSTOMER_API = `${API_BASE}/api/salon`;
-export const MY_SALONS_API = `${ADMIN_API}/my-salons`;
+/** Salons the signed-in person owns or works at as active staff — who may open which desk. */
+export const MY_SALONS_API = `${ADMIN_API}/my-desk-salons`;
 
 export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<T> {
   const token = AUTH_MODE === "oauth2" ? getAccessToken() : null;

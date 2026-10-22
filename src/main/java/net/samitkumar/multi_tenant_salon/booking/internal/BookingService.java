@@ -63,6 +63,7 @@ class BookingService implements BookingApi {
     private final ApplicationEventPublisher eventPublisher;
     private final JdbcClient jdbcClient;
     private final RatingApi ratingApi;
+    private final StaffScheduleLock scheduleLock;
 
     BookingService(BookingRepository bookingRepo,
                    StaffAvailabilityRepository availabilityRepo,
@@ -72,7 +73,8 @@ class BookingService implements BookingApi {
                    SalonApi salonApi,
                    RatingApi ratingApi,
                    ApplicationEventPublisher eventPublisher,
-                   JdbcTemplate jdbcTemplate) {
+                   JdbcTemplate jdbcTemplate,
+                   StaffScheduleLock scheduleLock) {
         this.bookingRepo = bookingRepo;
         this.availabilityRepo = availabilityRepo;
         this.overrideRepo = overrideRepo;
@@ -82,6 +84,7 @@ class BookingService implements BookingApi {
         this.ratingApi = ratingApi;
         this.eventPublisher = eventPublisher;
         this.jdbcClient = JdbcClient.create(jdbcTemplate);
+        this.scheduleLock = scheduleLock;
     }
 
     /**
@@ -172,6 +175,7 @@ class BookingService implements BookingApi {
                 .filter(StaffAvailability::available)
                 .forEach(s -> validateAgainstSalonHours(salonId, s.dayOfWeek(), s.startTime(), s.endTime()));
 
+        scheduleLock.lock(staffId);
         availabilityRepo.deleteBySalonIdAndStaffId(salonId, staffId);
         var saved = schedule.stream()
                 .map(s -> new StaffAvailability(null, salonId, staffId, s.dayOfWeek(), s.startTime(), s.endTime(), s.available()))
@@ -195,6 +199,7 @@ class BookingService implements BookingApi {
     }
 
     @Override
+    @Transactional
     public StaffAvailabilityOverride addOverride(UUID salonId, Long staffId, StaffAvailabilityOverride override) {
         log.info("[BookingService] Adding availability override for salon={} staff={} date={}", salonId, staffId, override.overrideDate());
         if (override.available() && override.startTime() != null && override.endTime() != null) {
@@ -216,6 +221,7 @@ class BookingService implements BookingApi {
     }
 
     @Override
+    @Transactional
     public void removeOverride(UUID salonId, Long staffId, Long overrideId) {
         log.info("[BookingService] Removing availability override id={} for salon={} staff={}", overrideId, salonId, staffId);
         overrideRepo.findById(overrideId)

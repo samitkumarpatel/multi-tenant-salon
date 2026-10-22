@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import net.samitkumar.multi_tenant_salon.identity.UserIdentityApi;
+import org.springframework.beans.factory.ObjectProvider;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonClosure;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
@@ -23,9 +25,12 @@ import java.util.UUID;
 class SalonController {
 
     private final SalonService service;
+    // A provider: module-scoped test contexts may leave the identity module out.
+    private final ObjectProvider<UserIdentityApi> identities;
 
-    SalonController(SalonService service) {
+    SalonController(SalonService service, ObjectProvider<UserIdentityApi> identities) {
         this.service = service;
+        this.identities = identities;
     }
 
     record CreateSalonRequest(
@@ -86,6 +91,32 @@ class SalonController {
         var ownerEmail = jwt != null ? jwt.getSubject() : email;
         if (ownerEmail == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         var salons = service.findByOwnerEmail(ownerEmail);
+        if (salons.isEmpty()) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(salons);
+    }
+
+    /**
+     * Salons the caller may sign in to the desk for: the ones they own and the ones where they are
+     * active staff. Read live from the database, so a removed staff member gets nothing. The desk app
+     * itself tells them when a salon hasn't turned the desk (DASHBOARD) on, and the API refuses staff
+     * there anyway. Kept apart from {@code my-salons}, which lists owned salons for the owner-only admin app.
+     */
+    @GetMapping("/api/salon-admin/my-desk-salons")
+    ResponseEntity<List<Salon>> findMyDeskSalons(
+            @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+            @RequestParam(required = false) String email) {
+        // Identity from the validated token; the param is only a fallback for local mock-mode callers.
+        var callerEmail = jwt != null ? jwt.getSubject() : email;
+        if (callerEmail == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        var identityApi = identities.getIfAvailable();
+        if (identityApi == null) return ResponseEntity.notFound().build();
+        var salons = identityApi.findByEmail(callerEmail).stream()
+                .flatMap(identity -> identity.salons().stream())
+                .filter(access -> access.active() && access.salonId() != null
+                        && ("OWNER".equals(access.role()) || "STAFF".equals(access.role())))
+                .map(access -> access.salonId()).distinct()
+                .flatMap(id -> service.findById(id).stream())
+                .toList();
         if (salons.isEmpty()) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(salons);
     }

@@ -1,15 +1,12 @@
 package net.samitkumar.multi_tenant_salon.booking.internal;
 
+import org.springframework.modulith.events.ApplicationModuleListener;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailability;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -23,17 +20,26 @@ class StaffOnboardedListener {
 
     private final StaffAvailabilityRepository availabilityRepo;
     private final SalonApi salonApi;
+    private final StaffScheduleLock scheduleLock;
 
-    StaffOnboardedListener(StaffAvailabilityRepository availabilityRepo, SalonApi salonApi) {
+    StaffOnboardedListener(StaffAvailabilityRepository availabilityRepo, SalonApi salonApi, StaffScheduleLock scheduleLock) {
         this.availabilityRepo = availabilityRepo;
         this.salonApi = salonApi;
+        this.scheduleLock = scheduleLock;
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /** Delivered (and retried on failure) by Spring Modulith from {@code event_publication}. */
+    @ApplicationModuleListener
     void onStaffOnboarded(StaffOnboardedEvent event) {
         log.info("[StaffOnboardedListener] Received StaffOnboardedEvent for salon={} staff={} schedule={} entries", event.salonId(), event.staffId(), event.schedule().size());
         if (event.schedule().isEmpty()) return;
+        // Serialized with an owner saving this stylist's hours; a redelivery, or hours the owner already
+        // set, must not be seeded over.
+        scheduleLock.lock(event.staffId());
+        if (!availabilityRepo.findBySalonIdAndStaffId(event.salonId(), event.staffId()).isEmpty()) {
+            log.info("[StaffOnboardedListener] staff={} already has availability — nothing to seed", event.staffId());
+            return;
+        }
 
         List<Salon.OperatingHours> operatingHours = salonApi.findOperatingHours(event.salonId());
 
