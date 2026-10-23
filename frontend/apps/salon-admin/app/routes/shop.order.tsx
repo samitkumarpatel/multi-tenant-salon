@@ -16,6 +16,7 @@ import {
 import { Toast, useToast } from "@salon/ui-shared";
 import type { ShopOrder, ShopOrderActivity, ShopOrderActivityType, ShopOrderStatus } from "~/lib/types";
 import type { ShopOutletContext } from "./shop";
+import { formatWeight } from "~/lib/shopWeights";
 
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
@@ -289,9 +290,18 @@ export default function ShopOrderDetail() {
           </div>
           <div className="border-t border-slate-100 pt-3 mt-2 flex flex-col gap-1">
             <Row label={translateUi("Subtotal")} value={formatPrice(order.subtotal, order.currency, uiLocale)} />
+            {order.totalWeightGrams ? (
+              <Row label={translateUi("Weight")} value={formatWeight(order.totalWeightGrams, uiLocale)} />
+            ) : null}
+            {order.shippingMethodName && (
+              <Row
+                label={`${translateUi("Shipping")} · ${order.shippingMethodName}`}
+                value={order.shippingCost ? formatPrice(order.shippingCost, order.currency, uiLocale) : translateUi("Free")}
+              />
+            )}
             <Row
               label={<span className="font-bold text-slate-800">{translateUi("Total")}</span>}
-              value={<span className="font-bold text-slate-900 text-base">{formatPrice(order.subtotal, order.currency, uiLocale)}</span>}
+              value={<span className="font-bold text-slate-900 text-base">{formatPrice(order.total ?? order.subtotal, order.currency, uiLocale)}</span>}
             />
           </div>
         </Card>
@@ -633,8 +643,8 @@ export default function ShopOrderDetail() {
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">{translateUi("Amount *")}</label>
-                  <input type="number" min="0.01" step="0.01" max={order.subtotal}
-                    className={inputCls} placeholder={`Max ${formatPrice(order.subtotal, order.currency, uiLocale)}`}
+                  <input type="number" min="0.01" step="0.01" max={order.total ?? order.subtotal}
+                    className={inputCls} placeholder={`Max ${formatPrice(order.total ?? order.subtotal, order.currency, uiLocale)}`}
                     value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
                 </div>
                 <div>

@@ -2268,6 +2268,32 @@ payments enabled on a connected account that can take charges). When `false`, th
 immediately with the dummy payment below and no card is charged. The website checkout uses it to
 label the pay button and explain what happens next.
 
+### Shipping options for a cart
+
+`POST /api/salon/{salonId}/shop/shipping-options`
+
+```json
+{ "country": "Denmark", "items": [ { "variantId": 40, "quantity": 2 } ] }
+```
+
+→ `200`
+
+```json
+{
+  "configured": true,
+  "options": [
+    { "id": 3, "name": "PostNord parcel shop", "carrier": "PostNord", "deliveryType": "PICKUP_POINT",
+      "description": null, "cost": 0.00, "free": true, "minDeliveryDays": 1, "maxDeliveryDays": 3 }
+  ]
+}
+```
+
+The salon's active shipping methods whose rules match the destination (country name or ISO code) and
+the cart (currency, order value, item count and gross weight ranges), priced for the cart — `freeOver` applied — cheapest
+first. The cart is priced server-side. `configured: false` → the salon has no methods and shipping is
+free; `configured: true` with no `options` → the salon doesn't ship there (offer collect in salon).
+The website checkout asks for this once the shipping address is filled in.
+
 ### Place an order (checkout)
 
 `POST /api/salon/{salonId}/shop/orders`
@@ -2298,6 +2324,12 @@ only for the salon's own hosts (see *Create a booking*). The Connect webhook mar
 (emits **OrderPlacedEvent**) or `FAILED` (stock restored, `PAYMENT_FAILED` activity).
 
 Omit `shippingAddress` (or send it with every field empty) for a **collect-in-salon** order.
+
+**Shipping** — send `shippingMethodId` (from *Shipping options*) with a shipped order; without it the
+cheapest qualifying method is used. The order snapshots `shippingMethodName` and `shippingCost`, and
+the customer is charged `total` = `subtotal` + `shippingCost`. `400` when the salon has methods but
+none ships to the address; `409` when the chosen method no longer applies to the cart (e.g. the cart
+changed). Collect-in-salon orders never pay shipping.
 
 **Response** `400 Bad Request` — empty cart, missing `customerName` / `customerEmail`, or a malformed
 `customerEmail`.
@@ -2361,6 +2393,52 @@ accepted and used only when `images` is omitted.
 On `PUT`, variants **with** an `id` are updated, those **without** are created, and any existing
 variant **absent** from the payload is deleted (order-line snapshots + `ON DELETE SET NULL` keep
 purchase history intact).
+
+### Shipping methods
+
+Shipmondo-style rules for how web-shop orders ship. A method is offered at checkout only when every
+criterion it sets matches; unset criteria don't restrict.
+
+| Method | Path | |
+|---|---|---|
+| `GET` | `/api/salon-admin/{salonId}/shop/shipping-methods` | list, by `sortOrder` then name |
+| `POST` | `/api/salon-admin/{salonId}/shop/shipping-methods` | `201` |
+| `PUT` | `/api/salon-admin/{salonId}/shop/shipping-methods/{methodId}` | `200` / `404` |
+| `DELETE` | `/api/salon-admin/{salonId}/shop/shipping-methods/{methodId}` | `204` — placed orders keep what they paid |
+
+```json
+{
+  "name": "PostNord parcel shop", "carrier": "PostNord", "deliveryType": "PICKUP_POINT",
+  "description": "Pick up at your nearest parcel shop",
+  "price": 39.00, "freeOver": 499.00,
+  "countries": ["DK"],
+  "minOrderValue": null, "maxOrderValue": null, "minItems": null, "maxItems": 10,
+  "minDeliveryDays": 1, "maxDeliveryDays": 3, "sortOrder": 0, "active": true
+}
+```
+
+`deliveryType` is `HOME`, `PICKUP_POINT` or `BUSINESS`; `countries` are ISO alpha-2 codes (empty =
+everywhere). `minWeightGrams` / `maxWeightGrams` bracket the cart's gross weight (sum of variant
+`weightGrams` × quantity), like a carrier's 0–1 kg / 1–5 kg bands. `price` is in `currency` (omitted =
+the salon's currency) and drops to 0 once the subtotal reaches `freeOver`; a method is only offered to
+carts priced in its currency. `400` for a missing name, negative amounts, a min above its max, a
+non-ISO country or currency.
+
+### Product weight & currency
+
+Every variant carries `weightGrams` — the gross shipping weight of one unit, packaging included —
+used by weight-based shipping rules. It is required: when omitted it is estimated from a measurable
+`label` (`"250 ml"` → 280 g: contents at 1 ml ≈ 1 g, plus 10 % packaging, rounded up to 10 g; also
+`g`, `kg`, `L`, `oz`, `fl oz`, `lb`, `tablet`, `capsule`, `sachet`). A variant with neither (`"Set of 3"`)
+is a `400`. The admin editor shows the estimate and lets the owner override it.
+
+`currency` defaults to the salon's currency (that of its country) and every variant of a product must
+share one. A cart mixing currencies is refused at checkout (`400`). Orders snapshot
+`totalWeightGrams`.
+
+`POST /api/salon-admin/{salonId}/shop/products/align-currency` → `200 { "currency": "DKK", "updated": 7 }`
+re-labels every variant priced in another currency with the salon's, amounts unchanged — the fix for
+products created while the editor defaulted to USD.
 
 ### Inventory
 

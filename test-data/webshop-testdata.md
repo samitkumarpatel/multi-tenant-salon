@@ -67,17 +67,17 @@ curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/products \
 # M·A·C — Retro Matte Lipstick (Makeup), 3 shades, low stock
 curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/products \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Retro Matte Lipstick","description":"Full-coverage matte finish","images":["https://cdn.example.com/shop/lipstick.jpg"],"variants":[{"id":null,"sku":"MAC-RML-RUBY","label":"Ruby Woo","price":2100.00,"currency":"INR","quantityOnHand":6,"reorderLevel":3,"active":true},{"id":null,"sku":"MAC-RML-DIVA","label":"Diva","price":2100.00,"currency":"INR","quantityOnHand":2,"reorderLevel":3,"active":true},{"id":null,"sku":"MAC-RML-CHILI","label":"Chili","price":2100.00,"currency":"INR","quantityOnHand":0,"reorderLevel":3,"active":true}]}'
+  -d '{"name":"Retro Matte Lipstick","description":"Full-coverage matte finish","images":["https://cdn.example.com/shop/lipstick.jpg"],"variants":[{"id":null,"sku":"MAC-RML-RUBY","label":"Ruby Woo","weightGrams":40,"price":2100.00,"currency":"INR","quantityOnHand":6,"reorderLevel":3,"active":true},{"id":null,"sku":"MAC-RML-DIVA","label":"Diva","weightGrams":40,"price":2100.00,"currency":"INR","quantityOnHand":2,"reorderLevel":3,"active":true},{"id":null,"sku":"MAC-RML-CHILI","label":"Chili","weightGrams":40,"price":2100.00,"currency":"INR","quantityOnHand":0,"reorderLevel":3,"active":true}]}'
 
 # Forest Essentials — Bhringraj & Amla Hair Cleanser (Haircare), 2 sizes
 curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/products \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Bhringraj & Amla Hair Cleanser","description":"Strengthening sulphate-free shampoo","images":["https://cdn.example.com/shop/hair-cleanser.jpg"],"variants":[{"id":null,"sku":"FE-HAIR-200","label":"200 ml","price":1375.00,"currency":"INR","quantityOnHand":30,"reorderLevel":6,"active":true},{"id":null,"sku":"FE-HAIR-1000","label":"1 L refill","price":4800.00,"currency":"INR","quantityOnHand":8,"reorderLevel":2,"active":true}]}'
+  -d '{"name":"Bhringraj & Amla Hair Cleanser","description":"Strengthening sulphate-free shampoo","images":["https://cdn.example.com/shop/hair-cleanser.jpg"],"variants":[{"id":null,"sku":"FE-HAIR-200","label":"200 ml","price":1375.00,"currency":"INR","quantityOnHand":30,"reorderLevel":6,"active":true},{"id":null,"sku":"FE-HAIR-1000","label":"1 L refill","weightGrams":1100,"price":4800.00,"currency":"INR","quantityOnHand":8,"reorderLevel":2,"active":true}]}'
 
 # Lakmé — Nail Lacquer Trio (Nail Care), single variant
 curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/products \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Nail Lacquer Trio — Festive","description":"Set of three quick-dry shades","images":["https://cdn.example.com/shop/nail-trio.jpg"],"variants":[{"id":null,"sku":"LK-NAIL-TRIO","label":"Set of 3","price":950.00,"currency":"INR","quantityOnHand":18,"reorderLevel":4,"active":true}]}'
+  -d '{"name":"Nail Lacquer Trio — Festive","description":"Set of three quick-dry shades","images":["https://cdn.example.com/shop/nail-trio.jpg"],"variants":[{"id":null,"sku":"LK-NAIL-TRIO","label":"Set of 3","weightGrams":120,"price":950.00,"currency":"INR","quantityOnHand":18,"reorderLevel":4,"active":true}]}'
 
 # One inactive product (hidden from the public storefront, still visible in admin)
 curl -s -X POST localhost:8080/api/salon-admin/$SALON_ID/shop/products \

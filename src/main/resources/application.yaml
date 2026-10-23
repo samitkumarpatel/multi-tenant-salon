@@ -157,6 +157,7 @@ spring:
         - classpath:db/V20__payment_areas_and_ledger.sql
         - classpath:db/V21__payment_terminals.sql
         - classpath:db/V22__desk_shop_membership_hardening.sql
+        - classpath:db/V23__shop_shipping_weight_currency.sql
   modulith:
     events:
       jdbc:

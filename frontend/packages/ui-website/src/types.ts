@@ -274,6 +274,8 @@ export interface ShopVariant {
   quantityOnHand: number;
   reorderLevel: number;
   active: boolean;
+  /** Gross shipping weight of one unit in grams. */
+  weightGrams?: number | null;
 }
 
 export interface ShopProduct {
@@ -368,8 +370,64 @@ export interface ShopOrder {
   creditNoteRef?: string | null;
   creditNoteStatus?: ShopCreditNoteStatus | null;
   creditNoteAt?: string | null;
+  /** Shipping chosen at checkout (snapshot). total = subtotal + shippingCost. */
+  shippingMethodId?: number | null;
+  shippingMethodName?: string | null;
+  shippingCost?: number;
+  total?: number;
+  /** Gross weight of the order in grams. */
+  totalWeightGrams?: number | null;
   lines: ShopOrderLine[];
   activities?: ShopOrderActivity[];
+}
+
+export type ShippingDeliveryType = "HOME" | "PICKUP_POINT" | "BUSINESS";
+
+/** One shipping method a cart qualifies for, priced for that cart. */
+export interface ShopShippingOption {
+  id: number;
+  name: string;
+  description?: string | null;
+  carrier?: string | null;
+  deliveryType: ShippingDeliveryType;
+  cost: number;
+  currency: string;
+  free: boolean;
+  minDeliveryDays?: number | null;
+  maxDeliveryDays?: number | null;
+}
+
+/** A shipping method as the owner configures it. Unset criteria don't restrict; empty countries = everywhere. */
+export interface ShopShippingMethod {
+  id: number;
+  salonId?: string;
+  name: string;
+  description?: string | null;
+  carrier?: string | null;
+  deliveryType: ShippingDeliveryType;
+  price: number;
+  freeOver?: number | null;
+  minOrderValue?: number | null;
+  maxOrderValue?: number | null;
+  minItems?: number | null;
+  maxItems?: number | null;
+  minWeightGrams?: number | null;
+  maxWeightGrams?: number | null;
+  /** The price's currency; only carts in it are offered the method. */
+  currency?: string | null;
+  minDeliveryDays?: number | null;
+  maxDeliveryDays?: number | null;
+  sortOrder: number;
+  active: boolean;
+  createdAt?: string;
+  /** ISO 3166-1 alpha-2 codes. */
+  countries: string[];
+}
+
+/** configured=false: the salon set up no methods and shipping is free. */
+export interface ShopShippingQuote {
+  configured: boolean;
+  options: ShopShippingOption[];
 }
 
 /** A single line held in the browser-side shopping cart (localStorage). */

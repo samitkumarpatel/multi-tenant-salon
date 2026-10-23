@@ -10,6 +10,8 @@ interface Props {
   countries: Country[];
   defaultCountry?: string;
   autoFocus?: boolean;
+  /** Match a regular compact text input's height (py-2, rounded-lg) — for forms laid out in rows. */
+  compact?: boolean;
 }
 
 function parsePhone(value: string): { dialCode: string; local: string } {
@@ -29,7 +31,7 @@ function defaultDialCode(countries: Country[], countryName?: string): string {
   return detectCountry(countries)?.dialCode ?? countries[0]?.dialCode ?? "";
 }
 
-export default function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus }: Props) {
+export default function PhoneInput({ value, onChange, countries, defaultCountry, autoFocus, compact }: Props) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const parsed = parsePhone(value);
   const [dialCode, setDialCode] = useState(() => parsed.dialCode || defaultDialCode(countries, defaultCountry));
@@ -89,11 +91,11 @@ export default function PhoneInput({ value, onChange, countries, defaultCountry,
 
   return (
     <>
-      <div className="flex border border-stone-200 rounded-xl bg-white focus-within:border-matcha-500 focus-within:ring-2 focus-within:ring-matcha-500/10 transition-all">
+      <div className={`flex border border-stone-200 ${compact ? "rounded-lg" : "rounded-xl"} bg-white focus-within:border-matcha-500 focus-within:ring-2 focus-within:ring-matcha-500/10 transition-all`}>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-3 border-r border-stone-200 bg-stone-50 rounded-l-xl text-sm font-mono text-stone-700 hover:bg-stone-100 active:bg-stone-200 transition-colors whitespace-nowrap select-none"
+          className={`shrink-0 flex items-center gap-1.5 px-3 ${compact ? "py-2 rounded-l-lg" : "py-3 rounded-l-xl"} border-r border-stone-200 bg-stone-50 text-sm font-mono text-stone-700 hover:bg-stone-100 active:bg-stone-200 transition-colors whitespace-nowrap select-none`}
         >
           <span>{dialCode || "+"}</span>
           {selected && <span className="text-stone-400 text-xs">{selected.code}</span>}
@@ -113,7 +115,7 @@ export default function PhoneInput({ value, onChange, countries, defaultCountry,
             emit(dialCode, cleaned);
           }}
           placeholder={"555 000 0000"}
-          className="flex-1 min-w-0 px-4 py-3 text-sm outline-none text-stone-900 placeholder:text-stone-300 bg-white rounded-r-xl"
+          className={`flex-1 min-w-0 ${compact ? "px-3 py-2 rounded-r-lg" : "px-4 py-3 rounded-r-xl"} text-sm outline-none text-stone-900 placeholder:text-stone-300 bg-white`}
         />
       </div>
 

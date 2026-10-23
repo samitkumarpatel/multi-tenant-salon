@@ -466,7 +466,11 @@ class NotificationService {
 
     void notifyOrderPlaced(OrderPlacedEvent event) {
         var subject = salonSubject(event.salonName(), "Order received — " + event.orderNumber());
-        var total = formatMoney(event.subtotal(), event.currency());
+        var total = formatMoney(event.total(), event.currency());
+        if (event.shippingMethodName() != null) {
+            total += " incl. " + (event.shippingCost() == null || event.shippingCost().signum() == 0
+                    ? "free" : formatMoney(event.shippingCost(), event.currency())) + " shipping (" + event.shippingMethodName() + ")";
+        }
         var text = """
                 Hi %s,
 
@@ -487,7 +491,7 @@ class NotificationService {
                 %s
                 %s
                 """.formatted(event.customerName(), event.orderNumber(), event.itemCount(),
-                event.itemCount() == 1 ? "" : "s", total,
+                event.itemCount() == 1 ? "" : "s", HtmlUtils.htmlEscape(total),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 

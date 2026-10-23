@@ -46,6 +46,8 @@ final class ShopViews {
             BigDecimal refundAmount, String refundReason, String refundStatus,
             String returnStatus, String returnReason, String returnNotes, Instant returnUpdatedAt,
             String creditNoteRef, String creditNoteStatus, Instant creditNoteAt,
+            Long shippingMethodId, String shippingMethodName, BigDecimal shippingCost, BigDecimal total,
+            Integer totalWeightGrams,
             List<OrderLineView> lines, List<ShopOrderActivity> activities
     ) {}
 

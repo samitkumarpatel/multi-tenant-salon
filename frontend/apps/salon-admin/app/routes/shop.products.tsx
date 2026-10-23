@@ -3,12 +3,13 @@ import { FixWithAi } from "~/components/FixWithAi";
 import { useEffect, useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { ImagePlus, LayoutGrid, List, Package, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, ImagePlus, LayoutGrid, List, Package, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
 import { Toast, useToast } from "@salon/ui-shared";
 import { Modal, ModalActions } from "~/components/ShopModal";
 import type { Country, ShopBrand, ShopCategory, ShopProduct } from "~/lib/types";
+import { estimateWeightGrams, salonCurrencyCode } from "~/lib/shopWeights";
 import type { ShopOutletContext } from "./shop";
 
 const inputCls =
@@ -45,6 +46,9 @@ interface VariantRow {
   quantityOnHand: string;
   reorderLevel: string;
   active: boolean;
+  /** Shipping weight in grams. Follows the label's estimate until the owner types their own. */
+  weight: string;
+  weightManual: boolean;
 }
 
 /** One slot in the product gallery. `file` set = a pending upload (`url` is a local blob: preview);
@@ -62,6 +66,8 @@ interface ProductForm {
   categoryId: string;
   gallery: GalleryItem[];
   active: boolean;
+  /** One currency for the whole product — the salon's unless the owner changes it. */
+  currency: string;
   variants: VariantRow[];
 }
 
@@ -84,10 +90,11 @@ function genSku(name: string, brandName: string, categoryName: string, labelValu
 const blankVariant = (currency = "USD"): VariantRow => ({
   labelValue: "", labelUnit: "", sku: "", skuManual: false,
   price: "", compareAtPrice: "", currency, quantityOnHand: "0", reorderLevel: "2", active: true,
+  weight: "", weightManual: false,
 });
 
 const blankForm = (currency = "USD"): ProductForm => ({
-  name: "", description: "", brandId: "", categoryId: "", gallery: [], active: true,
+  name: "", description: "", brandId: "", categoryId: "", gallery: [], active: true, currency,
   variants: [blankVariant(currency)],
 });
 
@@ -142,6 +149,7 @@ function toRows(p: ShopProduct): VariantRow[] {
   if (p.variants.length === 0) return [blankVariant()];
   return p.variants.map((v) => {
     const { labelValue, labelUnit } = splitLabel(v.label ?? "");
+    const weight = v.weightGrams != null ? String(v.weightGrams) : "";
     return {
       id: v.id,
       labelValue,
@@ -154,6 +162,9 @@ function toRows(p: ShopProduct): VariantRow[] {
       quantityOnHand: String(v.quantityOnHand ?? 0),
       reorderLevel: String(v.reorderLevel ?? 2),
       active: v.active,
+      weight,
+      // Only an estimate-matching weight keeps following the label; anything else was typed.
+      weightManual: weight !== "" && weight !== String(estimateWeightGrams(labelValue, labelUnit) ?? ""),
     };
   });
 }
@@ -175,7 +186,8 @@ function buildPayload(f: ProductForm) {
         sku: v.sku || null,
         price: v.price ? parseFloat(v.price) : 0,
         compareAtPrice: v.compareAtPrice ? parseFloat(v.compareAtPrice) : null,
-        currency: (v.currency || "USD").toUpperCase(),
+        currency: (f.currency || v.currency || "USD").toUpperCase(),
+        weightGrams: v.weight ? parseInt(v.weight, 10) : null,
         quantityOnHand: v.quantityOnHand ? parseInt(v.quantityOnHand, 10) : 0,
         reorderLevel: v.reorderLevel ? parseInt(v.reorderLevel, 10) : 2,
         active: v.active,
@@ -190,11 +202,10 @@ export default function ShopProducts() {
   const { sid, products: init, brands: initBrands, categories: initCategories, countries } =
     useLoaderData<typeof clientLoader>();
 
-  const salonCurrency = (() => {
-    const cc = salon.location?.country;
-    if (!cc || !countries.length) return "USD";
-    return countries.find((c) => c.code === cc)?.currencyCode ?? "USD";
-  })();
+  // location.country is the country's name — looking it up by code made every product default to USD.
+  const salonCurrency = salonCurrencyCode(salon.location?.country, countries);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [aligning, setAligning] = useState(false);
 
   const [products, setProducts] = useState<ShopProduct[]>(init);
   const [brands, setBrands] = useState<ShopBrand[]>(initBrands);
@@ -246,6 +257,7 @@ export default function ShopProducts() {
 
   function openAdd() {
     setF(blankForm(salonCurrency));
+    setCurrencyOpen(false);
     setDragIdx(null);
     setShowNewBrand(false);
     setNewBrandName("");
@@ -255,7 +267,9 @@ export default function ShopProducts() {
   }
   function openEdit(p: ShopProduct) {
     setTarget(p);
+    setCurrencyOpen(false);
     setF({
+      currency: p.variants[0]?.currency ?? salonCurrency,
       name: p.name,
       description: p.description ?? "",
       brandId: p.brandId != null ? String(p.brandId) : "",
@@ -308,6 +322,10 @@ export default function ShopProducts() {
       variants: prev.variants.map((v, idx) => {
         if (idx !== i) return v;
         const updated = { ...v, ...patch };
+        // The weight follows the label (250 ml → 280 g) until the owner types one.
+        if (("labelValue" in patch || "labelUnit" in patch) && !updated.weightManual) {
+          updated.weight = String(estimateWeightGrams(updated.labelValue, updated.labelUnit) ?? "");
+        }
         // If labelValue changed and SKU not manually set, regenerate SKU
         if ("labelValue" in patch && !updated.skuManual) {
           const bName = brandName(prev.brandId ? Number(prev.brandId) : null);
@@ -322,7 +340,7 @@ export default function ShopProducts() {
   function addVariant() {
     setF((prev) => ({
       ...prev,
-      variants: [...prev.variants, blankVariant(prev.variants[0]?.currency ?? salonCurrency)],
+      variants: [...prev.variants, blankVariant(prev.currency)],
     }));
   }
 
@@ -373,7 +391,25 @@ export default function ShopProducts() {
     }
   }
 
-  const canSubmit = f.name.trim() !== "" && f.variants.length > 0 && f.variants.every((v) => v.price !== "");
+  const hasWeight = (v: VariantRow) => /^\d+$/.test(v.weight.trim()) && parseInt(v.weight, 10) > 0;
+  const canSubmit = f.name.trim() !== "" && f.variants.length > 0 && f.variants.every((v) => v.price !== "")
+    && f.variants.every(hasWeight);
+  // Products priced in another currency than the salon's — almost always made while the editor
+  // defaulted to USD. The owner can re-label them in one go (amounts stay as entered).
+  const offCurrency = products.filter((p) => p.variants.some((v) => v.currency && v.currency !== salonCurrency));
+
+  async function alignCurrency() {
+    setAligning(true);
+    try {
+      const res = await apiFetch<{ currency: string; updated: number }>(`${ADMIN_API}/${sid}/shop/products/align-currency`, { method: "POST" });
+      setProducts(await apiFetch<ShopProduct[]>(`${ADMIN_API}/${sid}/shop/products`));
+      notify(`${res.updated} option${res.updated === 1 ? "" : "s"} now priced in ${res.currency}`);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Error", "error");
+    } finally {
+      setAligning(false);
+    }
+  }
 
   // Upload every pending file in the gallery and return the final ordered URL list —
   // already-stored images keep their URL, new ones get their public URL post-upload.
@@ -482,6 +518,22 @@ export default function ShopProducts() {
 
   return (
     <>
+      {offCurrency.length > 0 && (
+        <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+          <span className="flex-1 min-w-[14rem]">
+            {translateUi("{count} products are priced in another currency than your salon's ({currency}).", { count: offCurrency.length, currency: salonCurrency })}
+          </span>
+          <button
+            type="button"
+            disabled={aligning}
+            onClick={alignCurrency}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+          >
+            {translateUi("Use {currency} for all", { currency: salonCurrency })}
+          </button>
+        </div>
+      )}
       {products.length === 0 ? (
         <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
           <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
@@ -834,8 +886,34 @@ export default function ShopProducts() {
           </div>
 
           {/* Variants */}
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2 pb-2 border-b border-slate-100">
-            {translateUi("Variants ")}</div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-4 mb-2 pb-2 border-b border-slate-100">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{translateUi("Variants ")}</span>
+            {/* Currency: the salon's by default, changeable on demand for the whole product. */}
+            {currencyOpen ? (
+              <select
+                aria-label={translateUi("Currency")}
+                className={`${inputCls} w-auto py-1 text-xs`}
+                value={f.currency}
+                onChange={(e) => setF((p) => ({ ...p, currency: e.target.value }))}
+              >
+                {currencyOptions.map((c) => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+                {f.currency && !currencyOptions.find((c) => c.code === f.currency) && (
+                  <option value={f.currency}>{f.currency}</option>
+                )}
+              </select>
+            ) : (
+              <span className="text-xs text-slate-500">
+                {translateUi("Prices in")} <strong className="text-slate-700">{f.currency}</strong>
+                {f.currency === salonCurrency ? ` (${translateUi("salon currency")})` : ""}
+                {" · "}
+                <button type="button" className="text-matcha-700 font-medium hover:underline cursor-pointer" onClick={() => setCurrencyOpen(true)}>
+                  {translateUi("Change")}
+                </button>
+              </span>
+            )}
+          </div>
           <div className="flex flex-col gap-3">
             {f.variants.map((v, i) => (
               <div key={i} className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
@@ -913,22 +991,36 @@ export default function ShopProducts() {
                     />
                   </div>
 
-                  {/* Currency */}
+                  {/* Shipping weight: estimated from the label, editable, required */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500">{translateUi("Currency")}</label>
-                    <select
-                      className={inputCls}
-                      value={v.currency}
-                      onChange={(e) => setVariant(i, { currency: e.target.value })}
-                    >
-                      {currencyOptions.map((c) => (
-                        <option key={c.code} value={c.code}>{c.label}</option>
-                      ))}
-                      {/* Ensure current value is always present even if not in list */}
-                      {v.currency && !currencyOptions.find((c) => c.code === v.currency) && (
-                        <option value={v.currency}>{v.currency}</option>
+                    <label className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                      {translateUi("Weight (g)")} <span className="text-red-500">*</span>
+                      {!v.weightManual && v.weight && (
+                        <span className="text-[9px] text-matcha-600 font-bold uppercase tracking-wide">{translateUi("auto")}</span>
                       )}
-                    </select>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      inputMode="numeric"
+                      className={inputCls}
+                      placeholder={translateUi("e.g. 280")}
+                      value={v.weight}
+                      title={translateUi("Gross shipping weight of one unit, packaging included. Used by weight-based shipping rules.")}
+                      onChange={(e) => setVariant(i, { weight: e.target.value, weightManual: e.target.value !== "" })}
+                      onBlur={(e) => {
+                        if (!e.target.value.trim()) {
+                          setVariant(i, { weight: String(estimateWeightGrams(v.labelValue, v.labelUnit) ?? ""), weightManual: false });
+                        }
+                      }}
+                    />
+                    {!v.weightManual && v.weight && (
+                      <span className="block text-[10px] text-slate-400 mt-0.5">{translateUi("Estimated from the size + packaging")}</span>
+                    )}
+                    {!v.weight && v.labelUnit && (
+                      <span className="block text-[10px] text-amber-600 mt-0.5">{translateUi("Can't estimate from this unit — enter the weight")}</span>
+                    )}
                   </div>
 
                   {/* In stock */}
@@ -1000,7 +1092,9 @@ export default function ShopProducts() {
                   ? "Add at least one variant."
                   : !f.variants.every((v) => v.price !== "")
                     ? "All variants need a price."
-                    : undefined
+                    : !f.variants.every(hasWeight)
+                      ? "All variants need a shipping weight in grams."
+                      : undefined
             }
           />
         </Modal>

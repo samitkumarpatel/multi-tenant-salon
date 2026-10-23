@@ -5,6 +5,7 @@ import net.samitkumar.multi_tenant_salon.shop.Category;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivity;
 import net.samitkumar.multi_tenant_salon.shop.Product;
 import net.samitkumar.multi_tenant_salon.shop.ProductVariant;
+import net.samitkumar.multi_tenant_salon.shop.ShippingMethod;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
 import org.springframework.data.repository.ListCrudRepository;
@@ -49,4 +50,9 @@ interface OrderLineActivityRepository extends ListCrudRepository<OrderLineActivi
 
 interface ShopOrderActivityRepository extends ListCrudRepository<ShopOrderActivity, Long> {
     List<ShopOrderActivity> findByOrderIdOrderByCreatedAtAsc(Long orderId);
+}
+
+interface ShippingMethodRepository extends ListCrudRepository<ShippingMethod, Long> {
+    List<ShippingMethod> findBySalonIdOrderBySortOrderAscNameAsc(UUID salonId);
+    Optional<ShippingMethod> findByIdAndSalonId(Long id, UUID salonId);
 }

@@ -29,16 +29,21 @@ class ShopCustomerController {
     private final ShopManager shop;
     private final SalonApi salonApi;
     private final PaymentGateway stripe;
+    private final ShippingMethodService shipping;
 
-    ShopCustomerController(ShopManager shop, SalonApi salonApi, PaymentGateway stripe) {
+    ShopCustomerController(ShopManager shop, SalonApi salonApi, PaymentGateway stripe, ShippingMethodService shipping) {
         this.shop = shop;
         this.salonApi = salonApi;
         this.stripe = stripe;
+        this.shipping = shipping;
     }
 
     record CheckoutBody(String customerName, String customerEmail, String customerPhone,
                         ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
-                        CommunicationPreference communicationPreference, String returnUrl, Boolean inlineCheckout) {}
+                        CommunicationPreference communicationPreference, String returnUrl, Boolean inlineCheckout,
+                        Long shippingMethodId) {}
+    /** {@code country} is the destination's name or ISO code; the cart is priced server-side. */
+    record ShippingQuoteBody(String country, List<CheckoutItem> items) {}
     /** {@code checkoutUrl} for a redirect checkout; {@code checkout} also covers the in-page payment form. */
     record CheckoutResponse(OrderView order, String checkoutUrl, PaymentGateway.Checkout checkout) {}
     /** What the storefront checkout needs to know before the customer pays. */
@@ -51,6 +56,18 @@ class ShopCustomerController {
     @GetMapping("/checkout-options")
     CheckoutOptions checkoutOptions(@PathVariable String salonId) {
         return new CheckoutOptions(stripe.enabled(salonApi.resolveId(salonId), "SHOP"));
+    }
+
+    /**
+     * The shipping methods this cart can use to reach {@code country}, cheapest first, each priced for
+     * the cart (free-shipping thresholds applied) — matched on the cart's currency, value, unit count and
+     * gross weight. {@code configured: false} means the salon set up no
+     * methods and shipping is free.
+     */
+    @PostMapping("/shipping-options")
+    ShippingMethodService.ShippingQuote shippingOptions(@PathVariable String salonId, @RequestBody ShippingQuoteBody body) {
+        var id = salonApi.resolveId(salonId);
+        return shipping.quote(id, body.country(), shop.cart(id, body.items()));
     }
 
     @GetMapping("/brands")
@@ -91,13 +108,13 @@ class ShopCustomerController {
         boolean stripeEnabled = stripe.enabled(id, "SHOP");
         var order = shop.placeOrder(id, new CheckoutRequest(
                 body.customerName(), body.customerEmail(), body.customerPhone(),
-                body.shippingAddress(), body.items(), body.communicationPreference()), stripeEnabled);
+                body.shippingAddress(), body.items(), body.communicationPreference(), body.shippingMethodId()), stripeEnabled);
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(order.id()).toUri();
         if (!stripeEnabled) return ResponseEntity.created(location).body(order);
         PaymentGateway.Checkout checkout;
         try {
             checkout = stripe.createCheckout(id, new PaymentGateway.CheckoutRequest("SHOP", String.valueOf(order.id()),
-                    order.subtotal(), order.currency(), "Order " + order.orderNumber(), body.returnUrl(),
+                    order.total(), order.currency(), "Order " + order.orderNumber(), body.returnUrl(),
                     body.customerEmail(), Boolean.TRUE.equals(body.inlineCheckout())));
         } catch (RuntimeException error) {
             shop.recordStripePayment(id, order.id(), "checkout-creation-failed", false);

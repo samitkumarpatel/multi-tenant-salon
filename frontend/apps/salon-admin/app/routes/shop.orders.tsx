@@ -214,7 +214,7 @@ export default function ShopOrders() {
                 </div>
                 <div className={`mt-2 flex items-center justify-between gap-2 text-xs ${st.muted}`}>
                   <span>{fmtDate(o.createdAt, uiLocale)} · {items} {translateUi("item")}{items !== 1 ? translateUi("s") : ""}</span>
-                  <span className={`font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency, uiLocale)}</span>
+                  <span className={`font-semibold ${st.strong}`}>{formatPrice(o.total ?? o.subtotal, o.currency, uiLocale)}</span>
                 </div>
               </Link>
             );
@@ -259,7 +259,7 @@ export default function ShopOrders() {
                       <div className={`text-[11px] ${st.faint}`}>{o.customerEmail}</div>
                     </td>
                     <td className={`px-4 py-3 ${st.muted}`}>{items}</td>
-                    <td className={`px-4 py-3 font-semibold ${st.strong}`}>{formatPrice(o.subtotal, o.currency, uiLocale)}</td>
+                    <td className={`px-4 py-3 font-semibold ${st.strong}`}>{formatPrice(o.total ?? o.subtotal, o.currency, uiLocale)}</td>
                     <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3 text-right">
                       <Link

@@ -159,6 +159,7 @@ Content-Type: application/json
     {
       "sku": "TOTE-STD",
       "label": null,
+      "weightGrams": 150,
       "price": 12.00,
       "compareAtPrice": null,
       "currency": "USD",

@@ -121,6 +121,10 @@ class SalonMcpShopAppTools {
                     "status", text(order, "status"),
                     "paymentStatus", text(order, "paymentStatus"),
                     "subtotal", order.path("subtotal").isMissingNode() ? null : order.path("subtotal").decimalValue(),
+                    // Shipping is the cheapest method the salon offers this cart (none configured = free).
+                    "shippingMethod", text(order, "shippingMethodName"),
+                    "shippingCost", order.path("shippingCost").isMissingNode() ? null : order.path("shippingCost").decimalValue(),
+                    "total", order.path("total").isMissingNode() ? null : order.path("total").decimalValue(),
                     "currency", text(order, "currency"),
                     "salonName", salon.salon().name(),
                     "lines", orderLines,

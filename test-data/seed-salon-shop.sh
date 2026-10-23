@@ -285,21 +285,24 @@ mkprod() { # mkprod  <name> <desc> <brandKey|-> <catKey|-> <imgSeedBase> <nImgs>
   PRODUCT_IDS+=("$(jq -r '.id' <<<"$resp")")
   echo "  + ${name}  (${n} images, $(jq '.variants|length' <<<"$resp") variants)"
 }
-V() { # V <sku> <label> <price> <compareAt|-> <qty> <reorder>  -> one variant object
+V() { # V <sku> <label> <price> <compareAt|-> <qty> <reorder> [weightGrams]  -> one variant object
+  # No currency: the server prices it in the salon's currency. No weight: the server estimates it
+  # from the label ("250 ml" → 280 g); labels without a measurable unit (shades, "1 L refill") need one.
   # `--arg lbl` (not `label`) on purpose: jq 1.6's lexer treats `$label` as the `label $out|...`
   # keyword rather than a variable reference, so `--arg label` + `$label` fails to compile.
   jq -nc --arg sku "$1" --arg lbl "$2" --argjson price "$3" \
-         --arg cmp "$4" --argjson qty "$5" --argjson ro "$6" \
+         --arg cmp "$4" --argjson qty "$5" --argjson ro "$6" --arg wt "${7:-}" \
     '{id:null,sku:$sku,
       label:(if $lbl=="" then null else $lbl end),
       price:$price,
       compareAtPrice:(if $cmp=="-" then null else ($cmp|tonumber) end),
-      currency:"USD",quantityOnHand:$qty,reorderLevel:$ro,active:true}'
+      weightGrams:(if $wt=="" then null else ($wt|tonumber) end),
+      quantityOnHand:$qty,reorderLevel:$ro,active:true}'
 }
 
 mkprod "Everyday Gentle Shampoo" "Sulphate-free daily cleanser for all hair types" \
   "Kōkua Botanicals" "Shampoo & Conditioner" "prod-gentle-shampoo" 3 \
-  "$(jq -sc '.' <(V KB-SHMP-250 "250 ml" 24 - 60 12) <(V KB-SHMP-500 "500 ml" 40 46 28 8) <(V KB-SHMP-1L "1 L refill" 68 - 12 4))"
+  "$(jq -sc '.' <(V KB-SHMP-250 "250 ml" 24 - 60 12) <(V KB-SHMP-500 "500 ml" 40 46 28 8) <(V KB-SHMP-1L "1 L refill" 68 - 12 4 1100))"
 
 mkprod "Hydrating Conditioner" "Slip-rich conditioner with aloe and coconut" \
   "Kōkua Botanicals" "Shampoo & Conditioner" "prod-hydrating-cond" 2 \
@@ -351,11 +354,11 @@ mkprod "Pre-Shave Oil" "Cushions the blade for a closer, calmer shave" \
 
 mkprod "Tinted Lip Balm" "Sheer colour with a balm feel — three shades" \
   "Lume Cosmetics" "Makeup" "prod-lip-balm" 3 \
-  "$(jq -sc '.' <(V LM-LIP-ROSE "Rosewood" 19 - 12 4) <(V LM-LIP-BERRY "Berry" 19 - 3 4) <(V LM-LIP-CLAY "Clay" 19 - 0 4))"
+  "$(jq -sc '.' <(V LM-LIP-ROSE "Rosewood" 19 - 12 4 40) <(V LM-LIP-BERRY "Berry" 19 - 3 4 40) <(V LM-LIP-CLAY "Clay" 19 - 0 4 40))"
 
 mkprod "Cream Blush Stick" "Blendable cream blush for cheeks and lips" \
   "Lume Cosmetics" "Makeup" "prod-cream-blush" 4 \
-  "$(jq -sc '.' <(V LM-BLSH-PEACH "Peach" 23 - 20 5) <(V LM-BLSH-PLUM "Plum" 23 - 16 5))"
+  "$(jq -sc '.' <(V LM-BLSH-PEACH "Peach" 23 - 20 5 60) <(V LM-BLSH-PLUM "Plum" 23 - 16 5 60))"
 
 mkprod "Rosewater Facial Toner" "Alcohol-free toner that soothes and refreshes" \
   "Petal & Stone" "Skin Care" "prod-rosewater-toner" 2 \
@@ -375,7 +378,7 @@ mkprod "Clay Purifying Mask" "Kaolin clay mask for oily and combination skin" \
 
 mkprod "Gel Polish Duo Kit" "Base and colour coat with a long-wear gel finish" \
   "Vernis Nail Co." "Nail Care" "prod-gel-polish" 3 \
-  "$(jq -sc '.' <(V VN-GEL-CORAL "Coral Reef" 21 - 25 6) <(V VN-GEL-BERRY "Berry Wine" 21 - 19 6) <(V VN-GEL-NUDE "Bare Nude" 21 - 5 6))"
+  "$(jq -sc '.' <(V VN-GEL-CORAL "Coral Reef" 21 - 25 6 50) <(V VN-GEL-BERRY "Berry Wine" 21 - 19 6 50) <(V VN-GEL-NUDE "Bare Nude" 21 - 5 6 50))"
 
 mkprod "Cuticle Oil Pen" "Click-pen applicator with jojoba and vitamin E" \
   "Vernis Nail Co." "Nail Care" "prod-cuticle-oil" 2 \

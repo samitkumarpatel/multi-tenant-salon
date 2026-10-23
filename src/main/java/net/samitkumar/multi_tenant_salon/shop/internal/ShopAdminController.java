@@ -5,6 +5,7 @@ import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.shop.Brand;
 import net.samitkumar.multi_tenant_salon.shop.Category;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
+import net.samitkumar.multi_tenant_salon.shop.ShippingMethod;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopManager.VariantSpec;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.InventoryRow;
 import net.samitkumar.multi_tenant_salon.shop.internal.ShopViews.OrderPage;
@@ -32,11 +33,13 @@ class ShopAdminController {
     private final ShopManager shop;
     private final SalonApi salonApi;
     private final MediaService mediaApi;
+    private final ShippingMethodService shipping;
 
-    ShopAdminController(ShopManager shop, SalonApi salonApi, Optional<MediaService> mediaApi) {
+    ShopAdminController(ShopManager shop, SalonApi salonApi, Optional<MediaService> mediaApi, ShippingMethodService shipping) {
         this.shop = shop;
         this.salonApi = salonApi;
         this.mediaApi = mediaApi.orElse(null);
+        this.shipping = shipping;
     }
 
     // ── request bodies ───────────────────────────────────────────────────────
@@ -153,6 +156,15 @@ class ShopAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Re-labels every variant priced in a currency other than the salon's with the salon's currency
+     * (amounts unchanged) — the fix for products created while the editor defaulted to USD.
+     */
+    @PostMapping("/products/align-currency")
+    ShopManager.CurrencyAlignment alignCurrency(@PathVariable String salonId) {
+        return shop.alignCurrency(salonApi.resolveId(salonId));
+    }
+
     @PostMapping("/products/{productId}/image-upload-url")
     ResponseEntity<MediaService.PresignedUpload> productImageUploadUrl(@PathVariable String salonId,
                                                                       @PathVariable Long productId,
@@ -161,6 +173,34 @@ class ShopAdminController {
         return shop.getProduct(salonApi.resolveId(salonId), productId, false)
                 .map(p -> ResponseEntity.ok(mediaApi.generateProductImageUploadUrl(productId, req.contentType())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    // ── shipping methods ─────────────────────────────────────────────────────
+
+    @GetMapping("/shipping-methods")
+    List<ShippingMethod> listShippingMethods(@PathVariable String salonId) {
+        return shipping.list(salonApi.resolveId(salonId));
+    }
+
+    @PostMapping("/shipping-methods")
+    ResponseEntity<ShippingMethod> createShippingMethod(@PathVariable String salonId,
+                                                       @RequestBody ShippingMethodService.ShippingMethodRequest req) {
+        var method = shipping.create(salonApi.resolveId(salonId), req);
+        return created(method, method.id());
+    }
+
+    @PutMapping("/shipping-methods/{methodId}")
+    ResponseEntity<ShippingMethod> updateShippingMethod(@PathVariable String salonId, @PathVariable Long methodId,
+                                                       @RequestBody ShippingMethodService.ShippingMethodRequest req) {
+        return shipping.update(salonApi.resolveId(salonId), methodId, req)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/shipping-methods/{methodId}")
+    ResponseEntity<Void> deleteShippingMethod(@PathVariable String salonId, @PathVariable Long methodId) {
+        shipping.delete(salonApi.resolveId(salonId), methodId);
+        return ResponseEntity.noContent().build();
     }
 
     // ── inventory ────────────────────────────────────────────────────────────

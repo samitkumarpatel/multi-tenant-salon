@@ -11,6 +11,8 @@ import java.util.UUID;
  * A single-option product still has exactly one variant. {@code salonId} is denormalised so the
  * inventory screen and checkout guards can query/lock variants without joining through
  * {@code product}.
+ *
+ * <p>{@code currency} defaults to the salon's currency; every variant of a product shares one.
  */
 @Table("product_variant")
 public record ProductVariant(
@@ -24,5 +26,7 @@ public record ProductVariant(
         String currency,
         int quantityOnHand,
         int reorderLevel,
-        boolean active
+        boolean active,
+        // Gross shipping weight of one unit in grams; null only on legacy rows the V23 backfill couldn't estimate.
+        Integer weightGrams
 ) {}

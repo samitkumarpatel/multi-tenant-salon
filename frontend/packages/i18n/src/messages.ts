@@ -1280,6 +1280,22 @@ Set up payments|Opsæt betalinger|Konfigurera betalningar|Konfigurer betalinger|
 Add reader|Tilføj kortlæser|Lägg till kortläsare|Legg til kortleser|Ajouter un terminal|Lesegerät hinzufügen
 Remove reader|Fjern kortlæser|Ta bort kortläsare|Fjern kortleser|Retirer le terminal|Lesegerät entfernen
 Registration code|Registreringskode|Registreringskod|Registreringskode|Code d'enregistrement|Registrierungscode
+Shipping method|Forsendelsesmetode|Fraktsätt|Fraktmetode|Mode de livraison|Versandart
+Home delivery|Levering til døren|Hemleverans|Levering hjem|Livraison à domicile|Lieferung nach Hause
+Pickup point|Pakkeshop|Utlämningsställe|Hentested|Point relais|Abholstation
+Business address|Erhvervsadresse|Företagsadress|Bedriftsadresse|Adresse professionnelle|Geschäftsadresse
+Enter your address|Indtast din adresse|Ange din adress|Skriv inn adressen din|Saisissez votre adresse|Adresse eingeben
+Enter your address to see the shipping options|Indtast din adresse for at se forsendelsesmulighederne|Ange din adress för att se fraktalternativen|Skriv inn adressen din for å se fraktalternativene|Saisissez votre adresse pour voir les options de livraison|Geben Sie Ihre Adresse ein, um die Versandoptionen zu sehen
+Choose a shipping method.|Vælg en forsendelsesmetode.|Välj ett fraktsätt.|Velg en fraktmetode.|Choisissez un mode de livraison.|Wählen Sie eine Versandart.
+Shipping options are still loading.|Forsendelsesmulighederne indlæses stadig.|Fraktalternativen laddas fortfarande.|Fraktalternativene lastes fortsatt.|Les options de livraison sont en cours de chargement.|Die Versandoptionen werden noch geladen.
+Finding shipping options…|Finder forsendelsesmuligheder…|Söker fraktalternativ…|Finner fraktalternativer…|Recherche des options de livraison…|Versandoptionen werden gesucht…
+We don't ship to {country} yet. Choose Collect in salon instead.|Vi sender endnu ikke til {country}. Vælg Afhent i salonen i stedet.|Vi skickar inte till {country} ännu. Välj Hämta i salongen i stället.|Vi sender ikke til {country} ennå. Velg Hent i salongen i stedet.|Nous ne livrons pas encore en {country}. Choisissez plutôt le retrait au salon.|Wir liefern noch nicht nach {country}. Wählen Sie stattdessen Abholung im Salon.
+We couldn't load the shipping options. Shipping is added when you pay.|Vi kunne ikke indlæse forsendelsesmulighederne. Forsendelse lægges til, når du betaler.|Vi kunde inte ladda fraktalternativen. Frakt läggs till när du betalar.|Vi kunne ikke laste fraktalternativene. Frakt legges til når du betaler.|Impossible de charger les options de livraison. La livraison est ajoutée au paiement.|Die Versandoptionen konnten nicht geladen werden. Der Versand wird beim Bezahlen hinzugefügt.
+Shipping is free on this order.|Forsendelse er gratis på denne ordre.|Frakten är gratis för den här beställningen.|Frakt er gratis på denne bestillingen.|La livraison est gratuite pour cette commande.|Der Versand ist für diese Bestellung kostenlos.
+{min}–{max} business days|{min}–{max} hverdage|{min}–{max} arbetsdagar|{min}–{max} virkedager|{min} à {max} jours ouvrés|{min}–{max} Werktage
+{days} business days|{days} hverdage|{days} arbetsdagar|{days} virkedager|{days} jours ouvrés|{days} Werktage
+By placing your order you agree to the salon's refund and sales policies.|Ved at afgive din ordre accepterer du salonens refusions- og salgspolitik.|Genom att lägga din beställning godkänner du salongens återbetalnings- och försäljningspolicy.|Ved å legge inn bestillingen godtar du salongens refusjons- og salgsvilkår.|En passant commande, vous acceptez les politiques de remboursement et de vente du salon.|Mit Ihrer Bestellung akzeptieren Sie die Rückerstattungs- und Verkaufsrichtlinien des Salons.
+Shipping methods|Forsendelsesmetoder|Fraktsätt|Fraktmetoder|Modes de livraison|Versandarten
 `.trim().split("\n").map((row) => row.split("|"));
 
 export const messages: Record<string, Record<Exclude<Language, "en">, string>> = Object.fromEntries(

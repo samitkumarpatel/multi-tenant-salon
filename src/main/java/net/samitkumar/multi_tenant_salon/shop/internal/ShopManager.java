@@ -68,12 +68,14 @@ class ShopManager {
     private final JdbcClient jdbcClient;
     // Module tests may run the shop without the payments module; then refunds stay bookkeeping-only.
     private final ObjectProvider<PaymentGateway> payments;
+    private final ShippingMethodService shipping;
+    private final ShopCurrency shopCurrency;
 
     ShopManager(BrandRepository brandRepo, CategoryRepository categoryRepo, ProductRepository productRepo,
                 ProductVariantRepository variantRepo, ShopOrderRepository orderRepo,
                 OrderLineActivityRepository activityRepo, ShopOrderActivityRepository orderActivityRepo,
                 SalonApi salonApi, ApplicationEventPublisher eventPublisher, JdbcTemplate jdbcTemplate,
-                ObjectProvider<PaymentGateway> payments) {
+                ObjectProvider<PaymentGateway> payments, ShippingMethodService shipping, ShopCurrency shopCurrency) {
         this.brandRepo = brandRepo;
         this.categoryRepo = categoryRepo;
         this.productRepo = productRepo;
@@ -85,16 +87,22 @@ class ShopManager {
         this.eventPublisher = eventPublisher;
         this.jdbcClient = JdbcClient.create(jdbcTemplate);
         this.payments = payments;
+        this.shipping = shipping;
+        this.shopCurrency = shopCurrency;
     }
 
     public record VariantSpec(Long id, String sku, String label, BigDecimal price, BigDecimal compareAtPrice,
-                              String currency, Integer quantityOnHand, Integer reorderLevel, Boolean active) {}
+                              String currency, Integer quantityOnHand, Integer reorderLevel, Boolean active,
+                              Integer weightGrams) {}
 
     public record CheckoutItem(Long variantId, int quantity) {}
 
     public record CheckoutRequest(String customerName, String customerEmail, String customerPhone,
                                   ShopOrder.ShippingAddress shippingAddress, List<CheckoutItem> items,
-                                  CommunicationPreference communicationPreference) {}
+                                  CommunicationPreference communicationPreference, Long shippingMethodId) {}
+
+    /** What the variant currencies are aligned to, and how many variants changed. */
+    record CurrencyAlignment(String currency, int updated) {}
 
     // ── Brands ───────────────────────────────────────────────────────────────
 
@@ -193,13 +201,15 @@ class ShopManager {
                            String imageUrl, List<String> images, List<VariantSpec> variants) {
         requireText(name, "Product name is required");
         validateBrandCategory(salonId, brandId, categoryId);
+        // Validate the options before anything is written.
+        newVariants(null, salonId, variants == null ? List.of() : variants, false);
         var gallery = resolveImages(imageUrl, images);
         var cover = gallery.isEmpty() ? null : gallery.get(0);
         var product = productRepo.save(new Product(null, salonId, brandId, categoryId, name.trim(),
                 description, cover, true, Instant.now(),
                 gallery.stream().map(Product.ProductImage::new).toList()));
-        var saved = (variants == null ? List.<VariantSpec>of() : variants).stream()
-                .map(v -> variantRepo.save(newVariant(null, product.id(), salonId, v)))
+        var saved = newVariants(product.id(), salonId, variants == null ? List.of() : variants, true).stream()
+                .map(variantRepo::save)
                 .toList();
         log.info("[ShopManager] Product added id={} salon={} variants={} images={}", product.id(), salonId, saved.size(), gallery.size());
         return toProductView(product, saved);
@@ -211,6 +221,8 @@ class ShopManager {
                                         boolean active, List<VariantSpec> variants) {
         requireText(name, "Product name is required");
         validateBrandCategory(salonId, brandId, categoryId);
+        var specs = variants == null ? List.<VariantSpec>of() : variants;
+        var built = newVariants(productId, salonId, specs, true);
         return productRepo.findByIdAndSalonId(productId, salonId).map(existing -> {
             var gallery = resolveImages(imageUrl, images);
             var cover = gallery.isEmpty() ? null : gallery.get(0);
@@ -218,15 +230,12 @@ class ShopManager {
                     description, cover, active, existing.createdAt(),
                     gallery.stream().map(Product.ProductImage::new).toList()));
 
-            var specs = variants == null ? List.<VariantSpec>of() : variants;
             var keepIds = specs.stream().map(VariantSpec::id).filter(Objects::nonNull).collect(Collectors.toSet());
             variantRepo.findByProductId(productId).stream()
                     .filter(v -> !keepIds.contains(v.id()))
                     .forEach(v -> variantRepo.deleteById(v.id()));
 
-            var result = specs.stream()
-                    .map(v -> variantRepo.save(newVariant(v.id(), productId, salonId, v)))
-                    .toList();
+            var result = built.stream().map(variantRepo::save).toList();
             log.info("[ShopManager] Product updated id={} salon={} active={} variants={}", productId, salonId, active, result.size());
             return toProductView(updated, result);
         });
@@ -262,7 +271,8 @@ class ShopManager {
     Optional<InventoryRow> updateInventory(UUID salonId, Long variantId, int quantityOnHand, int reorderLevel) {
         return variantRepo.findByIdAndSalonId(variantId, salonId).map(v -> {
             var saved = variantRepo.save(new ProductVariant(v.id(), v.productId(), v.salonId(), v.sku(), v.label(),
-                    v.price(), v.compareAtPrice(), v.currency(), Math.max(0, quantityOnHand), Math.max(0, reorderLevel), v.active()));
+                    v.price(), v.compareAtPrice(), v.currency(), Math.max(0, quantityOnHand), Math.max(0, reorderLevel), v.active(),
+                    v.weightGrams()));
             var p = productRepo.findById(saved.productId()).orElse(null);
             return new InventoryRow(saved.id(), saved.productId(),
                     p != null ? p.name() : "(unknown product)", p != null && p.active(),
@@ -376,6 +386,7 @@ class ShopManager {
         var lines = new ArrayList<ShopOrder.OrderLine>();
         BigDecimal subtotal = BigDecimal.ZERO;
         String currency = null;
+        int weightGrams = 0;
 
         for (var item : req.items()) {
             if (item.variantId() == null || item.quantity() <= 0) {
@@ -386,6 +397,11 @@ class ShopManager {
             var product = productRepo.findByIdAndSalonId(variant.productId(), salonId)
                     .filter(Product::active)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "This product is no longer available"));
+            // One order is one charge in one currency — before any stock is taken.
+            if (currency != null && !currency.equalsIgnoreCase(variant.currency())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Items priced in different currencies can't be bought in one order");
+            }
 
             int changed = jdbcClient.sql("""
                             UPDATE product_variant SET quantity_on_hand = quantity_on_hand - :qty
@@ -405,9 +421,14 @@ class ShopManager {
             var lineTotal = unitPrice.multiply(BigDecimal.valueOf(item.quantity()));
             subtotal = subtotal.add(lineTotal);
             if (currency == null) currency = variant.currency();
+            if (variant.weightGrams() != null) weightGrams += variant.weightGrams() * item.quantity();
             lines.add(new ShopOrder.OrderLine(null, product.id(), variant.id(), product.name(), variant.label(),
                     unitPrice, item.quantity(), lineTotal));
         }
+
+        int itemCount = lines.stream().mapToInt(ShopOrder.OrderLine::quantity).sum();
+        var ship = shipping.select(salonId, req.shippingMethodId(), req.shippingAddress(),
+                new ShippingMethodService.Cart(currency, subtotal, itemCount, weightGrams));
 
         var now = Instant.now();
         var finalCurrency = currency != null ? currency : DEFAULT_CURRENCY;
@@ -420,6 +441,7 @@ class ShopManager {
                 null, null, null,
                 null, null, null, null,
                 null, null, null,
+                ship.methodId(), ship.name(), ship.cost(), weightGrams,
                 lines);
         var saved = orderRepo.save(order);
 
@@ -439,6 +461,41 @@ class ShopManager {
         return getOrder(salonId, saved.id()).orElseThrow();
     }
 
+    /**
+     * Prices and weighs a cart the way {@link #placeOrder} will — unknown or inactive variants simply
+     * don't count. The currency is the first item's, as in {@code placeOrder}.
+     */
+    ShippingMethodService.Cart cart(UUID salonId, List<CheckoutItem> items) {
+        var subtotal = BigDecimal.ZERO;
+        int count = 0;
+        int weight = 0;
+        String currency = null;
+        for (var item : items == null ? List.<CheckoutItem>of() : items) {
+            if (item == null || item.variantId() == null || item.quantity() <= 0) continue;
+            var variant = variantRepo.findByIdAndSalonId(item.variantId(), salonId).filter(ProductVariant::active).orElse(null);
+            if (variant == null) continue;
+            var price = variant.price() != null ? variant.price() : BigDecimal.ZERO;
+            subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
+            count += item.quantity();
+            if (variant.weightGrams() != null) weight += variant.weightGrams() * item.quantity();
+            if (currency == null) currency = variant.currency();
+        }
+        return new ShippingMethodService.Cart(currency, subtotal, count, weight);
+    }
+
+    /**
+     * Re-labels every variant priced in another currency with the salon's currency, keeping the
+     * amounts — for catalogues created while the editor defaulted to USD. Owner-triggered only.
+     */
+    @Transactional
+    CurrencyAlignment alignCurrency(UUID salonId) {
+        var currency = shopCurrency.of(salonId);
+        int updated = jdbcClient.sql("UPDATE product_variant SET currency = :currency WHERE salon_id = :salon AND currency <> :currency")
+                .param("currency", currency).param("salon", salonId).update();
+        log.info("[ShopManager] Aligned variant currency salon={} currency={} updated={}", salonId, currency, updated);
+        return new CurrencyAlignment(currency, updated);
+    }
+
     @Transactional
     void recordStripePayment(UUID salonId, Long orderId, String sessionId, boolean succeeded) {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
@@ -456,7 +513,8 @@ class ShopManager {
                     sessionId, order.subtotal(), order.currency(), order.createdAt(), order.trackingCarrier(), order.trackingNumber(),
                     order.communicationPreference(), order.refundAmount(), order.refundReason(), order.refundStatus(),
                     order.returnStatus(), order.returnReason(), order.returnNotes(), order.returnUpdatedAt(), order.creditNoteRef(),
-                    order.creditNoteStatus(), order.creditNoteAt(), order.lines()));
+                    order.creditNoteStatus(), order.creditNoteAt(), order.shippingMethodId(), order.shippingMethodName(),
+                    order.shippingCost(), order.totalWeightGrams(), order.lines()));
             recordOrderActivity(order.id(), salonId, "ORDER_PLACED",
                     "Order " + order.orderNumber() + " placed by " + order.customerName(),
                     "customer", false, order.customerEmail(), order.customerPhone());
@@ -495,7 +553,8 @@ class ShopManager {
         eventPublisher.publishEvent(new OrderPlacedEvent(order.id(), order.salonId(), order.orderNumber(),
                 order.customerName(), order.customerEmail(), order.customerPhone(),
                 order.lines().stream().mapToInt(ShopOrder.OrderLine::quantity).sum(), order.subtotal(), order.currency(),
-                contact.name(), contact.phone(), contact.email(), order.communicationPreference()));
+                contact.name(), contact.phone(), contact.email(), order.communicationPreference(),
+                order.shippingMethodName(), order.shippingCost()));
     }
 
     @Transactional
@@ -851,16 +910,49 @@ class ShopManager {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private ProductVariant newVariant(Long id, Long productId, UUID salonId, VariantSpec v) {
-        var currency = v.currency() != null && !v.currency().isBlank() ? v.currency().trim().toUpperCase(Locale.ROOT) : DEFAULT_CURRENCY;
-        return new ProductVariant(id, productId, salonId,
-                trimToNull(v.sku()), trimToNull(v.label()),
-                v.price() != null ? v.price() : BigDecimal.ZERO,
-                v.compareAtPrice(),
-                currency,
-                v.quantityOnHand() != null ? Math.max(0, v.quantityOnHand()) : 0,
-                v.reorderLevel() != null ? Math.max(0, v.reorderLevel()) : 0,
-                v.active() == null || v.active());
+    /**
+     * Validates and builds a product's variants. A missing currency is the salon's; all variants of a
+     * product must share one (a cart is charged in one currency). A missing weight is estimated from
+     * the label ({@link VariantWeights}); a variant whose weight is neither given nor estimable is
+     * refused, because weight-based shipping rules need it.
+     */
+    private List<ProductVariant> newVariants(Long productId, UUID salonId, List<VariantSpec> specs, boolean build) {
+        String salonCurrency = null;
+        String productCurrency = null;
+        var out = new ArrayList<ProductVariant>();
+        for (var v : specs) {
+            String currency;
+            if (v.currency() != null && !v.currency().isBlank()) {
+                currency = v.currency().trim().toUpperCase(Locale.ROOT);
+            } else {
+                if (salonCurrency == null) salonCurrency = shopCurrency.of(salonId);
+                currency = salonCurrency;
+            }
+            if (!currency.matches("[A-Z]{3}")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency must be a 3-letter ISO code");
+            }
+            if (productCurrency == null) productCurrency = currency;
+            else if (!productCurrency.equals(currency)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All options of a product must use the same currency");
+            }
+            var label = trimToNull(v.label());
+            var weight = v.weightGrams() != null ? v.weightGrams() : VariantWeights.estimateGrams(label);
+            if (weight == null || weight <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Enter a shipping weight for '" + (label != null ? label : "the default option") + "'");
+            }
+            if (!build) continue;
+            out.add(new ProductVariant(v.id(), productId, salonId,
+                    trimToNull(v.sku()), label,
+                    v.price() != null ? v.price() : BigDecimal.ZERO,
+                    v.compareAtPrice(),
+                    currency,
+                    v.quantityOnHand() != null ? Math.max(0, v.quantityOnHand()) : 0,
+                    v.reorderLevel() != null ? Math.max(0, v.reorderLevel()) : 0,
+                    v.active() == null || v.active(),
+                    weight));
+        }
+        return out;
     }
 
     private void validateBrandCategory(UUID salonId, Long brandId, Long categoryId) {
@@ -911,6 +1003,7 @@ class ShopManager {
                 o.refundAmount(), o.refundReason(), o.refundStatus(),
                 o.returnStatus(), o.returnReason(), o.returnNotes(), o.returnUpdatedAt(),
                 o.creditNoteRef(), o.creditNoteStatus(), o.creditNoteAt(),
+                o.shippingMethodId(), o.shippingMethodName(), o.shippingCost(), o.total(), o.totalWeightGrams(),
                 lines, orderActivities);
     }
 

@@ -13,7 +13,7 @@ import { contrastText, fontStack, isLightColor, loadGoogleFont, shade } from "./
 import { useCart } from "./shopCart";
 import { useWishlist } from "./shopWishlist";
 import PhoneInput from "./PhoneInput";
-import type { CartLine, Country, Salon, ShopBrand, ShopCategory, ShopOrder, ShopProduct, ShopShippingAddress, ShopVariant, WebsiteTheme } from "./types";
+import type { CartLine, Country, Salon, ShopBrand, ShopCategory, ShopOrder, ShopProduct, ShopShippingAddress, ShopShippingOption, ShopShippingQuote, ShopVariant, WebsiteTheme } from "./types";
 
 export interface ShopViewProps {
   salon: Salon;
@@ -237,9 +237,15 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
               <span>{formatPrice(l.lineTotal, placed.currency, uiLocale)}</span>
             </div>
           ))}
+          {placed.shippingMethodName && (
+            <div className="flex items-center justify-between text-sm py-1" style={{ color: sub }}>
+              <span>{translateUi("Shipping")} · {placed.shippingMethodName}</span>
+              <span>{placed.shippingCost ? formatPrice(placed.shippingCost, placed.currency, uiLocale) : translateUi("Free")}</span>
+            </div>
+          )}
           <div className="border-t mt-2 pt-2 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
             <span>{placed.paymentStatus === "PENDING" ? translateUi("Total") : translateUi("Total paid")}</span>
-            <span>{formatPrice(placed.subtotal, placed.currency, uiLocale)}</span>
+            <span>{formatPrice(placed.total ?? placed.subtotal, placed.currency, uiLocale)}</span>
           </div>
         </div>
         <button
@@ -1260,7 +1266,14 @@ function CartDrawer({
 type Fulfilment = "SHIP" | "COLLECT";
 
 /** Field ids in on-screen order — the first invalid one gets focus when the customer tries to pay. */
-const CHECKOUT_FIELDS = ["customerName", "customerEmail", "line1", "city", "country"] as const;
+const CHECKOUT_FIELDS = ["customerName", "customerEmail", "line1", "city", "country", "shippingMethod"] as const;
+
+/** The policies the checkout links to — the ones that govern a purchase. */
+const CHECKOUT_POLICY_KEYS = ["refunds", "sales"];
+
+type ShippingQuoteState =
+  | { status: "idle" | "loading" | "error" }
+  | { status: "ready"; quote: ShopShippingQuote };
 
 function CheckoutForm({
   salon, theme, lines, currency, subtotal, countries, policies, onCancel, onEditCart, onPlaced,
@@ -1302,6 +1315,8 @@ function CheckoutForm({
   const [attempted, setAttempted] = useState(false);
   // Whether placing the order hands the customer to Stripe Checkout; null until known.
   const [onlinePayment, setOnlinePayment] = useState<boolean | null>(null);
+  const [shippingQuote, setShippingQuote] = useState<ShippingQuoteState>({ status: "idle" });
+  const [shippingMethodId, setShippingMethodId] = useState<number | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -1319,6 +1334,38 @@ function CheckoutForm({
 
   // Field-level validation — a shipped order needs somewhere to ship to; collecting needs no address.
   const shipping = f.fulfilment === "SHIP";
+  // Shipping options are only asked for once the address is there — they depend on the destination.
+  const addressReady = shipping && Boolean(f.line1.trim() && f.city.trim() && f.country.trim());
+  const cartKey = lines.map((l) => `${l.variantId}:${l.quantity}`).join(",");
+
+  useEffect(() => {
+    if (!addressReady) { setShippingQuote({ status: "idle" }); return; }
+    let live = true;
+    setShippingQuote({ status: "loading" });
+    const timer = window.setTimeout(() => {
+      apiFetch<ShopShippingQuote>(`${API_BASE}/api/salon/${salon.id}/shop/shipping-options`, {
+        method: "POST",
+        body: JSON.stringify({ country: f.country, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) }),
+      })
+        .then((quote) => {
+          if (!live) return;
+          setShippingQuote({ status: "ready", quote });
+          // Keep the customer's pick while it still applies; otherwise preselect the cheapest.
+          setShippingMethodId((current) =>
+            quote.options.some((o) => o.id === current) ? current : quote.options[0]?.id ?? null);
+        })
+        .catch(() => { if (live) setShippingQuote({ status: "error" }); });
+    }, 250);
+    return () => { live = false; window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cartKey stands in for lines
+  }, [salon.id, addressReady, f.country, cartKey]);
+
+  const quote = shippingQuote.status === "ready" ? shippingQuote.quote : null;
+  const shippingOptions = quote?.options ?? [];
+  const selectedShipping: ShopShippingOption | null = shipping
+    ? shippingOptions.find((o) => o.id === shippingMethodId) ?? null
+    : null;
+  const shippingCost = selectedShipping?.cost ?? 0;
   const errors: Record<string, string> = {};
   if (!f.customerName.trim()) errors.customerName = translateUi("Full name is required.");
   if (!f.customerEmail.trim()) {
@@ -1330,6 +1377,15 @@ function CheckoutForm({
     if (!f.line1.trim()) errors.line1 = translateUi("Address line 1 is required.");
     if (!f.city.trim()) errors.city = translateUi("City is required.");
     if (!f.country.trim()) errors.country = translateUi("Country is required.");
+    if (addressReady) {
+      if (shippingQuote.status === "loading") {
+        errors.shippingMethod = translateUi("Shipping options are still loading.");
+      } else if (quote?.configured && shippingOptions.length === 0) {
+        errors.shippingMethod = translateUi("We don't ship to {country} yet. Choose Collect in salon instead.", { country: f.country });
+      } else if (quote?.configured && !selectedShipping) {
+        errors.shippingMethod = translateUi("Choose a shipping method.");
+      }
+    }
   }
 
   const isValid = Object.keys(errors).length === 0 && lines.length > 0;
@@ -1390,6 +1446,7 @@ function CheckoutForm({
           customerPhone: f.customerPhone.trim() || undefined,
           // No address = collect in salon (the same convention the MCP shop app uses).
           shippingAddress: address,
+          shippingMethodId: shipping ? selectedShipping?.id ?? null : null,
           items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           communicationPreference: f.communicationPreference,
           // Stripe returns here (same origin) so the pending-order hand-off in sessionStorage survives.
@@ -1415,14 +1472,15 @@ function CheckoutForm({
 
   /** A themed radio-card group (role=radiogroup) for the delivery and notification choices.
       A render helper, not a component, so the buttons keep their identity (and focus) across renders. */
-  function radioCards<T extends string>({ label, value, options, onChange }: {
+  function radioCards<T extends string | number>({ id, label, value, options, onChange }: {
+    id?: string;
     label: string;
-    value: T;
-    options: { value: T; title: string; description: string }[];
+    value: T | null;
+    options: { value: T; title: string; description: string; aside?: string }[];
     onChange: (v: T) => void;
   }) {
     return (
-      <div role="radiogroup" aria-label={label} className="flex flex-col gap-2">
+      <div id={id} tabIndex={id ? -1 : undefined} role="radiogroup" aria-label={label} className="flex flex-col gap-2 outline-none">
         {options.map((opt) => {
           const selected = value === opt.value;
           return (
@@ -1445,10 +1503,13 @@ function CheckoutForm({
               >
                 {selected && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.accentColor }} />}
               </span>
-              <span>
+              <span className="flex-1 min-w-0">
                 <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>{opt.title}</span>
                 <span className="text-[11px]" style={{ color: sub }}>{opt.description}</span>
               </span>
+              {opt.aside && (
+                <span className="text-xs font-bold shrink-0 tabular-nums" style={{ color: theme.heroTextColor }}>{opt.aside}</span>
+              )}
             </button>
           );
         })}
@@ -1457,7 +1518,18 @@ function CheckoutForm({
   }
 
   const salonAddress = [salon.location?.address, salon.location?.city].filter(Boolean).join(", ");
-  const total = formatPrice(subtotal, currency, uiLocale);
+  const total = formatPrice(subtotal + shippingCost, currency, uiLocale);
+  const checkoutPolicies = policies.filter((p) => CHECKOUT_POLICY_KEYS.includes(p.key));
+  const deliveryTypeLabel = (o: ShopShippingOption) =>
+    o.deliveryType === "PICKUP_POINT" ? translateUi("Pickup point")
+      : o.deliveryType === "BUSINESS" ? translateUi("Business address")
+        : translateUi("Home delivery");
+  const deliveryDays = (o: ShopShippingOption) => {
+    const min = o.minDeliveryDays, max = o.maxDeliveryDays;
+    if (min != null && max != null && min !== max) return translateUi("{min}–{max} business days", { min, max });
+    const days = max ?? min;
+    return days == null ? null : translateUi("{days} business days", { days });
+  };
   const payLabel = onlinePayment === false
     ? translateUi("Place order · {amount}", { amount: total })
     : translateUi("Pay {amount}", { amount: total });
@@ -1469,7 +1541,7 @@ function CheckoutForm({
       : null;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={translateUi("Pay for your order")}
                                               customerEmail={f.customerEmail.trim() || null} />}
       <button type="button" onClick={onCancel} className="text-xs font-semibold mb-5 inline-flex items-center gap-1.5 cursor-pointer" style={{ color: sub }}>
@@ -1478,11 +1550,12 @@ function CheckoutForm({
         {translateUi("Checkout ")}</h1>
 
       {/* No ancestor of the summary may set overflow (it would become the sticky container). */}
-      <form noValidate onSubmit={submit} className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6">
+      <form noValidate onSubmit={submit} className="grid grid-cols-1 md:grid-cols-[1fr_340px] gap-6 lg:gap-8">
         <div className="flex flex-col gap-6 min-w-0">
           <section aria-labelledby="checkout-details-title">
             <h2 id="checkout-details-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Your details")}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Name, email and phone share one row once there is room for three fields. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
               <div>
                 <label htmlFor="checkout-customerName" className="text-xs" style={labelStyle}>
                   {translateUi("Full name ")}{requiredMark}
@@ -1519,7 +1592,7 @@ function CheckoutForm({
                 )}
               </div>
 
-              <div className="text-xs sm:col-span-2" style={labelStyle}>
+              <div className="text-xs sm:col-span-2 lg:col-span-1" style={labelStyle}>
                 {translateUi("Phone ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
                 <div className="mt-1">
                   <PhoneInput
@@ -1527,6 +1600,7 @@ function CheckoutForm({
                     onChange={(v) => setF((p) => ({ ...p, customerPhone: v }))}
                     countries={countries}
                     defaultCountry={salon.location?.country}
+                    compact
                   />
                 </div>
               </div>
@@ -1540,7 +1614,7 @@ function CheckoutForm({
               value: f.fulfilment,
               onChange: (v) => setF((p) => ({ ...p, fulfilment: v })),
               options: [
-                { value: "SHIP", title: translateUi("Ship to me"), description: translateUi("Delivered to the address below") },
+                { value: "SHIP", title: translateUi("Ship to me"), description: translateUi("Enter your address to see the shipping options") },
                 {
                   value: "COLLECT",
                   title: translateUi("Collect in salon"),
@@ -1608,6 +1682,42 @@ function CheckoutForm({
             </section>
           )}
 
+          {addressReady && (
+            <section aria-labelledby="checkout-shipping-title">
+              <h2 id="checkout-shipping-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Shipping method")}</h2>
+              {shippingQuote.status === "loading" && (
+                <p className="text-xs inline-flex items-center gap-2" style={{ color: sub }}>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> {translateUi("Finding shipping options…")}
+                </p>
+              )}
+              {shippingQuote.status === "error" && (
+                <p className="text-xs" style={{ color: sub }}>{translateUi("We couldn't load the shipping options. Shipping is added when you pay.")}</p>
+              )}
+              {quote && !quote.configured && (
+                <p className="text-xs" style={{ color: sub }}>{translateUi("Shipping is free on this order.")}</p>
+              )}
+              {quote?.configured && shippingOptions.length > 0 && radioCards<number>({
+                id: "checkout-shippingMethod",
+                label: translateUi("Shipping method"),
+                value: shippingMethodId,
+                onChange: setShippingMethodId,
+                options: shippingOptions.map((o) => ({
+                  value: o.id,
+                  title: o.name,
+                  description: [o.carrier, deliveryTypeLabel(o), deliveryDays(o), o.description].filter(Boolean).join(" · "),
+                  aside: o.free ? translateUi("Free") : formatPrice(o.cost, currency, uiLocale),
+                })),
+              })}
+              {quote?.configured && shippingOptions.length === 0 && (
+                <p id="checkout-shippingMethod" tabIndex={-1} role="alert" className="text-xs p-3 rounded-lg outline-none"
+                   style={{ color: errorColor, backgroundColor: `${errorColor}14`, border: `1px solid ${errorColor}33` }}>
+                  {errors.shippingMethod}
+                </p>
+              )}
+              {quote?.configured && shippingOptions.length > 0 && fieldError("shippingMethod")}
+            </section>
+          )}
+
           <section aria-labelledby="checkout-notifications-title">
             <h2 id="checkout-notifications-title" className={sectionTitle} style={{ color: theme.accentColor }}>
               {translateUi("Order notifications ")}</h2>
@@ -1651,12 +1761,25 @@ function CheckoutForm({
           </ul>
 
           <div className="shrink-0">
-            {!shipping && (
-              <div className="flex items-center justify-between text-xs pb-2" style={{ color: sub }}>
-                <span>{translateUi("Collect in salon")}</span>
-                <span>{translateUi("Free")}</span>
-              </div>
-            )}
+            <div className="border-t pt-3 flex items-center justify-between text-xs pb-1.5" style={{ borderColor: cardBorder, color: sub }}>
+              <span>{translateUi("Subtotal")}</span>
+              <span className="tabular-nums">{formatPrice(subtotal, currency, uiLocale)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-xs pb-2" style={{ color: sub }}>
+              {!shipping ? (
+                <><span>{translateUi("Collect in salon")}</span><span>{translateUi("Free")}</span></>
+              ) : selectedShipping ? (
+                <>
+                  <span className="truncate">{translateUi("Shipping")} · {selectedShipping.name}</span>
+                  <span className="tabular-nums shrink-0">{selectedShipping.free ? translateUi("Free") : formatPrice(selectedShipping.cost, currency, uiLocale)}</span>
+                </>
+              ) : (
+                <>
+                  <span>{translateUi("Shipping")}</span>
+                  <span>{quote && !quote.configured ? translateUi("Free") : translateUi("Enter your address")}</span>
+                </>
+              )}
+            </div>
             <div className="border-t pt-3 flex items-center justify-between text-sm font-bold" style={{ borderColor: cardBorder, color: theme.heroTextColor }}>
               <span>{translateUi("Total")}</span>
               <span className="tabular-nums">{total}</span>
@@ -1687,10 +1810,10 @@ function CheckoutForm({
             {paymentNote && (
               <p className="text-[10px] text-center mt-2" style={{ color: sub }}>{paymentNote}</p>
             )}
-            {policies.length > 0 && (
+            {checkoutPolicies.length > 0 && (
               <div className="mt-3 flex flex-col items-center gap-1.5 text-center">
-                <p className="text-[10px]" style={{ color: sub }}>{translateUi("By placing your order you agree to the salon's policies.")}</p>
-                <SalonPolicyLinks policies={policies} color={sub} salonName={salon.name} />
+                <p className="text-[10px]" style={{ color: sub }}>{translateUi("By placing your order you agree to the salon's refund and sales policies.")}</p>
+                <SalonPolicyLinks policies={checkoutPolicies} color={sub} salonName={salon.name} />
               </div>
             )}
           </div>

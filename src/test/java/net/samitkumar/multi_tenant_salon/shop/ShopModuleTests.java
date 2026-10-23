@@ -354,7 +354,7 @@ class ShopModuleTests {
         var created = client.post().uri("/api/salon-admin/" + salonId + "/shop/products")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
-                        { "name": "Private", "variants": [ { "label": "x", "price": 1.00, "quantityOnHand": 1 } ] }
+                        { "name": "Private", "variants": [ { "label": "x", "price": 1.00, "quantityOnHand": 1, "weightGrams": 100 } ] }
                         """)
                 .exchange().expectStatus().isCreated().expectBody().returnResult();
         var productId = jsonLong(created.getResponseBody(), "$.id");
@@ -374,7 +374,7 @@ class ShopModuleTests {
                         {
                           "name": "Gift Set",
                           "images": ["https://cdn.test/a.jpg", "https://cdn.test/b.jpg", "https://cdn.test/c.jpg"],
-                          "variants": [ { "label": "one", "price": 40.00, "currency": "USD", "quantityOnHand": 5 } ]
+                          "variants": [ { "label": "one", "price": 40.00, "currency": "USD", "quantityOnHand": 5, "weightGrams": 200 } ]
                         }
                         """)
                 .exchange()
@@ -395,7 +395,7 @@ class ShopModuleTests {
                         {
                           "name": "Gift Set",
                           "images": ["https://cdn.test/c.jpg", "https://cdn.test/a.jpg"],
-                          "variants": [ { "id": %d, "label": "one", "price": 40.00, "currency": "USD", "quantityOnHand": 5 } ]
+                          "variants": [ { "id": %d, "label": "one", "price": 40.00, "currency": "USD", "quantityOnHand": 5, "weightGrams": 200 } ]
                         }
                         """.formatted(variantId))
                 .exchange()
@@ -422,7 +422,7 @@ class ShopModuleTests {
                         {
                           "name": "Legacy",
                           "imageUrl": "https://cdn.test/legacy.jpg",
-                          "variants": [ { "label": "x", "price": 1.00, "quantityOnHand": 1 } ]
+                          "variants": [ { "label": "x", "price": 1.00, "quantityOnHand": 1, "weightGrams": 100 } ]
                         }
                         """)
                 .exchange()
@@ -567,6 +567,257 @@ class ShopModuleTests {
         client.get().uri(adminBase() + "/orders/" + cancelled).exchange()
                 .expectStatus().isOk().expectBody()
                 .jsonPath("$.status").isEqualTo("CANCELLED");
+    }
+
+    // ── Shipping methods ────────────────────────────────────────────────────
+
+    private long shippingMethod(String json) {
+        var res = client.post().uri(adminBase() + "/shipping-methods")
+                .contentType(MediaType.APPLICATION_JSON).body(json)
+                .exchange().expectStatus().isCreated().expectBody().returnResult();
+        return jsonLong(res.getResponseBody(), "$.id");
+    }
+
+    @Test
+    void shippingOptionsFollowTheOwnersRules() {
+        var variantId = variantWithStock("Shipping Shampoo", 20);
+        // Denmark only, free from 50; a heavy-cart courier for 3+ items anywhere; an inactive one.
+        var postnord = shippingMethod("""
+                { "name": "PostNord parcel shop", "carrier": "PostNord", "deliveryType": "PICKUP_POINT",
+                  "price": 5.00, "freeOver": 50.00, "countries": ["dk"], "minDeliveryDays": 1, "maxDeliveryDays": 3 }
+                """);
+        shippingMethod("""
+                { "name": "GLS courier", "price": 12.00, "minItems": 3 }
+                """);
+        shippingMethod("""
+                { "name": "Retired", "price": 1.00, "active": false }
+                """);
+
+        client.get().uri(adminBase() + "/shipping-methods").exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.length()").isEqualTo(3)
+                .jsonPath("$[?(@.name == 'PostNord parcel shop')].countries[0]").isEqualTo("DK");
+
+        // 1 item to Denmark (by name, as the storefront sends it): only PostNord, at full price.
+        client.post().uri(customerBase() + "/shipping-options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"country\": \"Denmark\", \"items\": [ { \"variantId\": %d, \"quantity\": 1 } ] }".formatted(variantId))
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.configured").isEqualTo(true)
+                .jsonPath("$.options.length()").isEqualTo(1)
+                .jsonPath("$.options[0].id").isEqualTo(postnord)
+                .jsonPath("$.options[0].cost").isEqualTo(5.0);
+
+        // 5 items (50.00) to Denmark: PostNord is now free and the courier qualifies too.
+        client.post().uri(customerBase() + "/shipping-options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"country\": \"DK\", \"items\": [ { \"variantId\": %d, \"quantity\": 5 } ] }".formatted(variantId))
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.options.length()").isEqualTo(2)
+                .jsonPath("$.options[0].free").isEqualTo(true)
+                .jsonPath("$.options[1].name").isEqualTo("GLS courier");
+
+        // 1 item to Sweden: nothing ships there.
+        client.post().uri(customerBase() + "/shipping-options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"country\": \"Sweden\", \"items\": [ { \"variantId\": %d, \"quantity\": 1 } ] }".formatted(variantId))
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.options.length()").isEqualTo(0);
+    }
+
+    @Test
+    void checkoutChargesTheChosenShippingMethod() {
+        var variantId = variantWithStock("Shipped Conditioner", 10);
+        var method = shippingMethod("""
+                { "name": "Home delivery", "price": 7.50, "countries": ["DK"] }
+                """);
+        var address = "\"shippingAddress\": { \"line1\": \"Main St 1\", \"city\": \"Copenhagen\", \"country\": \"Denmark\" }";
+
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com", %s, "shippingMethodId": %d,
+                          "items": [ { "variantId": %d, "quantity": 2 } ] }
+                        """.formatted(address, method, variantId))
+                .exchange().expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.subtotal").isEqualTo(20.0)
+                .jsonPath("$.shippingMethodName").isEqualTo("Home delivery")
+                .jsonPath("$.shippingCost").isEqualTo(7.5)
+                .jsonPath("$.total").isEqualTo(27.5);
+
+        // Collecting in salon never pays shipping, even with methods configured.
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com",
+                          "items": [ { "variantId": %d, "quantity": 1 } ] }
+                        """.formatted(variantId))
+                .exchange().expectStatus().isCreated()
+                .expectBody().jsonPath("$.shippingCost").isEqualTo(0).jsonPath("$.total").isEqualTo(10.0);
+
+        // A destination no method covers is refused — and leaves the stock alone.
+        int before = stockOf(variantId);
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com",
+                          "shippingAddress": { "line1": "Gatan 1", "city": "Malmö", "country": "Sweden" },
+                          "items": [ { "variantId": %d, "quantity": 1 } ] }
+                        """.formatted(variantId))
+                .exchange().expectStatus().isBadRequest();
+        assertThat(stockOf(variantId)).isEqualTo(before);
+    }
+
+    @Test
+    void shippingIsFreeWhenTheSalonHasNoMethods() {
+        var variantId = variantWithStock("Legacy Gel", 5);
+        client.post().uri(customerBase() + "/shipping-options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"country\": \"Denmark\", \"items\": [ { \"variantId\": %d, \"quantity\": 1 } ] }".formatted(variantId))
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.configured").isEqualTo(false);
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com",
+                          "shippingAddress": { "line1": "Main St 1", "city": "Copenhagen", "country": "Denmark" },
+                          "items": [ { "variantId": %d, "quantity": 1 } ] }
+                        """.formatted(variantId))
+                .exchange().expectStatus().isCreated()
+                .expectBody().jsonPath("$.shippingCost").isEqualTo(0).jsonPath("$.total").isEqualTo(10.0);
+    }
+
+    @Test
+    void shippingMethodValidationAndDelete() {
+        client.post().uri(adminBase() + "/shipping-methods")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"name\": \"Bad\", \"minItems\": 5, \"maxItems\": 2 }")
+                .exchange().expectStatus().isBadRequest();
+        client.post().uri(adminBase() + "/shipping-methods")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"name\": \"Bad\", \"countries\": [\"Denmark\"] }")
+                .exchange().expectStatus().isBadRequest();
+        var id = shippingMethod("{ \"name\": \"Standard\", \"price\": 4 }");
+        client.put().uri(adminBase() + "/shipping-methods/" + id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"name\": \"Standard+\", \"price\": 6, \"countries\": [\"SE\", \"NO\"] }")
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.name").isEqualTo("Standard+").jsonPath("$.countries.length()").isEqualTo(2);
+        client.delete().uri(adminBase() + "/shipping-methods/" + id).exchange().expectStatus().isNoContent();
+        client.get().uri(adminBase() + "/shipping-methods").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(0);
+    }
+
+    // ── Weight & currency ───────────────────────────────────────────────────
+
+    @Test
+    void variantWeightIsEstimatedFromItsUnitOrRequired() {
+        // 250 ml → 250 g contents + 10 % packaging = 275 → rounded up to 280 g; an explicit weight wins.
+        client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "name": "Weighed", "variants": [
+                            { "label": "250 ml", "price": 5 },
+                            { "label": "1.5 kg", "price": 9, "weightGrams": 1600 } ] }
+                        """)
+                .exchange().expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.variants[0].weightGrams").isEqualTo(280)
+                .jsonPath("$.variants[1].weightGrams").isEqualTo(1600);
+
+        // No measurable unit and no weight: refused, nothing created.
+        client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"name\": \"Gift set\", \"variants\": [ { \"label\": \"1 set\", \"price\": 20 } ] }")
+                .exchange().expectStatus().isBadRequest();
+        client.get().uri(adminBase() + "/products").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1);
+    }
+
+    @Test
+    void shippingWeightBracketsPickTheMethod() {
+        var variantId = variantWithStock("Heavy Mask", 50); // 100 ml → 110 g each
+        var light = shippingMethod("{ \"name\": \"Letter\", \"price\": 3, \"maxWeightGrams\": 500 }");
+        var heavy = shippingMethod("{ \"name\": \"Parcel\", \"price\": 9, \"minWeightGrams\": 501, \"maxWeightGrams\": 20000 }");
+
+        client.post().uri(customerBase() + "/shipping-options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"country\": \"DK\", \"items\": [ { \"variantId\": %d, \"quantity\": 4 } ] }".formatted(variantId))
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.options.length()").isEqualTo(1).jsonPath("$.options[0].id").isEqualTo(light);
+
+        // 5 × 110 g = 550 g: only the parcel; the order records its weight.
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com", "shippingMethodId": %d,
+                          "shippingAddress": { "line1": "Main St 1", "city": "Copenhagen", "country": "Denmark" },
+                          "items": [ { "variantId": %d, "quantity": 5 } ] }
+                        """.formatted(heavy, variantId))
+                .exchange().expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.shippingMethodName").isEqualTo("Parcel")
+                .jsonPath("$.totalWeightGrams").isEqualTo(550);
+    }
+
+    @Test
+    void productsDefaultToTheSalonCurrencyAndCanBeAligned() {
+        jdbcTemplate.update("UPDATE salon SET country = 'Denmark' WHERE id = ?", salonId);
+
+        // No currency given → the salon's (DKK); an explicit one is kept on purpose.
+        client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"name\": \"Local\", \"variants\": [ { \"label\": \"50 ml\", \"price\": 99, \"quantityOnHand\": 1 } ] }")
+                .exchange().expectStatus().isCreated()
+                .expectBody().jsonPath("$.variants[0].currency").isEqualTo("DKK");
+        var euro = client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"name\": \"Imported\", \"variants\": [ { \"label\": \"50 ml\", \"price\": 12, \"currency\": \"EUR\", \"quantityOnHand\": 1 } ] }")
+                .exchange().expectStatus().isCreated()
+                .expectBody().jsonPath("$.variants[0].currency").isEqualTo("EUR").returnResult();
+        var euroVariant = jsonLong(euro.getResponseBody(), "$.variants[0].id");
+
+        // One product, one currency.
+        client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "name": "Mixed", "variants": [
+                            { "label": "50 ml", "price": 1, "currency": "DKK" },
+                            { "label": "100 ml", "price": 2, "currency": "EUR" } ] }
+                        """)
+                .exchange().expectStatus().isBadRequest();
+
+        // A DKK and a EUR item can't share one order.
+        var dkkVariant = jdbcTemplate.queryForObject(
+                "SELECT id FROM product_variant WHERE salon_id = ? AND currency = 'DKK'", Long.class, salonId);
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com",
+                          "items": [ { "variantId": %d, "quantity": 1 }, { "variantId": %d, "quantity": 1 } ] }
+                        """.formatted(dkkVariant, euroVariant))
+                .exchange().expectStatus().isBadRequest();
+        assertThat(stockOf(dkkVariant)).isEqualTo(1);
+
+        // Aligning re-labels the EUR product with the salon currency, amounts unchanged.
+        client.post().uri(adminBase() + "/products/align-currency").exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.currency").isEqualTo("DKK").jsonPath("$.updated").isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT currency FROM product_variant WHERE id = ?", String.class, euroVariant))
+                .isEqualTo("DKK");
+
+        // Shipping methods default to the salon currency too, and only match carts in it.
+        shippingMethod("{ \"name\": \"Euro only\", \"price\": 4, \"currency\": \"EUR\" }");
+        client.get().uri(adminBase() + "/shipping-methods").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$[0].currency").isEqualTo("EUR");
+        client.post().uri(customerBase() + "/shipping-options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"country\": \"DK\", \"items\": [ { \"variantId\": %d, \"quantity\": 1 } ] }".formatted(dkkVariant))
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.configured").isEqualTo(true).jsonPath("$.options.length()").isEqualTo(0);
     }
 
     // ── helpers ────────────────────────────────────────────────────────────

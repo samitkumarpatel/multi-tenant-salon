@@ -17,5 +17,12 @@ public record OrderPlacedEvent(
         String salonName,
         String salonPhone,
         String salonEmail,
-        CommunicationPreference communicationPreference
-) {}
+        CommunicationPreference communicationPreference,
+        String shippingMethodName,
+        BigDecimal shippingCost
+) {
+    /** What the customer paid: the items plus shipping (absent on events stored before shipping existed). */
+    public BigDecimal total() {
+        return shippingCost == null ? subtotal : subtotal.add(shippingCost);
+    }
+}

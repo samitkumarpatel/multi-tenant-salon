@@ -2,7 +2,7 @@ import { useI18n } from "@salon/i18n";
 import { GuideLink } from "~/components/GuideLink";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw, CreditCard, Undo2, Receipt } from "lucide-react";
+import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw, CreditCard, Undo2, Receipt, Truck } from "lucide-react";
 import { InfoBar } from "@salon/ui-shared";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import type { LayoutContext, Salon } from "~/lib/types";
@@ -41,6 +41,7 @@ export default function Shop() {
     { to: "brands", label: "Brands", icon: Tag, end: false, badge: 0 },
     { to: "categories", label: "Categories", icon: Layers, end: false, badge: 0 },
     { to: "inventory", label: "Inventory", icon: Boxes, end: false, badge: 0 },
+    { to: "shipping", label: "Shipping", icon: Truck, end: false, badge: 0 },
     { to: "orders", label: "Orders", icon: ClipboardList, end: false, badge: pendingCount },
     { to: "refunds", label: "Refunds", icon: RefreshCcw, end: false, badge: 0 },
     { to: "returns", label: "Returns", icon: Undo2, end: false, badge: 0 },

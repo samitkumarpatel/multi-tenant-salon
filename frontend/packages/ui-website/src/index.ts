@@ -36,7 +36,7 @@ export type {
   SalonClosure, SalonHoliday,
   Country, Currency,
   ShopBrand, ShopCategory, ShopVariant, ShopProduct, ShopInventoryRow,
-  ShopShippingAddress, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
+  ShopShippingAddress, ShopShippingMethod, ShopShippingOption, ShopShippingQuote, ShippingDeliveryType, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
   OrderLineActivity, OrderLineActivityType, CartLine,
   ShopRefundStatus, ShopReturnStatus, ShopCreditNoteStatus,
   ShopOrderActivity, ShopOrderActivityType,

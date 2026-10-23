@@ -22,6 +22,7 @@ export default [
       route("brands", "routes/shop.brands.tsx"),
       route("categories", "routes/shop.categories.tsx"),
       route("inventory", "routes/shop.inventory.tsx"),
+      route("shipping", "routes/shop.shipping.tsx"),
       route("refunds", "routes/shop.refunds.tsx"),
       route("credit-notes", "routes/shop.credit-notes.tsx"),
       route("returns", "routes/shop.returns.tsx"),

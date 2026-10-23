@@ -55,6 +55,12 @@ public record ShopOrder(
         String creditNoteRef,
         String creditNoteStatus,
         Instant creditNoteAt,
+        // Shipping chosen at checkout (snapshot); the amount charged is subtotal + shippingCost.
+        Long shippingMethodId,
+        String shippingMethodName,
+        BigDecimal shippingCost,
+        // Gross weight of the cart (sum of variant weight × quantity), for the shipping label.
+        Integer totalWeightGrams,
         @MappedCollection(idColumn = "order_id", keyColumn = "order_key") List<OrderLine> lines
 ) {
     public ShopOrder {
@@ -62,6 +68,12 @@ public record ShopOrder(
         if (status == null) status = OrderStatus.NEW;
         if (paymentStatus == null) paymentStatus = PaymentStatus.PENDING;
         if (communicationPreference == null) communicationPreference = CommunicationPreference.IMPORTANT_ONLY;
+        if (shippingCost == null) shippingCost = BigDecimal.ZERO;
+    }
+
+    /** What the customer pays: the items plus shipping. */
+    public BigDecimal total() {
+        return subtotal.add(shippingCost);
     }
 
     public record ShippingAddress(

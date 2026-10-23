@@ -3,7 +3,7 @@ export type {
   StaffMember, WebsiteTheme, ServiceItem, BookingStatus, Booking,
   AvailableSlot, StaffAvailability, StaffAvailabilityOverride, SalonClosure, SalonHoliday,
   ShopBrand, ShopCategory, ShopVariant, ShopProduct, ShopInventoryRow,
-  ShopShippingAddress, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
+  ShopShippingAddress, ShopShippingMethod, ShopShippingOption, ShopShippingQuote, ShippingDeliveryType, ShopOrder, ShopOrderLine, ShopOrderStatus, ShopPaymentStatus,
   OrderLineActivity, OrderLineActivityType, ShopRefundStatus, ShopReturnStatus, ShopCreditNoteStatus,
   ShopOrderActivity, ShopOrderActivityType,
   CommunicationPreference,
