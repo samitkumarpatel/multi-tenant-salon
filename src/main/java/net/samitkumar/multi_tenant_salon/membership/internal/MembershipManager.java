@@ -600,11 +600,19 @@ class MembershipManager implements MembershipApi {
         }
         var term = filter.q() == null ? "" : filter.q().strip();
         if (!term.isEmpty()) {
-            where.append(" AND (customer_name ILIKE :q OR customer_email ILIKE :q OR member_code ILIKE :code)");
             var escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
             params.put("q", "%" + escaped + "%");
-            // A scanned or typed member code may carry separators and any case.
-            params.put("code", "%" + normalizeCode(escaped) + "%");
+            // A scanned or typed member code may carry separators and any case; normalize before
+            // escaping so a punctuation-only term (e.g. a lone "%") can't normalize away to an
+            // empty string and turn member_code ILIKE into a match-everything "%%".
+            var normalizedCode = normalizeCode(term);
+            if (!normalizedCode.isEmpty()) {
+                where.append(" AND (customer_name ILIKE :q OR customer_email ILIKE :q OR member_code ILIKE :code)");
+                var escapedCode = normalizedCode.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                params.put("code", "%" + escapedCode + "%");
+            } else {
+                where.append(" AND (customer_name ILIKE :q OR customer_email ILIKE :q)");
+            }
         }
 
         // Tallies ignore the status filter, so the chips keep showing what else is there to switch to.
@@ -612,7 +620,11 @@ class MembershipManager implements MembershipApi {
         var countParams = new HashMap<>(params);
         countParams.remove("status");
         if (filter.planId() != null) countWhere.append(" AND plan_id = :plan");
-        if (!term.isEmpty()) countWhere.append(" AND (customer_name ILIKE :q OR customer_email ILIKE :q OR member_code ILIKE :code)");
+        if (!term.isEmpty()) {
+            countWhere.append(params.containsKey("code")
+                    ? " AND (customer_name ILIKE :q OR customer_email ILIKE :q OR member_code ILIKE :code)"
+                    : " AND (customer_name ILIKE :q OR customer_email ILIKE :q)");
+        }
 
         var counts = new LinkedHashMap<MembershipSubscription.Status, Long>();
         var countSql = jdbc.sql("SELECT status, count(*) AS n FROM membership_subscription WHERE " + countWhere + " GROUP BY status");
