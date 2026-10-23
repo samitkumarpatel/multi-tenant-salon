@@ -58,6 +58,7 @@ destroy touches nothing of mix's.
 | salon-booking | `book.salonsaas.org` | yes | `<project>.pages.dev` |
 | salon-dashboard | `dashboard.salonsaas.org` | yes | `<project>.pages.dev` |
 | salon-staff | `staff.salonsaas.org` | yes | `<project>.pages.dev` |
+| salon-help (`wiki/`) | `help.salonsaas.org` | yes | `<project>.pages.dev` |
 | backend `api` | `api.salonsaas.org` | **no** | Container App FQDN (+ `asuid.api` TXT) |
 | backend `auth` | `auth.salonsaas.org` | **no** | Container App FQDN (+ `asuid.auth` TXT) |
 

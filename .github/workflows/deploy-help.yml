@@ -43,6 +43,11 @@ jobs:
   # existed on the retired AWS S3+CloudFront or Azure Blob+Front Door setups),
   # so there is no disabled aws-s3-deploy / azure-storage-deploy job here —
   # unlike the other deploy-*.yml workflows that carry one as migration history.
+  # Project `salonsaas-help` (custom domain help.salonsaas.org) is provisioned by
+  # infrastructure/mix — `module.frontend.module.pages["help-web"]`.
+  # Uses the same repo secrets as the other frontend deploys:
+  #   CLOUDFLARE_API_TOKEN  — token with "Cloudflare Pages: Edit" on the account
+  #   CLOUDFLARE_ACCOUNT_ID — account owning the salonsaas.org zone
   cloudflare-deploy:
     runs-on: ubuntu-latest
     needs: build
