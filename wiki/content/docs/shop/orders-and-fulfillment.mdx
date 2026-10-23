@@ -1,0 +1,125 @@
+---
+title: "Orders and Fulfillment"
+description: "What happens when a customer checks out, how to work through the order list, and what each order's detail screen and activity timeline show you"
+---
+
+Once your shop is set up, customers can check out and place orders. This guide explains what
+happens the moment an order comes in, how to use the **Orders** tab to work through them, and what
+you'll find on an individual order's screen.
+
+## What happens when a customer checks out
+
+When a customer completes checkout:
+
+- Your admin dashboard double-checks that every item they ordered is still available.
+- Stock is deducted from each variant's quantity on hand immediately, at the moment of checkout —
+  not later. This protects you from overselling.
+- If online payment is turned on for your shop (set up in the **Payments** tab), the customer is
+  sent to a secure payment page to complete their card payment before the order is confirmed. If a
+  payment fails or is abandoned, the stock that was set aside for it is put back automatically.
+- If you don't charge online for the shop, the order is confirmed right away and marked as paid.
+- A new order appears in your **Orders** tab, and the customer receives a confirmation email.
+- The **Orders** tab in the Shop navigation shows a small red count badge for every order that's
+  still brand new and hasn't been looked at yet.
+
+## The Orders list
+
+Open the **Orders** tab under Shop to see every order that's come in. Across the top of the list
+you can:
+
+- **Search orders…** by order number, customer name, email, phone number, or product name.
+- Open the **Status** dropdown to filter to a single status (or **All orders**) — each status in
+  the dropdown shows a count next to it, so you can see at a glance how many orders are sitting in
+  each stage.
+- Choose **Newest first** or **Oldest first** from the sort dropdown.
+- Narrow the list to a date range with the **From** and **To** date pickers.
+- Click **Clear** to reset every filter back to default once you've applied one.
+
+The list itself shows, for each order: the **Order** number, the **Date** it was placed, the
+**Customer** (name and email), the number of **Items**, the order **Total**, and its **Status**
+badge, with a **View** link to open it. At the bottom, you can page through with **Prev** and
+**Next** once there are more orders than fit on one page.
+
+Click anywhere on an order's row (or its **View** link) to open the order's own detail screen.
+
+## Inside an order
+
+The order detail screen is laid out top to bottom like this:
+
+### Order items
+
+Every line the customer bought, with its product name, variant (e.g. "250 ml"), unit price times
+quantity, and line total. Next to each item is a small bell button you can click to notify the
+customer about that specific item — more on this below. Under the items, the **Subtotal** and
+**Total** are shown.
+
+### Customer and Ship to
+
+Two side-by-side cards: the customer's name with clickable email and phone links (or "No phone" if
+none was given), and the shipping address if the order is a delivery (or "No address provided" if
+it isn't).
+
+### Actions
+
+This card groups every action you can take on the order, by purpose:
+
+- **Order Status** — buttons appear here depending on the order's current status: **Confirm**,
+  **Mark Processing**, **Ready to Ship**, **Mark Shipped**, **Mark Delivered**, **Mark Fulfilled**,
+  **Put on Hold**, and **Cancel**. Only the moves that make sense from where the order currently
+  is are shown — for example, you can't mark an order "Shipped" before it's been through
+  "Processing". Once an order is **Fulfilled**, **Cancelled**, or **Failed**, this group disappears
+  entirely, because there's nothing further to move it through.
+- **Fulfillment** — an **Update Shipping** button (it relabels itself to show the carrier and
+  tracking number once you've saved one) and, once the order is **Delivered** or **Fulfilled**
+  and doesn't already have one, a **Request Return** button.
+- **Communication** — **Notify Customer** (a free-text message) and **Issue Invoice**.
+- **Financial** — **Refunds** (with a red count badge if one is waiting on you), and, once the
+  order has a credit note, a **Credit Note _[reference]_** button.
+
+### Order status
+
+The order's lifecycle runs, in order:
+
+**New → Confirmed → Processing → Ready to Ship → Shipped → Delivered → Fulfilled**
+
+with **Cancelled**, **Failed**, and **On Hold** as side states an order can land in instead. You
+move an order forward using the matching button in the Order Status action group — for example,
+clicking **Mark Processing** once you start preparing it, or **Mark Fulfilled** once the customer
+has received it and there's nothing left to do.
+
+<Callout type="info">
+  Changing an order's status, sending a notification, saving shipping details, and every refund or
+  return action are all logged automatically on the order's activity timeline, so you (and anyone
+  else on your team) can always see exactly what happened and when.
+</Callout>
+
+### Notifying the customer
+
+Clicking **Notify Customer**, or the bell icon on a single item, opens a message box where you
+type a free-text update; it's sent to the customer's email (and shows their phone number too, if
+you have one on file, for reference). Saving shipping details in the **Update Shipping** window
+(choosing a **Carrier** from the dropdown and typing a **Tracking number**, then **Save & notify**)
+also emails the customer automatically.
+
+### The activity timeline
+
+Below the actions, every order keeps a running timeline of everything that's happened to it, each
+entry with its own icon color and a relative time ("3m ago", "2h ago", and so on). You'll typically
+see entries such as:
+
+- **Order placed** — logged automatically the moment the order was placed.
+- **Status updated** — logged automatically whenever you move the order to a new status.
+- Entries for **Invoice sent**, **Shipment dispatched**, and every **Refund**, **Return**, and
+  **Credit** step described in
+  [Refunds, Returns, and Credit Notes](/docs/shop/refunds-returns-and-credit-notes).
+- **Customer notified** — any entry that went out as an email to the customer carries a
+  "Notified" tag; click **View email** on one of these to see exactly who it went to, its subject,
+  and its full body, right there in the timeline.
+- **Internal note** — a note you add yourself, visible only to you and your team, never the
+  customer.
+
+At the bottom of the timeline there's a text box to **Add note** — use it to jot things down for
+your own records, like "waiting on a replacement from the supplier" or "customer asked to delay
+shipping." This gives you a complete, order-by-order history from the moment it was placed to the
+moment it's fulfilled — handy for answering a customer's "what's happening with my order?"
+question, or for your own records if a dispute comes up later.

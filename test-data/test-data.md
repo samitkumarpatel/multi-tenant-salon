@@ -546,7 +546,7 @@ curl -s -X PATCH localhost:8080/api/salon-admin/<SALON_ID>/website-type \
 > Powers the Gen UI website chat and the AI booking assistant. Real Anthropic model with
 > tool-calling access to this same salon's own public profile/staff/services/holidays/slots
 > endpoints above — grounded in live data, restricted to this salon's own topics only. See
-> `wiki/api.md` (`## Customer — Chat`) for the full contract. Requires `ANTHROPIC_API_KEY` to be
+> `oas/api.md` (`## Customer — Chat`) for the full contract. Requires `ANTHROPIC_API_KEY` to be
 > set; without it, every call below still returns `200 OK` with a fixed fallback `reply`.
 >
 > Examples use **Example 1 — Luxe Hair Studio** (switched to `GENERATIVE_UI` above), with its
@@ -582,7 +582,7 @@ The response's `pendingBooking` field (when present) has the exact same shape as
 `CreateBookingRequest` — copy it verbatim into the existing **Create a booking (customer)** call
 above (`## Booking`) to actually confirm it, the same way the frontend's "Confirm booking" button
 does. Sending a follow-up message with `history` populated from the prior turns continues the
-same conversation (see `wiki/api.md` for the `history` format).
+same conversation (see `oas/api.md` for the `history` format).
 
 ---
 

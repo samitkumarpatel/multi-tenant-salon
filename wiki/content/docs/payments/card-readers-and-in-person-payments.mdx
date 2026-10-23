@@ -1,0 +1,84 @@
+---
+title: "Card readers and in-person payments"
+description: "Set up a physical card reader at your front desk on the Card readers tab, and take in-person card payments with it."
+---
+
+If your salon has the front-desk Dashboard feature turned on, a **Card readers** tab appears on the Payments page once you've connected your Stripe account. It lets you pair physical card readers so your staff can take card payments in person — for till sales and for selling or checking in memberships at the desk.
+
+<Callout type="info">
+  Card readers need your Stripe account connected first (see [Connecting your Stripe account](/docs/payments/connecting-your-stripe-account)) and your Dashboard feature turned on.
+</Callout>
+
+## Setting up a card reader
+
+<Steps>
+<Step>
+### Make sure your salon address is complete
+
+The first reader you add registers its location with Stripe using your salon's street address, city, and postal code. Double check these are filled in under your salon details before adding a reader — if any are missing, adding the reader will fail and tell you to fill them in first.
+</Step>
+<Step>
+### Go to Payments → Card readers
+
+On the **Payments** page, open the **Card readers** tab. It's titled "Card readers" with the description "Stripe Terminal readers used at the salon desk for the till and membership sales. Staff pick a reader when they take a card payment."
+</Step>
+<Step>
+### Enter the reader's registration code
+
+Power on the physical card reader; it will display a short code on its own screen once it's ready to pair. On the reader itself, open its settings and choose **Generate pairing code** to get this code. Type it into the **Registration code** field on the Card readers tab.
+
+In test mode (no physical reader), type the fixed demo code `simulated-wpe` instead to add a simulated reader.
+
+Also give the reader a friendly **Name**, for example "Front desk" (this field is optional).
+</Step>
+<Step>
+### Add the reader
+
+Click **Add reader**. Your new reader appears in the list below, with a small colored dot showing whether it's currently online (green), offline (grey), or in another state (amber).
+</Step>
+</Steps>
+
+You can rename a reader at any time using the pencil icon next to it (then **Save** or **Cancel**), or remove it using the trash icon (you'll be asked to confirm by clicking **Remove reader**) — removing it here also disconnects it on Stripe's side. Use the **Refresh** button at the top of the tab if you want to re-check every reader's online status with Stripe right away.
+
+## Taking an in-person card payment
+
+Once a reader is set up and online, here's how a card sale works at the till or the membership desk:
+
+<Steps>
+<Step>
+### Ring up the sale
+
+Create the sale (a till sale or a membership purchase) as normal at the front desk, and choose to take payment by **card reader**, selecting which reader to use if you have more than one.
+</Step>
+<Step>
+### Hand the customer the reader
+
+A message tells the customer to "tap, insert or swipe their card" on the named reader (for example "Front desk"). Hand them the physical device to do so.
+</Step>
+<Step>
+### Wait for the result
+
+The screen shows the payment amount large, with a spinning icon while it's pending. It updates automatically once Stripe approves or declines the card — you don't need to refresh anything, but a **Check status** button is available if you want to confirm the latest state yourself.
+</Step>
+<Step>
+### Handle a decline
+
+If the card is declined, the payment stays open and the reason is shown on screen (for example "Card declined", or a note that the reader is offline or busy). You can then either:
+
+- Choose a reader from the dropdown and click **Try again** to retry the payment — on the same reader or a different one, and
+- Click **Cancel payment** to stop and take another payment method instead.
+
+Nothing is charged twice.
+</Step>
+<Step>
+### Done
+
+Once the payment succeeds, is canceled, or fails outright, the dialog shows "Payment received", "Payment canceled" or "Payment failed" with a matching icon, and a **Done** button to close it.
+</Step>
+</Steps>
+
+<Callout type="info">
+  In Stripe's test mode, a **Test mode: tap a test card** button lets you simulate a card tap on a simulated reader instead of using physical hardware, which is useful for trying the flow out before going live.
+</Callout>
+
+Every card-reader payment shows up alongside your online payments on the **Transactions** tab of the Payments page, so you have one place to see everything that's been paid, however it was taken.

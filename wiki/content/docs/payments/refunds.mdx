@@ -1,0 +1,45 @@
+---
+title: "Refunds"
+description: "How to refund a paid order, booking, or membership payment back to the customer's card, from the Transactions tab."
+---
+
+If a customer paid by card — online or with a card reader at your front desk — you can refund them straight back to the same card from your Payments page, whether it was a shop order, a booking, or a membership payment.
+
+## Issuing a refund
+
+<Steps>
+<Step>
+### Go to Payments → Transactions
+
+Open the **Payments** page and switch to the **Transactions** tab (it appears once you've connected a Stripe account). It lists every card payment across your shop, bookings, memberships, and till, newest first, with the description "Every card payment across the shop, bookings, memberships and the till. Refunds go back to the customer's card." Use the **Area** dropdown (All areas, Shop, Booking, Till, Membership) to narrow the list if you're looking for a specific one.
+</Step>
+<Step>
+### Find the payment
+
+Each row shows, from left to right: the date and time it was paid, the area and a short description (or its reference number), whether it came from a **Card reader** or **Online** payment and the customer's email if known, a status badge, and the amount. The status badge reads one of: **Pending**, **Paid**, **Failed**, **Canceled**, **Partly refunded**, or **Refunded**. Find the payment you want to refund — only one marked **Paid** or **Partly refunded** can be refunded.
+</Step>
+<Step>
+### Click Refund
+
+Next to the payment, click **Refund**. A small form opens where you can:
+
+- Adjust the **Amount** — it defaults to the full amount still available to refund, but you can enter a smaller amount for a partial refund.
+- Add an optional **Reason** — a short note for your own records.
+</Step>
+<Step>
+### Confirm
+
+Click **Refund to card**. The money is sent back to the customer's original card. You'll see a confirmation message ("Refund sent to the customer's card."), and the transaction row updates to show how much has been refunded underneath it (for example, "Refunded $12.00").
+</Step>
+</Steps>
+
+## A few things to know
+
+- **You can refund partially, more than once** — refund part of a payment now and the rest later, as long as you don't go over what's left to refund. Once nothing is left, the row shows **Refunded** and the Refund button disappears.
+- **Only card payments can be refunded this way.** A payment taken as cash isn't refunded to a card — handle that outside the system, the way you normally would for cash.
+- **Shop order refunds** — if you refund a shop order that a customer paid for online, approving the refund from your order screen also sends the money back to their card automatically; you don't need to do anything extra on the Payments page for that case.
+- **If a refund fails** — this can occasionally happen on Stripe's side (for example, a closed card). If that happens, the amount becomes available to refund again, so you can simply try once more.
+
+<Callout type="info">
+  Every refund is tied to the original payment, so your transaction history always shows exactly what was paid and what's since been refunded against it.
+</Callout>

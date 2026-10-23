@@ -1,0 +1,64 @@
+name: Deploy salon-help (wiki)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/deploy-help.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: wiki/package-lock.json
+
+      - name: Install dependencies
+        working-directory: wiki
+        run: npm ci
+
+      - name: Build salon-help (static export)
+        working-directory: wiki
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: salon-help
+          path: wiki/out
+          retention-days: 7
+
+  # ── Deploy · Cloudflare Pages (ACTIVE) ───────────────────────────────────
+  # This app was built directly on the Cloudflare Pages / mix infra (it never
+  # existed on the retired AWS S3+CloudFront or Azure Blob+Front Door setups),
+  # so there is no disabled aws-s3-deploy / azure-storage-deploy job here —
+  # unlike the other deploy-*.yml workflows that carry one as migration history.
+  cloudflare-deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salon-help
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=salonsaas-help --branch=main

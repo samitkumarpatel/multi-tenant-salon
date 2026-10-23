@@ -80,7 +80,7 @@ styles and Stripe's embedded account screens; without it every area uses the red
 `PAYMENTS_ADMIN_APP_URL`, `PAYMENTS_DASHBOARD_APP_URL`, `PAYMENTS_BOOKING_APP_URL`,
 `PAYMENTS_WEBSITE_APP_URL` (optional), and `SALON_DOMAIN` to the deployed frontend origins. Register a
 Connect webhook at `/api/payments/stripe/webhook` for the events listed in
-[wiki/stripe-connect.md](wiki/stripe-connect.md) (checkout sessions, payment intents, terminal reader
+[design-n-todo/stripe-connect.md](design-n-todo/stripe-connect.md) (checkout sessions, payment intents, terminal reader
 failures and refunds). For local work, forward Stripe CLI Connect events to
 `http://localhost:8080/api/payments/stripe/webhook` and use the CLI-provided signing secret as
 `STRIPE_WEBHOOK_SECRET`.

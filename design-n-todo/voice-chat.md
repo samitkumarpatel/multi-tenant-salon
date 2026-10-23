@@ -72,7 +72,7 @@ recognition and one consistent voice per salon.
 - **Guard rails:** per-salon/IP rate limits (the chat API is public), audio size/duration caps, no
   audio stored, a salon-level on/off (possibly a feature flag alongside `BOOKING`/`WEBSHOP`).
 - **Costs:** billed per audio minute — needs a budget/alert.
-- **Docs:** both endpoints go into `oas/OAS.yaml` and `wiki/api.md`; new config under
+- **Docs:** both endpoints go into `oas/OAS.yaml` and `oas/api.md`; new config under
   `spring.application.chat.voice.*`.
 
 ## Not recommended

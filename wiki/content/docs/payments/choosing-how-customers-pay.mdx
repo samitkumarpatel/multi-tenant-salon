@@ -1,0 +1,77 @@
+---
+title: "Choosing how customers pay"
+description: "Turn on card payments for your shop, bookings, till and memberships, and choose how the payment screen looks to your customers."
+---
+
+Once your Stripe account is connected (see [Connecting your Stripe account](/docs/payments/connecting-your-stripe-account)), the **Setup** tab of the Payments page also has a **Payment areas** card, where you decide, separately for each part of your business, whether customers pay by card and what that payment screen looks like.
+
+<Callout type="info">
+  If you haven't connected a Stripe account yet, this card just tells you to connect one first — there's nothing to configure until then.
+</Callout>
+
+## Where you can turn on card payments
+
+Under **Payment areas**, there's a checkbox for each area of your business that applies to your salon:
+
+- **Online Shop** — "Take card payments for customer orders." (only shown if your Webshop feature is on)
+- **Online bookings** — "Collect a deposit or full payment when a customer books." (only shown if your Booking feature is on)
+- **Till / POS** — "Take card payments at the salon desk — on a card reader or a card form. Cash can still be recorded manually." (only shown if your Dashboard feature is on)
+- **Memberships** — "Let customers pay for a membership period online or at the desk. Members get a renewal link before each period ends." (only shown if your Membership feature is on)
+
+If none of these features are turned on for your salon yet, you'll see a note telling you to enable Shop, Booking, Membership or Dashboard first.
+
+Tick the checkbox to turn an area on. You can do this even before Stripe finishes reviewing your account — once ticked, a small badge appears next to the area:
+
+- **Waiting for Stripe** — the area is turned on but won't actually charge customers yet, because Stripe hasn't finished activating your account.
+- **Live** — the area is turned on and actively taking payments.
+
+<Callout type="info">
+  If you've connected an account but it isn't fully active yet, the Payment areas card reminds you: "You can choose your payment areas now. They stay off for customers until Stripe activates card payments on your account, then switch on automatically." You don't need to come back and flip anything on yourself once Stripe finishes — it switches on by itself.
+</Callout>
+
+## Choosing how the payment screen looks
+
+Once you tick an area on, three options appear underneath it, under the heading **How customers pay**. In plain terms:
+
+<Steps>
+<Step>
+### Stripe checkout page
+
+Labelled **Stripe checkout page**: "Customers go to a Stripe page in your colours, then come back." The customer is sent to a secure Stripe payment page to enter their card details, then brought straight back to your site once they've paid. This page is dressed up in your salon's name and colors, so it still feels like part of your business — it just briefly opens outside your own pages. This option always works and is the default.
+</Step>
+<Step>
+### Stripe form on your page
+
+Labelled **Stripe form on your page**: "Stripe's checkout form opens on your own website." Stripe's own payment form appears directly inside your shop, booking, or front-desk page — the customer never sees a separate website — but the form itself still looks like Stripe's standard design.
+</Step>
+<Step>
+### Your branded payment form
+
+Labelled **Your branded payment form**: "A payment form styled with your website's colours and font." Like the option above, the form stays on your own page, but it's additionally styled to match your salon's own colours and font, so it blends in even more with the rest of your site.
+</Step>
+</Steps>
+
+You can pick a different style for each area — for example, "Stripe form on your page" for your shop, but "Stripe checkout page" for memberships. Whatever you pick, the customer still ends up back on the right page of your site once they've paid (or if they cancel).
+
+<Callout type="info">
+  The last two styles ("Stripe form on your page" and "Your branded payment form") depend on a setting for this whole platform, not on your salon individually — if they're not available in your environment, those two options are grayed out and the card tells you "Only the Stripe checkout page is available in this environment." In that case, every area simply uses the Stripe checkout page until that changes; it has nothing to do with how far along your own Stripe setup is.
+</Callout>
+
+<Callout type="info">
+  If a customer is booking or buying through a channel that can't show an in-page payment form (for example, a chat assistant or an older browser), they'll always get the Stripe checkout page regardless of what you chose — this just happens automatically, no action needed from you.
+</Callout>
+
+## Full payment vs. a deposit for bookings
+
+If you've turned on **Online bookings**, a **Booking payment** section appears further down the card, letting you choose how much the customer pays when they book:
+
+- **Full service price** — the customer pays the entire appointment price upfront when they book.
+- **Deposit** — the customer pays a percentage of the price upfront, and settles the rest in person at the salon. Choose this and a **% deposit** field appears next to it, where you type the percentage the customer pays at booking time (any whole number from 1 to 100).
+
+## Saving your changes
+
+Once you've ticked the areas you want and chosen a payment style for each, click **Save payment settings** at the bottom of the card. The button is disabled until you've connected a Stripe account.
+
+## A note on payment methods
+
+Which actual payment methods show up (cards, Apple Pay, Google Pay, and similar) isn't set per area — it's controlled once, for your whole Stripe account, from your Stripe dashboard's payment methods settings (the **Manage payment methods** link on the Setup tab, next to your Connected badge). Whatever you enable there applies across your shop, bookings, memberships and the till alike.

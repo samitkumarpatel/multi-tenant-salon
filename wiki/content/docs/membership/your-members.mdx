@@ -1,0 +1,106 @@
+---
+title: "Your Members"
+description: "Reading the membership Overview dashboard, finding members on the Members list, and managing one member's details."
+---
+
+Once you have members signed up, three screens in the Membership section of your admin app help you keep track of them: **Overview**, **Members**, and a single member's details page.
+
+## Overview tab
+
+The **Overview** tab is the first thing you see in Membership. If you have no plans yet, it shows a prompt to create one. Otherwise, it shows these at-a-glance tiles:
+
+- **Active members** — how many memberships are currently active.
+- **Monthly recurring revenue** — what your active memberships add up to per month.
+- **Collected this month** — money actually taken this calendar month.
+- **Expired — not renewed** — members whose paid period ran out without renewing (shown with a warning colour if greater than zero; click it to jump to the Members list filtered to "Expired").
+- **New this month** — members who joined this calendar month.
+- **Cancelled this month** — memberships cancelled this calendar month.
+- **Renewals due in 7 days** — members due to renew within a week.
+- **Renewals due in 30 days** — members due to renew within a month.
+
+Below the tiles, if any customers have started a sign-up but not finished paying, you'll see a note like **"2 checkout(s) waiting for payment — unpaid ones stop holding a place after an hour."**
+
+### Plans summary
+
+A **Plans** panel lists every plan with its status badge (Draft / On sale / Archived), a fill bar showing members used out of the limit (if the plan has one), the member count, and the monthly revenue it brings in. Click a plan row to jump to the Members list filtered to that plan.
+
+### Renewals coming up
+
+A panel lists members whose current period is about to end, with their name, plan, price, and the date they're due to renew. Click a row to open that member's details page. If none are due soon, it shows "No renewals coming up."
+
+### Recent activity
+
+A panel lists the latest events across all members (sign-ups, payments, cancellations, and so on) with the customer's name, a short message, and when it happened. Click a row to open that member's details page. If nothing has happened yet, it shows "Nothing yet — activity appears as customers join."
+
+## Members tab
+
+The **Members** tab lists every member who has ever signed up for any plan. If nobody has signed up yet, it shows **"No members yet — Members appear here as soon as a customer starts checkout on your website's Membership page."**
+
+### Searching and filtering
+
+- A **search box** ("Search name, email or member code") filters by customer name, email, or their member code.
+- An **"All plans"** dropdown narrows the list to one specific plan.
+- A row of **status chips** — **All**, then one chip per status that has at least one member (**Active**, **Expired**, **Awaiting payment**, **Cancelled**, **Checkout abandoned**) — each showing a count. Click a chip to filter to that status.
+- A **Clear** link appears once you've searched or filtered, to reset everything.
+- An **Export CSV** button downloads the members currently shown (respecting your search and filters) as a spreadsheet file, with columns for member code, name, email, phone, plan, status, price, currency, billing, member-since date, paid-through date, whether it cancels at period end, and last payment details.
+
+### The member list
+
+Each row shows:
+
+- **Member** — the customer's name, email, and member code.
+- **Plan** — the plan name and its price/billing (e.g. "€49.00 / month").
+- **Status** — a coloured badge: **Awaiting payment**, **Active**, **Expired**, **Cancelled**, or **Checkout abandoned**.
+- **Last payment** — "Paid" or "Failed" with the amount and date, or "No payment yet".
+- **Paid through** — one of: "Paid through" a date (active and not cancelling), "Ends" a date (active but set to cancel at period end), "Expired" a date, "Ended" a date, or a dash for memberships still awaiting payment.
+
+Click any row to open that member's full details page.
+
+## A member's details page
+
+Clicking a member opens their details page, showing:
+
+### Member summary
+
+- The customer's name, their status badge, and — if they've scheduled a cancellation — a note showing "Cancels" with the date it takes effect.
+- Their email and phone (click to email or call directly).
+- A details grid: **Plan**, **Price**, **Billing**, **Member since**, **Next** (the same "paid through / ends / expired / ended" wording as the list), **Last payment**, and, only when they apply: **Sign-up fee**, **Cancellation reason**, and **Renewal reminder** ("Sent for this period", shown once a reminder has gone out for their current period).
+- Their **member QR code** and **member code**, with a **Print card** button that opens a printable card showing the customer's name, plan, QR code and member code.
+
+### Actions available
+
+Which buttons appear depends on the member's current status:
+
+- **Send renewal link** — available for Active or Expired members who aren't already scheduled to cancel. Emails them their renewal link right away.
+- **Cancel membership** — available for Active or Expired members who aren't already scheduled to cancel. Opens the cancel dialog (below).
+- **Undo cancellation** — available for an Active member who is scheduled to cancel at period end. Reverses it, and the membership continues as normal.
+- **End now** — available for an Active member who is scheduled to cancel at period end. Ends the membership immediately instead of waiting for the period to finish.
+- **Resend QR email** — available for Active members. Re-sends the welcome email with their QR code.
+- **Add note** — always available. Adds an internal, staff-only note to the member's timeline.
+
+### Cancelling a membership
+
+Clicking **Cancel membership** opens a dialog. If the member is Active and not already scheduled to cancel, you choose one of:
+
+- **At the end of the paid period** — stays active until the paid-through date, then ends. No renewal reminder is sent.
+- **Immediately** — "Ends today. No refund is issued automatically — refund in Stripe if needed."
+
+If the member is already scheduled to cancel at period end, the dialog instead asks to confirm: "End this membership today instead of at the end of the period? No refund is issued automatically." If the member is Expired, it explains: "This membership has expired. Cancelling it stops the member from renewing with their link."
+
+In every case, you can type an optional **Reason (internal)** — this is for your own records only. A note under the field reminds you: "The member gets an email confirming the cancellation." Click **Cancel membership** to confirm.
+
+<Callout type="info">
+  No refund is issued automatically when you cancel — since nothing charges automatically to begin with, there's nothing further to stop. If you owe the member a refund for time already paid, do it from your Stripe account.
+</Callout>
+
+### Payments
+
+A **Payments** panel lists every payment attempt for this member: whether it was a **Sign-up** or **Renewal** payment, its status (**Paid**, **Awaiting payment**, or **Not completed**), the amount, the period it covers, and when it happened.
+
+### Timeline
+
+A **Timeline** panel lists everything that's happened to this membership, newest first — checkout started, activated, renewed, payment failed, expired, cancellation scheduled or undone, cancelled, the customer being emailed, and any notes you've added — each with its message, the date and time, and who/what triggered it.
+
+## Checking in a member
+
+The Membership section also has a **Check-in** tab, for looking up a member by scanning their QR code or typing their member code at the front of house. This works the same way as the front-desk check-in screen — see [Checking Customers In and Taking Payment](/docs/front-desk/checking-customers-in-and-taking-payment) for the full step-by-step.

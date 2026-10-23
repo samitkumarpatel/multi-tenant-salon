@@ -1,0 +1,121 @@
+---
+title: "Refunds, Returns, and Credit Notes"
+description: "Three related but different things — giving money back, taking an item back, and recording that you've paid a customer back — and how they fit together"
+---
+
+When something goes wrong with an order, three different (but related) things might need to
+happen, and it's easy to mix them up:
+
+- A **Refund** is about the *money* — agreeing to give some or all of it back.
+- A **Return** is about the *item* — the customer physically sending a product back to you.
+- A **Credit Note** is the record that you've actually *paid the customer back*, once a refund has
+  been agreed.
+
+You don't always need all three — sometimes you'll only issue a refund with no item coming back
+(for example, the item never arrived), and sometimes a customer sends an item back without asking
+for money (for example, an exchange). All three live inside the order they belong to, and each
+also has its own screen that lists every order going through that process, across your whole shop.
+
+## Refunds
+
+A refund is how you agree to give the customer some or all of their money back for an order.
+
+### Issuing a refund
+
+<Steps>
+  <Step>
+    Open the order and click **Refunds** in the Actions card (in the Financial group).
+  </Step>
+  <Step>
+    Since there's no refund yet, you'll see the **Issue refund** form. Enter an **Amount** (up to
+    the order's subtotal) and, optionally, a **Reason** (e.g. "Item damaged"). You're reminded that
+    the customer will be notified at their email address.
+  </Step>
+  <Step>
+    Click **Issue refund**. The order now shows a refund with status **Pending**.
+  </Step>
+</Steps>
+
+### Moving a refund forward
+
+Once a refund exists on an order, opening the **Refunds** action again shows its current amount
+and status, with buttons that change depending on where it is:
+
+- **Pending** — click **Approve** to move it forward, or **Reject** to decline it. Approving a
+  refund is described in the app as "awaiting item return" — the usual next step is to also handle
+  the physical item coming back, using the Returns process below.
+- **Approved** — click **Accept** to finalize it. Accepting a refund automatically creates a
+  **Credit Note** for that amount (see below) — this is the step that actually commits to paying
+  the customer back.
+- **Rejected** — the refund is closed with no further action.
+
+Every one of these steps notifies the customer automatically and is recorded on the order's
+activity timeline.
+
+### The Refunds screen
+
+Beyond handling a refund from inside its order, there's also a dedicated screen listing every
+order in your shop that has a refund on it. From there you can **Search refunds…** by order
+number, customer name, or reason, filter by **Status** (with a count next to each one), sort
+**Newest first**/**Oldest first**, and approve, reject, or accept a refund directly from the list
+without opening the order — the same **Approve**, **Reject**, and **Accept** buttons as on the
+order itself.
+
+## Returns
+
+A return is about the physical item, not the money — it tracks a customer sending a product back
+to you.
+
+<Steps>
+  <Step>
+    Once an order is **Delivered** or **Fulfilled**, a **Request Return** button appears in the
+    order's Fulfillment actions (it only shows up if the order doesn't already have a return on
+    it).
+  </Step>
+  <Step>
+    Click it and enter a **Reason** (e.g. "Item damaged in transit"), then click **Create return**.
+    The return is created with status **Requested**.
+  </Step>
+</Steps>
+
+A return then moves through its own set of stages as the physical item makes its way back to you:
+**Requested → Approved → Received → Accepted**, or **Rejected** instead of Approved if you decline
+the request. A card on the order screen shows the return's current status, its reason, and any
+notes, along with how long ago it last changed.
+
+There's also a dedicated **Returns** screen listing every order with a return on it, where you can
+move each one forward with the matching button for its current stage — **Approve** or **Reject**
+a newly **Requested** return, **Mark Received** once the item physically arrives back from an
+**Approved** return, and **Accept Return** once you've checked it over and it's truly
+**Received**.
+
+## Credit Notes
+
+A credit note is the record that a refund has actually been paid back to the customer — it's
+created for you automatically the moment you **Accept** a refund (see above), so you never create
+one by hand.
+
+A credit note has its own reference code and starts out with status **Pending** — agreed, but not
+yet paid. Once you've actually sent the money back to the customer (by whatever means you use
+outside the app — bank transfer, cash, store credit, and so on), open the **Credit Note**
+action on the order (it shows the amount, its reference, and its status) and click **Pay back**.
+This marks it **Paid**, and the order's activity timeline records that the credit was paid back.
+
+There's also a dedicated **Credit Notes** screen listing every order with a credit note on it,
+where you can see its reference, amount, status, and date, and click **Pay back** on any that are
+still **Pending** without opening the order.
+
+## How the three fit together
+
+A typical damaged-item scenario runs through all three, in this order:
+
+1. The order is delivered. The customer wants to send the item back and be refunded.
+2. You click **Request Return** on the order and record why. You then **Approve** it, **Mark
+   Received** once it physically arrives, and **Accept Return** once you've checked it.
+3. Separately, you **Issue** a **Refund** for the agreed amount, **Approve** it, then **Accept**
+   it — accepting creates a **Credit Note**.
+4. Once you've actually sent the money, you mark the **Credit Note** as **Paid back**.
+
+Refunds, returns, and credit notes are tracked separately on the order (an order can have a return
+without a refund, or a refund without a return), but together they give you — and the customer —
+a complete record of exactly what was agreed and what's actually been done about it.

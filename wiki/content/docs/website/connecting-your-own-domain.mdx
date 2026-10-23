@@ -1,0 +1,70 @@
+---
+title: "Connecting Your Own Domain"
+description: "Point your own address, like www.yoursalon.com, at your salon website — without moving your DNS to us."
+---
+
+Your salon website already works at its included address (`<your-handler>.salonsaas.org`). If you own your own domain — for example `www.yoursalon.com` — you can connect it so visitors can use that address instead. You keep your domain registration, nameservers and DNS exactly where they already are; we never move or take over your DNS.
+
+<Callout type="info">
+Your included `<your-handler>.salonsaas.org` address keeps working even after you connect your own domain — so nothing breaks if a link to it is already out in the world.
+</Callout>
+
+## Before you start
+
+- You'll need access to your domain's DNS settings — usually through whoever you registered the domain with (GoDaddy, Namecheap, one.com, Cloudflare, Azure DNS, and so on), or wherever you manage DNS if that's different.
+- Your salon's website feature must be turned on first.
+- A subdomain address, such as `www.yoursalon.com`, can be connected directly. A bare/root domain on its own (`yoursalon.com` without anything in front of it) can't be pointed at us directly — more on that below.
+
+## Setting it up
+
+<Steps>
+<Step>
+Go to the **Website** page in your admin dashboard, then open the **Domains** section.
+</Step>
+<Step>
+Under **Connect your own domain**, type the address you want to use (e.g. `www.yoursalon.com`) and click **Connect domain**.
+</Step>
+<Step>
+You'll now see two DNS records to add at your domain's DNS provider:
+
+- A **TXT** record that proves you own the domain
+- A **CNAME** record that points your address at our service
+
+Add both exactly as shown, and leave them in place — don't remove either one later, even after your domain shows as connected. Many providers (Azure DNS, GoDaddy, Cloudflare, and most others) automatically add your domain to whatever you type in the "Name" field, so the page shows you the short version to type there, with the full name underneath for providers that want it spelled out in full.
+
+If your DNS provider offers a "proxied" or "flattened" mode for CNAME records, make sure the CNAME is set to **DNS-only** (not proxied) — otherwise the connection can't be verified.
+</Step>
+<Step>
+Click **Check connection**, or just wait — the system checks automatically in the background every so often. DNS changes can take a little while to spread across the internet, so this may take more than one check to turn green.
+</Step>
+<Step>
+Once both records are confirmed and a secure (HTTPS) certificate has been prepared automatically, the domain's status changes to **Connected**, and visitors can now reach your website at your own address.
+</Step>
+</Steps>
+
+## What to expect
+
+- **Nothing is moved.** Your domain stays registered where it already is, and your DNS records stay at your existing provider. We only ask you to add the two records above — we never ask you to change your nameservers or transfer anything to us.
+- **Your included address keeps working.** `<your-handler>.salonsaas.org` continues to work after you connect your own domain; it's simply no longer the only address people can use.
+- **One domain per salon.** You can connect one address at a time. If you want to switch to a different one later, disconnect the current one first.
+- **A root/bare domain needs an extra step.** Since a bare domain like `yoursalon.com` (without `www`) can't use a CNAME record, connect `www.yoursalon.com` here, and separately set up a redirect from `yoursalon.com` to `www.yoursalon.com` at your DNS or domain provider (most provide a "domain forwarding" or "URL redirect" option for this — the Domains page shows provider-specific tips once your `www` address is in place).
+
+## Checking status or disconnecting
+
+The **Domains** section always shows your current connection status:
+
+| Status | What it means |
+|---|---|
+| Waiting for DNS | We're still waiting to see the TXT and/or CNAME records you were asked to add |
+| Preparing HTTPS | Your records are verified; we're finishing setting up a secure certificate |
+| Connected | Your domain is live and serving your website |
+| Needs attention | Something didn't check out — see the message shown for details |
+| Disconnecting | You've asked to disconnect; this is being cleaned up |
+
+If something isn't matching, the page tells you what's missing. Common causes are a typo in the record, a provider "proxy" toggle left on, or DNS still spreading after a recent change.
+
+To stop using a connected domain, click **Disconnect**. Your website immediately stops answering at that address and falls back to serving only your included `<your-handler>.salonsaas.org` address; you can then remove the DNS records at your provider at your convenience. Reconnecting the same or a different domain later starts the setup steps again from scratch.
+
+<Callout type="info">
+An active connection is rechecked automatically in the background, so you don't need to keep clicking **Check connection** once it's gone green. If you ever remove the DNS records at your provider, your connection will eventually stop working the next time it's checked — keep them in place for as long as you want your own domain to work.
+</Callout>

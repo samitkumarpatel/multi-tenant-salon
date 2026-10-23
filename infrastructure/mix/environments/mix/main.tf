@@ -26,6 +26,7 @@ locals {
     booking-web     = "book.${local.domain}"
     dashboard-web   = "dashboard.${local.domain}"
     staff-web       = "staff.${local.domain}"
+    help-web        = "help.${local.domain}"
   }
 
   # salon-public-website serves every tenant sub-domain via module
@@ -318,6 +319,7 @@ module "dns_record_updatation" {
     fe_booking     = { type = "CNAME", name = local.frontend_hostnames["booking-web"], content = module.frontend.pages_hostnames["booking-web"], proxied = true }
     fe_dashboard   = { type = "CNAME", name = local.frontend_hostnames["dashboard-web"], content = module.frontend.pages_hostnames["dashboard-web"], proxied = true }
     fe_staff       = { type = "CNAME", name = local.frontend_hostnames["staff-web"], content = module.frontend.pages_hostnames["staff-web"], proxied = true }
+    fe_help        = { type = "CNAME", name = local.frontend_hostnames["help-web"], content = module.frontend.pages_hostnames["help-web"], proxied = true }
 
     # ── Backend — Azure Container Apps (DNS-only) ──
     be_api        = { type = "CNAME", name = local.api_host, content = module.backend.fqdns["api"], proxied = false }

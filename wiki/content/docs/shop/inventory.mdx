@@ -1,0 +1,73 @@
+---
+title: "Inventory"
+description: "How to see stock levels across every product variant, spot what's running low, and update a count"
+---
+
+The **Inventory** tab in the Shop section gives you one flat list of every variant across every
+product — its stock on hand, its reorder level, and its price — so you can scan for anything
+running low without opening each product one by one.
+
+<Callout type="info">
+  If you haven't added any products with variants yet, this screen will simply say there's
+  nothing to track — add a product with at least one variant first (see
+  [Setting Up Your Shop](/docs/shop/setting-up-your-shop)).
+</Callout>
+
+## Reading the list
+
+Each row on the Inventory screen shows:
+
+- **Product** — the product's name. If the product itself has been switched to inactive, you'll
+  see a small "(product inactive)" note next to it.
+- **Variant** — the variant's label (e.g. "250 ml"), or "Standard" if the product only has one,
+  unnamed variant.
+- **SKU** — the variant's reference code, or a dash if it doesn't have one.
+- **Price** — the variant's selling price.
+- **In stock** — an editable number showing the quantity on hand.
+- **Reorder at** — an editable number: the low-stock threshold you set for that variant.
+
+A row is tinted and flagged when its **In stock** number has dropped to, or below, its **Reorder
+at** number. When one or more variants are in that state, a banner above the list tells you how
+many variants are at or below their reorder level, so you don't have to scan the whole table to
+notice.
+
+<Callout type="info">
+  The reorder level is only a heads-up for you — it doesn't stop customers from buying more and it
+  doesn't block a sale on its own. The shop still sells down to zero unless you turn the variant
+  off from the product's Edit screen.
+</Callout>
+
+## Updating a stock count
+
+<Steps>
+  <Step>
+    Find the variant you want to adjust and type a new number directly into its **In stock** box,
+    its **Reorder at** box, or both.
+  </Step>
+  <Step>
+    A **Save** button appears next to the row as soon as you change a number. Click it to store
+    the new values.
+  </Step>
+  <Step>
+    The row updates immediately and the button goes back to being disabled until you make another
+    change.
+  </Step>
+</Steps>
+
+This is the fastest way to correct your stock after a delivery, a stock take, or a return that
+doesn't go through a customer's order — you don't need to open the product and edit its variants
+one at a time.
+
+## How stock changes on its own
+
+You don't have to keep every number here up to date by hand — stock also moves automatically:
+
+- **When a customer checks out**, the quantity on hand for each variant they bought is deducted
+  immediately, at the moment of checkout — not later. This protects you from overselling: if two
+  customers are racing to buy the last unit of something, only the one who completes checkout
+  first gets it.
+- **When a payment fails or is abandoned**, the stock that was set aside for that attempt is put
+  back automatically, so it doesn't stay locked away from other customers.
+
+Because of this, the numbers you see on the Inventory screen always reflect what's actually
+available to sell right now, on top of whatever you've typed in by hand.

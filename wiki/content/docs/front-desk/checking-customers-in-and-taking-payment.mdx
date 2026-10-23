@@ -1,0 +1,107 @@
+---
+title: "Checking Customers In and Taking Payment"
+description: "How to ring up a sale at the till, take payment by cash, card, or card reader, look back at past sales, and check in or sell a membership."
+---
+
+This page walks through what you'll do most often at the front desk: ringing up a sale, reviewing past sales, and handling memberships.
+
+<Callout type="info">
+If **Till / POS** doesn't show up in the menu, the owner hasn't switched on the Cashier tool for this salon yet — ask them to turn it on from the Dashboard settings page in the admin app.
+</Callout>
+
+## Ringing up a sale at the till
+
+<Steps>
+<Step>
+Open **Till / POS** from the menu. Under **Services and products**, you'll see every active service, plus any products that are in stock if the webshop is switched on.
+</Step>
+<Step>
+Use the **Search services and products** box, or the **All** / **Services** / **Products** filter buttons above the list, to find what you're adding. Select an item's tile to add one to the **Current sale** panel; select it again to add another. A small count badge on the tile shows how many of that item are already in the sale.
+</Step>
+<Step>
+In the **Current sale** panel, you can adjust quantity on any line with the **−** and **+** buttons. The **Total** updates as you go.
+</Step>
+<Step>
+Optionally type the customer's name into the **Customer name (optional)** field, so the sale is easy to find later.
+</Step>
+<Step>
+Choose how the customer is paying from the payment dropdown, then select the button at the bottom of the panel to complete the sale (see below).
+</Step>
+</Steps>
+
+### Taking payment
+
+The payment dropdown offers:
+
+- **Cash** — select this, then select **Record payment**. The sale is recorded as paid right away.
+- **Card** — only selectable once the owner has connected card payments for this salon; otherwise it reads "Card · connect Stripe in Admin" and can't be chosen.
+- **Other** — for a payment already settled outside the app. Works the same as Cash.
+
+**If you choose Card** and the salon has one or more card readers, a second dropdown appears — **Take the card payment on** — listing each reader by name (showing "· offline" if a reader isn't reachable) plus a **Card form on this screen** option. Pick where to take the payment, then select **Continue to card payment**:
+
+- **Card form on this screen** — a Stripe payment form opens right in the till screen. The customer enters their card details (or you do, on their behalf), and the sale completes once the payment goes through.
+- **A card reader** — the amount is sent straight to that reader. A dialog opens showing the total and "Ask the customer to tap, insert or swipe their card on `<reader name>`" while it waits. When the payment settles, the dialog shows **Payment received**, **Payment failed**, or **Payment canceled**. On a failed attempt you can pick a (possibly different) reader and select **Try again**, or select **Cancel payment** to stop. You can also select **Check status** to re-check it manually. In Stripe's test mode, a **Test mode: tap a test card** button lets you simulate a tap. Select **Done** once it's finished.
+
+Every sale you complete — by any payment method — is saved and appears at the bottom of the Till / POS screen under **Recent sales**, and in full under **Invoices**.
+
+### Looking back at past sales
+
+<Steps>
+<Step>
+Open **Invoices** from the menu (under Cashier).
+</Step>
+<Step>
+Filter the list with the **All**, **Today**, **This week**, **Month**, or **Date** buttons. **Month** opens a month picker; **Date** opens a **From** / **To** range picker — select **Done** once you've chosen.
+</Step>
+<Step>
+Each row shows the sale number, the customer's name (or "Walk-in customer" if none was entered), the date and time, the payment method, and the total. A sale still waiting on a card payment shows "· awaiting payment"; one that failed shows "· failed".
+</Step>
+</Steps>
+
+## Checking in a member
+
+<Callout type="info">
+Membership check-in and sales only appear if the owner has switched on the Membership feature for this salon.
+</Callout>
+
+<Steps>
+<Step>
+Open **Membership → Check in** from the menu.
+</Step>
+<Step>
+Under **Check in a member**, either select **Scan** and let the customer show their QR code to your device's camera (only offered if your browser supports it), or type their member code into the box by hand — it's printed on their welcome email along with the QR code.
+</Step>
+<Step>
+Select **Check** (or submit after scanning). What happens next depends on the result:
+- **Valid member** — a green panel shows the customer's name, plan, membership status, renewal date, and the perks included in their plan.
+- **Membership expired — not renewed yet** — an amber panel offers an **Email renewal link** button, so they can renew themselves, or you can sell them a new membership instead.
+- **Not an active member** — shown for any other non-active status.
+- **No member found** — a red panel tells you the code doesn't match any membership at this salon; double-check it with the customer.
+</Step>
+</Steps>
+
+## Selling a membership at the desk
+
+<Steps>
+<Step>
+Open **Membership → Sell** from the menu.
+</Step>
+<Step>
+Under **Membership plans**, select the plan you're selling. Each plan tile shows its price and billing period, any sign-up fee, and whether it's **Full** or has a limited number of spots left — a full plan can't be selected.
+</Step>
+<Step>
+Under **New member**, fill in **Customer name**, **Email (the QR code is sent here)**, and optionally **Phone**.
+</Step>
+<Step>
+Choose a payment method from the dropdown:
+- **Cash** or **Other** — select **Record payment and activate**. The membership activates immediately and the welcome email with the QR code goes out right away.
+- **Card** — only selectable once the owner has connected card payments for memberships; otherwise it reads "Card · enable membership payments in Admin". If the salon has card readers, a **Take the card payment on** dropdown lets you pick a reader or **Card form on this screen**, the same as at the till. Select **Continue to card payment**, then follow the same reader dialog or on-screen card form described above. Once the payment is approved, the membership activates and the welcome email goes out — you may briefly see a **Card payment received — waiting for Stripe** screen while this is confirmed.
+</Step>
+<Step>
+Once active, the screen shows the member's **Member code** and their QR code on screen, and confirms the same QR code was emailed to them. Select **Sell another membership** to start over.
+</Step>
+</Steps>
+
+<Callout type="info">
+If a plan is full, or the sale otherwise can't go through, the screen explains why instead of completing the sale. If a card payment is cancelled partway through, you'll see a **Card payment cancelled** message and no membership is created — you can try again or take another payment method.
+</Callout>

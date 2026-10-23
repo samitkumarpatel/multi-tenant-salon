@@ -1,0 +1,55 @@
+---
+title: "Selling and Renewing Memberships"
+description: "How customers sign up and pay online, how renewals and expiry work, and how to cancel a membership from the admin app."
+---
+
+Once you have a plan **on sale**, customers can sign up and pay for it on your public website, or your front-desk staff can sell it in person at the salon desk. This page covers how online sign-up and renewal work, and how to cancel a membership from the admin app.
+
+## How a customer signs up online
+
+A customer browsing your plans on your salon's public Membership page picks one and fills in their name, email, and (optionally) phone number. They're then taken to a secure checkout page to pay for their first billing period (plus any sign-up fee).
+
+While payment is being completed, the membership sits in the **Awaiting payment** status. Once the payment goes through:
+
+- The membership becomes **Active** for one full billing period.
+- The member receives an email with their personal **QR code** — this is what gets scanned at your front desk to check them in and confirm who they are.
+
+If the customer abandons checkout or the payment fails, the membership is marked **Checkout abandoned** and never takes effect — nothing is charged, and no QR code is sent.
+
+<Callout type="info">
+  If a plan has a member limit and it's full, or if a customer already holds that plan, sign-up is blocked with a clear message. If online card payments for memberships aren't switched on, your plans show a "contact the salon" message instead of a checkout button — switch on Memberships under Payments to allow online sign-up.
+</Callout>
+
+## Renewals — nothing charges automatically
+
+Memberships do **not** auto-renew. Instead, shortly before a member's current period is due to end, they're automatically emailed a **renewal link** (by default, 7 days before). Clicking it lets them review their membership and pay for the next period in one step, the same way they paid the first time.
+
+What happens if they don't renew in time:
+
+- If you hadn't scheduled a cancellation, the membership flips to **Expired** once the paid period runs out. The member still has their renewal link and can use it at any time afterward to reactivate — paying brings the membership straight back to **Active**.
+- If you *had* scheduled the membership to end at the close of the current period (see cancelling, below), it instead flips to **Cancelled** once the period ends.
+
+A member can also open their renewal link early — up to 31 days before their period ends — to pay ahead of time; the new period simply starts the moment the current one finishes.
+
+From a member's details page in your admin app (Membership → Members → a member), you can also click **Send renewal link** at any time to email it to them again right away, without waiting for the automatic reminder.
+
+## Cancelling a membership
+
+From a member's details page in your admin app, you can cancel their membership at any time by clicking **Cancel membership**. You'll choose one of two options:
+
+- **At the end of the paid period** (the default) — the member keeps full access until their paid-through date, then the membership ends and is marked **Cancelled**. They won't receive a renewal reminder in the meantime.
+- **Immediately** — the membership ends right away.
+
+You can add an internal reason, visible only to you. No payment or refund action is needed on your part to cancel — since nothing auto-charges, there's simply nothing further to stop. No refund is issued automatically for time already paid for; refund it yourself from Stripe if you need to. The member is notified by email either way.
+
+If you change your mind after scheduling an end-of-period cancellation, open the member's details page and click **Undo cancellation** — the membership carries on as normal. If you instead want to end it sooner than the scheduled date, click **End now**.
+
+<Callout type="info">
+  Customers can't cancel their own membership online yet — cancellations are currently handled by you from the admin app, on the member's details page.
+</Callout>
+
+## Selling a membership and checking members in at the desk
+
+Your front-desk staff can sell a brand-new membership in person, and check an existing member in by their QR code or member code, right from the salon desk app. Both work the same way as online sign-up described above — see [Checking Customers In and Taking Payment](/docs/front-desk/checking-customers-in-and-taking-payment) for the full step-by-step, including the different ways a desk sale can be paid for (cash, a card reader, or an online payment page).
+
+The same member limits and duplicate-signup rules apply to desk sales as to online sign-ups, so a plan that's sold out, or a customer who already has that plan, is blocked the same way either way.

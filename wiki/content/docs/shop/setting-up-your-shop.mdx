@@ -1,0 +1,159 @@
+---
+title: "Setting Up Your Shop"
+description: "How to build your online shop — brands, categories, products, photos, and the sizes or options customers can buy"
+---
+
+Your Web Shop lets customers browse and buy products straight from your salon's website — things
+like the shampoos, styling tools, or gift cards you sell in-store. This guide walks through
+building out your shop's catalog from scratch, in the order it makes sense to set things up.
+
+<Callout type="info">
+  The Web Shop is available if your plan includes the Web Shop feature. If you don't see a Shop
+  section in your admin dashboard, reach out to support to have it turned on.
+</Callout>
+
+## The building blocks of your shop
+
+The Shop section has its own row of tabs: **Products**, **Brands**, **Categories**, **Inventory**,
+**Orders**, **Refunds**, and **Payments**. Your shop is organized into a few simple pieces:
+
+- **Brands** — the manufacturers or labels you carry (e.g. "Kerastase", "OPI").
+- **Categories** — how you group products for browsing (e.g. "Hair Care", "Nail Polish").
+- **Products** — the items themselves, with a name, description, and photo gallery.
+- **Variants** — the actual sellable options under a product (e.g. "250 ml" vs. "500 ml"), each
+  with its own price and stock count.
+
+It's worth understanding that last point well: **a product on its own can't be bought or stocked —
+every product needs at least one variant**, because price and "how many do we have left" always
+live on the variant, not on the product itself. A simple product with only one option (say, a
+single-size candle) still needs exactly one variant set up for it.
+
+Brands and categories are both optional on a product, so you can skip straight to Step 3 if you'd
+rather add them later — but setting them up first means you won't have to stop partway through
+adding a product to create one.
+
+## Step 1: Add your brands
+
+<Steps>
+  <Step>
+    Go to the **Shop** section of your admin dashboard, then open the **Brands** tab.
+  </Step>
+  <Step>
+    Click **Add Brand**. A window opens with a **Name** field (required) and a **Description**
+    field (optional).
+  </Step>
+  <Step>
+    Click **Add** to save. You'll see the new brand in the list with a small logo placeholder
+    next to it.
+  </Step>
+</Steps>
+
+To change a brand later, hover over it in the list and click the pencil (**Edit**) button — this
+opens the same window, plus an **Active** checkbox. Clearing this checkbox marks the brand
+inactive, which hides it from the brand picker on new products without touching anything you've
+already sold. To remove a brand entirely, click the trash icon and confirm — you'll be told that
+removing a brand doesn't touch its products, it simply clears their brand field.
+
+## Step 2: Add your categories
+
+<Steps>
+  <Step>
+    Open the **Categories** tab under Shop.
+  </Step>
+  <Step>
+    Click **Add Category**. Fill in a **Name** (required — e.g. "Hair Care" or "Gift Sets") and
+    an optional **Description**.
+  </Step>
+  <Step>
+    Click **Add** to save. Categories help customers browse your shop and help you organize your
+    product list.
+  </Step>
+</Steps>
+
+Editing and removing a category works the same way as brands: edit to rename it or mark it
+**Active**/inactive, or remove it — a product that loses its category keeps everything else about
+it unchanged.
+
+## Step 3: Create a product
+
+<Steps>
+  <Step>
+    Open the **Products** tab (this is the first tab you land on in the Shop section) and click
+    **Add Product**.
+  </Step>
+  <Step>
+    Enter the product's **Name** (required) and a **Description** that tells customers what it is
+    and why they'd want it.
+  </Step>
+  <Step>
+    Pick a **Brand** and a **Category** from the dropdowns, if you've set any up. If the one you
+    want doesn't exist yet, click **+ New brand** or **+ New category** right there in the form to
+    create it on the spot, without leaving the product you're building.
+  </Step>
+  <Step>
+    Under **Images**, add one or more photos for the product's gallery. The first image is the
+    **cover** shown in your product listings — it's marked with a small "Cover" label on its
+    thumbnail. Drag the thumbnails to reorder them, and use the small "x" on a thumbnail to remove
+    one. Click the dashed **Add** box to pick more photos from your device.
+  </Step>
+</Steps>
+
+New products are saved as **active** (visible and purchasable in your shop) right away. You can
+switch a product to inactive later, from its Edit screen.
+
+## Step 4: Add the product's variants
+
+This is the step that actually makes a product sellable. Every product needs at least one
+**variant** — think of a variant as "the thing a customer actually clicks Buy on." The form starts
+you off with one blank variant; click **Add another variant** for each extra size, color, or
+strength the product comes in.
+
+For a simple product (one size, one option), one variant is enough. For a product that comes in
+different options, add one row per option — for example:
+
+| Variant | Price | Stock on hand |
+|---|---|---|
+| 250 ml | $18.00 | 10 |
+| 500 ml | $30.00 | 5 |
+
+For each variant row, fill in:
+
+- **Label** — a value plus a unit, shown together as what the customer sees (e.g. "250" + "ml",
+  "Small" + no unit). The unit dropdown offers choices like ml, L, g, kg, oz, fl oz, lb, pcs, pack,
+  set, pair, unit, tablet, capsule, sachet, or none.
+- **SKU** — your own internal reference code for that option. Leave this alone and the system
+  fills in one for you automatically (you'll see a small "auto" tag next to it) built from the
+  brand, category, product name, and label. Type your own value to take over — if you then clear
+  it, it goes back to auto-generating.
+- **Price** (required) and **Was price** — the "Was price" field is optional and lets you show a
+  struck-through original price next to a discounted one.
+- **Currency** — defaults to your salon's own currency, but can be changed per variant.
+- **In stock** — the quantity you currently have on hand.
+- **Reorder at** — a low-stock number that helps you know when to restock. This doesn't stop
+  sales on its own, it's just a heads-up that shows up on your Inventory screen.
+
+Each variant row also has its own **Remove variant** link (once there's more than one variant), so
+you can delete an option you no longer offer. When editing an existing product, switch the
+**Active (visible in the shop)** checkbox off to temporarily stop selling it without deleting it.
+
+<Callout type="info">
+  Price and stock always belong to the variant, never to the product as a whole. If a product has
+  three sizes, each size has its own price and its own stock count — there's no single "product
+  price" to set.
+</Callout>
+
+When you later edit a product and remove one of its variants, it's deleted the same way — but
+orders that already included that variant keep a snapshot of what the customer actually bought, so
+past order history is never affected by later catalog changes. The same is true if you delete a
+whole product: past orders keep their line details.
+
+## Step 5: Check your inventory
+
+See the [Inventory](/docs/shop/inventory) guide for how to review and update stock levels across
+every variant from one screen.
+
+## Online payment for the shop
+
+If you want customers to pay online at checkout (rather than paying when they collect their
+order), that's configured once for your salon in the **Payments** tab of the Shop section, the
+same place you set up online payments for bookings and memberships.
