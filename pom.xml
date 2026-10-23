@@ -228,6 +228,13 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<image>
+						<!-- Pinned to the last multi-arch (amd64+arm64) index: on 2026-10-23 upstream
+						     re-published :latest as an arm64-only manifest, which breaks amd64 builds
+						     with "exec /cnb/lifecycle/creator: exec format error". -->
+						<builder>paketobuildpacks/builder-noble-java-tiny@sha256:be9118fdc9fa4fbfee6e8f81195b0e30b26b5a1d2660601f31a3d4f31374d455</builder>
+						<imagePlatform>linux/amd64</imagePlatform>
+					</image>
 				</configuration>
 			</plugin>
 			<plugin>
