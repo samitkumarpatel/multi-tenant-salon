@@ -562,7 +562,7 @@ class MembershipSubscriptionFlowTests {
                 .jsonPath("$.content[0].id").isEqualTo(ann);
 
         // A wildcard in the search box is matched literally, not as "everything".
-        client.get().uri(adminBase() + "/subscriptions?q=%25").exchange().expectStatus().isOk()
+        client.get().uri(adminBase() + "/subscriptions?q={q}", "%").exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.content.length()").isEqualTo(0);
 
         // Paging walks the whole set, newest first, without repeating anyone.
