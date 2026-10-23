@@ -18,6 +18,15 @@ public interface MembershipApi {
     /** Money given back on membership payments in {@code [from, to)}, by currency and how it was paid. */
     List<Takings> refunds(UUID salonId, Instant from, Instant to);
 
+    /**
+     * Every membership the salon holds under {@code email} (matched case-insensitively), newest first —
+     * abandoned first checkouts ({@code INCOMPLETE}) left out, since they never became a membership.
+     */
+    List<MembershipSubscription> findByCustomerEmail(UUID salonId, String email);
+
+    /** The payments for one of the salon's memberships, newest first. */
+    List<MembershipPayment> payments(UUID salonId, Long subscriptionId);
+
     /** @param method {@code CARD}, {@code CASH} or {@code OTHER} — how the original payment was made */
     record Takings(String currency, String method, long count, BigDecimal total) {}
 }

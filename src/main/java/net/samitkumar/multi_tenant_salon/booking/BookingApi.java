@@ -32,6 +32,9 @@ public interface BookingApi {
      */
     boolean clearDeskPayment(UUID salonId, Long bookingId, String reference);
     List<Booking> findByStaff(UUID salonId, Long staffId);
+
+    /** Every booking the salon holds under {@code email} (matched case-insensitively), newest appointment first. */
+    List<Booking> findByCustomerEmail(UUID salonId, String email);
     List<StaffAvailabilityOverride> getOverrides(UUID salonId, Long staffId);
     StaffAvailabilityOverride addOverride(UUID salonId, Long staffId, StaffAvailabilityOverride override);
     void removeOverride(UUID salonId, Long staffId, Long overrideId);

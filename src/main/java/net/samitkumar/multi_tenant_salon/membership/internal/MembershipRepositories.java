@@ -4,6 +4,7 @@ import net.samitkumar.multi_tenant_salon.membership.MembershipActivity;
 import net.samitkumar.multi_tenant_salon.membership.MembershipPayment;
 import net.samitkumar.multi_tenant_salon.membership.MembershipPlan;
 import net.samitkumar.multi_tenant_salon.membership.MembershipSubscription;
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
 import java.util.List;
@@ -22,6 +23,9 @@ interface MembershipSubscriptionRepository extends ListCrudRepository<Membership
     Optional<MembershipSubscription> findByMemberCodeAndSalonId(String memberCode, UUID salonId);
     boolean existsByPlanId(Long planId);
     boolean existsByMemberCode(String memberCode);
+
+    @Query("SELECT * FROM membership_subscription WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) AND status <> 'INCOMPLETE' ORDER BY created_at DESC")
+    List<MembershipSubscription> findByCustomerEmail(UUID salonId, String email);
 }
 
 interface MembershipPaymentRepository extends ListCrudRepository<MembershipPayment, Long> {

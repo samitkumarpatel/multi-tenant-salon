@@ -602,3 +602,85 @@ export interface MembershipOverview {
   upcomingRenewals: MembershipSubscription[];
   recentActivity: (MembershipActivity & { customerName: string; planName: string })[];
 }
+
+// ── Customer self-service account ─────────────────────────────────────────────
+
+export interface CustomerSession {
+  sessionToken: string;
+  email: string;
+  expiresAt: string;
+}
+
+export interface CustomerBooking {
+  id: number;
+  serviceName: string | null;
+  durationMinutes: number | null;
+  price: number | null;
+  currency: string | null;
+  staffName: string | null;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  status: BookingStatus;
+  paymentStatus: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface CustomerOrder {
+  id: number;
+  orderNumber: string;
+  createdAt: string;
+  status: ShopOrderStatus;
+  paymentStatus: ShopPaymentStatus;
+  currency: string;
+  subtotal: number;
+  shippingCost: number;
+  total: number;
+  shippingMethodName: string | null;
+  shippingAddress: ShopShippingAddress | null;
+  trackingCarrier: string | null;
+  trackingNumber: string | null;
+  refundStatus: string | null;
+  refundAmount: number | null;
+  returnStatus: string | null;
+  lines: { productName: string; variantLabel: string | null; unitPrice: number; quantity: number; lineTotal: number }[];
+  timeline: { type: string; message: string | null; createdAt: string }[];
+}
+
+export interface CustomerMembership {
+  id: number;
+  planName: string;
+  memberCode: string;
+  status: MembershipStatus;
+  price: number;
+  currency: string;
+  billingInterval: MembershipBillingInterval;
+  startedAt: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  endedAt: string | null;
+  /** Present only while the membership can be renewed; opens the website's renewal screen. */
+  renewalToken: string | null;
+  /** PNG data URL of the check-in QR code, while the membership is active. */
+  qrCode: string | null;
+  payments: {
+    kind: "SIGNUP" | "RENEWAL";
+    status: MembershipPaymentStatus;
+    method: "CARD" | "CASH" | "OTHER";
+    amount: number;
+    currency: string;
+    periodStart: string | null;
+    periodEnd: string | null;
+    paidAt: string | null;
+    refundedAmount: number | null;
+    createdAt: string;
+  }[];
+}
+
+export interface CustomerAccount {
+  profile: { email: string; name: string | null; phone: string | null };
+  bookings: CustomerBooking[];
+  orders: CustomerOrder[];
+  memberships: CustomerMembership[];
+}

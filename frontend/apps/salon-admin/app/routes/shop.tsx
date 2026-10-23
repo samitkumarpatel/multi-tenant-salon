@@ -37,12 +37,12 @@ export default function Shop() {
     }`;
 
   const TABS = [
-    { to: "", label: "Products", icon: Package, end: true, badge: 0 },
+    { to: "orders", label: "Orders", icon: ClipboardList, end: false, badge: pendingCount },
+    { to: "products", label: "Products", icon: Package, end: false, badge: 0 },
     { to: "brands", label: "Brands", icon: Tag, end: false, badge: 0 },
     { to: "categories", label: "Categories", icon: Layers, end: false, badge: 0 },
     { to: "inventory", label: "Inventory", icon: Boxes, end: false, badge: 0 },
     { to: "shipping", label: "Shipping", icon: Truck, end: false, badge: 0 },
-    { to: "orders", label: "Orders", icon: ClipboardList, end: false, badge: pendingCount },
     { to: "refunds", label: "Refunds", icon: RefreshCcw, end: false, badge: 0 },
     { to: "returns", label: "Returns", icon: Undo2, end: false, badge: 0 },
     { to: "credit-notes", label: "Credit Notes", icon: Receipt, end: false, badge: 0 },
@@ -59,7 +59,7 @@ export default function Shop() {
 
       <nav className="flex flex-wrap gap-2 mb-6">
         {TABS.map((t) => (
-          <NavLink key={t.to || "index"} to={t.to} end={t.end} className={tabCls}>
+          <NavLink key={t.to} to={t.to} end={t.end} className={tabCls}>
             <t.icon className="w-4 h-4" />
             {t.label}
             {t.badge > 0 && (

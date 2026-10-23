@@ -68,6 +68,15 @@ spring:
       # expires lapsed memberships.
       renewal-cron: ${MEMBERSHIP_RENEWAL_CRON:0 */15 * * * *}
       renewal-reminder-days: ${MEMBERSHIP_RENEWAL_REMINDER_DAYS:7}
+    customer:
+      # Customer self-service accounts: an emailed one-time code signs a customer in to one salon.
+      code-ttl: ${CUSTOMER_CODE_TTL:PT10M}
+      session-ttl: ${CUSTOMER_SESSION_TTL:P30D}
+      # Codes sent to one address in one salon per 15 minutes, and sign-in requests per client IP per hour.
+      max-codes-per-email: ${CUSTOMER_MAX_CODES_PER_EMAIL:5}
+      max-requests-per-ip: ${CUSTOMER_MAX_REQUESTS_PER_IP:30}
+      # Wrong guesses allowed against one code before it stops working.
+      max-code-attempts: ${CUSTOMER_MAX_CODE_ATTEMPTS:5}
     chat:
       # Base URL the AI assistant's tools use to call this app's own public /api/salon/** API.
       internal-api-base-url: ${INTERNAL_API_BASE_URL:http://localhost:8080}
@@ -158,6 +167,7 @@ spring:
         - classpath:db/V21__payment_terminals.sql
         - classpath:db/V22__desk_shop_membership_hardening.sql
         - classpath:db/V23__shop_shipping_weight_currency.sql
+        - classpath:db/V24__customer_accounts.sql
   modulith:
     events:
       jdbc:

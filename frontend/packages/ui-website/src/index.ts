@@ -9,7 +9,9 @@ export { BookingWizard } from "./BookingWizard";
 export { CustomerDetailsFields } from "./CustomerDetailsFields";
 export type { CustomerBookingForm, ContactMethod } from "./CustomerDetailsFields";
 export { FeatureView, FEATURE_VIEWS } from "./FeatureView";
-export { SiteHeader, SiteFooter, FEATURE_NAV } from "./SiteChrome";
+export { SiteHeader, SiteFooter, FEATURE_NAV, AccountButton, hasCustomerAccount } from "./SiteChrome";
+export { CustomerAccountView, CustomerAccountPanel, CustomerAccountDrawer, siteAccountLinks, useCustomerSession } from "./CustomerAccount";
+export type { CustomerAccountViewProps, CustomerAccountPanelProps, CustomerAccountLinks, AccountPage } from "./CustomerAccount";
 export { SalonPolicyLinks } from "./SalonPolicyLinks";
 export type { SalonPolicy } from "./SalonPolicyLinks";
 export { SocialLinksRow, SOCIAL_PLATFORMS } from "./SocialIcons";
@@ -45,6 +47,7 @@ export type {
   MembershipActivityType, MembershipIncludedService, MembershipPlan, MembershipCatalog,
   MembershipSubscription, MembershipPayment, MembershipActivity, MembershipDetail, MembershipRenewal,
   MembershipMoney, MembershipOverview,
+  CustomerSession, CustomerAccount, CustomerBooking, CustomerOrder, CustomerMembership,
 } from "./types";
 
 export { ShopView } from "./ShopView";

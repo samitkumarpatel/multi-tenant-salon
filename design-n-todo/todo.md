@@ -30,13 +30,13 @@ Plan and current-setup review in [voice-chat.md](voice-chat.md): Phase 1 browser
 (Web Speech API, no backend change), optional Phase 2 server speech (Azure AI Speech). Waiting
 on review of the open decisions at the end of that page before implementing.
 
-## Customer self-service portal — planned, not started (2026-10-23)
+## Customer self-service portal — Phase 1 built (2026-10-23)
 
 Plan in [customer-self-service-portal.md](customer-self-service-portal.md): a per-salon signed-in
 account area (email magic-link / OTP, no password) covering booking, order and membership history,
 booking cancel/reschedule, membership renew/cancel and contact details. Decided: per-salon scope,
 passwordless sign-in, all four capability areas in. Phase 1 (auth + read-only history) is
-independently shippable.
+independently shippable — built: sign-in + read-only history (`customer` module, `/account`). Next: Phase 2 (owner policy + booking cancel/reschedule).
 
 Two things it surfaced that are worth knowing regardless of whether the portal gets built:
 bookings have **no** customer-facing mutation endpoints at all (only `/api/salon-admin/**`), and

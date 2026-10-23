@@ -1,7 +1,10 @@
 import { useOutletContext, useLocation, useNavigate } from "react-router";
 import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
-import { SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, SalonPolicyLinks } from "@salon/ui-website";
+import {
+  SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, SalonPolicyLinks,
+  CustomerAccountView, hasCustomerAccount, siteAccountLinks,
+} from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
 import { navigationSearch } from "../lib/navigation-search";
 
@@ -56,6 +59,21 @@ export default function PublicWebsitePage() {
           policies={data.websitePolicies}
           getPagePath={(page) => `/${page}${search}`}
           onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
+        />
+      );
+    }
+
+    // And /account — the customer's bookings, orders and membership
+    if (activePage === "account" && hasCustomerAccount(data.salon)) {
+      return (
+        <CustomerAccountView
+          salon={data.salon}
+          theme={theme}
+          policies={data.websitePolicies}
+          getPagePath={(page) => `/${page}${search}`}
+          onNavigateSite={(page) => navigate(`/${page}${search}`)}
+          onBack={() => navigate(`/${search}`)}
+          {...siteAccountLinks(data.salon, (page) => `/${page}${search}`, (page) => navigate(`/${page}${search}`))}
         />
       );
     }

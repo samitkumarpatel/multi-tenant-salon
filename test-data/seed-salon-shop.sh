@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# seed-salon-shop.sh — build one fully-populated salon + web-shop for local testing.
+# seed-salon-shop.sh — build one fully-populated salon + web-shop + membership for local testing.
 #
-# Creates a single salon (STATIC_WEBSITE + BOOKING + DASHBOARD + WEBSHOP) and fills it with a
-# realistic amount of data so every admin / public / staff screen has something to show.
+# Creates a single salon (STATIC_WEBSITE + BOOKING + DASHBOARD + WEBSHOP + MEMBERSHIP) and fills it
+# with a realistic amount of data so every admin / public / staff / customer screen has something to show.
 # It only ADDS data — the website theme is left at the app default, never touched.
 #
 #   • 7 staff members — each with an AVATAR, a bio, a 3-image work gallery,
@@ -14,12 +14,27 @@
 #       - 21 products, most with MULTIPLE IMAGES (2–4 each) and 1–3 variants,
 #         including sale prices, low stock, out-of-stock and one inactive product
 #       - a couple of inventory restocks
-#   • 8 customer orders taken through the fulfilment lifecycle
-#     (processing → shipped w/ tracking → fulfilled, plus a cancellation),
-#     with work notes, an invoice and a refund
+#       - 8 shipping methods covering every rule: home / pickup point / business, free-over
+#         threshold, order-value / item-count / weight brackets, destination countries,
+#         a second currency (EUR, never offered to this USD shop) and a paused method
+#       - the refund & sales policies published to the website (shown at checkout)
+#   • 13 customer orders across every state: new, confirmed, processing, ready to ship, on hold,
+#     shipped (tracking), delivered, fulfilled (+invoice), cancelled; collect-in-salon and shipped,
+#     domestic / express / heavy / international shipping; work notes, customer and per-line
+#     notifications, line notes; refund accepted, refund rejected; a full return
+#     (requested → approved → item shipped → received → accepted) with its credit note paid out
+#   • memberships: 6 plans (monthly highlighted with sign-up fee, quarterly, capped yearly VIP,
+#     a sold-out founders plan, a draft, an archived one) with perks, included services and
+#     discounts; 6 members sold at the desk (cash / other) — active, cancel-at-period-end,
+#     resumed, cancelled now, contact corrected, partly refunded, notes, renewal link sent
+#   • customer self-service: Riya Kapoor has a booking, shop orders and a membership, so
+#     /account shows every tab (sign in with riya.kapoor@example.com; the code is in the backend log)
 #   • ~12 bookings over the next two weeks, some confirmed / completed / cancelled
 #   • Dashboard settings plus several in-salon cashier sales mixing services and products
 #   • 2 salon closures and 1 recurring holiday
+#
+# Not seedable without Stripe: online card checkouts, so no PENDING_PAYMENT / INCOMPLETE
+# memberships and no unpaid shop orders. EXPIRED memberships need time to pass (the renewal job).
 #
 # Usage:
 #   ./seed-salon-shop.sh                                  # -> http://localhost:8080
@@ -111,7 +126,7 @@ salon_json=$(cat <<JSON
     { "day": "SATURDAY",  "openTime": "10:00", "closeTime": "17:00", "closed": false },
     { "day": "SUNDAY",    "openTime": "00:00", "closeTime": "00:00", "closed": true  }
   ],
-  "features": ["STATIC_WEBSITE", "BOOKING", "DASHBOARD", "WEBSHOP", "ANALYTICS"],
+  "features": ["STATIC_WEBSITE", "BOOKING", "DASHBOARD", "WEBSHOP", "MEMBERSHIP", "ANALYTICS"],
   "businessRegistrationId": "CA-2026-${STAMP}",
   "showBusinessId": false,
   "termsAccepted": true
@@ -409,6 +424,39 @@ if ok; then
   done
 fi
 
+# ── 5c. shipping methods ───────────────────────────────────────────────────────
+# Created before any order: once a salon has active methods, a shipped order must qualify for one.
+# Every order below ships within the US or Canada, or is collected in the salon.
+echo "▶ Creating shipping methods…"
+# Called as `id=$(add_ship …)`, i.e. in a subshell: it can only hand back the id on stdout, so the
+# progress line goes to stderr and nothing is appended to an array here.
+add_ship() { # add_ship <json> <summary> -> stdout: the new id (empty on failure)
+  local resp; resp=$(req POST "/api/salon-admin/${SALON_ID}/shop/shipping-methods" "$1")
+  ok || { warn "shipping method $(jq -r .name <<<"$1") failed (HTTP $(code)): $resp"; return; }
+  echo "  + $(jq -r '.name' <<<"$resp") — $2" >&2
+  jq -r '.id' <<<"$resp"
+}
+SHIP_STANDARD=$(add_ship '{"name":"Standard Delivery","description":"Tracked to your door","carrier":"USPS","deliveryType":"HOME","price":6.95,"freeOver":75,"currency":"USD","minDeliveryDays":3,"maxDeliveryDays":5,"sortOrder":0,"countries":["US"]}' "US home, free over \$75")
+SHIP_EXPRESS=$(add_ship '{"name":"Express","description":"Next business day when ordered before 2pm","carrier":"UPS","deliveryType":"HOME","price":14.95,"maxWeightGrams":2000,"currency":"USD","minDeliveryDays":1,"maxDeliveryDays":2,"sortOrder":1,"countries":["US"]}' "US, parcels up to 2 kg")
+SHIP_PICKUP=$(add_ship '{"name":"Pickup Point","description":"Collect from a nearby parcel locker","carrier":"FedEx","deliveryType":"PICKUP_POINT","price":4.5,"maxItems":5,"currency":"USD","minDeliveryDays":2,"maxDeliveryDays":4,"sortOrder":2,"countries":["US"]}' "US, up to 5 items")
+SHIP_BUSINESS=$(add_ship '{"name":"Business Delivery","description":"To an office, weekdays 9–5","carrier":"UPS","deliveryType":"BUSINESS","price":9.95,"minOrderValue":50,"currency":"USD","minDeliveryDays":2,"maxDeliveryDays":3,"sortOrder":3,"countries":["US"]}' "US, orders from \$50")
+SHIP_HEAVY=$(add_ship '{"name":"Heavy Parcel","description":"For bulky orders over 2 kg","carrier":"UPS Freight","deliveryType":"HOME","price":24.95,"minWeightGrams":2000,"currency":"USD","minDeliveryDays":4,"maxDeliveryDays":7,"sortOrder":4,"countries":["US","CA"]}' "US & Canada, 2 kg and up")
+SHIP_INTL=$(add_ship '{"name":"International","description":"Tracked international post","carrier":"DHL","deliveryType":"HOME","price":19.95,"freeOver":150,"maxOrderValue":500,"currency":"USD","minDeliveryDays":7,"maxDeliveryDays":12,"sortOrder":5,"countries":["CA","GB","AU"]}' "Canada / UK / Australia, orders up to \$500")
+add_ship '{"name":"EU Standard","description":"Only for carts priced in euros","carrier":"DHL","deliveryType":"HOME","price":7.5,"currency":"EUR","minDeliveryDays":3,"maxDeliveryDays":6,"sortOrder":6,"countries":["DE","FR","DK"]}' "EUR carts only — never offered here" >/dev/null
+add_ship '{"name":"Same-day Courier (paused)","description":"Temporarily unavailable","deliveryType":"HOME","price":19,"currency":"USD","sortOrder":7,"active":false,"countries":["US"]}' "inactive" >/dev/null
+
+# ── 5d. policies on the website (the checkout links the refund & sales policies) ──
+echo "▶ Publishing salon policies to the website…"
+pol=$(req GET "/api/salon-admin/${SALON_ID}/policies")
+if ok; then
+  req PUT "/api/salon-admin/${SALON_ID}/policies" "$(jq -c 'map(.website = true | .enabled = true)' <<<"$pol")" >/dev/null
+  ok || warn "policy save failed (HTTP $(code))"
+  req POST "/api/salon-admin/${SALON_ID}/policies/publish" >/dev/null
+  ok && echo "  $(jq -r 'map(.title) | join(", ")' <<<"$pol")" || warn "policy publish failed (HTTP $(code))"
+else
+  warn "policy editor failed (HTTP $(code))"
+fi
+
 # ── 6. customer orders + fulfilment lifecycle ─────────────────────────────────
 echo "▶ Placing customer orders…"
 inv=$(req GET "/api/salon-admin/${SALON_ID}/shop/inventory")
@@ -465,6 +513,45 @@ for row in "${CUSTOMERS[@]}"; do
   oi=$((oi+1))
 done
 
+# Scenario orders with a chosen shipping method and specific items (by SKU), so each shipping rule
+# is exercised: express (≤ 2 kg), heavy (≥ 2 kg), international (Canada), business (≥ $50).
+sku_vid() { jq -r --arg s "$1" '.[] | select(.sku==$s) | .variantId' <<<"$inv"; }
+place_order() { # place_order NAME EMAIL PHONE ADDR_JSON|null ITEMS_JSON SHIP_METHOD_ID|"" [PREF] -> stdout: order JSON
+  local body resp
+  body=$(jq -nc --arg n "$1" --arg e "$2" --arg p "$3" --argjson addr "$4" --argjson items "$5" \
+                --arg m "$6" --arg pref "${7:-IMPORTANT_ONLY}" \
+    '{customerName:$n,customerEmail:$e,customerPhone:(if $p=="" then null else $p end),
+      shippingAddress:$addr,items:$items,communicationPreference:$pref,
+      shippingMethodId:(if $m=="" then null else ($m|tonumber) end)}')
+  resp=$(req POST "/api/salon/${SALON_ID}/shop/orders" "$body")
+  ok || { warn "order for $1 failed (HTTP $(code)): $resp"; return; }
+  echo "  + order $(jq -r '.orderNumber' <<<"$resp") — $1 · $(jq -r '(.shippingMethodName // "collect in salon") + " " + (.shippingCost|tostring)' <<<"$resp")" >&2
+  printf '%s' "$resp"
+}
+inv=$(req GET "/api/salon-admin/${SALON_ID}/shop/inventory")
+US_ADDR='{"line1":"88 Valencia St","line2":"Apt 4","city":"San Francisco","state":"California","country":"United States","zipCode":"94103"}'
+OFFICE_ADDR='{"line1":"1 Market St","line2":"Floor 12, Reception","city":"San Francisco","state":"California","country":"United States","zipCode":"94105"}'
+CA_ADDR='{"line1":"220 King St W","city":"Toronto","state":"Ontario","country":"Canada","zipCode":"M5H 1K4"}'
+item() { jq -nc --arg v "$(sku_vid "$1")" --argjson q "$2" '{variantId:($v|tonumber),quantity:$q}'; }
+
+EXPRESS_ORDER=""; HEAVY_ORDER=""; INTL_ORDER=""; BUSINESS_ORDER=""; RIYA_COLLECT_ORDER=""
+resp=$(place_order "Elena Petrova" "elena.petrova@example.com" "+1 415 555 0209" "$US_ADDR" \
+  "$(jq -sc '.' <(item AV-BOND-100 1) <(item KB-OIL-30 1))" "$SHIP_EXPRESS" ALL)
+[[ -n "$resp" ]] && { EXPRESS_ORDER=$(jq -r .id <<<"$resp"); EXPRESS_LINE=$(jq -r '.lines[0].id' <<<"$resp"); ORDER_IDS+=("$EXPRESS_ORDER"); }
+resp=$(place_order "Kenji Watanabe" "kenji.watanabe@example.com" "+1 415 555 0210" "$US_ADDR" \
+  "$(jq -sc '.' <(item KB-SHMP-1L 2))" "$SHIP_HEAVY")
+[[ -n "$resp" ]] && { HEAVY_ORDER=$(jq -r .id <<<"$resp"); ORDER_IDS+=("$HEAVY_ORDER"); }
+resp=$(place_order "James O'Connor" "james.oconnor@example.com" "+1 416 555 0211" "$CA_ADDR" \
+  "$(jq -sc '.' <(item PS-SER-30 1) <(item PS-TNR-150 1))" "$SHIP_INTL")
+[[ -n "$resp" ]] && { INTL_ORDER=$(jq -r .id <<<"$resp"); ORDER_IDS+=("$INTL_ORDER"); }
+resp=$(place_order "Nadia Office Supplies" "orders@nadia-office.example.com" "+1 415 555 0212" "$OFFICE_ADDR" \
+  "$(jq -sc '.' <(item AV-CLK-500 2))" "$SHIP_BUSINESS")
+[[ -n "$resp" ]] && { BUSINESS_ORDER=$(jq -r .id <<<"$resp"); ORDER_IDS+=("$BUSINESS_ORDER"); }
+# Riya's second order, collected in the salon — her account shows one shipped and one collected order.
+resp=$(place_order "Riya Kapoor" "riya.kapoor@example.com" "+1 415 555 0201" null \
+  "$(jq -sc '.' <(item NV-BLM-60 1))" "")
+[[ -n "$resp" ]] && { RIYA_COLLECT_ORDER=$(jq -r .id <<<"$resp"); ORDER_IDS+=("$RIYA_COLLECT_ORDER"); }
+
 echo "▶ Advancing orders through fulfilment…"
 O() { req "$1" "/api/salon-admin/${SALON_ID}/shop/orders/$2" "${3:-}" >/dev/null; ok || warn "  $1 orders/$2 -> HTTP $(code)"; }
 adv() { O POST "$1/status" "$(jq -nc --arg s "$2" '{status:$s}')"; }
@@ -485,14 +572,60 @@ if [[ ${#ORDER_IDS[@]} -ge 6 ]]; then
   # #4 internal note + a customer message
   O POST "${ORDER_IDS[3]}/work-note" '{"note":"Customer asked for gift wrap."}'
   O POST "${ORDER_IDS[3]}/notify"    '{"message":"Your order is packed and ships tomorrow."}'
+  adv "${ORDER_IDS[3]}" READY_TO_SHIP
   # #5 cancelled
   adv "${ORDER_IDS[4]}" CANCELLED
-  echo "  processing ×3, shipped ×2 (+tracking), fulfilled ×1 (+invoice), cancelled ×1, refund accepted ×1"
+  # #6 confirmed → ready to ship → on hold (address query) with a work note
+  adv "${ORDER_IDS[5]}" CONFIRMED
+  adv "${ORDER_IDS[5]}" READY_TO_SHIP
+  O POST "${ORDER_IDS[5]}/work-note" '{"note":"Apartment number missing — emailed the customer."}'
+  adv "${ORDER_IDS[5]}" ON_HOLD
+  echo "  processing ×3, ready to ship ×1, shipped ×2 (+tracking), fulfilled ×1 (+invoice), cancelled ×1, on hold ×1, refund accepted ×1"
 fi
+if [[ ${#ORDER_IDS[@]} -ge 8 ]]; then
+  # #7 a full return: delivered → return requested → approved → item shipped back → received → accepted,
+  # then the refund for it is raised, approved and accepted, and the credit note it mints is paid out.
+  adv "${ORDER_IDS[6]}" PROCESSING
+  O POST "${ORDER_IDS[6]}/shipping" '{"carrier":"USPS","trackingNumber":"9400111899560000000077"}'
+  adv "${ORDER_IDS[6]}" DELIVERED
+  O POST "${ORDER_IDS[6]}/returns" '{"reason":"Wrong shade — would like to return it"}'
+  for st in APPROVED ITEM_SHIPPED RECEIVED INSPECTING ACCEPTED; do
+    O POST "${ORDER_IDS[6]}/returns/status" "$(jq -nc --arg s "$st" '{status:$s,notes:("Return " + ($s|ascii_downcase))}')"
+  done
+  total7=$(req GET "/api/salon-admin/${SALON_ID}/shop/orders/${ORDER_IDS[6]}" | jq -r '.subtotal')
+  O POST "${ORDER_IDS[6]}/refunds" "$(jq -nc --argjson a "${total7:-10}" '{amount:$a,reason:"Returned item accepted"}')"
+  O POST "${ORDER_IDS[6]}/refunds/approve"
+  O POST "${ORDER_IDS[6]}/refunds/accept"
+  O POST "${ORDER_IDS[6]}/credit-note/pay"
+  # #8 a refund request the salon turns down
+  adv "${ORDER_IDS[7]}" DELIVERED
+  O POST "${ORDER_IDS[7]}/refunds" '{"amount":15.00,"reason":"Changed my mind"}'
+  O POST "${ORDER_IDS[7]}/refunds/reject"
+  echo "  return completed (+credit note paid) ×1, refund rejected ×1"
+fi
+# Scenario orders: express gets a line note and a per-line notification; heavy / international are
+# shipped; business is confirmed; Riya's collect-in-salon order stays new for her account.
+if [[ -n "$EXPRESS_ORDER" ]]; then
+  adv "$EXPRESS_ORDER" PROCESSING
+  O POST "${EXPRESS_ORDER}/lines/${EXPRESS_LINE}/notes" '{"note":"Picked from the back-room stock."}'
+  O POST "${EXPRESS_ORDER}/lines/${EXPRESS_LINE}/notify" '{"message":"Your Bond Repair Mask is packed."}'
+fi
+if [[ -n "$HEAVY_ORDER" ]]; then
+  adv "$HEAVY_ORDER" PROCESSING
+  O POST "${HEAVY_ORDER}/shipping" '{"carrier":"UPS Freight","trackingNumber":"1Z999AA10123456784"}'
+fi
+if [[ -n "$INTL_ORDER" ]]; then
+  adv "$INTL_ORDER" PROCESSING
+  O POST "${INTL_ORDER}/shipping" '{"carrier":"DHL","trackingNumber":"JD014600006281384422"}'
+  adv "$INTL_ORDER" DELIVERED
+fi
+[[ -n "$BUSINESS_ORDER" ]] && adv "$BUSINESS_ORDER" CONFIRMED
 
 # ── 7. bookings over the next two weeks ───────────────────────────────────────
 echo "▶ Creating bookings…"
 BOOK_CUSTOMERS=(
+  "Riya Kapoor|riya.kapoor@example.com|+1 415 555 0201"
+  "Grace Oduya|grace.oduya@example.com|+1 415 555 0203"
   "Jordan Blake|jordan.blake@example.com|+1 415 555 0301"
   "Priyanka Rao|priyanka.rao@example.com|+1 415 555 0302"
   "Chris Donnelly|chris.donnelly@example.com|+1 415 555 0303"
@@ -572,11 +705,12 @@ if [[ ${#SERVICE_IDS[@]} -gt 0 ]]; then
     '[{sourceType:"SERVICE",sourceId:$service,quantity:1}]')
   record_sale "Walk-in customer" CASH "$sale_items"
 
-  # A second service sale gives the recent-sales list another payment method.
+  # A second service sale gives the recent-sales list another payment method. (CARD needs Stripe
+  # now — the plain sales endpoint refuses it — so this one is OTHER.)
   service_index=$(( ${#SERVICE_IDS[@]} > 4 ? 4 : 0 ))
   sale_items=$(jq -nc --argjson service "${SERVICE_IDS[$service_index]}" \
     '[{sourceType:"SERVICE",sourceId:$service,quantity:1}]')
-  record_sale "Maya Thompson" CARD "$sale_items"
+  record_sale "Maya Thompson" OTHER "$sale_items"
 fi
 
 POS_PRODUCT_IDS=()
@@ -593,7 +727,7 @@ if [[ ${#POS_PRODUCT_IDS[@]} -gt 0 ]]; then
   # Product-only counter purchase. Stock is decremented by the Dashboard API.
   sale_items=$(jq -nc --argjson product "${POS_PRODUCT_IDS[0]}" \
     '[{sourceType:"PRODUCT",sourceId:$product,quantity:1}]')
-  record_sale "Ethan Cole" CARD "$sale_items"
+  record_sale "Ethan Cole" CASH "$sale_items"
 
   # Mixed service + retail sale mirrors a typical appointment checkout.
   if [[ ${#SERVICE_IDS[@]} -gt 1 ]]; then
@@ -603,6 +737,96 @@ if [[ ${#POS_PRODUCT_IDS[@]} -gt 0 ]]; then
     record_sale "Olivia Chen" OTHER "$sale_items"
   fi
 fi
+
+# ── 8b. memberships ────────────────────────────────────────────────────────────
+# Plans in every state, and members sold at the desk. Cash / other activate on the spot, with no
+# Stripe needed; online card sign-ups (PENDING_PAYMENT → ACTIVE / INCOMPLETE) need a connected Stripe account.
+echo "▶ Creating membership plans…"
+M="/api/salon-admin/${SALON_ID}/membership"
+svc_id() { local i; for i in "${!SERVICE_NAMES[@]}"; do [[ "${SERVICE_NAMES[$i]}" == "$1" ]] && { printf '%s' "${SERVICE_IDS[$i]}"; return; }; done; }
+add_plan() { # add_plan <json> -> stdout: plan id
+  local resp; resp=$(req POST "${M}/plans" "$1")
+  ok || { warn "plan $(jq -r .name <<<"$1") failed (HTTP $(code)): $resp"; return; }
+  echo "  + $(jq -r '.name + " · " + .status + " · " + (.price|tostring) + " " + .currency + " / " + .billingInterval' <<<"$resp")" >&2
+  jq -r '.id' <<<"$resp"
+}
+included() { # included "<service name>:<qty>" ... -> includedServices JSON
+  local spec out='[]' name qty id
+  for spec in "$@"; do
+    name="${spec%:*}"; qty="${spec##*:}"; id=$(svc_id "$name")
+    [[ -n "$id" ]] && out=$(jq -c --argjson s "$id" --argjson q "$qty" '. + [{serviceId:$s,quantityPerCycle:$q}]' <<<"$out")
+  done
+  printf '%s' "$out"
+}
+PLAN_MONTHLY=$(add_plan "$(jq -nc --argjson inc "$(included "Blow-Dry & Style:1")" '{
+  name:"Glow Monthly",description:"A monthly blow-dry plus member prices on everything else.",
+  price:49,currency:"USD",billingInterval:"MONTHLY",signupFee:10,serviceDiscountPercent:10,productDiscountPercent:15,
+  highlighted:true,status:"ACTIVE",perks:["Priority booking","Free fringe trims","Birthday treat"],includedServices:$inc}')")
+PLAN_QUARTERLY=$(add_plan "$(jq -nc --argjson inc "$(included "Deep Conditioning Treatment:1" "Blow-Dry & Style:2")" '{
+  name:"Glow Quarterly",description:"Three months of care, paid once a quarter.",
+  price:135,currency:"USD",billingInterval:"QUARTERLY",serviceDiscountPercent:10,productDiscountPercent:10,
+  status:"ACTIVE",perks:["Priority booking"],includedServices:$inc}')")
+PLAN_VIP=$(add_plan "$(jq -nc --argjson inc "$(included "Classic Haircut:4" "Deep Conditioning Treatment:4")" '{
+  name:"VIP Yearly",description:"Our top tier — limited places.",
+  price:499,currency:"USD",billingInterval:"YEARLY",signupFee:25,serviceDiscountPercent:20,productDiscountPercent:20,
+  maxMembers:5,status:"ACTIVE",perks:["Complimentary drinks","Late-night appointments","Guest pass twice a year"],includedServices:$inc}')")
+PLAN_FOUNDERS=$(add_plan '{"name":"Founders Club","description":"One place only — now taken.","price":39,"currency":"USD","billingInterval":"MONTHLY","serviceDiscountPercent":25,"maxMembers":1,"status":"ACTIVE","perks":["Founding member wall"],"includedServices":[]}')
+add_plan '{"name":"Student Saver","description":"Not launched yet.","price":25,"currency":"USD","billingInterval":"MONTHLY","serviceDiscountPercent":15,"status":"DRAFT","perks":["Valid student ID required"],"includedServices":[]}' >/dev/null
+PLAN_SUMMER=$(add_plan '{"name":"Summer Pass 2025","description":"Last summer'"'"'s seasonal pass.","price":89,"currency":"USD","billingInterval":"QUARTERLY","status":"ACTIVE","perks":["Two blow-dries a month"],"includedServices":[]}')
+# A plan nobody holds is retired by archiving it (a plan with members can only ever be archived).
+if [[ -n "$PLAN_SUMMER" ]]; then
+  plan=$(req GET "${M}/plans/${PLAN_SUMMER}")
+  req PUT "${M}/plans/${PLAN_SUMMER}" "$(jq -c '.status = "ARCHIVED"' <<<"$plan")" >/dev/null
+  ok && echo "  ~ Summer Pass 2025 → ARCHIVED" || warn "archive Summer Pass failed (HTTP $(code))"
+fi
+
+echo "▶ Selling memberships at the desk…"
+MEMBER_IDS=()
+sell() { # sell PLAN_ID NAME EMAIL PHONE METHOD -> sets SOLD to the subscription id (empty on failure)
+  SOLD=""
+  [[ -n "$1" ]] || return
+  local resp; resp=$(req POST "${M}/desk-sales" "$(jq -nc --argjson p "$1" --arg n "$2" --arg e "$3" --arg ph "$4" --arg m "$5" \
+    '{planId:$p,customerName:$n,customerEmail:$e,customerPhone:(if $ph=="" then null else $ph end),paymentMethod:$m}')")
+  ok || { warn "desk sale for $2 failed (HTTP $(code)): $resp"; return; }
+  SOLD=$(jq -r '.subscriptionId' <<<"$resp"); MEMBER_IDS+=("$SOLD")
+  echo "  + $2 — plan ${1} · $5 (subscription ${SOLD})"
+}
+sub_detail() { req GET "${M}/subscriptions/$1"; }
+
+# Riya: active monthly member — with her booking and orders, the customer account shows every tab.
+sell "$PLAN_MONTHLY" "Riya Kapoor" "riya.kapoor@example.com" "+1 415 555 0201" CASH
+[[ -n "$SOLD" ]] && req POST "${M}/subscriptions/${SOLD}/send-renewal-link" >/dev/null \
+  && { ok && echo "    renewal link emailed" || warn "    renewal link: HTTP $(code)"; }
+# Jordan: VIP yearly paid another way, with a desk note.
+sell "$PLAN_VIP" "Jordan Blake" "jordan.blake@example.com" "+1 415 555 0301" OTHER
+[[ -n "$SOLD" ]] && req POST "${M}/subscriptions/${SOLD}/notes" '{"note":"Paid by bank transfer, ref JB-2291."}' >/dev/null
+# Grace: quarterly, cancelling at the end of the paid period.
+sell "$PLAN_QUARTERLY" "Grace Oduya" "grace.oduya@example.com" "+1 415 555 0203" CASH
+[[ -n "$SOLD" ]] && { req POST "${M}/subscriptions/${SOLD}/cancel" '{"atPeriodEnd":true,"reason":"Moving away in the spring"}' >/dev/null
+  ok && echo "    cancels at period end" || warn "    cancel at period end: HTTP $(code)"; }
+# Mei: the founders plan's only place — the plan now shows as full.
+sell "$PLAN_FOUNDERS" "Mei Tanaka" "mei.tanaka@example.com" "" CASH
+# Hassan: monthly, cancelled straight away and the sign-up partly refunded.
+sell "$PLAN_MONTHLY" "Hassan Ali" "hassan.ali@example.com" "+1 415 555 0208" CASH
+if [[ -n "$SOLD" ]]; then
+  pay=$(sub_detail "$SOLD" | jq -r '.payments[0].id')
+  req POST "${M}/subscriptions/${SOLD}/payments/${pay}/refund" '{"amount":20,"reason":"Goodwill — cancelled in the first week"}' >/dev/null
+  ok && echo "    \$20 refunded" || warn "    refund: HTTP $(code)"
+  req POST "${M}/subscriptions/${SOLD}/cancel" '{"atPeriodEnd":false,"reason":"Customer asked to stop"}' >/dev/null
+  ok && echo "    cancelled now" || warn "    cancel now: HTTP $(code)"
+fi
+# Owen: VIP; a cancellation scheduled then taken back, and a typo in his email corrected.
+sell "$PLAN_VIP" "Owen Frost" "owen.frost@exmaple.com" "+1 415 555 0206" CASH
+if [[ -n "$SOLD" ]]; then
+  req POST "${M}/subscriptions/${SOLD}/cancel" '{"atPeriodEnd":true,"reason":"Thinking it over"}' >/dev/null
+  req POST "${M}/subscriptions/${SOLD}/resume" >/dev/null
+  ok && echo "    cancellation resumed" || warn "    resume: HTTP $(code)"
+  req PATCH "${M}/subscriptions/${SOLD}/contact" '{"customerName":"Owen Frost","customerEmail":"owen.frost@example.com","customerPhone":"+1 415 555 0206"}' >/dev/null
+  ok && echo "    email corrected" || warn "    contact update: HTTP $(code)"
+fi
+# The founders plan is full: a second sale is refused.
+req POST "${M}/desk-sales" "$(jq -nc --argjson p "${PLAN_FOUNDERS:-0}" '{planId:$p,customerName:"Late Comer",customerEmail:"late.comer@example.com",paymentMethod:"CASH"}')" >/dev/null
+[[ "$(code)" == "409" ]] && echo "  ✓ Founders Club is full (second sale refused with 409)" || warn "expected 409 for a full plan, got HTTP $(code)"
 
 # ── 9. closures + holiday ────────────────────────────────────────────────────
 echo "▶ Adding closures & a holiday…"
@@ -633,9 +857,17 @@ cat <<SUMMARY
   Orders ............ ${#ORDER_IDS[@]}
   Bookings .......... ${#BOOKING_IDS[@]}
   Cashier sales ..... ${#POS_SALE_IDS[@]}
+  Shipping methods .. $(req GET "/api/salon-admin/${SALON_ID}/shop/shipping-methods" | jq 'length' 2>/dev/null)
+  Membership plans .. $(req GET "/api/salon-admin/${SALON_ID}/membership/plans" | jq 'length' 2>/dev/null)
+  Members ........... ${#MEMBER_IDS[@]}
+
+  Customer account .. sign in as riya.kapoor@example.com (booking + orders + membership);
+                      without Mailjet the 6-digit code is printed in the backend log
 
   Public website ..... http://localhost:5174/?slug=${HANDLER}
   Shop ............... http://localhost:5174/shop?slug=${HANDLER}
+  Membership ......... http://localhost:5174/membership?slug=${HANDLER}
+  My account ......... http://localhost:5174/account?slug=${HANDLER}
   Admin panel ....... http://localhost:5173/${SALON_ID}
   Dashboard ......... http://localhost:5179/${SALON_ID}
   API ............... ${BASE_URL}/api/salon/${SALON_ID}

@@ -194,6 +194,11 @@ class BookingService implements BookingApi {
     }
 
     @Override
+    public List<Booking> findByCustomerEmail(UUID salonId, String email) {
+        return bookingRepo.findByCustomerEmail(salonId, email);
+    }
+
+    @Override
     public List<StaffAvailabilityOverride> getOverrides(UUID salonId, Long staffId) {
         return overrideRepo.findBySalonIdAndStaffId(salonId, staffId);
     }

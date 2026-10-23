@@ -8,6 +8,7 @@ import net.samitkumar.multi_tenant_salon.shop.ProductVariant;
 import net.samitkumar.multi_tenant_salon.shop.ShippingMethod;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
 import java.util.Collection;
@@ -42,6 +43,9 @@ interface ShopOrderRepository extends ListCrudRepository<ShopOrder, Long> {
     List<ShopOrder> findBySalonIdOrderByCreatedAtDesc(UUID salonId);
     Optional<ShopOrder> findByIdAndSalonId(Long id, UUID salonId);
     Optional<ShopOrder> findByOrderNumberAndSalonId(String orderNumber, UUID salonId);
+
+    @Query("SELECT * FROM shop_order WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) ORDER BY created_at DESC")
+    List<ShopOrder> findByCustomerEmail(UUID salonId, String email);
 }
 
 interface OrderLineActivityRepository extends ListCrudRepository<OrderLineActivity, Long> {

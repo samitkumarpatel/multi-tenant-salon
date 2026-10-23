@@ -25,4 +25,7 @@ interface BookingRepository extends ListCrudRepository<Booking, Long> {
     List<Booking> findActiveBySalonBetween(UUID salonId, LocalDate from, LocalDate to);
 
     List<Booking> findBySalonIdAndStaffId(UUID salonId, Long staffId);
+
+    @Query("SELECT * FROM booking WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) ORDER BY appointment_date DESC, start_time DESC")
+    List<Booking> findByCustomerEmail(UUID salonId, String email);
 }

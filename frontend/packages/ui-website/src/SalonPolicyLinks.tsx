@@ -22,18 +22,33 @@ const POLICY_LABELS: Record<string, Record<string, string>> = {
   sales: { en: "Sales Policy", da: "Salgspolitik", sv: "Försäljningspolicy", nb: "Salgsvilkår", fr: "Politique de vente", de: "Verkaufsrichtlinie" },
 };
 
-export function SalonPolicyLinks({ policies = [], color = "#64748B", salonName }: { policies?: SalonPolicy[]; color?: string; salonName?: string }) {
+/**
+ * Links that open each policy in a modal. By default a wrapping row of links; pass `sentence`
+ * (a translated string containing `{policies}`) to render the links inline inside that sentence,
+ * joined as "A", "A and B" or "A, B and C". Render the inline variant inside a block element
+ * (not a `<p>`), since the modal is a sibling of the text.
+ */
+export function SalonPolicyLinks({ policies = [], color = "#64748B", salonName, sentence }: { policies?: SalonPolicy[]; color?: string; salonName?: string; sentence?: string }) {
   const { locale, t } = useI18n();
   const [active, setActive] = useState<SalonPolicy | null>(null);
   const localeCode = locale.split(/[-_]/)[0];
   const body = active?.translations[localeCode] || active?.translations[active?.defaultLanguage ?? "en"] || "";
   if (!policies.length) return null;
+  const label = (policy: SalonPolicy) => t(POLICY_LABELS[policy.key]?.[localeCode] ?? policy.title);
+  const [before, after = ""] = (sentence ?? "").split("{policies}");
   return <>
-    <nav aria-label={t("Salon policies")} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    {sentence ? <span>
+      {before}
+      {policies.map((policy, i) => <span key={policy.key}>
+        {i > 0 && (i === policies.length - 1 ? ` ${t("and")} ` : ", ")}
+        <button type="button" onClick={() => setActive(policy)} className="underline underline-offset-2 hover:opacity-75 cursor-pointer" style={{ color }}>{label(policy)}</button>
+      </span>)}
+      {after}
+    </span> : <nav aria-label={t("Salon policies")} className="flex flex-wrap items-center gap-x-4 gap-y-2">
       {policies.map((policy) => <button key={policy.key} type="button" onClick={() => setActive(policy)} className="text-[11px] underline underline-offset-2 hover:opacity-75" style={{ color }}>
-        {t(POLICY_LABELS[policy.key]?.[localeCode] ?? policy.title)}
+        {label(policy)}
       </button>)}
-    </nav>
+    </nav>}
     {active && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setActive(null); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="salon-policy-title" className="flex max-h-[min(80dvh,680px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-2xl">
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-7">

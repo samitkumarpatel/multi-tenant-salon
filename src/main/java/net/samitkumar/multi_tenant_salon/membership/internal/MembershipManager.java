@@ -1068,6 +1068,18 @@ class MembershipManager implements MembershipApi {
         return instant == null ? "the end of the current period" : DATE.format(instant);
     }
 
+    @Override
+    public List<MembershipSubscription> findByCustomerEmail(UUID salonId, String email) {
+        return subscriptions.findByCustomerEmail(salonId, email);
+    }
+
+    @Override
+    public List<MembershipPayment> payments(UUID salonId, Long subscriptionId) {
+        return payments.findBySubscriptionIdOrderByCreatedAtDesc(subscriptionId).stream()
+                .filter(p -> salonId.equals(p.salonId()))
+                .toList();
+    }
+
     /** pgjdbc can't bind java.time.Instant through JdbcClient; OffsetDateTime maps to timestamptz. */
     @Override
     public List<Takings> takings(UUID salonId, Instant from, Instant to) {

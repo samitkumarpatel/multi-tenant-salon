@@ -83,11 +83,16 @@ class StripeConnectController {
     @GetMapping("/transactions")
     List<PaymentLedger.PaymentRecord> transactions(@PathVariable String salonId,
                                                    @RequestParam(required = false) String area,
+                                                   @RequestParam(required = false) String reference,
                                                    @RequestParam(defaultValue = "100") int limit) {
         if (area != null && !SalonPaymentSettings.AREAS.contains(area)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown payment area: " + area);
         }
-        return ledger.list(resolve(salonId), area, Math.clamp(limit, 1, 500));
+        // A reference (an order / payment / sale id) only means something within its area.
+        if (reference != null && area == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A reference filter needs an area");
+        }
+        return ledger.list(resolve(salonId), area, reference, Math.clamp(limit, 1, 500));
     }
 
     @GetMapping("/transactions/{paymentId}")

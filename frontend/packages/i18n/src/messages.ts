@@ -3,6 +3,39 @@ import type { Language } from "./languages";
 // English source messages are stable keys and the fallback for missing translations.
 // Columns: English | Danish | Swedish | Norwegian Bokmål | French | German.
 const rows = `
+Delivered to your address|Leveres til din adresse|Levereras till din adress|Leveres til adressen din|Livré à votre adresse|An Ihre Adresse geliefert
+My account|Min konto|Mitt konto|Min konto|Mon compte|Mein Konto
+Sign in to your account|Log ind på din konto|Logga in på ditt konto|Logg inn på kontoen din|Connectez-vous à votre compte|Melden Sie sich bei Ihrem Konto an
+See your appointments, orders and membership at {salon}. Use the email you booked, shopped or joined with — we'll send you a 6-digit code. No password needed.|Se dine aftaler, ordrer og dit medlemskab hos {salon}. Brug den e-mail, du bookede, handlede eller meldte dig ind med — vi sender dig en 6-cifret kode. Ingen adgangskode nødvendig.|Se dina bokningar, beställningar och ditt medlemskap hos {salon}. Använd e-postadressen du bokade, handlade eller gick med med — vi skickar en 6-siffrig kod. Inget lösenord behövs.|Se avtalene, bestillingene og medlemskapet ditt hos {salon}. Bruk e-postadressen du bestilte, handlet eller meldte deg inn med — vi sender deg en 6-sifret kode. Ingen passord nødvendig.|Consultez vos rendez-vous, commandes et votre abonnement chez {salon}. Utilisez l'e-mail avec lequel vous avez réservé, acheté ou adhéré — nous vous enverrons un code à 6 chiffres. Aucun mot de passe requis.|Sehen Sie Ihre Termine, Bestellungen und Mitgliedschaft bei {salon}. Verwenden Sie die E-Mail, mit der Sie gebucht, eingekauft oder sich angemeldet haben — wir senden Ihnen einen 6-stelligen Code. Kein Passwort nötig.
+Email me a code|Send mig en kode|Skicka en kod till mig|Send meg en kode|Envoyez-moi un code|Code per E-Mail senden
+Check your email|Tjek din e-mail|Kolla din e-post|Sjekk e-posten din|Consultez vos e-mails|Prüfen Sie Ihre E-Mails
+If {email} has appointments, orders or a membership with {salon}, we've sent it a 6-digit code. It expires in 10 minutes.|Hvis {email} har aftaler, ordrer eller et medlemskab hos {salon}, har vi sendt en 6-cifret kode. Den udløber om 10 minutter.|Om {email} har bokningar, beställningar eller ett medlemskap hos {salon} har vi skickat en 6-siffrig kod. Den går ut om 10 minuter.|Hvis {email} har avtaler, bestillinger eller et medlemskap hos {salon}, har vi sendt en 6-sifret kode. Den utløper om 10 minutter.|Si {email} a des rendez-vous, des commandes ou un abonnement chez {salon}, nous lui avons envoyé un code à 6 chiffres. Il expire dans 10 minutes.|Wenn {email} Termine, Bestellungen oder eine Mitgliedschaft bei {salon} hat, haben wir einen 6-stelligen Code gesendet. Er läuft in 10 Minuten ab.
+6-digit code|6-cifret kode|6-siffrig kod|6-sifret kode|Code à 6 chiffres|6-stelliger Code
+Send a new code|Send en ny kode|Skicka en ny kod|Send en ny kode|Envoyer un nouveau code|Neuen Code senden
+Send a new code in {seconds}s|Send en ny kode om {seconds} s|Skicka en ny kod om {seconds} s|Send en ny kode om {seconds} s|Nouveau code dans {seconds} s|Neuer Code in {seconds} s
+No email? Check your spam folder, and make sure it's the address you used with this salon.|Ingen e-mail? Tjek din spam-mappe, og sørg for, at det er den adresse, du brugte hos denne salon.|Inget mejl? Kolla skräpposten och se till att det är adressen du använde hos salongen.|Ingen e-post? Sjekk søppelposten, og sørg for at det er adressen du brukte hos denne salongen.|Pas d'e-mail ? Vérifiez vos spams et assurez-vous qu'il s'agit de l'adresse utilisée avec ce salon.|Keine E-Mail? Prüfen Sie Ihren Spam-Ordner und ob es die Adresse ist, die Sie bei diesem Salon verwendet haben.
+That code is wrong or has expired.|Koden er forkert eller udløbet.|Koden är fel eller har gått ut.|Koden er feil eller har utløpt.|Ce code est incorrect ou a expiré.|Dieser Code ist falsch oder abgelaufen.
+Your session has ended. Sign in again to continue.|Din session er udløbet. Log ind igen for at fortsætte.|Din session har avslutats. Logga in igen för att fortsätta.|Økten din er avsluttet. Logg inn igjen for å fortsette.|Votre session a expiré. Reconnectez-vous pour continuer.|Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an.
+Hi, {name}|Hej, {name}|Hej, {name}|Hei, {name}|Bonjour, {name}|Hallo, {name}
+Nothing coming up.|Intet planlagt.|Inget inplanerat.|Ingenting planlagt.|Rien de prévu.|Nichts geplant.
+Book again|Book igen|Boka igen|Bestill igjen|Réserver à nouveau|Erneut buchen
+No appointments yet|Ingen aftaler endnu|Inga bokningar än|Ingen avtaler ennå|Aucun rendez-vous pour l'instant|Noch keine Termine
+When you book at {salon}, your appointments show up here.|Når du booker hos {salon}, vises dine aftaler her.|När du bokar hos {salon} visas dina bokningar här.|Når du bestiller hos {salon}, vises avtalene dine her.|Vos rendez-vous chez {salon} apparaîtront ici.|Wenn Sie bei {salon} buchen, erscheinen Ihre Termine hier.
+Need to change or cancel? Contact {salon} directly.|Skal du ændre eller aflyse? Kontakt {salon} direkte.|Behöver du ändra eller avboka? Kontakta {salon} direkt.|Må du endre eller avlyse? Kontakt {salon} direkte.|Besoin de modifier ou d'annuler ? Contactez directement {salon}.|Ändern oder absagen? Kontaktieren Sie {salon} direkt.
+with {name}|med {name}|med {name}|med {name}|avec {name}|mit {name}
+Awaiting confirmation|Afventer bekræftelse|Inväntar bekräftelse|Venter på bekreftelse|En attente de confirmation|Wartet auf Bestätigung
+Missed|Udeblevet|Uteblev|Uteblitt|Manqué|Verpasst
+No orders yet|Ingen ordrer endnu|Inga beställningar än|Ingen bestillinger ennå|Aucune commande pour l'instant|Noch keine Bestellungen
+Orders you place in the shop show up here, with their delivery status.|Ordrer fra shoppen vises her med deres leveringsstatus.|Beställningar från butiken visas här med leveransstatus.|Bestillinger fra butikken vises her med leveringsstatus.|Vos commandes de la boutique apparaissent ici, avec leur statut de livraison.|Ihre Shop-Bestellungen erscheinen hier mit ihrem Lieferstatus.
+Visit the shop|Besøg shoppen|Besök butiken|Besøk butikken|Visiter la boutique|Zum Shop
+Order {number}|Ordre {number}|Beställning {number}|Bestilling {number}|Commande {number}|Bestellung {number}
+Being prepared|Klargøres|Förbereds|Klargjøres|En préparation|In Vorbereitung
+History|Historik|Historik|Historikk|Historique|Verlauf
+No membership yet|Intet medlemskab endnu|Inget medlemskap än|Ingen medlemskap ennå|Pas encore d'abonnement|Noch keine Mitgliedschaft
+See membership plans|Se medlemskaber|Se medlemskap|Se medlemskap|Voir les abonnements|Mitgliedschaften ansehen
+Show this at the desk when you visit|Vis denne i receptionen, når du kommer|Visa den i receptionen när du kommer|Vis denne i resepsjonen når du kommer|Présentez-le à l'accueil lors de votre visite|Zeigen Sie dies beim Besuch am Empfang
+Renew early|Forny tidligt|Förnya i förväg|Forny tidlig|Renouveler en avance|Vorzeitig verlängern
+Back to booking|Tilbage til booking|Tillbaka till bokning|Tilbake til bestilling|Retour à la réservation|Zurück zur Buchung
 Language|Sprog|Språk|Språk|Langue|Sprache
 Languages|Sprog|Språk|Språk|Langues|Sprachen
 Default language|Standardsprog|Standardspråk|Standardspråk|Langue par défaut|Standardsprache
@@ -1295,6 +1328,8 @@ Shipping is free on this order.|Forsendelse er gratis på denne ordre.|Frakten �
 {min}–{max} business days|{min}–{max} hverdage|{min}–{max} arbetsdagar|{min}–{max} virkedager|{min} à {max} jours ouvrés|{min}–{max} Werktage
 {days} business days|{days} hverdage|{days} arbetsdagar|{days} virkedager|{days} jours ouvrés|{days} Werktage
 By placing your order you agree to the salon's refund and sales policies.|Ved at afgive din ordre accepterer du salonens refusions- og salgspolitik.|Genom att lägga din beställning godkänner du salongens återbetalnings- och försäljningspolicy.|Ved å legge inn bestillingen godtar du salongens refusjons- og salgsvilkår.|En passant commande, vous acceptez les politiques de remboursement et de vente du salon.|Mit Ihrer Bestellung akzeptieren Sie die Rückerstattungs- und Verkaufsrichtlinien des Salons.
+By placing your order you agree to the salon's {policies}.|Ved at afgive din ordre accepterer du salonens {policies}.|Genom att lägga din beställning godkänner du salongens {policies}.|Ved å legge inn bestillingen godtar du salongens {policies}.|En passant commande, vous acceptez les {policies} du salon.|Mit Ihrer Bestellung akzeptieren Sie die {policies} des Salons.
+and|og|och|og|et|und
 Shipping methods|Forsendelsesmetoder|Fraktsätt|Fraktmetoder|Modes de livraison|Versandarten
 `.trim().split("\n").map((row) => row.split("|"));
 

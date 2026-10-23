@@ -1,13 +1,14 @@
 import { useI18n } from "@salon/i18n";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Loader2, Minus, Plus, Search, ShoppingBag, SlidersHorizontal, Trash2, User, X,
+  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Heart, Loader2, Minus, Plus, Search, ShoppingBag, SlidersHorizontal, Trash2, X,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { friendlyMessage } from "./apiError";
 import { DEFAULT_PRODUCT_EMOJI, formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
+import { CustomerAccountDrawer, siteAccountLinks } from "./CustomerAccount";
 import { SalonPolicyLinks, type SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont, shade } from "./theme";
 import { useCart } from "./shopCart";
@@ -185,6 +186,16 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
   }, [salon.id, activeBrandId, activeCategoryId]);
 
   const goHome = () => onNavigate?.(null);
+  // From the order confirmation: back to the catalogue, not the website. Drops Stripe's return
+  // parameters (?payment=success&reference=…) too, so a refresh doesn't show the confirmation again.
+  const backToShop = () => {
+    setPlaced(null);
+    setStep("browse");
+    const url = new URL(window.location.href);
+    ["payment", "reference", "session_id"].forEach((k) => url.searchParams.delete(k));
+    window.history.replaceState(window.history.state, "", url.toString());
+    window.scrollTo({ top: 0 });
+  };
 
   // ── Sub-views ──────────────────────────────────────────────────────────────
 
@@ -249,11 +260,11 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
           </div>
         </div>
         <button
-          onClick={goHome}
+          onClick={backToShop}
           className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
           style={{ backgroundColor: theme.accentColor, color: accentText }}
         >
-          <ArrowLeft className="w-4 h-4" /> {translateUi("Back to ")}{salon.name}
+          <ArrowLeft className="w-4 h-4" /> {translateUi("Back to shop")}
         </button>
       </div>,
     );
@@ -527,10 +538,12 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
         }}
       />
 
-      <UserAccountPanel
+      <CustomerAccountDrawer
         open={avatarOpen}
         onClose={() => setAvatarOpen(false)}
+        salon={salon}
         theme={theme}
+        {...siteAccountLinks(salon, getPagePath, (page) => { setAvatarOpen(false); onNavigate?.(page); })}
       />
 
       {detailProduct && (
@@ -1301,7 +1314,7 @@ function CheckoutForm({
 
   const [f, setF] = useState({
     customerName: "", customerEmail: "", customerPhone: "",
-    fulfilment: "SHIP" as Fulfilment,
+    fulfilment: "COLLECT" as Fulfilment,
     line1: "", line2: "", city: "", state: "",
     country: salon.location?.country ?? "",
     zipCode: "",
@@ -1334,12 +1347,13 @@ function CheckoutForm({
 
   // Field-level validation — a shipped order needs somewhere to ship to; collecting needs no address.
   const shipping = f.fulfilment === "SHIP";
-  // Shipping options are only asked for once the address is there — they depend on the destination.
-  const addressReady = shipping && Boolean(f.line1.trim() && f.city.trim() && f.country.trim());
+  // Shipping options depend only on the destination country (and the cart), so they're asked for as
+  // soon as there is one — it starts as the salon's own — rather than after the whole address is typed.
+  const canQuote = shipping && Boolean(f.country.trim());
   const cartKey = lines.map((l) => `${l.variantId}:${l.quantity}`).join(",");
 
   useEffect(() => {
-    if (!addressReady) { setShippingQuote({ status: "idle" }); return; }
+    if (!canQuote) { setShippingQuote({ status: "idle" }); return; }
     let live = true;
     setShippingQuote({ status: "loading" });
     const timer = window.setTimeout(() => {
@@ -1358,7 +1372,7 @@ function CheckoutForm({
     }, 250);
     return () => { live = false; window.clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cartKey stands in for lines
-  }, [salon.id, addressReady, f.country, cartKey]);
+  }, [salon.id, canQuote, f.country, cartKey]);
 
   const quote = shippingQuote.status === "ready" ? shippingQuote.quote : null;
   const shippingOptions = quote?.options ?? [];
@@ -1377,7 +1391,7 @@ function CheckoutForm({
     if (!f.line1.trim()) errors.line1 = translateUi("Address line 1 is required.");
     if (!f.city.trim()) errors.city = translateUi("City is required.");
     if (!f.country.trim()) errors.country = translateUi("Country is required.");
-    if (addressReady) {
+    if (canQuote) {
       if (shippingQuote.status === "loading") {
         errors.shippingMethod = translateUi("Shipping options are still loading.");
       } else if (quote?.configured && shippingOptions.length === 0) {
@@ -1476,7 +1490,7 @@ function CheckoutForm({
     id?: string;
     label: string;
     value: T | null;
-    options: { value: T; title: string; description: string; aside?: string }[];
+    options: { value: T; title: string; description: string; aside?: string; after?: React.ReactNode }[];
     onChange: (v: T) => void;
   }) {
     return (
@@ -1484,33 +1498,35 @@ function CheckoutForm({
         {options.map((opt) => {
           const selected = value === opt.value;
           return (
-            <button
-              key={opt.value}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              onClick={() => onChange(opt.value)}
-              className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all cursor-pointer"
-              style={{
-                backgroundColor: selected ? `${theme.accentColor}18` : cardBg,
-                border: `1.5px solid ${selected ? theme.accentColor : cardBorder}`,
-              }}
-            >
-              <span
-                aria-hidden="true"
-                className="mt-0.5 w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
-                style={{ border: `2px solid ${selected ? theme.accentColor : cardBorder}` }}
+            <React.Fragment key={opt.value}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onChange(opt.value)}
+                className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all cursor-pointer"
+                style={{
+                  backgroundColor: selected ? `${theme.accentColor}18` : cardBg,
+                  border: `1.5px solid ${selected ? theme.accentColor : cardBorder}`,
+                }}
               >
-                {selected && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.accentColor }} />}
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>{opt.title}</span>
-                <span className="text-[11px]" style={{ color: sub }}>{opt.description}</span>
-              </span>
-              {opt.aside && (
-                <span className="text-xs font-bold shrink-0 tabular-nums" style={{ color: theme.heroTextColor }}>{opt.aside}</span>
-              )}
-            </button>
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
+                  style={{ border: `2px solid ${selected ? theme.accentColor : cardBorder}` }}
+                >
+                  {selected && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.accentColor }} />}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="text-xs font-bold block" style={{ color: theme.heroTextColor }}>{opt.title}</span>
+                  <span className="text-[11px]" style={{ color: sub }}>{opt.description}</span>
+                </span>
+                {opt.aside && (
+                  <span className="text-xs font-bold shrink-0 tabular-nums" style={{ color: theme.heroTextColor }}>{opt.aside}</span>
+                )}
+              </button>
+              {opt.after}
+            </React.Fragment>
           );
         })}
       </div>
@@ -1554,8 +1570,8 @@ function CheckoutForm({
         <div className="flex flex-col gap-6 min-w-0">
           <section aria-labelledby="checkout-details-title">
             <h2 id="checkout-details-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Your details")}</h2>
-            {/* Name, email and phone share one row once there is room for three fields. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
+            {/* Name, email and phone stacked, one full-width field per row. */}
+            <div className="flex flex-col gap-3">
               <div>
                 <label htmlFor="checkout-customerName" className="text-xs" style={labelStyle}>
                   {translateUi("Full name ")}{requiredMark}
@@ -1592,7 +1608,7 @@ function CheckoutForm({
                 )}
               </div>
 
-              <div className="text-xs sm:col-span-2 lg:col-span-1" style={labelStyle}>
+              <div className="text-xs" style={labelStyle}>
                 {translateUi("Phone ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
                 <div className="mt-1">
                   <PhoneInput
@@ -1613,8 +1629,9 @@ function CheckoutForm({
               label: translateUi("Delivery"),
               value: f.fulfilment,
               onChange: (v) => setF((p) => ({ ...p, fulfilment: v })),
+              // Collect first (and preselected): the address form and the shipping methods only open
+              // up — below "Ship to me", the last option — once the customer chooses to have it shipped.
               options: [
-                { value: "SHIP", title: translateUi("Ship to me"), description: translateUi("Enter your address to see the shipping options") },
                 {
                   value: "COLLECT",
                   title: translateUi("Collect in salon"),
@@ -1622,101 +1639,110 @@ function CheckoutForm({
                     ? translateUi("Pick up at {address}", { address: salonAddress })
                     : translateUi("Pick up your order at the salon"),
                 },
+                {
+                  value: "SHIP",
+                  title: translateUi("Ship to me"),
+                  description: canQuote
+                    ? translateUi("Delivered to your address")
+                    : translateUi("Enter your address to see the shipping options"),
+                  // The address (and the shipping methods it unlocks) sits right under "Ship to me".
+                  after: shipping && (
+                    <div className="flex flex-col gap-6 px-1 pt-2 pb-3">
+                      <section aria-labelledby="checkout-address-title">
+                        <h3 id="checkout-address-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Shipping address ")}</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="sm:col-span-2">
+                            <label htmlFor="checkout-line1" className="text-xs" style={labelStyle}>{translateUi("Address line 1 ")}{requiredMark}</label>
+                            <input {...fieldProps("line1", true)} className={inputCls} style={inputStyle("line1")} value={f.line1} onChange={set("line1")} onBlur={() => touch("line1")} autoComplete="address-line1" />
+                            {fieldError("line1")}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label htmlFor="checkout-line2" className="text-xs" style={labelStyle}>
+                              {translateUi("Address line 2 ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
+                            </label>
+                            <input {...fieldProps("line2")} className={inputCls} style={inputStyle("line2")} value={f.line2} onChange={set("line2")} autoComplete="address-line2" />
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-city" className="text-xs" style={labelStyle}>{translateUi("City ")}{requiredMark}</label>
+                            <input {...fieldProps("city", true)} className={inputCls} style={inputStyle("city")} value={f.city} onChange={set("city")} onBlur={() => touch("city")} autoComplete="address-level2" />
+                            {fieldError("city")}
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-state" className="text-xs" style={labelStyle}>
+                              {translateUi("State / region ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
+                            </label>
+                            <input {...fieldProps("state")} className={inputCls} style={inputStyle("state")} value={f.state} onChange={set("state")} autoComplete="address-level1" />
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-country" className="text-xs" style={labelStyle}>{translateUi("Country ")}{requiredMark}</label>
+                            {countries.length > 0 ? (
+                              <select
+                                {...fieldProps("country", true)}
+                                className={inputCls}
+                                style={inputStyle("country")}
+                                value={f.country}
+                                onChange={set("country")}
+                                onBlur={() => touch("country")}
+                                autoComplete="country-name"
+                              >
+                                <option value="">{translateUi("— Select country —")}</option>
+                                {countries.map((c) => (
+                                  <option key={c.code} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input {...fieldProps("country", true)} className={inputCls} style={inputStyle("country")} value={f.country} onChange={set("country")} onBlur={() => touch("country")} autoComplete="country-name" />
+                            )}
+                            {fieldError("country")}
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-zipCode" className="text-xs" style={labelStyle}>{translateUi("ZIP / postcode ")}</label>
+                            <input {...fieldProps("zipCode")} className={inputCls} style={inputStyle("zipCode")} value={f.zipCode} onChange={set("zipCode")} autoComplete="postal-code" />
+                          </div>
+                        </div>
+                      </section>
+
+                      {canQuote && (
+                        <section aria-labelledby="checkout-shipping-title">
+                          <h3 id="checkout-shipping-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Shipping method")}</h3>
+                          {shippingQuote.status === "loading" && (
+                            <p className="text-xs inline-flex items-center gap-2" style={{ color: sub }}>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" /> {translateUi("Finding shipping options…")}
+                            </p>
+                          )}
+                          {shippingQuote.status === "error" && (
+                            <p className="text-xs" style={{ color: sub }}>{translateUi("We couldn't load the shipping options. Shipping is added when you pay.")}</p>
+                          )}
+                          {quote && !quote.configured && (
+                            <p className="text-xs" style={{ color: sub }}>{translateUi("Shipping is free on this order.")}</p>
+                          )}
+                          {quote?.configured && shippingOptions.length > 0 && radioCards<number>({
+                            id: "checkout-shippingMethod",
+                            label: translateUi("Shipping method"),
+                            value: shippingMethodId,
+                            onChange: setShippingMethodId,
+                            options: shippingOptions.map((o) => ({
+                              value: o.id,
+                              title: o.name,
+                              description: [o.carrier, deliveryTypeLabel(o), deliveryDays(o), o.description].filter(Boolean).join(" · "),
+                              aside: o.free ? translateUi("Free") : formatPrice(o.cost, currency, uiLocale),
+                            })),
+                          })}
+                          {quote?.configured && shippingOptions.length === 0 && (
+                            <p id="checkout-shippingMethod" tabIndex={-1} role="alert" className="text-xs p-3 rounded-lg outline-none"
+                               style={{ color: errorColor, backgroundColor: `${errorColor}14`, border: `1px solid ${errorColor}33` }}>
+                              {errors.shippingMethod}
+                            </p>
+                          )}
+                          {quote?.configured && shippingOptions.length > 0 && fieldError("shippingMethod")}
+                        </section>
+                      )}
+                    </div>
+                  ),
+                },
               ],
             })}
           </section>
-
-          {shipping && (
-            <section aria-labelledby="checkout-address-title">
-              <h2 id="checkout-address-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Shipping address ")}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label htmlFor="checkout-line1" className="text-xs" style={labelStyle}>{translateUi("Address line 1 ")}{requiredMark}</label>
-                  <input {...fieldProps("line1", true)} className={inputCls} style={inputStyle("line1")} value={f.line1} onChange={set("line1")} onBlur={() => touch("line1")} autoComplete="address-line1" />
-                  {fieldError("line1")}
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="checkout-line2" className="text-xs" style={labelStyle}>
-                    {translateUi("Address line 2 ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
-                  </label>
-                  <input {...fieldProps("line2")} className={inputCls} style={inputStyle("line2")} value={f.line2} onChange={set("line2")} autoComplete="address-line2" />
-                </div>
-                <div>
-                  <label htmlFor="checkout-city" className="text-xs" style={labelStyle}>{translateUi("City ")}{requiredMark}</label>
-                  <input {...fieldProps("city", true)} className={inputCls} style={inputStyle("city")} value={f.city} onChange={set("city")} onBlur={() => touch("city")} autoComplete="address-level2" />
-                  {fieldError("city")}
-                </div>
-                <div>
-                  <label htmlFor="checkout-state" className="text-xs" style={labelStyle}>
-                    {translateUi("State / region ")}<span className="text-[10px]" style={{ color: sub }}>{translateUi("(optional)")}</span>
-                  </label>
-                  <input {...fieldProps("state")} className={inputCls} style={inputStyle("state")} value={f.state} onChange={set("state")} autoComplete="address-level1" />
-                </div>
-                <div>
-                  <label htmlFor="checkout-country" className="text-xs" style={labelStyle}>{translateUi("Country ")}{requiredMark}</label>
-                  {countries.length > 0 ? (
-                    <select
-                      {...fieldProps("country", true)}
-                      className={inputCls}
-                      style={inputStyle("country")}
-                      value={f.country}
-                      onChange={set("country")}
-                      onBlur={() => touch("country")}
-                      autoComplete="country-name"
-                    >
-                      <option value="">{translateUi("— Select country —")}</option>
-                      {countries.map((c) => (
-                        <option key={c.code} value={c.name}>{c.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input {...fieldProps("country", true)} className={inputCls} style={inputStyle("country")} value={f.country} onChange={set("country")} onBlur={() => touch("country")} autoComplete="country-name" />
-                  )}
-                  {fieldError("country")}
-                </div>
-                <div>
-                  <label htmlFor="checkout-zipCode" className="text-xs" style={labelStyle}>{translateUi("ZIP / postcode ")}</label>
-                  <input {...fieldProps("zipCode")} className={inputCls} style={inputStyle("zipCode")} value={f.zipCode} onChange={set("zipCode")} autoComplete="postal-code" />
-                </div>
-              </div>
-            </section>
-          )}
-
-          {addressReady && (
-            <section aria-labelledby="checkout-shipping-title">
-              <h2 id="checkout-shipping-title" className={sectionTitle} style={{ color: theme.accentColor }}>{translateUi("Shipping method")}</h2>
-              {shippingQuote.status === "loading" && (
-                <p className="text-xs inline-flex items-center gap-2" style={{ color: sub }}>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> {translateUi("Finding shipping options…")}
-                </p>
-              )}
-              {shippingQuote.status === "error" && (
-                <p className="text-xs" style={{ color: sub }}>{translateUi("We couldn't load the shipping options. Shipping is added when you pay.")}</p>
-              )}
-              {quote && !quote.configured && (
-                <p className="text-xs" style={{ color: sub }}>{translateUi("Shipping is free on this order.")}</p>
-              )}
-              {quote?.configured && shippingOptions.length > 0 && radioCards<number>({
-                id: "checkout-shippingMethod",
-                label: translateUi("Shipping method"),
-                value: shippingMethodId,
-                onChange: setShippingMethodId,
-                options: shippingOptions.map((o) => ({
-                  value: o.id,
-                  title: o.name,
-                  description: [o.carrier, deliveryTypeLabel(o), deliveryDays(o), o.description].filter(Boolean).join(" · "),
-                  aside: o.free ? translateUi("Free") : formatPrice(o.cost, currency, uiLocale),
-                })),
-              })}
-              {quote?.configured && shippingOptions.length === 0 && (
-                <p id="checkout-shippingMethod" tabIndex={-1} role="alert" className="text-xs p-3 rounded-lg outline-none"
-                   style={{ color: errorColor, backgroundColor: `${errorColor}14`, border: `1px solid ${errorColor}33` }}>
-                  {errors.shippingMethod}
-                </p>
-              )}
-              {quote?.configured && shippingOptions.length > 0 && fieldError("shippingMethod")}
-            </section>
-          )}
 
           <section aria-labelledby="checkout-notifications-title">
             <h2 id="checkout-notifications-title" className={sectionTitle} style={{ color: theme.accentColor }}>
@@ -1776,7 +1802,9 @@ function CheckoutForm({
               ) : (
                 <>
                   <span>{translateUi("Shipping")}</span>
-                  <span>{quote && !quote.configured ? translateUi("Free") : translateUi("Enter your address")}</span>
+                  <span>{quote && !quote.configured ? translateUi("Free")
+                    : quote?.configured && shippingOptions.length === 0 ? translateUi("Not available")
+                    : translateUi("Enter your address")}</span>
                 </>
               )}
             </div>
@@ -1811,9 +1839,13 @@ function CheckoutForm({
               <p className="text-[10px] text-center mt-2" style={{ color: sub }}>{paymentNote}</p>
             )}
             {checkoutPolicies.length > 0 && (
-              <div className="mt-3 flex flex-col items-center gap-1.5 text-center">
-                <p className="text-[10px]" style={{ color: sub }}>{translateUi("By placing your order you agree to the salon's refund and sales policies.")}</p>
-                <SalonPolicyLinks policies={checkoutPolicies} color={sub} salonName={salon.name} />
+              <div className="mt-2 text-[11px] leading-snug text-center" style={{ color: sub }}>
+                <SalonPolicyLinks
+                  policies={checkoutPolicies}
+                  color={sub}
+                  salonName={salon.name}
+                  sentence={translateUi("By placing your order you agree to the salon's {policies}.")}
+                />
               </div>
             )}
           </div>
@@ -1823,116 +1855,3 @@ function CheckoutForm({
   );
 }
 
-// ── User account panel ────────────────────────────────────────────────────────
-
-function UserAccountPanel({
-  open, onClose, theme,
-}: {
-  open: boolean;
-  onClose: () => void;
-  theme: WebsiteTheme;
-}) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const heroLight = isLightColor(theme.heroBg);
-  const sub = heroLight ? "#475569" : "#94A3B8";
-  const panelBg = heroLight ? "#FFFFFF" : "#0F172A";
-  const border = heroLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.12)";
-  const inputBg = heroLight ? "#F8FAFC" : "rgba(255,255,255,0.06)";
-  const inputBorder = heroLight ? "rgba(15,23,42,0.15)" : "rgba(255,255,255,0.18)";
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end"
-      style={{ fontFamily: fontStack(theme.fontFamily) }}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Slide-in panel */}
-      <aside
-        className="relative w-full max-w-xs h-full flex flex-col shadow-2xl"
-        style={{ backgroundColor: panelBg }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 h-14 border-b" style={{ borderColor: border }}>
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4" style={{ color: theme.accentColor }} />
-            <span className="text-sm font-bold" style={{ color: heroLight ? "#0F172A" : "#F8FAFC" }}>
-              {translateUi("My Account ")}</span>
-          </div>
-          <button onClick={onClose} className="cursor-pointer" style={{ color: sub }}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 flex flex-col px-5 py-6 gap-5">
-          {/* Coming soon banner */}
-          <div
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs"
-            style={{
-              backgroundColor: `${theme.accentColor}12`,
-              border: `1px solid ${theme.accentColor}30`,
-              color: theme.accentColor,
-            }}
-          >
-            <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-semibold">{translateUi("Customer accounts — coming soon")}</span>
-          </div>
-
-          <p className="text-xs leading-relaxed" style={{ color: sub }}>
-            {translateUi("Sign in with your email or mobile number to track orders, manage returns, and save your details for faster checkout. ")}</p>
-
-          {/* Email input */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: sub }}>
-              {translateUi("Email ")}</label>
-            <input
-              type="email"
-              disabled
-              placeholder={"your@email.com"}
-              className="w-full text-sm rounded-lg px-3 py-2.5 outline-none cursor-not-allowed opacity-50"
-              style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, color: heroLight ? "#0F172A" : "#F8FAFC" }}
-            />
-          </div>
-
-          <div className="flex items-center gap-2" style={{ color: sub }}>
-            <div className="flex-1 h-px" style={{ backgroundColor: border }} />
-            <span className="text-[10px] font-medium">{translateUi("or")}</span>
-            <div className="flex-1 h-px" style={{ backgroundColor: border }} />
-          </div>
-
-          {/* Mobile input */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: sub }}>
-              {translateUi("Mobile number ")}</label>
-            <input
-              type="tel"
-              disabled
-              placeholder={"+1 (555) 000-0000"}
-              className="w-full text-sm rounded-lg px-3 py-2.5 outline-none cursor-not-allowed opacity-50"
-              style={{ backgroundColor: inputBg, border: `1px solid ${inputBorder}`, color: heroLight ? "#0F172A" : "#F8FAFC" }}
-            />
-          </div>
-
-          {/* Disabled continue button */}
-          <button
-            disabled
-            className="w-full text-sm font-semibold px-4 py-3 rounded-xl opacity-40 cursor-not-allowed"
-            style={{ backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) }}
-          >
-            {translateUi("Continue ")}</button>
-        </div>
-      </aside>
-    </div>
-  );
-}

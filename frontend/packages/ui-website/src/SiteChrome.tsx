@@ -21,6 +21,44 @@ export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
   LOYALTY_PROGRAM: { label: "Loyalty",    path: "loyalty" },
 };
 
+/** Features whose customers have something to see in their account (bookings, orders, memberships). */
+const ACCOUNT_FEATURES = ["BOOKING", "WEBSHOP", "MEMBERSHIP"];
+
+export function hasCustomerAccount(salon: Salon) {
+  return (salon.features ?? []).some((f) => ACCOUNT_FEATURES.includes(f));
+}
+
+/** The round avatar button that opens the customer's account — a drawer, a page, or a link. */
+export function AccountButton({ theme, onClick, href, headerBg }: {
+  theme: WebsiteTheme;
+  onClick?: () => void;
+  href?: string;
+  /** Background it sits on; defaults to the theme's header. */
+  headerBg?: string;
+}) {
+  const { t: translateUi } = useI18n();
+  const light = isLightColor(headerBg ?? theme.headerBg ?? "#FFFFFF");
+  const style: React.CSSProperties = {
+    backgroundColor: light ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.10)",
+    border: `1.5px solid ${light ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.18)"}`,
+    color: light ? "#0F172A" : "#FFFFFF",
+  };
+  const className = "shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer";
+  if (href) {
+    return (
+      <a href={href} aria-label={translateUi("My account")} title={translateUi("My account")} className={className} style={style}
+        onClick={onClick ? (e) => { e.preventDefault(); onClick(); } : undefined}>
+        <User className="w-4 h-4" />
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} aria-label={translateUi("My account")} title={translateUi("My account")} className={className} style={style}>
+      <User className="w-4 h-4" />
+    </button>
+  );
+}
+
 function isOpenNow(hours?: OperatingHours[]): boolean {
   if (!hours?.length) return false;
   const now = new Date();
@@ -178,7 +216,7 @@ export function SiteHeader({
   /** When in shop, show a cart icon in the header */
   cartCount?: number;
   onCartOpen?: () => void;
-  /** When in shop, show an avatar icon (future: account panel) */
+  /** Open the customer's account; without it the avatar navigates to the "account" page. */
   onAvatarOpen?: () => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -288,18 +326,7 @@ export function SiteHeader({
             )}
             {current === "shop" && onCartOpen ? (
               <>
-                <button
-                  onClick={onAvatarOpen}
-                  aria-label={translateUi("Account")}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer"
-                  style={{
-                    backgroundColor: headerIsLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.10)",
-                    border: `1.5px solid ${headerIsLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.18)"}`,
-                    color: headerText,
-                  }}
-                >
-                  <User className="w-4 h-4" />
-                </button>
+                <AccountButton theme={theme} onClick={onAvatarOpen} />
                 <button
                   onClick={onCartOpen}
                   className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
@@ -331,6 +358,11 @@ export function SiteHeader({
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 {translateUi("Book now ")}</a>
             ) : null}
+            {current !== "shop" && current !== "account" && hasCustomerAccount(salon) && (onAvatarOpen || onNavigate || getPagePath) && (
+              <AccountButton theme={theme}
+                href={getPagePath ? getPagePath("account") : undefined}
+                onClick={onAvatarOpen ?? (onNavigate ? () => onNavigate("account") : undefined)} />
+            )}
             <LanguageSelector compact />
           </div>
         </div>

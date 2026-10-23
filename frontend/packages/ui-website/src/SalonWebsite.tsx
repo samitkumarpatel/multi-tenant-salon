@@ -14,7 +14,8 @@ import { SalonPolicyLinks } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { ShopView } from "./ShopView";
 import { MembershipView } from "./MembershipView";
-import { FEATURE_NAV, FooterOpeningHours, holidayOn, useSalonHolidays } from "./SiteChrome";
+import { CustomerAccountView, siteAccountLinks } from "./CustomerAccount";
+import { AccountButton, FEATURE_NAV, FooterOpeningHours, hasCustomerAccount, holidayOn, useSalonHolidays } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
 import { CategoryIcon } from "./CategoryIcon";
 import { useIsScrollable } from "./useIsScrollable";
@@ -785,6 +786,20 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
     );
   }
 
+  if (currentPage === "account" && hasCustomerAccount(salon)) {
+    return (
+      <CustomerAccountView
+        salon={salon}
+        theme={theme}
+        policies={websitePolicies}
+        getPagePath={getPagePath}
+        onNavigateSite={(page) => onNavigate?.(page)}
+        onBack={() => onNavigate?.(null)}
+        {...siteAccountLinks(salon, getPagePath, (page) => onNavigate?.(page))}
+      />
+    );
+  }
+
   const featureViewKey = featurePages.some((fp) => fp.path === currentPage) && FEATURE_VIEWS[currentPage] ? currentPage : null;
   if (featureViewKey) {
     return (
@@ -832,6 +847,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 {translateUi("Book now ")}</a>
+            )}
+            {hasCustomerAccount(salon) && (
+              <AccountButton theme={theme} href={getPagePath ? getPagePath("account") : "/account"}
+                onClick={onNavigate ? () => onNavigate("account") : undefined} />
             )}
             <LanguageSelector compact />
             {featurePages.length > 0 && (

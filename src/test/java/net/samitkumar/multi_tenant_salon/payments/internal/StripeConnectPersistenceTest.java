@@ -31,6 +31,24 @@ class StripeConnectPersistenceTest {
     @Autowired StripeConnectService service;
     @Autowired StripeConnectedAccountRepository accounts;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PaymentLedger ledger;
+
+    @Test void listsOneOrdersPaymentAttemptsByAreaAndReference() {
+        var salonId = UUID.randomUUID();
+        jdbc.update("INSERT INTO salon(id, name, handler, created_at) VALUES (?, 'Ledger test', ?, now())", salonId, "ledger-" + salonId);
+        var amount = new java.math.BigDecimal("29.95");
+        ledger.recordCheckout(salonId, "SHOP", "41", CheckoutUi.REDIRECT, amount, "USD", "Order 41", "a@x.test", "cs_" + salonId + "_1");
+        ledger.recordCheckout(salonId, "SHOP", "41", CheckoutUi.REDIRECT, amount, "USD", "Order 41 retry", "a@x.test", "cs_" + salonId + "_2");
+        ledger.recordCheckout(salonId, "SHOP", "42", CheckoutUi.REDIRECT, amount, "USD", "Order 42", "b@x.test", "cs_" + salonId + "_3");
+        // Same reference in another area is a different thing (a booking with id 41).
+        ledger.recordCheckout(salonId, "BOOKING", "41", CheckoutUi.REDIRECT, amount, "USD", "Booking 41", "c@x.test", "cs_" + salonId + "_4");
+
+        assertThat(ledger.list(salonId, "SHOP", "41", 20))
+                .extracting(PaymentLedger.PaymentRecord::description)
+                .containsExactly("Order 41 retry", "Order 41");
+        assertThat(ledger.list(salonId, "SHOP", null, 20)).hasSize(3);
+        assertThat(ledger.list(salonId, null, null, 20)).hasSize(4);
+    }
 
     @Test void upsertsConnectedAccountAndPaymentSettings() {
         var salonId = UUID.randomUUID();

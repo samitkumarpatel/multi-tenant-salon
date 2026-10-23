@@ -113,11 +113,15 @@ class PaymentLedger {
                 .param("id", id).param("salon", salonId).query(PaymentLedger::payment).optional();
     }
 
-    List<PaymentRecord> list(UUID salonId, String area, int limit) {
+    /** Newest first; {@code reference} narrows to the attempts for one order / payment / sale in {@code area}. */
+    List<PaymentRecord> list(UUID salonId, String area, String reference, int limit) {
         var sql = "SELECT " + COLUMNS + " FROM payment WHERE salon_id = :salon"
-                + (area == null ? "" : " AND area = :area") + " ORDER BY created_at DESC, id DESC LIMIT :limit";
+                + (area == null ? "" : " AND area = :area")
+                + (reference == null ? "" : " AND reference = :reference")
+                + " ORDER BY created_at DESC, id DESC LIMIT :limit";
         var spec = jdbc.sql(sql).param("salon", salonId).param("limit", limit);
         if (area != null) spec = spec.param("area", area);
+        if (reference != null) spec = spec.param("reference", reference);
         return spec.query(PaymentLedger::payment).list();
     }
 

@@ -1,7 +1,10 @@
 # Customer self-service portal (plan)
 
-> **Status: proposed — nothing built.** Written 2026-10-23. Decisions already taken are marked
-> **[decided]**; everything under "Open questions" still needs an answer before Phase 2.
+> **Status: Phase 1 built (2026-10-23)** — sign-in, sessions and read-only history, in the `customer`
+> module; UI is `/account` on the website, the shop's avatar drawer and `/:salon/account` in the booking
+> app. Open question 1 answered: sessions are a table (`customer_session`, token hash, 30 days, revocable).
+> Decisions already taken are marked **[decided]**; the remaining "Open questions" still need an answer
+> before Phase 2.
 
 Today a customer can book, buy and join — and then has no way back in. There is no customer-facing
 view of anything they did: no order lookup, no appointment list, no membership status. Every

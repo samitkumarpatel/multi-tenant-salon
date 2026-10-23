@@ -1,10 +1,10 @@
 import { useI18n } from "@salon/i18n";
 import { useState } from "react";
-import { Link, useLoaderData, useOutletContext } from "react-router";
+import { Link, useLoaderData, useOutletContext, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
-  ArrowLeft, Banknote, Bell, Check, CheckCheck, FileText, Mail,
-  MapPin, Package, Phone, Receipt, RefreshCcw, Send, Truck, X,
+  ArrowLeft, Banknote, Bell, Check, CheckCheck, Copy, CreditCard, ExternalLink, FileText, Mail,
+  MapPin, MessageSquare, Package, Phone, Receipt, RefreshCcw, Send, StickyNote, Truck, X,
   RotateCcw,
 } from "lucide-react";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
@@ -14,15 +14,60 @@ import {
   RETURN_STATUS_LABEL, RETURN_STATUS_STYLE,
 } from "~/lib/shopOrders";
 import { Toast, useToast } from "@salon/ui-shared";
-import type { ShopOrder, ShopOrderActivity, ShopOrderActivityType, ShopOrderStatus } from "~/lib/types";
+import type { ShopOrder, ShopOrderActivity, ShopOrderActivityType, ShopOrderStatus, ShopPaymentStatus } from "~/lib/types";
 import type { ShopOutletContext } from "./shop";
 import { formatWeight } from "~/lib/shopWeights";
 
+/** One attempt to take payment for this order, from the payments ledger (`area=SHOP`, reference = order id). */
+type PaymentAttempt = {
+  id: number; channel: "CHECKOUT" | "TERMINAL"; checkoutUi: string | null;
+  status: "PENDING" | "SUCCEEDED" | "FAILED" | "CANCELED" | "PARTIALLY_REFUNDED" | "REFUNDED";
+  amount: number; currency: string; amountRefunded: number;
+  checkoutSessionId: string | null; paymentIntentId: string | null; failureMessage: string | null;
+  createdAt: string; updatedAt: string;
+};
+
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const order = await apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`);
-  return { sid, order };
+  const [order, payments] = await Promise.all([
+    apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`),
+    // No Stripe account (or no card payment) simply means no attempts — never a broken page.
+    apiFetch<PaymentAttempt[]>(`${ADMIN_API}/${sid}/payments/transactions?area=SHOP&reference=${params.orderId}&limit=20`)
+      .catch((): PaymentAttempt[] => []),
+  ]);
+  return { sid, order, payments };
 }
+
+const PAYMENT_STATUS: Record<ShopPaymentStatus, { label: string; style: string }> = {
+  PENDING:    { label: "Payment pending", style: "bg-amber-50 text-amber-700 border-amber-200" },
+  AUTHORIZED: { label: "Authorized",      style: "bg-sky-50 text-sky-700 border-sky-200" },
+  CAPTURED:   { label: "Captured",        style: "bg-green-50 text-green-700 border-green-200" },
+  PAID:       { label: "Paid",            style: "bg-green-50 text-green-700 border-green-200" },
+  SETTLED:    { label: "Settled",         style: "bg-green-50 text-green-700 border-green-200" },
+  FAILED:     { label: "Payment failed",  style: "bg-red-50 text-red-600 border-red-200" },
+  VOIDED:     { label: "Voided",          style: "bg-slate-100 text-slate-500 border-slate-200" },
+};
+
+const ATTEMPT_STATUS: Record<PaymentAttempt["status"], { label: string; style: string }> = {
+  PENDING:            { label: "Pending",            style: "bg-amber-50 text-amber-700 border-amber-200" },
+  SUCCEEDED:          { label: "Succeeded",          style: "bg-green-50 text-green-700 border-green-200" },
+  FAILED:             { label: "Failed",             style: "bg-red-50 text-red-600 border-red-200" },
+  CANCELED:           { label: "Cancelled",          style: "bg-slate-100 text-slate-500 border-slate-200" },
+  PARTIALLY_REFUNDED: { label: "Partly refunded",    style: "bg-sky-50 text-sky-700 border-sky-200" },
+  REFUNDED:           { label: "Refunded",           style: "bg-slate-100 text-slate-600 border-slate-200" },
+};
+
+const COMMUNICATION_LABEL: Record<string, string> = {
+  IMPORTANT_ONLY: "Important updates only",
+  ALL: "Every update",
+};
+
+const LINE_ACTIVITY_LABEL: Record<string, string> = {
+  LINE_CREATED: "Added to order",
+  STATUS_CHANGED: "Status updated",
+  USER_NOTIFIED: "Customer notified",
+  NOTE_ADDED: "Note",
+};
 
 const ACTIVITY_META: Partial<Record<ShopOrderActivityType | string, { label: string; dot: string; color?: string }>> = {
   ORDER_PLACED:        { label: "Order placed",         dot: "bg-blue-500" },
@@ -59,6 +104,7 @@ const CN_STATUS_STYLE: Record<string, string> = {
 type ModalKind =
   | { kind: "notify" }
   | { kind: "notify-line"; lineId: number; productName: string }
+  | { kind: "note-line"; lineId: number; productName: string }
   | { kind: "shipping" }
   | { kind: "refunds" }
   | { kind: "credit-notes" }
@@ -67,7 +113,8 @@ type ModalKind =
 export default function ShopOrderDetail() {
   const { t: translateUi, locale: uiLocale } = useI18n();
   useOutletContext<ShopOutletContext>();
-  const { sid, order: init } = useLoaderData<typeof clientLoader>();
+  const { sid, order: init, payments } = useLoaderData<typeof clientLoader>();
+  const { salonId } = useParams<{ salonId: string }>();
   const [order, setOrder] = useState<ShopOrder>(init);
   const [busy, setBusy] = useState(false);
   const { toast, notify } = useToast();
@@ -81,6 +128,11 @@ export default function ShopOrderDetail() {
   const [noteText, setNoteText] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [openEmail, setOpenEmail] = useState<number | null>(null);
+  const [lineNote, setLineNote] = useState("");
+
+  function copy(value: string, what: string) {
+    navigator.clipboard?.writeText(value).then(() => notify(`${what} copied`), () => notify("Couldn't copy", "error"));
+  }
 
   function closeModal() { setModal(null); }
 
@@ -137,6 +189,17 @@ export default function ShopOrderDetail() {
       );
     }
     closeModal(); setNotifyMsg("");
+  }
+
+  async function submitLineNote() {
+    if (modal?.kind !== "note-line" || !lineNote.trim()) return;
+    await apiAction(
+      () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/lines/${modal.lineId}/notes`, {
+        method: "POST", body: JSON.stringify({ note: lineNote.trim() }),
+      }),
+      updateOrder, "Note added to item",
+    );
+    closeModal(); setLineNote("");
   }
 
   async function submitShipping() {
@@ -243,8 +306,8 @@ export default function ShopOrderDetail() {
           <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2.5 py-1 rounded-full border ${ORDER_STATUS_STYLE[order.status]}`}>
             {ORDER_STATUS_LABEL[order.status]}
           </span>
-          <span className="text-[0.65rem] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-            {order.paymentStatus === "PAID" ? translateUi("Paid") : translateUi("Payment pending")}
+          <span className={`text-[0.65rem] font-semibold px-2.5 py-1 rounded-full border ${PAYMENT_STATUS[order.paymentStatus]?.style ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+            {translateUi(PAYMENT_STATUS[order.paymentStatus]?.label ?? order.paymentStatus)}
           </span>
         </div>
       </div>
@@ -256,7 +319,8 @@ export default function ShopOrderDetail() {
           <SectionHeader>{translateUi("Order items")}</SectionHeader>
           <div className="divide-y divide-slate-50">
             {order.lines.map((line) => (
-              <div key={line.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <div key={line.id} className="py-3 first:pt-0 last:pb-0">
+              <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                   <Package className="w-4 h-4 text-slate-300" />
                 </div>
@@ -269,6 +333,7 @@ export default function ShopOrderDetail() {
                   </p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {formatPrice(line.unitPrice, order.currency, uiLocale)} × {line.quantity}
+                    {line.variantId ? <span> · {translateUi("variant")} #{line.variantId}</span> : <span> · {translateUi("product no longer in the catalogue")}</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -284,7 +349,33 @@ export default function ShopOrderDetail() {
                   >
                     <Bell className="w-3.5 h-3.5" />
                   </button>
+                  <button
+                    disabled={busy}
+                    title={translateUi("Add a note to this item")}
+                    onClick={() => { setLineNote(""); setModal({ kind: "note-line", lineId: line.id, productName: line.productName }); }}
+                    className="p-1.5 rounded-md border border-slate-200 text-slate-300 hover:text-matcha-600 hover:border-matcha-200 hover:bg-matcha-50 cursor-pointer disabled:opacity-40 transition-colors"
+                  >
+                    <StickyNote className="w-3.5 h-3.5" />
+                  </button>
                 </div>
+              </div>
+              {/* The item's own history: notes and per-item messages ("Added to order" is implied). */}
+              {line.activities?.some((a) => a.type !== "LINE_CREATED") && (
+                <ul className="mt-2 ml-12 flex flex-col gap-1">
+                  {line.activities.filter((a) => a.type !== "LINE_CREATED").map((a) => (
+                    <li key={a.id} className="flex items-start gap-1.5 text-[11px] text-slate-500">
+                      {a.type === "NOTE_ADDED"
+                        ? <StickyNote className="w-3 h-3 mt-0.5 shrink-0 text-slate-400" />
+                        : <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 text-blue-400" />}
+                      <span className="min-w-0">
+                        <span className="font-medium text-slate-600">{translateUi(LINE_ACTIVITY_LABEL[a.type] ?? a.type)}</span>
+                        {a.message ? <span> — {a.message}</span> : null}
+                        <span className="text-slate-400"> · {relativeTime(a.createdAt)}{a.actor ? ` · ${a.actor}` : ""}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               </div>
             ))}
           </div>
@@ -304,6 +395,81 @@ export default function ShopOrderDetail() {
               value={<span className="font-bold text-slate-900 text-base">{formatPrice(order.total ?? order.subtotal, order.currency, uiLocale)}</span>}
             />
           </div>
+        </Card>
+
+        {/* ── Payment ───────────────────────────────────────────────────────── */}
+        <Card>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <SectionHeader className="flex items-center gap-1 !mb-0"><CreditCard className="w-3 h-3" /> {translateUi("Payment")}</SectionHeader>
+            {payments.length > 0 && (
+              <Link to={`/${salonId}/payments`} className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-700 hover:underline">
+                {translateUi("Open in Payments")} <ExternalLink className="w-3 h-3" />
+              </Link>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Row label={translateUi("Status")} value={
+              <span className={`inline-flex text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${PAYMENT_STATUS[order.paymentStatus]?.style ?? ""}`}>
+                {translateUi(PAYMENT_STATUS[order.paymentStatus]?.label ?? order.paymentStatus)}
+              </span>} />
+            <Row label={translateUi("Method")} value={
+              payments.length === 0
+                ? translateUi("No card payment recorded")
+                : payments[0].channel === "TERMINAL" ? translateUi("Card reader in the salon") : translateUi("Card — online checkout (Stripe)")} />
+            <Row label={translateUi("Order total")} value={formatPrice(order.total ?? order.subtotal, order.currency, uiLocale)} />
+            {payments.some((p) => p.amountRefunded > 0) && (
+              <Row label={translateUi("Refunded to card")} value={formatPrice(payments.reduce((n, p) => n + p.amountRefunded, 0), order.currency, uiLocale)} />
+            )}
+            <Row label={translateUi("Payment reference")} value={order.paymentReference
+              ? <CopyValue value={order.paymentReference} onCopy={() => copy(order.paymentReference!, "Payment reference")} />
+              : <span className="text-slate-400">—</span>} />
+            {order.refundStatus && (
+              <Row label={translateUi("Refund")} value={
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={`inline-flex text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${REFUND_STATUS_STYLE[order.refundStatus] ?? ""}`}>{order.refundStatus.toLowerCase()}</span>
+                  {order.refundAmount != null && formatPrice(order.refundAmount, order.currency, uiLocale)}
+                </span>} />
+            )}
+            {order.refundReason && <Row label={translateUi("Refund reason")} value={<span className="text-slate-600">{order.refundReason}</span>} />}
+            {order.creditNoteRef && (
+              <Row label={translateUi("Credit note")} value={
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-mono">{order.creditNoteRef}</span>
+                  {order.creditNoteStatus && <span className={`inline-flex text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${CN_STATUS_STYLE[order.creditNoteStatus] ?? ""}`}>{order.creditNoteStatus.toLowerCase()}</span>}
+                </span>} />
+            )}
+          </div>
+
+          {payments.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                {payments.length === 1 ? translateUi("Card payment") : translateUi("Card payment attempts ({count})", { count: payments.length })}
+              </p>
+              <ul className="flex flex-col gap-2">
+                {payments.map((p) => (
+                  <li key={p.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-[11px] text-slate-600 flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`inline-flex font-semibold px-2 py-0.5 rounded-full border ${ATTEMPT_STATUS[p.status].style}`}>{translateUi(ATTEMPT_STATUS[p.status].label)}</span>
+                      <span className="font-semibold text-slate-800">{formatPrice(p.amount, p.currency, uiLocale)}</span>
+                    </div>
+                    <span className="text-slate-400">
+                      {new Date(p.createdAt).toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}
+                      {p.updatedAt !== p.createdAt && ` · ${translateUi("updated")} ${relativeTime(p.updatedAt)}`}
+                      {` · #${p.id}`}
+                    </span>
+                    {p.paymentIntentId && (
+                      <span className="flex items-center gap-1">{translateUi("Payment intent")}: <CopyValue value={p.paymentIntentId} onCopy={() => copy(p.paymentIntentId!, "Payment intent")} /></span>
+                    )}
+                    {p.checkoutSessionId && p.checkoutSessionId !== p.paymentIntentId && (
+                      <span className="flex items-center gap-1">{translateUi("Checkout session")}: <CopyValue value={p.checkoutSessionId} onCopy={() => copy(p.checkoutSessionId!, "Checkout session")} /></span>
+                    )}
+                    {p.amountRefunded > 0 && <span>{translateUi("Refunded")}: {formatPrice(p.amountRefunded, p.currency, uiLocale)}</span>}
+                    {p.failureMessage && <span className="text-red-600">{p.failureMessage}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </Card>
 
         {/* ── Customer + Ship-to ───────────────────────────────────────────── */}
@@ -328,17 +494,31 @@ export default function ShopOrderDetail() {
           </Card>
 
           <Card>
-            <SectionHeader className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {translateUi("Ship to")}</SectionHeader>
+            <SectionHeader className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {translateUi("Delivery")}</SectionHeader>
             {hasAddr ? (
-              <address className="not-italic text-xs text-slate-600 leading-relaxed">
+              <address className="not-italic text-xs text-slate-600 leading-relaxed mb-3">
                 {addr!.line1 && <div>{addr!.line1}</div>}
                 {addr!.line2 && <div>{addr!.line2}</div>}
                 <div>{[addr!.zipCode, addr!.city].filter(Boolean).join(" ")}{addr!.state ? `, ${addr!.state}` : ""}</div>
                 {addr!.country && <div>{addr!.country}</div>}
               </address>
             ) : (
-              <p className="text-xs text-slate-400">{translateUi("No address provided.")}</p>
+              <p className="text-xs text-slate-600 mb-3">{translateUi("Collect in salon — no shipping address.")}</p>
             )}
+            <div className="flex flex-col gap-1.5">
+              {order.shippingMethodName && (
+                <Row label={translateUi("Method")} value={`${order.shippingMethodName} · ${order.shippingCost ? formatPrice(order.shippingCost, order.currency, uiLocale) : translateUi("Free")}`} />
+              )}
+              {order.totalWeightGrams ? <Row label={translateUi("Parcel weight")} value={formatWeight(order.totalWeightGrams, uiLocale)} /> : null}
+              {(order.trackingCarrier || order.trackingNumber) && (
+                <Row label={translateUi("Tracking")} value={
+                  <span className="inline-flex items-center gap-1">
+                    {order.trackingCarrier}
+                    {order.trackingNumber && <CopyValue value={order.trackingNumber} onCopy={() => copy(order.trackingNumber!, "Tracking number")} />}
+                  </span>} />
+              )}
+              <Row label={translateUi("Customer updates")} value={translateUi(COMMUNICATION_LABEL[order.communicationPreference] ?? order.communicationPreference)} />
+            </div>
           </Card>
         </div>
 
@@ -557,6 +737,19 @@ export default function ShopOrderDetail() {
         </Modal>
       )}
 
+      {/* Note on one item */}
+      {modal?.kind === "note-line" && (
+        <Modal title={`${translateUi("Note")} — ${modal.productName}`} icon={<StickyNote className="w-4 h-4 text-matcha-600" />} onClose={closeModal}>
+          <p className="text-xs text-slate-500 mb-3">{translateUi("Internal — the customer doesn't see item notes.")}</p>
+          <textarea autoFocus rows={3} className={`${inputCls} resize-none mb-4`}
+            placeholder={translateUi("e.g. Picked from back-room stock")} value={lineNote} onChange={(e) => setLineNote(e.target.value)} />
+          <ModalFooter>
+            <ModalCancel onClick={closeModal} />
+            <ModalSave label={translateUi("Add note")} icon={<StickyNote className="w-3.5 h-3.5" />} disabled={busy || !lineNote.trim()} onClick={submitLineNote} />
+          </ModalFooter>
+        </Modal>
+      )}
+
       {/* Shipping */}
       {modal?.kind === "shipping" && (
         <Modal title={translateUi("Shipping & tracking")} icon={<Truck className="w-4 h-4 text-teal-600" />} onClose={closeModal}>
@@ -712,6 +905,20 @@ export default function ShopOrderDetail() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+/** A monospace id (payment reference, Stripe id, tracking number) with a copy button. */
+function CopyValue({ value, onCopy }: { value: string; onCopy: () => void }) {
+  const { t: translateUi } = useI18n();
+  return (
+    <span className="inline-flex items-center gap-1 min-w-0">
+      <span className="font-mono text-[11px] text-slate-700 truncate max-w-[16rem]" title={value}>{value}</span>
+      <button type="button" onClick={onCopy} title={translateUi("Copy")} aria-label={translateUi("Copy")}
+        className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0">
+        <Copy className="w-3 h-3" />
+      </button>
+    </span>
+  );
+}
 
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">{children}</div>;

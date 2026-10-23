@@ -61,7 +61,7 @@ role / not the salon's owner → `403`.
 | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
 | **Analytics Ingestion** | `/api/analytics/events` | Public, anonymous — client-side JS on the salon's public website reporting page views/clicks |
 
-Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`, `/shop/...`, `/membership/...`
+Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`, `/shop/...`, `/membership/...`, `/account/...`
 
 Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`, `/shop/...`, `/membership/...`, `/payments/...`
 
@@ -564,6 +564,60 @@ service price or the configured deposit percentage. If Checkout creation fails t
 **Response** `404 Not Found`
 
 ---
+
+## Customer — Account (self-service)
+
+A customer signs in to **one salon** with a one-time code emailed to them, then sees every booking,
+shop order and membership that salon holds under that email (matched case-insensitively). No
+password and no customer table: the existing rows are keyed by their `customer_email`.
+Read-only for now; changing or cancelling is still done by contacting the salon.
+
+The session token is sent as **`X-Customer-Session: <sessionToken>`** — not `Authorization`, which
+the API reserves for staff JWTs.
+
+| Method & path | Purpose |
+|---|---|
+| `POST /api/salon/{salonId}/account/sign-in` | `{ email }` → `202 { codeLength: 6, expiresInSeconds: 600 }`. **Always 202**, whether or not the salon knows the address, so it can't be used to list a salon's customers. The 6-digit code is emailed only when the address has a booking, order or membership in that salon. At most 5 codes per address per 15 min (extra requests are silently not sent) and 30 requests per client IP per hour (`429`). `400` for an invalid email |
+| `POST /api/salon/{salonId}/account/verify` | `{ email, code }` → `200 { sessionToken, email, expiresAt }`. The code is single-use, expires after 10 minutes, and only the latest one sent works; after 5 wrong guesses it stops working. Any failure is the same `401` |
+| `GET /api/salon/{salonId}/account` | Header `X-Customer-Session`. → `200 { profile, bookings, orders, memberships }` (below). `401` when the token is missing, expired, signed out, or belongs to another salon |
+| `POST /api/salon/{salonId}/account/sign-out` | Header `X-Customer-Session`. → `204`. Revokes the session; idempotent. (POST, not DELETE: custom salon domains only get GET/POST through CORS) |
+
+Sessions last 30 days. Limits and lifetimes are `spring.application.customer.*` (`code-ttl`,
+`session-ttl`, `max-codes-per-email`, `max-requests-per-ip`, `max-code-attempts`).
+
+**Account response**
+
+```json
+{
+  "profile": { "email": "ann@example.com", "name": "Ann Customer", "phone": "+4512345678" },
+  "bookings": [{
+    "id": 12, "serviceName": "Haircut", "durationMinutes": 60, "price": 40.0, "currency": "EUR",
+    "staffName": "Sam Stylist", "appointmentDate": "2026-11-02", "startTime": "10:00:00", "endTime": "11:00:00",
+    "status": "CONFIRMED", "paymentStatus": "NOT_REQUIRED", "notes": null, "createdAt": "2026-10-20T09:12:00Z"
+  }],
+  "orders": [{
+    "id": 7, "orderNumber": "SO-1001", "createdAt": "…", "status": "SHIPPED", "paymentStatus": "PAID",
+    "currency": "EUR", "subtotal": 25.0, "shippingCost": 4.95, "total": 29.95,
+    "shippingMethodName": "GLS Pakkeshop", "shippingAddress": { "line1": "…", "city": "…", "country": "…", "zipCode": "…" },
+    "trackingCarrier": "GLS", "trackingNumber": "123", "refundStatus": null, "refundAmount": null, "returnStatus": null,
+    "lines": [{ "productName": "Shampoo", "variantLabel": "250 ml", "unitPrice": 12.5, "quantity": 2, "lineTotal": 25.0 }],
+    "timeline": [{ "type": "ORDER_PLACED", "message": "Order SO-1001 placed", "createdAt": "…" }]
+  }],
+  "memberships": [{
+    "id": 3, "planName": "Glow", "memberCode": "AB12CD34", "status": "ACTIVE", "price": 49.0, "currency": "EUR",
+    "billingInterval": "MONTHLY", "startedAt": "…", "currentPeriodEnd": "…", "cancelAtPeriodEnd": false, "endedAt": null,
+    "renewalToken": "…", "qrCode": "data:image/png;base64,…",
+    "payments": [{ "kind": "SIGNUP", "status": "PAID", "method": "CARD", "amount": 49.0, "currency": "EUR",
+                   "periodStart": "…", "periodEnd": "…", "paidAt": "…", "refundedAmount": null, "createdAt": "…" }]
+  }]
+}
+```
+
+What is left out on purpose: shop checkouts whose payment failed or expired, staff-only order
+timeline entries (work notes), the full body of emails (a `CUSTOMER_NOTIFIED` entry's `message` is
+the email's subject), payment references, and abandoned membership sign-ups (`INCOMPLETE`).
+`qrCode` (the check-in QR of `memberCode`) is present only while the membership is `ACTIVE`;
+`renewalToken` only while it can be renewed — it opens the website's `/membership?renew=<token>`.
 
 ## Customer — Website
 
@@ -2650,7 +2704,7 @@ staff through `SalonDeskAccess`). Stripe is configured server-side with `STRIPE_
 | `POST /payments/stripe/onboarding-link` | Creates the salon's Accounts v2 merchant account on first call (`dashboard: full`, Stripe collects fees and carries losses; country from the salon location — `409` if missing) and returns `{ url }` (single-use v2 Account Link) — the fallback when the embedded onboarding isn't available. Stripe returns to `<admin>/{salonId}/payments?stripe=return\|refresh` |
 | `POST /payments/stripe/account-session` | `{ clientSecret, publishableKey, stripeAccountId }` for Connect.js — creates the account first if needed. Enables the embedded `account_onboarding`, `account_management`, `notification_banner`, `payments` (refunds, disputes, capture) and `payouts` components, so onboarding, payouts, payments and disputes are handled inside the admin app. The account has full Stripe Dashboard access, so Stripe may ask the owner to confirm their Stripe login inside a component |
 | `PUT /payments/settings` | `{ areas: [{ area: SHOP\|BOOKING\|POS\|MEMBERSHIP, enabled, checkoutUi: REDIRECT\|EMBEDDED\|ELEMENTS }], bookingPaymentType: FULL\|DEPOSIT, bookingDepositPercent: 1–100 }` → the saved settings (`areas` always lists all four). Areas left out keep their setting. `409` if the matching feature (WEBSHOP / BOOKING / DASHBOARD / MEMBERSHIP) is off, no Stripe account exists yet, or an in-page style is chosen without the publishable key. Areas may be selected before onboarding finishes; they only take effect once Stripe activates card payments |
-| `GET /payments/transactions?area=&limit=` | The payment ledger: every checkout and card-reader payment, newest first (`status` `PENDING` / `SUCCEEDED` / `FAILED` / `CANCELED` / `PARTIALLY_REFUNDED` / `REFUNDED`, `amountRefunded`, `channel` `CHECKOUT` / `TERMINAL`, `checkoutUi`, Stripe ids) |
+| `GET /payments/transactions?area=&reference=&limit=` | The payment ledger: every checkout and card-reader payment, newest first. `reference` (with `area`) narrows it to one order / booking / sale — e.g. `area=SHOP&reference=<orderId>` is what the admin order page shows (`status` `PENDING` / `SUCCEEDED` / `FAILED` / `CANCELED` / `PARTIALLY_REFUNDED` / `REFUNDED`, `amountRefunded`, `channel` `CHECKOUT` / `TERMINAL`, `checkoutUi`, Stripe ids) |
 | `GET /payments/transactions/{paymentId}` | `{ payment, refunds[] }` |
 | `POST /payments/transactions/{paymentId}/refunds` | `{ amount?, reason? }` → `201` refund. Refunds to the customer's card on the salon's Stripe account; `amount` omitted = all that's left. `409` above the remaining amount or for a payment that didn't complete. A refund Stripe later fails is given back to the refundable balance |
 | `GET /payments/terminals?refresh=` | **desk** — card readers (`id`, `label`, `deviceType`, `serialNumber`, `status` online/offline). `refresh=true` re-reads status from Stripe |

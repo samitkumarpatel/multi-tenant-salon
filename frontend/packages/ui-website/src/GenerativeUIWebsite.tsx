@@ -4,7 +4,7 @@ import {
   ArrowUp, BadgeCheck, Calendar, CalendarCheck, CalendarRange, CheckCircle2, Clock, Info, LayoutGrid, Loader2, Maximize2, Minimize2, MapPin, Phone, PlugZap, Scissors, Search, ShoppingBag, Sparkles, SquarePen, UserRound, Users, Wrench, X,
 } from "lucide-react";
 import { FONTS, fontStack, loadGoogleFont, contrastText, isLightColor } from "./theme";
-import { SiteHeader, SiteFooter } from "./SiteChrome";
+import { AccountButton, SiteHeader, SiteFooter, hasCustomerAccount } from "./SiteChrome";
 import { apiFetch, API_BASE } from "./api";
 import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import {
@@ -422,6 +422,7 @@ function MessageText({ text }: { text: string }) {
 
 export function GenerativeUIWebsite({
   salon: salonProp, staff: staffProp, services: servicesProp, theme, context = "website", onSwitchToWizard,
+  getPagePath, onNavigate,
 }: GenerativeUIWebsiteProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   // The long composer placeholder wraps (and is clipped) on phones; a short one fits.
@@ -1669,6 +1670,11 @@ export function GenerativeUIWebsite({
             {thinking ? translateUi("Thinking…") : isOpenNow(salon) ? translateUi("Open now · AI Assistant") : translateUi("AI Assistant · Online")}
           </p>
         </div>
+        {!isBooking && hasCustomerAccount(salon) && (getPagePath || onNavigate) && (
+          <AccountButton theme={theme} headerBg={topBg}
+            href={getPagePath ? getPagePath("account") : undefined}
+            onClick={onNavigate ? () => onNavigate("account") : undefined} />
+        )}
         <LanguageSelector compact />
         <button
           type="button"

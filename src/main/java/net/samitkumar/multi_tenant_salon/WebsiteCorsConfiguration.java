@@ -19,7 +19,7 @@ class WebsiteCorsConfiguration {
             cors.setAllowedOriginPatterns(patterns);
             cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
             cors.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With",
-                    "Mcp-Session-Id", "Mcp-Protocol-Version", "Last-Event-ID"));
+                    "Mcp-Session-Id", "Mcp-Protocol-Version", "Last-Event-ID", "X-Customer-Session"));
             cors.setExposedHeaders(List.of("Content-Type", "x-tenant-id", "Mcp-Session-Id", "Mcp-Protocol-Version"));
             cors.setAllowCredentials(false);
             cors.setMaxAge(300L);
@@ -34,7 +34,7 @@ class WebsiteCorsConfiguration {
                 cors.setAllowedOrigins(List.of(origin));
                 cors.setAllowedMethods(List.of("GET", "POST", "OPTIONS", "HEAD"));
                 cors.setAllowedHeaders(List.of("Content-Type", "X-Requested-With", "Mcp-Session-Id",
-                        "Mcp-Protocol-Version", "Last-Event-ID"));
+                        "Mcp-Protocol-Version", "Last-Event-ID", "X-Customer-Session"));
                 cors.setMaxAge(0L);
             }
             return cors;

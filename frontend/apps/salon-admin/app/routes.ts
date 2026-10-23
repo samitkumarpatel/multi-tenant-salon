@@ -18,7 +18,9 @@ export default [
     route("dashboard-settings", "routes/dashboard-settings.tsx"),
     route("payments", "routes/payments.tsx"),
     route("shop", "routes/shop.tsx", [
-      index("routes/shop.products.tsx"),
+      // Orders are the day-to-day work, so the shop opens on them.
+      index("routes/shop.index.tsx"),
+      route("products", "routes/shop.products.tsx"),
       route("brands", "routes/shop.brands.tsx"),
       route("categories", "routes/shop.categories.tsx"),
       route("inventory", "routes/shop.inventory.tsx"),

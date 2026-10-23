@@ -9,6 +9,7 @@ import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedE
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideRemovedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffBookingAssignedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
+import net.samitkumar.multi_tenant_salon.customer.CustomerSignInCodeRequestedEvent;
 import net.samitkumar.multi_tenant_salon.membership.BillingInterval;
 import net.samitkumar.multi_tenant_salon.membership.MembershipActivatedEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipCancelledEvent;
@@ -33,6 +34,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
@@ -696,6 +698,43 @@ class NotificationService {
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
+    }
+
+    // ── Customer account ─────────────────────────────────────────────────────
+
+    /** The one-time sign-in code. Transactional, so it goes out whatever the customer's marketing preferences. */
+    void notifyCustomerSignInCode(CustomerSignInCodeRequestedEvent event) {
+        var minutes = Math.max(1, Duration.between(Instant.now(), event.expiresAt()).toMinutes());
+        // Not in the subject: subjects are logged on every send.
+        var subject = salonSubject(event.salonName(), "Your sign-in code");
+        var text = """
+                Hi,
+
+                Your code to sign in to your %s account is:
+
+                %s
+
+                It works once and expires in %d minutes. If you didn't ask to sign in, you can ignore this email.
+                %s
+                %s
+                """.formatted(event.salonName(), event.code(), minutes,
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi,</p>
+                <p>Your code to sign in to your %s account is:</p>
+                <p style="font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace">%s</p>
+                <p>It works once and expires in %d minutes. If you didn't ask to sign in, you can ignore this email.</p>
+                %s
+                %s
+                """.formatted(HtmlUtils.htmlEscape(event.salonName()), event.code(), minutes,
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+        if (!StringUtils.hasText(apiKey)) {
+            // Local development has no Mailjet, and there is no other way to read the code.
+            log.info("[NOTIFICATION] Mailjet not configured — sign-in code for {} at salon {} is {}", event.email(), event.salonId(), event.code());
+        }
+        sendEmail(event.email(), null, subject, text, html);
     }
 
     private static String intervalLabel(BillingInterval interval) {

@@ -1,9 +1,9 @@
 import { useI18n } from "@salon/i18n";
 import type { SalonLanguages, LanguagePolicy } from "@salon/i18n";
 import React, { useEffect, useState } from "react";
-import { useLoaderData, useSearchParams } from "react-router";
+import { useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { DEFAULT_THEME, BookingWizard, SalonErrorPage, apiFetch, API_BASE } from "@salon/ui-website";
+import { DEFAULT_THEME, AccountButton, BookingWizard, SalonErrorPage, apiFetch, API_BASE, hasCustomerAccount } from "@salon/ui-website";
 import type { Salon, ServiceItem, StaffMember, WebsiteTheme, Country, SalonPolicy } from "@salon/ui-website";
 
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
@@ -122,6 +122,7 @@ function BookingUnavailablePage({ salonName }: { salonName?: string }) {
 export default function SalonBookingRoute() {
   const data = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [wizardKey, setWizardKey] = useState(0);
 
   useEffect(() => {
@@ -156,6 +157,10 @@ export default function SalonBookingRoute() {
       initialServiceId={Number.isFinite(serviceId) && serviceId > 0 ? serviceId : null}
       initialStaffId={Number.isFinite(staffId) && staffId > 0 ? staffId : null}
       standalone
+      headerExtra={hasCustomerAccount(salon) ? (
+        <AccountButton theme={theme} href={`/${salon.handler ?? salon.id}/account`}
+          onClick={() => navigate(`/${salon.handler ?? salon.id}/account`)} />
+      ) : undefined}
       onExit={() => setWizardKey((k) => k + 1)}
     />
   );
