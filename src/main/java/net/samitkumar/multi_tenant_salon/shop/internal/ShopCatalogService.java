@@ -54,7 +54,17 @@ class ShopCatalogService implements ShopCatalogApi {
         int updated = jdbc.sql("UPDATE product_variant SET quantity_on_hand = quantity_on_hand - :qty " +
                         "WHERE id = :id AND salon_id = :salon AND active = TRUE AND quantity_on_hand >= :qty")
                 .param("qty", quantity).param("id", variantId).param("salon", salonId).update();
-        if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "Product is out of stock");
+        if (updated != 1) {
+            // Name it: on a ten-line sale "Product is out of stock" leaves the operator guessing which
+            // one to take out. The lookup only runs on this failure path.
+            var label = jdbc.sql("""
+                            SELECT p.name || CASE WHEN v.label IS NULL OR v.label = '' THEN '' ELSE ' – ' || v.label END
+                            FROM product_variant v JOIN product p ON p.id = v.product_id
+                            WHERE v.id = :id AND v.salon_id = :salon""")
+                    .param("id", variantId).param("salon", salonId).query(String.class).optional().orElse(null);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    label == null ? "Product is out of stock" : "'" + label + "' is out of stock");
+        }
     }
 
     @Override

@@ -301,10 +301,26 @@ function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClo
   const valid = name.trim().length > 0 && EMAIL.test(email.trim());
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); };
+    // Closing is never blocked by `busy`: a redirect checkout leaves this dialog mounted with
+    // `busy` still true, so gating the close affordances on it traps anyone who comes back.
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
+  }, [onClose]);
+
+  useEffect(() => {
+    // Coming back from Stripe — via the back button, the bfcache, or just switching tabs — must
+    // leave a usable form rather than a permanently disabled "Opening secure checkout…" button.
+    const revive = () => setBusy(false);
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) revive(); };
+    const onVisible = () => { if (document.visibilityState === "visible") revive(); };
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -331,7 +347,7 @@ function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClo
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm sm:p-4"
-      onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
       <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="join-title"
         className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -340,7 +356,7 @@ function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClo
             <h2 id="join-title" className="text-lg font-bold text-slate-900">{plan.name}</h2>
             <p className="text-sm text-slate-500">{formatPrice(plan.price, plan.currency, uiLocale)} {translateUi(PER[plan.billingInterval])}</p>
           </div>
-          <button type="button" onClick={onClose} disabled={busy} aria-label={translateUi("Close")} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+          <button type="button" onClick={onClose} aria-label={translateUi("Close")} className="text-slate-400 hover:text-slate-600 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -420,6 +436,20 @@ function RenewPanel({ salon, token, theme, text, sub, cardBg, cardBorder, accent
       .catch((e) => alive && setError(friendlyMessage(e)));
     return () => { alive = false; };
   }, [salon.id, token]);
+
+  useEffect(() => {
+    // As in the join dialog: a redirect checkout leaves `busy` set, so coming back from Stripe
+    // would otherwise show a Renew button that can never be pressed again.
+    const revive = () => setBusy(false);
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) revive(); };
+    const onVisible = () => { if (document.visibilityState === "visible") revive(); };
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   async function renew() {
     setBusy(true);

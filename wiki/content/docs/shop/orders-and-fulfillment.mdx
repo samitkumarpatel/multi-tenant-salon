@@ -71,7 +71,9 @@ This card groups every action you can take on the order, by purpose:
   entirely, because there's nothing further to move it through.
 - **Fulfillment** — an **Update Shipping** button (it relabels itself to show the carrier and
   tracking number once you've saved one) and, once the order is **Delivered** or **Fulfilled**
-  and doesn't already have one, a **Request Return** button.
+  and doesn't already have one, a **Request Return** button. Saving shipping details also moves
+  the order to **Shipped** if it isn't already. On a finished order the button still shows the
+  tracking you saved, but you can no longer change it.
 - **Communication** — **Notify Customer** (a free-text message) and **Issue Invoice**.
 - **Financial** — **Refunds** (with a red count badge if one is waiting on you), and, once the
   order has a credit note, a **Credit Note _[reference]_** button.
@@ -86,6 +88,18 @@ with **Cancelled**, **Failed**, and **On Hold** as side states an order can land
 move an order forward using the matching button in the Order Status action group — for example,
 clicking **Mark Processing** once you start preparing it, or **Mark Fulfilled** once the customer
 has received it and there's nothing left to do.
+
+**Fulfilled**, **Cancelled** and **Failed** are final. Once an order reaches one of them it can't
+be moved back to an earlier status — those orders are settled, and reopening one would contradict
+the stock, refund and email history already recorded against it. If goods come back after an order
+is finished, use a **return** rather than trying to reopen the order.
+
+<Callout type="info">
+  **Cancelling an order puts its items back in stock automatically.** The quantity the customer's
+  checkout took off the shelf is credited straight back, so you don't need to correct anything on
+  the Inventory screen. The same happens when you mark a return as **Received** or **Accepted** —
+  and it only ever happens once per order, so stock can't be double-counted.
+</Callout>
 
 <Callout type="info">
   Changing an order's status, sending a notification, saving shipping details, and every refund or

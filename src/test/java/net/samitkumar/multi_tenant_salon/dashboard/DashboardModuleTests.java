@@ -96,5 +96,10 @@ class DashboardModuleTests {
                 .uri("/api/salon-admin/{id}/dashboard/cashier/items", salonId)
                 .exchange()
                 .expectStatus().isForbidden();
+        // Settling an appointment is taking money too.
+        client.get()
+                .uri("/api/salon-admin/{id}/dashboard/cashier/bookings", salonId)
+                .exchange()
+                .expectStatus().isForbidden();
     }
 }

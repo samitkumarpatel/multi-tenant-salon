@@ -1,0 +1,12 @@
+# Local development only — activate with: ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+#
+# Security is a deliberate opt-in rather than something that switches itself off when the OAuth2
+# issuer happens to be unset: keying it off the issuer alone meant a deploy that forgot
+# OAUTH2_ISSUER_URI served every owner endpoint unauthenticated. The flag only takes effect while the
+# issuer is still the localhost default, so activating this profile against a real issuer changes
+# nothing and the real security chain stays in place.
+#
+# Not needed for `./mvnw spring-boot:test-run`, which already runs with the test configuration.
+app:
+  security:
+    permit-all: true

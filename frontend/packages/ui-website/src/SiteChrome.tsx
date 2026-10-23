@@ -9,7 +9,8 @@ import { SocialLinksRow } from "./SocialIcons";
 import { useIsScrollable } from "./useIsScrollable";
 import { SalonPolicyLinks } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
-import type { OperatingHours, Salon, WebsiteTheme } from "./types";
+import { apiFetch, API_BASE } from "./api";
+import type { OperatingHours, Salon, SalonHoliday, WebsiteTheme } from "./types";
 
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
@@ -33,6 +34,119 @@ function isOpenNow(hours?: OperatingHours[]): boolean {
 
 function initials(name: string) {
   return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+/** The salon's named closure days. Every surface that shows opening hours loads them through
+ *  this hook so the website, shop and membership pages can't drift apart. A failed fetch keeps
+ *  the list empty, which degrades to plain weekly hours. Pass no id to skip the request on a
+ *  surface that doesn't show hours. */
+export function useSalonHolidays(salonId?: number | string): SalonHoliday[] {
+  const [holidays, setHolidays] = React.useState<SalonHoliday[]>([]);
+  React.useEffect(() => {
+    if (salonId == null) return;
+    let cancelled = false;
+    apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salonId}/holidays`)
+      .then((hs) => { if (!cancelled) setHolidays(hs ?? []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [salonId]);
+  return holidays;
+}
+
+/** The holiday closing `date`, if any — one with no `year` repeats every year. */
+export function holidayOn(holidays: SalonHoliday[], date: Date): SalonHoliday | null {
+  return holidays.find((h) =>
+    h.month === date.getMonth() + 1 &&
+    h.day === date.getDate() &&
+    (h.year == null || h.year === date.getFullYear())
+  ) ?? null;
+}
+
+/** The footer's "Opening hours" column: this week's open days — a day the salon is closed for a
+ *  holiday struck through with its name — plus the holidays falling in the next 90 days. Shared
+ *  by the website footer (SalonWebsite) and the feature-page footer below. */
+export function FooterOpeningHours({ salon, theme, holidays }: {
+  salon: Salon;
+  theme: WebsiteTheme;
+  holidays: SalonHoliday[];
+}) {
+  const { t: translateUi, locale: uiLocale } = useI18n();
+  const openHours = salon.operatingHours?.filter((h) => !h.closed) ?? [];
+  if (openHours.length === 0) return null;
+
+  const footerIsLight = isLightColor(theme.footerBg ?? "#1E293B");
+  const footerDim     = footerIsLight ? "#9CA3AF" : "#64748B";
+  const footerBorder  = footerIsLight ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.08)";
+
+  const todayDate = new Date();
+  const todayName = DAY_ORDER[todayDate.getDay()];
+
+  const upcomingHolidays = (() => {
+    const now = todayDate.getTime();
+    const windowEnd = now + 90 * 24 * 60 * 60 * 1000;
+    const yr = todayDate.getFullYear();
+    return holidays
+      .flatMap((h) => {
+        const years = h.year != null ? [h.year] : [yr, yr + 1];
+        return years.map((y) => ({ h, ts: new Date(y, h.month - 1, h.day).getTime() }));
+      })
+      .filter(({ ts }) => ts >= now && ts <= windowEnd)
+      .sort((a, b) => a.ts - b.ts)
+      .map(({ h }) => h);
+  })();
+
+  return (
+    <div className="min-w-0 lg:order-2">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
+        <Clock className="w-3.5 h-3.5" /> {translateUi("Opening hours ")}</h3>
+      <div className="space-y-1">
+        {openHours.map((h) => {
+          const isToday = h.day === todayName;
+          const offset = DAY_ORDER.indexOf(h.day) - todayDate.getDay();
+          const slotDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + offset);
+          const dayHoliday = holidayOn(holidays, slotDate);
+          return (
+            <div key={h.day} className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
+              <span className="w-8 shrink-0">{translateUi(DAY_SHORT[h.day] ?? h.day)}</span>
+              {dayHoliday ? (
+                <>
+                  <span className="font-mono opacity-40 line-through">{h.openTime}–{h.closeTime}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded" style={{ backgroundColor: `${theme.accentColor}25`, color: theme.accentColor }}>{dayHoliday.name}</span>
+                </>
+              ) : (
+                <span className="font-mono">{h.openTime}–{h.closeTime}</span>
+              )}
+              {isToday && !dayHoliday && <span className="text-[9px] font-bold uppercase tracking-wider">{translateUi("today")}</span>}
+            </div>
+          );
+        })}
+      </div>
+      {upcomingHolidays.length > 0 && (
+        <div className="mt-3 pt-2 space-y-1" style={{ borderTop: `1px solid ${footerBorder}` }}>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: footerDim }}>{translateUi("Upcoming holidays")}</p>
+          {upcomingHolidays.map((h, i) => {
+            const yr = h.year ?? new Date().getFullYear();
+            const start = new Date(yr, h.month - 1, h.day);
+            const startLabel = start.toLocaleDateString(uiLocale, { day: "numeric", month: "short" });
+            const isRange = h.endMonth != null && h.endDay != null && (h.endMonth !== h.month || h.endDay !== h.day);
+            let dateLabel = startLabel;
+            if (isRange) {
+              const endYr = (h.endMonth! < h.month || (h.endMonth === h.month && h.endDay! < h.day)) ? yr + 1 : yr;
+              const end = new Date(endYr, h.endMonth! - 1, h.endDay!);
+              dateLabel = `${startLabel} – ${end.toLocaleDateString(uiLocale, { day: "numeric", month: "short" })}`;
+            }
+            return (
+              <div key={`${h.id}-${i}`} className="flex items-center gap-2 text-xs" style={{ color: footerDim }}>
+                <span className="font-mono shrink-0">{dateLabel}</span>
+                <span>·</span>
+                <span className="truncate">{h.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Small pill flagging a feature (or the whole site) as still in beta. */
@@ -241,8 +355,8 @@ export function SiteFooter({
   const accentText = contrastText(theme.accentColor);
   const isScrollable = useIsScrollable();
   const hasBooking = salon.features?.includes("BOOKING");
-  const todayName  = DAY_ORDER[new Date().getDay()];
-  const openHours  = salon.operatingHours?.filter((h) => !h.closed) ?? [];
+  // The slim booking-page footer below has no hours column, so don't fetch for it.
+  const holidays   = useSalonHolidays(current === "book" ? undefined : salon.id);
   const city       = [salon.location?.city, salon.location?.country].filter(Boolean).join(", ");
 
   const footerBg      = theme.footerBg ?? "#1E293B";
@@ -365,24 +479,7 @@ export function SiteFooter({
           </div>
 
           {/* Right column: opening hours, matched in width to the left column and stretched to its height */}
-          {openHours.length > 0 && (
-            <div className="min-w-0 lg:order-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                <Clock className="w-3.5 h-3.5" /> {translateUi("Opening hours ")}</h3>
-              <div className="space-y-1">
-                {openHours.map((h) => {
-                  const isToday = h.day === todayName;
-                  return (
-                    <div key={h.day} className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
-                      <span className="w-8 shrink-0">{translateUi(DAY_SHORT[h.day] ?? h.day)}</span>
-                      <span className="font-mono">{h.openTime}–{h.closeTime}</span>
-                      {isToday && <span className="text-[9px] font-bold uppercase tracking-wider">{translateUi("today")}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <FooterOpeningHours salon={salon} theme={theme} holidays={holidays} />
         </div>
 
         <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>

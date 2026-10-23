@@ -9,14 +9,18 @@ import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.Che
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.Overview;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.PlanView;
 import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.SubscriptionDetail;
+import net.samitkumar.multi_tenant_salon.membership.internal.MembershipViews.SubscriptionPage;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -27,7 +31,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/salon-admin/{salonId}/membership")
 class MembershipAdminController {
-    private static final String ACTOR = "admin";
+    /**
+     * Who did it, for the member's timeline: the signed-in person's email, so a cancellation, refund or
+     * desk sale can be traced to someone. Falls back to a role label only when security is off locally.
+     */
+    private static String actor(Jwt jwt) {
+        return jwt == null || jwt.getSubject() == null ? "admin" : jwt.getSubject();
+    }
 
     private final MembershipManager memberships;
     private final SalonApi salonApi;
@@ -42,6 +52,10 @@ class MembershipAdminController {
     record CancelRequest(Boolean atPeriodEnd, String reason) {}
 
     record NoteRequest(String note) {}
+
+    record ContactRequest(String customerName, String customerEmail, String customerPhone) {}
+
+    record RefundRequest(BigDecimal amount, String reason) {}
 
     // ── plans ────────────────────────────────────────────────────────────────
 
@@ -81,11 +95,13 @@ class MembershipAdminController {
     // ── members ──────────────────────────────────────────────────────────────
 
     @GetMapping("/subscriptions")
-    List<MembershipSubscription> listSubscriptions(@PathVariable String salonId,
-                                                   @RequestParam(required = false) MembershipSubscription.Status status,
-                                                   @RequestParam(required = false) Long planId,
-                                                   @RequestParam(required = false) String q) {
-        return memberships.listSubscriptions(salonApi.resolveId(salonId), new SubscriptionFilter(status, planId, q));
+    SubscriptionPage listSubscriptions(@PathVariable String salonId,
+                                       @RequestParam(required = false) MembershipSubscription.Status status,
+                                       @RequestParam(required = false) Long planId,
+                                       @RequestParam(required = false) String q,
+                                       @RequestParam(defaultValue = "0") int page,
+                                       @RequestParam(defaultValue = "50") int size) {
+        return memberships.listSubscriptions(salonApi.resolveId(salonId), new SubscriptionFilter(status, planId, q), page, size);
     }
 
     @GetMapping("/subscriptions/{subscriptionId}")
@@ -102,20 +118,39 @@ class MembershipAdminController {
 
     @PostMapping("/subscriptions/{subscriptionId}/cancel")
     SubscriptionDetail cancel(@PathVariable String salonId, @PathVariable Long subscriptionId,
-                              @RequestBody(required = false) CancelRequest req) {
+                              @RequestBody(required = false) CancelRequest req,
+                              @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt) {
         boolean atPeriodEnd = req == null || req.atPeriodEnd() == null || req.atPeriodEnd();
         return memberships.cancel(salonApi.resolveId(salonId), subscriptionId, atPeriodEnd,
-                req == null ? null : req.reason(), ACTOR);
+                req == null ? null : req.reason(), actor(jwt));
     }
 
     @PostMapping("/subscriptions/{subscriptionId}/resume")
-    SubscriptionDetail resume(@PathVariable String salonId, @PathVariable Long subscriptionId) {
-        return memberships.resume(salonApi.resolveId(salonId), subscriptionId, ACTOR);
+    SubscriptionDetail resume(@PathVariable String salonId, @PathVariable Long subscriptionId,
+                              @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt) {
+        return memberships.resume(salonApi.resolveId(salonId), subscriptionId, actor(jwt));
+    }
+
+    @PatchMapping("/subscriptions/{subscriptionId}/contact")
+    SubscriptionDetail updateContact(@PathVariable String salonId, @PathVariable Long subscriptionId,
+                                     @RequestBody ContactRequest req,
+                                     @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt) {
+        return memberships.updateContact(salonApi.resolveId(salonId), subscriptionId,
+                req.customerName(), req.customerEmail(), req.customerPhone(), actor(jwt));
+    }
+
+    @PostMapping("/subscriptions/{subscriptionId}/payments/{paymentId}/refund")
+    SubscriptionDetail refund(@PathVariable String salonId, @PathVariable Long subscriptionId,
+                              @PathVariable Long paymentId, @RequestBody(required = false) RefundRequest req,
+                              @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt) {
+        return memberships.refundPayment(salonApi.resolveId(salonId), subscriptionId, paymentId,
+                req == null ? null : req.amount(), req == null ? null : req.reason(), actor(jwt));
     }
 
     @PostMapping("/subscriptions/{subscriptionId}/notes")
-    SubscriptionDetail addNote(@PathVariable String salonId, @PathVariable Long subscriptionId, @RequestBody NoteRequest req) {
-        return memberships.addNote(salonApi.resolveId(salonId), subscriptionId, req.note(), ACTOR);
+    SubscriptionDetail addNote(@PathVariable String salonId, @PathVariable Long subscriptionId, @RequestBody NoteRequest req,
+                               @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt) {
+        return memberships.addNote(salonApi.resolveId(salonId), subscriptionId, req.note(), actor(jwt));
     }
 
     @PostMapping("/subscriptions/{subscriptionId}/resend-welcome")
@@ -135,8 +170,9 @@ class MembershipAdminController {
      */
     @PostMapping("/desk-sales")
     @ResponseStatus(HttpStatus.CREATED)
-    CheckoutResult sellAtDesk(@PathVariable String salonId, @RequestBody DeskSaleSpec spec) {
-        return memberships.sellAtDesk(salonApi.resolveId(salonId), spec);
+    CheckoutResult sellAtDesk(@PathVariable String salonId, @RequestBody DeskSaleSpec spec,
+                              @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt) {
+        return memberships.sellAtDesk(salonApi.resolveId(salonId), spec, jwt == null ? null : jwt.getSubject());
     }
 
     /** Look a member up by the code in their QR (scanned or typed). */

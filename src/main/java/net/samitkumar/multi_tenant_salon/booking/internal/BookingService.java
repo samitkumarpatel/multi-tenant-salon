@@ -537,6 +537,40 @@ class BookingService implements BookingApi {
         return bookingRepo.findBySalonIdAndId(salonId, bookingId);
     }
 
+    @Override
+    public List<Booking> findPayableAtDesk(UUID salonId, LocalDate date) {
+        return jdbcClient.sql("""
+                        SELECT id FROM booking
+                        WHERE salon_id = :salon AND appointment_date = :date
+                          AND status <> 'CANCELLED' AND payment_status <> 'PAID'
+                        ORDER BY start_time, id""")
+                .param("salon", salonId).param("date", date)
+                .query(Long.class).list().stream()
+                .map(id -> bookingRepo.findBySalonIdAndId(salonId, id))
+                .flatMap(Optional::stream)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public boolean clearDeskPayment(UUID salonId, Long bookingId, String reference) {
+        return jdbcClient.sql("""
+                        UPDATE booking SET payment_status = 'NOT_REQUIRED', payment_reference = NULL
+                        WHERE id = :id AND salon_id = :salon AND payment_reference = :reference""")
+                .param("reference", reference).param("id", bookingId).param("salon", salonId)
+                .update() == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean markPaidAtDesk(UUID salonId, Long bookingId, String reference) {
+        return jdbcClient.sql("""
+                        UPDATE booking SET payment_status = 'PAID', payment_reference = :reference
+                        WHERE id = :id AND salon_id = :salon AND payment_status <> 'PAID'""")
+                .param("reference", reference).param("id", bookingId).param("salon", salonId)
+                .update() == 1;
+    }
+
     @Transactional
     Booking create(UUID salonId, Long serviceId, Long requestedStaffId,
                    String customerName, String customerEmail, String customerPhone,

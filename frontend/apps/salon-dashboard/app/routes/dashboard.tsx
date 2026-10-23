@@ -4,13 +4,14 @@ import { redirect, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
   CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard,
-  Maximize2, Minimize2, Minus, Pencil, Plus, Receipt, ShoppingCart, UserRound, X, XCircle,
+  Maximize2, Minimize2, Minus, Pencil, Plus, Receipt, ShoppingCart, Trash2, TriangleAlert, UserRound, X, XCircle,
   Search,
 } from "lucide-react";
 import { Toast, useToast } from "@salon/ui-shared";
 import { ADMIN_API, CUSTOMER_API, apiFetch } from "~/lib/api";
 import { getDashboardSession } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
+import { DaySheet } from "~/components/DaySheet";
 import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
 import { TerminalPaymentDialog, loadTerminals, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import type {
@@ -20,7 +21,7 @@ import type {
 import { CustomerDetailsFields, StripeCheckoutPanel, beginCheckout, type CheckoutInstructions, type CheckoutResult, type ContactMethod } from "@salon/ui-website";
 
 type DashboardView = "appointments" | "cashier" | "membership";
-type CashierView = "pos" | "invoices";
+type CashierView = "pos" | "invoices" | "report";
 
 interface DashboardSettings {
   salonId: string;
@@ -29,7 +30,7 @@ interface DashboardSettings {
 }
 
 interface CashierItem {
-  sourceType: "SERVICE" | "PRODUCT";
+  sourceType: "SERVICE" | "PRODUCT" | "BOOKING";
   sourceId: number;
   name: string;
   detail?: string | null;
@@ -48,6 +49,9 @@ interface PosSale {
   createdAt: string;
   paymentStatus?: "PENDING" | "PAID" | "FAILED";
   paymentReference?: string | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  refundedAmount?: number | null;
 }
 interface PaymentSetup {
   stripe: {
@@ -55,6 +59,14 @@ interface PaymentSetup {
     testMode: boolean;
     settings: { areas: { area: string; enabled: boolean; checkoutUi: string }[] };
   };
+}
+
+/** What the operator should read a sale as — a pending or failed card sale must not look paid. */
+function saleStatus(sale: PosSale): { label: string; tone: string } | null {
+  if (sale.voidedAt) return { label: sale.refundedAmount ? "Voided · refunded" : "Voided", tone: "border-slate-200 bg-slate-100 text-slate-500" };
+  if (sale.paymentStatus === "PENDING") return { label: "Awaiting payment", tone: "border-amber-200 bg-amber-50 text-amber-700" };
+  if (sale.paymentStatus === "FAILED") return { label: "Failed", tone: "border-red-200 bg-red-50 text-red-700" };
+  return null;
 }
 
 /** The area takes card payments: switched on by the owner, and Stripe can charge the account. */
@@ -82,7 +94,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const settings = settingsResult.value;
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
   const membershipEnabled = Boolean(salon.features?.includes("MEMBERSHIP"));
-  const [bookings, staff, services, closures, holidays, cashierItems, sales, countries, paymentSetup, terminals] = await Promise.all([
+  const [bookings, staff, services, closures, holidays, cashierItems, sales, payableBookings, countries, paymentSetup, terminals] = await Promise.all([
     bookingEnabled ? apiFetch<Booking[]>(`${ADMIN_API}/${sid}/booking`).catch((): Booking[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<StaffMember[]>(`${ADMIN_API}/${sid}/staff`).catch((): StaffMember[] => []) : Promise.resolve([]),
     bookingEnabled ? apiFetch<ServiceItem[]>(`${ADMIN_API}/${sid}/services`).catch((): ServiceItem[] => []) : Promise.resolve([]),
@@ -92,6 +104,10 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
       ? apiFetch<CashierItem[]>(`${ADMIN_API}/${sid}/dashboard/cashier/items`).catch((): CashierItem[] => [])
       : Promise.resolve([] as CashierItem[]),
     settings.cashierEnabled ? apiFetch<PosSale[]>(`${ADMIN_API}/${sid}/dashboard/sales`).catch((): PosSale[] => []) : Promise.resolve([]),
+    // Appointments booked online that the customer still has to pay for when they arrive.
+    settings.cashierEnabled
+      ? apiFetch<CashierItem[]>(`${ADMIN_API}/${sid}/dashboard/cashier/bookings`).catch((): CashierItem[] => [])
+      : Promise.resolve([] as CashierItem[]),
     bookingEnabled ? apiFetch<Country[]>(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/salon-utility/countries`).catch((): Country[] => []) : Promise.resolve([] as Country[]),
     settings.cashierEnabled || membershipEnabled ? apiFetch<PaymentSetup>(`${ADMIN_API}/${sid}/payments/stripe`).catch((): null => null) : Promise.resolve(null),
     settings.cashierEnabled || membershipEnabled ? loadTerminals(sid) : Promise.resolve([] as Terminal[]),
@@ -103,7 +119,7 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
     ]);
     return { staffId: member.id, availability, overrides };
   }))) : [];
-  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, countries, paymentSetup, terminals };
+  return { sid, salon, settings, bookings, staff, services, closures, holidays, schedules, cashierItems, sales, payableBookings, countries, paymentSetup, terminals };
 }
 
 const inputCls = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
@@ -116,7 +132,8 @@ export default function DashboardPage() {
   const { toast, notify } = useToast();
   const appointmentEnabled = initial.settings.bookingManagementEnabled && initial.salon.features?.includes("BOOKING");
   const requestedView = params.get("view");
-  const cashierView: CashierView = params.get("cashierView") === "invoices" ? "invoices" : "pos";
+  const requestedCashierView = params.get("cashierView");
+  const cashierView: CashierView = requestedCashierView === "invoices" ? "invoices" : requestedCashierView === "report" ? "report" : "pos";
   const invoicePeriod = params.get("invoicePeriod") ?? "all";
   const [invoicePicker, setInvoicePicker] = useState<"month" | "range" | null>(null);
   const paymentReturn = params.get("payment");
@@ -140,12 +157,22 @@ export default function DashboardPage() {
   const [readerPayment, setReaderPayment] = useState<{ saleId: number; payment: TerminalPayment } | null>(null);
   const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   const [bookings, setBookings] = useState(initial.bookings);
-  const [cashierItems] = useState(initial.cashierItems);
+  const [cashierItems, setCashierItems] = useState(initial.cashierItems);
+  // Appointments are kept in their own list so settling one can remove it without touching the catalogue.
+  const [payableBookings, setPayableBookings] = useState(initial.payableBookings);
   const [cashierSearch, setCashierSearch] = useState("");
-  const [cashierFilter, setCashierFilter] = useState<"ALL" | "SERVICE" | "PRODUCT">("ALL");
+  const [cashierFilter, setCashierFilter] = useState<"ALL" | "BOOKING" | "SERVICE" | "PRODUCT">("ALL");
   const [sales, setSales] = useState(initial.sales);
   useEffect(() => {
-    if (paymentReturn !== "success" || view !== "cashier") return;
+    if (view !== "cashier") return;
+    if (paymentReturn === "cancel") {
+      // Backing out of Stripe lands back on an empty till. Without saying so, the operator can't tell
+      // "the customer changed their mind" from "it went wrong", and the unpaid sale sits unexplained.
+      setPaymentNotice({ tone: "warn", text: "The card payment wasn't completed, so the customer has not been charged. The sale is still listed as awaiting payment in Recent sales — void it, or take the payment again." });
+      void apiFetch<PosSale[]>(`${ADMIN_API}/${initial.sid}/dashboard/sales`).then(setSales).catch(() => {});
+      return;
+    }
+    if (paymentReturn !== "success") return;
     let stopped = false;
     let attempts = 0;
     const poll = async () => {
@@ -154,17 +181,33 @@ export default function DashboardPage() {
         if (stopped) return;
         setSales(refreshed);
         if (refreshed.some((sale) => sale.paymentReference === returnedSessionId && sale.paymentStatus !== "PENDING")) {
+          setPaymentNotice(null);
           window.clearInterval(timer);
+          return;
         }
       } catch { /* Keep the current sale list if a refresh fails. */ }
       attempts += 1;
-      if (attempts >= 8) window.clearInterval(timer);
+      if (attempts >= 8) {
+        window.clearInterval(timer);
+        // Giving up silently left a card sale that looks identical to a paid one. Say it's unconfirmed.
+        if (!stopped) setPaymentNotice({ tone: "info", text: "Still waiting for the card payment to be confirmed. It can take a minute — check Recent sales before handing anything over." });
+      }
     };
     const timer = window.setInterval(() => { void poll(); }, 1500);
     void poll();
     return () => { stopped = true; window.clearInterval(timer); };
   }, [paymentReturn, returnedSessionId, initial.sid, view]);
   const [cart, setCart] = useState<CartLine[]>([]);
+  // One key per distinct cart. If a reply is lost (salon wifi, the 55s client abort) and the operator
+  // taps again with the cart unchanged, the server hands back the sale it already made instead of
+  // ringing it up — and charging for it — twice. Any edit to the cart makes it a different cart.
+  const [cartKey, setCartKey] = useState(() => crypto.randomUUID());
+  // Payment and stock errors live inside the sale panel until dismissed: a 3.5s toast is easy to
+  // miss at a busy counter, and a missed "payment failed" is the one error that costs money.
+  const [saleError, setSaleError] = useState<string | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<{ tone: "warn" | "info"; text: string } | null>(null);
+  const [voiding, setVoiding] = useState<PosSale | null>(null);
+  const [voidReason, setVoidReason] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PosSale["paymentMethod"]>("CASH");
   const [customerName, setCustomerName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -186,9 +229,20 @@ export default function DashboardPage() {
   }
 
   function addToCart(item: CashierItem) {
+    setSaleError(null);
+    setCartKey(crypto.randomUUID());
     setCart((current) => {
       const existing = current.find((line) => line.sourceType === item.sourceType && line.sourceId === item.sourceId);
-      if (existing) return current.map((line) => line === existing ? { ...line, quantity: line.quantity + 1 } : line);
+      if (existing) {
+        // availableQuantity is the stock for a product and 1 for an appointment (paid for once).
+        if (item.availableQuantity != null && existing.quantity >= item.availableQuantity) {
+          notify(item.sourceType === "BOOKING"
+            ? "An appointment is paid for once."
+            : `Only ${item.availableQuantity} of ${item.name} in stock.`, "error");
+          return current;
+        }
+        return current.map((line) => line === existing ? { ...line, quantity: line.quantity + 1 } : line);
+      }
       if (current.length && current[0].currency !== item.currency) {
         notify("Items with different currencies cannot share one sale.", "error");
         return current;
@@ -197,7 +251,23 @@ export default function DashboardPage() {
     });
   }
 
+  function removeLine(line: CartLine) {
+    setCartKey(crypto.randomUUID());
+    setCart((current) => current.filter((item) => !(item.sourceType === line.sourceType && item.sourceId === line.sourceId)));
+  }
+
+  function clearSale() {
+    setCartKey(crypto.randomUUID());
+    setSaleError(null);
+    setCart([]);
+  }
+
   function changeQuantity(line: CartLine, delta: number) {
+    if (delta > 0 && line.availableQuantity != null && line.quantity >= line.availableQuantity) {
+      notify(line.sourceType === "BOOKING" ? "An appointment is paid for once." : `Only ${line.availableQuantity} of ${line.name} in stock.`, "error");
+      return;
+    }
+    setCartKey(crypto.randomUUID());
     setCart((current) => current
       .map((item) => item.sourceType === line.sourceType && item.sourceId === line.sourceId
         ? { ...item, quantity: item.quantity + delta } : item)
@@ -205,12 +275,14 @@ export default function DashboardPage() {
   }
 
   const cartTotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  const cartCurrency = cart[0]?.currency ?? "USD";
+  // An empty cart still shows a total; use the salon's own currency rather than a hardcoded dollar.
+  const cartCurrency = cart[0]?.currency ?? cashierItems[0]?.currency ?? payableBookings[0]?.currency ?? "USD";
   const visibleCashierItems = useMemo(() => {
     const query = cashierSearch.trim().toLocaleLowerCase();
-    return cashierItems.filter((item) => (cashierFilter === "ALL" || item.sourceType === cashierFilter)
+    // Appointments first: a customer standing at the counter is the reason the operator is here.
+    return [...payableBookings, ...cashierItems].filter((item) => (cashierFilter === "ALL" || item.sourceType === cashierFilter)
       && (!query || `${item.name} ${item.detail ?? ""}`.toLocaleLowerCase().includes(query)));
-  }, [cashierItems, cashierFilter, cashierSearch]);
+  }, [payableBookings, cashierItems, cashierFilter, cashierSearch]);
 
   const visibleSales = useMemo(() => {
     const now = new Date();
@@ -260,12 +332,20 @@ export default function DashboardPage() {
           items: cart.map(({ sourceType, sourceId, quantity }) => ({ sourceType, sourceId, quantity })),
           inlineCheckout: true,
           terminalId: onReader ? cardVia : null,
+          idempotencyKey: cartKey,
         }),
       });
       const sale = "sale" in response ? response.sale : response;
       setSales((current) => [sale, ...current]);
+      // Any appointment on this sale is now spoken for — drop it so it can't be rung up twice while
+      // a card payment is still settling. A refused sale leaves the list untouched.
+      const settled = new Set(cart.filter((line) => line.sourceType === "BOOKING").map((line) => line.sourceId));
+      if (settled.size) setPayableBookings((current) => current.filter((item) => !settled.has(item.sourceId)));
       setCart([]);
+      setCartKey(crypto.randomUUID());
+      setSaleError(null);
       setCustomerName("");
+      void refreshCatalogue();
       if ("terminalPayment" in response) {
         setReaderPayment({ saleId: sale.id, payment: response.terminalPayment });
         return;
@@ -277,7 +357,39 @@ export default function DashboardPage() {
       }
       notify(`Sale ${sale.saleNumber} completed.`);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not complete sale", "error");
+      // The cart and its key are deliberately left alone: if the sale did go through and only the
+      // reply was lost, tapping again replays it rather than charging a second time.
+      setSaleError(error instanceof Error ? error.message : "Could not complete sale");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** The catalogue is loaded once per visit, so a tablet left open all day would show yesterday's stock. */
+  async function refreshCatalogue() {
+    const [items, payable] = await Promise.all([
+      apiFetch<CashierItem[]>(`${ADMIN_API}/${initial.sid}/dashboard/cashier/items`).catch(() => null),
+      apiFetch<CashierItem[]>(`${ADMIN_API}/${initial.sid}/dashboard/cashier/bookings`).catch(() => null),
+    ]);
+    if (items) setCashierItems(items);
+    if (payable) setPayableBookings(payable);
+  }
+
+  async function confirmVoid() {
+    if (!voiding) return;
+    setSaving(true);
+    try {
+      const updated = await apiFetch<PosSale>(`${ADMIN_API}/${initial.sid}/dashboard/sales/${voiding.id}/void`, {
+        method: "POST",
+        body: JSON.stringify({ reason: voidReason.trim() || null }),
+      });
+      setSales((current) => current.map((sale) => sale.id === updated.id ? updated : sale));
+      notify(`Sale ${updated.saleNumber} voided.`);
+      setVoiding(null);
+      setVoidReason("");
+      void refreshCatalogue();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not void sale", "error");
     } finally {
       setSaving(false);
     }
@@ -288,8 +400,8 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
           </div>
           {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
         </div>
@@ -317,6 +429,8 @@ export default function DashboardPage() {
           searchParams={params} setSearchParams={setParams}
           onNew={(date, time, staffId) => setServicePickerTime({ date, time: time ?? "09:00", staffId })} onSelect={setSelectedBooking} />
       )}
+
+      {view === "cashier" && cashierView === "report" && settings.cashierEnabled && <DaySheet sid={initial.sid} />}
 
       {view === "cashier" && cashierView === "invoices" && settings.cashierEnabled && (
         <section className="rounded-xl border border-slate-200 bg-white">
@@ -360,31 +474,43 @@ export default function DashboardPage() {
       )}
 
       {view === "cashier" && cashierView === "pos" && settings.cashierEnabled && (
-        <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
-          <div className="order-2 flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white lg:order-1 lg:h-[calc(100vh-10rem)]">
+        <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_320px]">
+          {paymentNotice && (
+            <div role="status" aria-live="polite"
+              className={`md:col-span-2 order-0 flex items-start gap-2 rounded-xl border px-4 py-3 text-xs ${paymentNotice.tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="flex-1">{translateUi(paymentNotice.text)}</p>
+              <button type="button" onClick={() => setPaymentNotice(null)} aria-label={translateUi("Dismiss")} className="shrink-0 cursor-pointer p-1"><X className="h-4 w-4" /></button>
+            </div>
+          )}
+          <div className="order-2 flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white md:order-1 md:h-[calc(100vh-10rem)]">
             <div className="border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-semibold text-slate-800">{translateUi("Services and products")}</h2>
-              <p className="mt-0.5 text-xs text-slate-400">{translateUi("Products appear when Shop is enabled and stock is available.")}</p>
+              <h2 className="text-sm font-semibold text-slate-800">{translateUi("Appointments, services and products")}</h2>
+              <p className="mt-0.5 text-xs text-slate-400">{translateUi("Today\u2019s unpaid appointments appear first, so a customer who booked online can pay on arrival.")}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <label className="relative min-w-[180px] flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input type="search" value={cashierSearch} onChange={(event) => setCashierSearch(event.target.value)} placeholder={translateUi("Search services and products")} aria-label={translateUi("Search services and products")} className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs text-slate-700 outline-none focus:border-matcha-500" />
+                  <input type="search" value={cashierSearch} onChange={(event) => setCashierSearch(event.target.value)} placeholder={translateUi("Search appointments, services and products")} aria-label={translateUi("Search appointments, services and products")} className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs text-slate-700 outline-none focus:border-matcha-500" />
                 </label>
-                <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Filter cashier items")}>
-                  {([ ["ALL", "All"], ["SERVICE", "Services"], ["PRODUCT", "Products"] ] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setCashierFilter(key)} aria-pressed={cashierFilter === key} className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${cashierFilter === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{translateUi(label)}</button>)}
+                <div className="flex flex-wrap rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Filter cashier items")}>
+                  {([ ["ALL", "All"], ["BOOKING", "Appointments"], ["SERVICE", "Services"], ["PRODUCT", "Products"] ] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setCashierFilter(key)} aria-pressed={cashierFilter === key} className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${cashierFilter === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{translateUi(label)}</button>)}
                 </div>
               </div>
             </div>
-            <div className="grid max-h-[38vh] gap-2 overflow-y-auto p-3 sm:grid-cols-2 xl:grid-cols-3 lg:min-h-0 lg:max-h-none lg:flex-1 lg:content-start">
+            <div className="grid max-h-[38vh] gap-2 overflow-y-auto p-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 md:min-h-0 md:max-h-none md:flex-1 md:content-start">
               {visibleCashierItems.map((item) => (
                 <button key={`${item.sourceType}-${item.sourceId}`} type="button" onClick={() => addToCart(item)}
                   className="group flex min-h-[64px] items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-matcha-300 hover:bg-matcha-50 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1 cursor-pointer">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-matcha-100 group-hover:text-matcha-700">
-                    {item.sourceType === "SERVICE" ? <CalendarCheck className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+                    {item.sourceType === "PRODUCT" ? <ShoppingCart className="h-4 w-4" /> : <CalendarCheck className="h-4 w-4" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-slate-700">{item.name}</p>
-                    <p className="mt-0.5 truncate text-[10px] text-slate-400">{item.detail || (item.sourceType === "SERVICE" ? "Service" : "Product")}</p>
+                    <p className="mt-0.5 truncate text-[10px] text-slate-400">{item.detail || (item.sourceType === "SERVICE" ? "Service" : item.sourceType === "BOOKING" ? translateUi("Appointment") : "Product")}
+                      {item.sourceType === "PRODUCT" && item.availableQuantity != null && (
+                        <span className={item.availableQuantity <= 3 ? " font-semibold text-amber-600" : ""}> · {translateUi("{count} left", { count: item.availableQuantity })}</span>
+                      )}
+                    </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <span className="text-xs font-semibold text-slate-700">{formatPrice(item.price, item.currency, uiLocale)}</span>
@@ -395,15 +521,20 @@ export default function DashboardPage() {
                   </div>
                 </button>
               ))}
-              {!cashierItems.length ? <p className="p-4 text-sm text-slate-400">{translateUi("No active services or products are available.")}</p>
+              {!cashierItems.length ? <p className="p-4 text-sm text-slate-400">{translateUi("No appointments, services or products are available.")}</p>
                 : !visibleCashierItems.length && <p className="p-4 text-sm text-slate-400">{translateUi("No items match your search.")}</p>}
             </div>
           </div>
 
-          <div className="order-1 sticky top-20 z-20 h-fit max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white lg:order-2">
+          <div className="order-1 sticky top-20 z-20 h-fit max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white md:order-2">
             <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
               <Receipt className="h-4 w-4 text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-800">{translateUi("Current sale")}</h2>
+              {cart.length > 0 && (
+                <button type="button" onClick={clearSale} className="ml-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+                  {translateUi("Clear sale")}
+                </button>
+              )}
             </div>
             <div className="space-y-3 p-4">
               {!cart.length ? <p className="py-4 text-center text-xs text-slate-400">{translateUi("Select a service or product to begin.")}</p> : cart.map((line) => (
@@ -412,9 +543,10 @@ export default function DashboardPage() {
                     <p className="truncate text-xs font-semibold text-slate-700">{line.name}</p>
                     <p className="text-[11px] text-slate-400">{formatPrice(line.price, line.currency, uiLocale)} {translateUi("each")}</p>
                   </div>
-                  <button onClick={() => changeQuantity(line, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100 cursor-pointer" aria-label={`Remove one ${line.name}`}><Minus className="h-3.5 w-3.5" /></button>
-                  <span className="w-5 text-center text-xs font-semibold">{line.quantity}</span>
-                  <button onClick={() => changeQuantity(line, 1)} className="rounded p-1 text-slate-400 hover:bg-slate-100 cursor-pointer" aria-label={`Add one ${line.name}`}><Plus className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => changeQuantity(line, -1)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 active:bg-slate-200 cursor-pointer" aria-label={`Remove one ${line.name}`}><Minus className="h-4 w-4" /></button>
+                  <span className="w-6 text-center text-sm font-semibold" aria-live="polite">{line.quantity}</span>
+                  <button onClick={() => changeQuantity(line, 1)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 active:bg-slate-200 cursor-pointer" aria-label={`Add one ${line.name}`}><Plus className="h-4 w-4" /></button>
+                  <button onClick={() => removeLine(line)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 active:bg-red-100 cursor-pointer" aria-label={`Remove ${line.name} from the sale`}><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
               <div className="border-t border-slate-100 pt-3">
@@ -432,6 +564,13 @@ export default function DashboardPage() {
                     <option value="online">{translateUi("Card form on this screen")}</option>
                   </select>
                 )}
+                {saleError && (
+                  <div role="alert" className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <p className="flex-1">{saleError}</p>
+                    <button type="button" onClick={() => setSaleError(null)} aria-label={translateUi("Dismiss")} className="shrink-0 cursor-pointer"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                )}
                 <button type="button" disabled={!cart.length || saving} onClick={completeSale}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-matcha-700 disabled:opacity-40 cursor-pointer">
                   <CreditCard className="h-4 w-4" /> {saving ? translateUi("Processing…") : paymentMethod === "CARD" ? translateUi("Continue to card payment") : translateUi("Record payment")}
@@ -441,16 +580,26 @@ export default function DashboardPage() {
           </div>
 
           {sales.length > 0 && (
-            <div className="order-3 rounded-xl border border-slate-200 bg-white lg:col-span-2">
+            <div className="order-3 rounded-xl border border-slate-200 bg-white md:col-span-2">
               <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{translateUi("Recent sales")}</div>
               <div className="divide-y divide-slate-100">
-                {sales.slice(0, 8).map((sale) => (
-                  <div key={sale.id} className="flex items-center gap-3 px-4 py-3 text-xs">
-                    <span className="font-mono font-semibold text-slate-600">{sale.saleNumber}</span>
-                    <span className="min-w-0 flex-1 truncate text-slate-400">{sale.customerName || "Walk-in customer"} · {sale.paymentMethod.toLowerCase()}</span>
-                    <span className="font-semibold text-slate-700">{formatPrice(sale.total, sale.currency, uiLocale)}</span>
-                  </div>
-                ))}
+                {sales.slice(0, 8).map((sale) => {
+                  const status = saleStatus(sale);
+                  return (
+                    <div key={sale.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 text-xs ${sale.voidedAt ? "opacity-60" : ""}`}>
+                      <span className={`font-mono font-semibold text-slate-600 ${sale.voidedAt ? "line-through" : ""}`}>{sale.saleNumber}</span>
+                      <span className="min-w-0 flex-1 truncate text-slate-400">{sale.customerName || "Walk-in customer"} · {sale.paymentMethod.toLowerCase()}</span>
+                      {status && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${status.tone}`}>{translateUi(status.label)}</span>}
+                      <span className={`font-semibold text-slate-700 ${sale.voidedAt ? "line-through" : ""}`}>{formatPrice(sale.total, sale.currency, uiLocale)}</span>
+                      {!sale.voidedAt && sale.paymentStatus !== "PENDING" && (
+                        <button type="button" onClick={() => { setVoiding(sale); setVoidReason(""); }}
+                          className="min-h-9 cursor-pointer rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+                          {translateUi("Void")}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -472,6 +621,30 @@ export default function DashboardPage() {
               done.status === "SUCCEEDED" ? "success" : "error");
           }}
           onClose={() => setReaderPayment(null)} />
+      )}
+
+      {voiding && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center" onClick={(e) => e.target === e.currentTarget && !saving && setVoiding(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="void-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h2 id="void-title" className="text-base font-bold text-slate-900">{translateUi("Void sale {number}?", { number: voiding.saleNumber })}</h2>
+            <p className="mt-2 text-xs text-slate-500">
+              {voiding.paymentMethod === "CARD" && voiding.paymentStatus === "PAID"
+                ? translateUi("Products go back in stock, and the card payment of {amount} is refunded to the customer.", { amount: formatPrice(voiding.total, voiding.currency, uiLocale) })
+                : translateUi("Products go back in stock. Hand the {amount} back to the customer — this records that you did.", { amount: formatPrice(voiding.total, voiding.currency, uiLocale) })}
+            </p>
+            <label className="mt-4 block text-xs font-medium text-slate-600" htmlFor="void-reason">{translateUi("Reason (optional)")}</label>
+            <input id="void-reason" className={`${inputCls} mt-1`} value={voidReason} maxLength={200} autoFocus
+              onChange={(event) => setVoidReason(event.target.value)} placeholder={translateUi("e.g. Rang up the wrong customer")} />
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={saving} onClick={() => setVoiding(null)}
+                className="min-h-10 cursor-pointer rounded-lg border border-slate-200 px-4 text-sm text-slate-600 hover:bg-slate-50">{translateUi("Keep sale")}</button>
+              <button type="button" disabled={saving} onClick={confirmVoid}
+                className="min-h-10 cursor-pointer rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40">
+                {saving ? translateUi("Voiding…") : translateUi("Void sale")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {servicePickerTime && <AvailableServicePicker sid={initial.sid} date={servicePickerTime.date} time={servicePickerTime.time} staffId={servicePickerTime.staffId} services={initial.services} staff={initial.staff}

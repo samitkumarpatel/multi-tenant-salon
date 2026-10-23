@@ -1,6 +1,8 @@
 package net.samitkumar.multi_tenant_salon.payments.internal;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -10,6 +12,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -28,11 +31,26 @@ class StripeClient {
     StripeClient(RestClient.Builder clientBuilder,
                  @Value("${spring.application.payments.stripe-secret-key:}") String secretKey,
                  @Value("${spring.application.payments.stripe-publishable-key:}") String publishableKey,
-                 @Value("${spring.application.payments.stripe-api-version:2026-08-26.dahlia}") String apiVersion) {
+                 @Value("${spring.application.payments.stripe-api-version:2026-08-26.dahlia}") String apiVersion,
+                 @Value("${spring.application.payments.stripe-connect-timeout:PT2S}") Duration connectTimeout,
+                 @Value("${spring.application.payments.stripe-read-timeout:PT10S}") Duration readTimeout) {
+        // Without explicit timeouts a slow Stripe response blocks the calling request thread
+        // indefinitely; checkout then holds its database connection for just as long, so one Stripe
+        // incident drains the connection pool for every module, not only the shop. Setting the
+        // factory replaces whatever transport the builder carries, so a non-positive timeout leaves
+        // it untouched — that is how tests keep the mock transport they bound to the builder.
+        if (isPositive(connectTimeout) || isPositive(readTimeout)) {
+            clientBuilder = clientBuilder.requestFactory(ClientHttpRequestFactoryBuilder.detect()
+                    .build(HttpClientSettings.defaults().withTimeouts(connectTimeout, readTimeout)));
+        }
         this.stripe = clientBuilder.baseUrl("https://api.stripe.com").build();
         this.secretKey = secretKey;
         this.publishableKey = publishableKey;
         this.apiVersion = apiVersion;
+    }
+
+    private static boolean isPositive(Duration timeout) {
+        return timeout != null && !timeout.isZero() && !timeout.isNegative();
     }
 
     boolean secretConfigured() { return secretKey != null && !secretKey.isBlank(); }

@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigate } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
-import { BadgeCheck, CalendarDays, ChevronDown, LogOut, Receipt, ScanLine, ShoppingCart, UserPlus } from "lucide-react";
+import { BadgeCheck, CalendarDays, Calculator, ChevronDown, LogOut, Receipt, ScanLine, ShoppingCart, UserPlus } from "lucide-react";
 import { SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { DEFAULT_THEME, API_BASE, contrastText } from "@salon/ui-website";
 import type { Salon, WebsiteTheme } from "@salon/ui-website";
 import { ADMIN_API, apiFetch } from "~/lib/api";
+import { IDLE_SIGN_OUT_MINUTES } from "~/lib/config";
 import { getAccessTokenExpiry, getDashboardSession, logout, startOAuth2Login, startSilentRenewLoop } from "~/lib/auth";
 
 function initials(name: string) {
@@ -69,10 +70,48 @@ export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   return { salon, settings, languagePolicy: languages.dashboard, languageScope: String(salon.id), theme: { ...DEFAULT_THEME, ...theme } };
 }
 
+/**
+ * Signs out after {@code minutes} without a touch, key press or scroll, warning for the last minute.
+ * Resumes correctly after the tablet sleeps: the check compares timestamps rather than counting ticks,
+ * so a device that was asleep for hours is signed out on its first tick instead of getting a fresh window.
+ */
+function useIdleSignOut(minutes: number, onSignOut: () => void): number | null {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!minutes || minutes <= 0) return;
+    const idleMs = minutes * 60_000;
+    const warnMs = Math.min(60_000, idleMs / 2);
+    let lastActive = Date.now();
+    const bump = () => {
+      lastActive = Date.now();
+      setSecondsLeft((current) => (current === null ? current : null));
+    };
+    const events = ["pointerdown", "keydown", "touchstart", "wheel"] as const;
+    events.forEach((name) => window.addEventListener(name, bump, { passive: true }));
+    const timer = window.setInterval(() => {
+      const idle = Date.now() - lastActive;
+      if (idle >= idleMs) {
+        window.clearInterval(timer);
+        onSignOut();
+      } else if (idle >= idleMs - warnMs) {
+        setSecondsLeft(Math.ceil((idleMs - idle) / 1000));
+      }
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+      events.forEach((name) => window.removeEventListener(name, bump));
+    };
+    // onSignOut is stable enough: it only calls logout(navigate), and re-subscribing would reset the clock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minutes]);
+  return secondsLeft;
+}
+
 export default function DashboardLayout() {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const data = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
+  const idleSecondsLeft = useIdleSignOut(IDLE_SIGN_OUT_MINUTES, () => logout(navigate));
   const location = useLocation();
   const session = getDashboardSession();
   const { toast, notify } = useToast();
@@ -155,8 +194,9 @@ export default function DashboardLayout() {
               <Link to="?view=appointments&appointmentsView=new" className={`my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}>{translateUi("Book")}</Link>
             </AnimatedSubmenu>}
             {key === "cashier" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
-              <Link to="?view=cashier&cashierView=pos" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView !== "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ShoppingCart className="h-3.5 w-3.5" />{translateUi("Till / POS")}</Link>
+              <Link to="?view=cashier&cashierView=pos" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView !== "invoices" && requestedCashierView !== "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ShoppingCart className="h-3.5 w-3.5" />{translateUi("Till / POS")}</Link>
               <Link to="?view=cashier&cashierView=invoices" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Receipt className="h-3.5 w-3.5" />{translateUi("Invoices")}</Link>
+              <Link to="?view=cashier&cashierView=report" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Calculator className="h-3.5 w-3.5" />{translateUi("End of day")}</Link>
             </AnimatedSubmenu>}
             {key === "membership" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
               <Link to="?view=membership&membershipView=check-in" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${!sellingMembership ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ScanLine className="h-3.5 w-3.5" />{translateUi("Check in")}</Link>
@@ -175,8 +215,9 @@ export default function DashboardLayout() {
             <Link to="?view=appointments&appointmentsView=new" className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-600"}`}>{translateUi("Book")}</Link>
           </AnimatedSubmenu>
           <AnimatedSubmenu open={activeView === "cashier"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">
-            <Link to="?view=cashier&cashierView=pos" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView !== "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Till / POS")}</Link>
+            <Link to="?view=cashier&cashierView=pos" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView !== "invoices" && requestedCashierView !== "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Till / POS")}</Link>
             <Link to="?view=cashier&cashierView=invoices" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Invoices")}</Link>
+            <Link to="?view=cashier&cashierView=report" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("End of day")}</Link>
           </AnimatedSubmenu>
           <AnimatedSubmenu open={activeView === "membership"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">
             <Link to="?view=membership&membershipView=check-in" className={`shrink-0 rounded px-2 py-1 no-underline ${!sellingMembership ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Check in")}</Link>
@@ -186,6 +227,12 @@ export default function DashboardLayout() {
         <main className="px-4 py-6 sm:px-7"><div className="mx-auto w-full max-w-5xl"><Outlet /></div></main>
       </div>
     </div>
-    <Toast toast={toast} />
+    {idleSecondsLeft !== null && (
+        <div role="alert" aria-live="assertive"
+          className="fixed inset-x-4 bottom-4 z-[70] mx-auto max-w-md rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-medium text-amber-900 shadow-lg">
+          {translateUi("Signing out in {seconds}s to keep this till secure. Tap anywhere to stay signed in.", { seconds: idleSecondsLeft })}
+        </div>
+      )}
+      <Toast toast={toast} />
   </div>;
 }

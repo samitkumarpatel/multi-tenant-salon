@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,6 +73,8 @@ class MembershipSubscriptionFlowTests {
                 salonId, "Flow Salon", "flow-" + salonId.toString().substring(0, 8),
                 "Owner", "owner@flow.test", "salon@flow.test", "+100000000");
         jdbcTemplate.update("INSERT INTO salon_feature (salon_id, feature) VALUES (?, 'MEMBERSHIP')", salonId);
+        // The day sheet is a desk screen, so the salon runs a desk (the sale itself no longer needs one).
+        jdbcTemplate.update("INSERT INTO salon_feature (salon_id, feature) VALUES (?, 'DASHBOARD')", salonId);
         planId = json(client.post().uri(adminBase() + "/plans").contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         { "name": "Glow Monthly", "price": 49.00, "currency": "EUR", "billingInterval": "MONTHLY",
@@ -191,7 +194,9 @@ class MembershipSubscriptionFlowTests {
         // The place is free again, and the member list filters by status.
         checkout("Bo", "bo@example.com");
         client.get().uri(adminBase() + "/subscriptions?status=CANCELLED").exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$.length()").isEqualTo(1).jsonPath("$[0].customerName").isEqualTo("Ann Member");
+                .expectBody().jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].customerName").isEqualTo("Ann Member")
+                .jsonPath("$.totalElements").isEqualTo(1);
     }
 
     @Test
@@ -314,6 +319,288 @@ class MembershipSubscriptionFlowTests {
         pay(latestPayment(subId), true);
         client.post().uri(publicBase() + "/checkout").contentType(MediaType.APPLICATION_JSON)
                 .body(checkoutBody("Ann", "ANN@example.com")).exchange().expectStatus().isEqualTo(409);
+    }
+
+    @Test
+    void aPaymentArrivingAfterCancellationDoesNotReviveTheMembership() {
+        long subId = checkout("Ann", "ann@example.com");
+        pay(latestPayment(subId), true);
+        String token = JsonPath.read(detail(subId), "$.subscription.renewalToken");
+
+        // The member opens a renewal checkout, and only then does the salon end the membership.
+        memberships.processRenewals(Instant.parse(JsonPath.read(detail(subId), "$.subscription.currentPeriodEnd"))
+                .minus(3, ChronoUnit.DAYS));
+        renew(token);
+        var renewal = latestPayment(subId);
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/cancel").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"atPeriodEnd\": false, \"reason\": \"Chargeback\" }").exchange().expectStatus().isOk();
+
+        // The webhook for that checkout lands afterwards: the money is recorded, the membership stays dead.
+        pay(renewal, true);
+
+        var after = detail(subId);
+        assertThat(JsonPath.<String>read(after, "$.subscription.status")).isEqualTo("CANCELLED");
+        assertThat(JsonPath.<String>read(after, "$.subscription.cancelReason")).isEqualTo("Chargeback");
+        assertThat(JsonPath.<List<?>>read(after, "$.activity[?(@.message =~ /.*could not be applied.*/)]")).hasSize(1);
+        client.get().uri(adminBase() + "/verify?code="
+                + JsonPath.<String>read(after, "$.subscription.memberCode")).exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.subscription.status").isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void openingTheRenewalLinkTwiceReusesTheSameCheckout() {
+        long subId = checkout("Ann", "ann@example.com");
+        pay(latestPayment(subId), true);
+        String token = JsonPath.read(detail(subId), "$.subscription.renewalToken");
+        var firstEnd = Instant.parse(JsonPath.read(detail(subId), "$.subscription.currentPeriodEnd"));
+
+        renew(token);
+        var first = latestPayment(subId);
+        renew(token);                      // a second tab, before paying either
+        var second = latestPayment(subId);
+        assertThat(second.get("id")).isEqualTo(first.get("id"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM membership_payment WHERE subscription_id = ? AND kind = 'RENEWAL'",
+                Integer.class, subId)).isEqualTo(1);
+
+        // Paying it once buys exactly one further period, and a redelivery adds nothing.
+        pay(first, true);
+        pay(first, true);
+        assertThat(Instant.parse(JsonPath.read(detail(subId), "$.subscription.currentPeriodEnd")))
+                .isEqualTo(firstEnd.atOffset(ZoneOffset.UTC).plusMonths(1).toInstant());
+        assertThat(JsonPath.<List<String>>read(detail(subId), "$.payments[?(@.kind == 'RENEWAL')].status"))
+                .containsExactly("PAID");
+    }
+
+    @Test
+    void anEarlyRenewalSuppressesTheReminderForThePeriodItBought() {
+        long subId = checkout("Ann", "ann@example.com");
+        pay(latestPayment(subId), true);
+        String token = JsonPath.read(detail(subId), "$.subscription.renewalToken");
+        var firstEnd = Instant.parse(JsonPath.read(detail(subId), "$.subscription.currentPeriodEnd"));
+
+        // Renew early, before any reminder has gone out.
+        renew(token);
+        pay(latestPayment(subId), true);
+        var secondEnd = Instant.parse(JsonPath.read(detail(subId), "$.subscription.currentPeriodEnd"));
+
+        // A job run timed against the *old* period end must not remind a member who is paid up well past it.
+        memberships.processRenewals(firstEnd.minus(3, ChronoUnit.DAYS));
+        assertThat(JsonPath.<List<?>>read(detail(subId), "$.activity[?(@.message =~ /.*Time to renew.*/)]")).isEmpty();
+
+        // The reminder for the period they actually hold is still delivered.
+        memberships.processRenewals(secondEnd.minus(3, ChronoUnit.DAYS));
+        assertThat(awaitEmail(subId, "Time to renew")).contains("ann@example.com");
+    }
+
+    @Test
+    void correctingAMistypedEmailMakesTheMembershipReachableAgain() {
+        long subId = checkout("An Member", "typo@exmaple.com");
+        pay(latestPayment(subId), true);
+        String oldToken = JsonPath.read(detail(subId), "$.subscription.renewalToken");
+
+        client.patch().uri(adminBase() + "/subscriptions/" + subId + "/contact").contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Ann Member", "customerEmail": "ann@example.com", "customerPhone": "+4512345678" }""")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.subscription.customerEmail").isEqualTo("ann@example.com")
+                .jsonPath("$.subscription.customerName").isEqualTo("Ann Member")
+                .jsonPath("$.subscription.customerPhone").isEqualTo("+4512345678");
+
+        var after = detail(subId);
+        // The link that went to the wrong address is retired, and the correction is on the timeline.
+        String newToken = JsonPath.read(after, "$.subscription.renewalToken");
+        assertThat(newToken).isNotEqualTo(oldToken);
+        client.get().uri(publicBase() + "/renewals/" + oldToken).exchange().expectStatus().isNotFound();
+        client.get().uri(publicBase() + "/renewals/" + newToken).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.firstName").isEqualTo("Ann");
+        assertThat(JsonPath.<List<String>>read(after, "$.activity[?(@.type == 'CONTACT_UPDATED')].message"))
+                .singleElement().asString()
+                .contains("typo@exmaple.com → ann@example.com")
+                .contains("An Member → Ann Member");
+
+        // The member can now actually be reached again. (The original welcome went to the typo address,
+        // so this waits for one addressed to the corrected one rather than just any "Welcome!" entry.)
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/resend-welcome").exchange().expectStatus().isOk();
+        assertThat(awaitEmail(subId, "ann@example.com")).contains("Your membership card");
+    }
+
+    @Test
+    void contactDetailsAreValidatedAndCannotCollideWithAnotherActiveMember() {
+        long subId = checkout("Ann", "ann@example.com");
+        pay(latestPayment(subId), true);
+
+        client.patch().uri(adminBase() + "/subscriptions/" + subId + "/contact").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"customerName\": \"Ann\", \"customerEmail\": \"not-an-email\" }")
+                .exchange().expectStatus().isEqualTo(400);
+        client.patch().uri(adminBase() + "/subscriptions/" + subId + "/contact").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"customerName\": \"  \", \"customerEmail\": \"ann@example.com\" }")
+                .exchange().expectStatus().isEqualTo(400);
+
+        // A second member on the same plan can't be given the first one's address.
+        jdbcTemplate.update("UPDATE membership_plan SET max_members = NULL WHERE id = ?", planId);
+        long otherId = checkout("Bo", "bo@example.com");
+        pay(latestPayment(otherId), true);
+        client.patch().uri(adminBase() + "/subscriptions/" + otherId + "/contact").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"customerName\": \"Bo\", \"customerEmail\": \"ann@example.com\" }")
+                .exchange().expectStatus().isEqualTo(409);
+
+        // Leaving the email alone while fixing a name is always allowed.
+        client.patch().uri(adminBase() + "/subscriptions/" + otherId + "/contact").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"customerName\": \"Bo Brown\", \"customerEmail\": \"bo@example.com\" }")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.subscription.customerName").isEqualTo("Bo Brown");
+    }
+
+    @Test
+    void aCardPaymentIsRefundedThroughStripeAndRecordedOnce() {
+        when(stripe.refundIfPaid(eq(salonId), eq("MEMBERSHIP"), anyString(), any(), any(), anyString()))
+                .thenReturn(Optional.of(new PaymentGateway.Refund(1L, 1L, new BigDecimal("20.00"), "EUR", "succeeded")));
+
+        long subId = checkout("Ann", "ann@example.com");
+        pay(latestPayment(subId), true);
+        long paymentId = ((Number) latestPayment(subId).get("id")).longValue();
+
+        // Part of the 59.00 first charge goes back.
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{ \"amount\": 20.00, \"reason\": \"Goodwill\" }")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.payments[0].refundedAmount").isEqualTo(20.00);
+        verify(stripe).refundIfPaid(eq(salonId), eq("MEMBERSHIP"), eq(String.valueOf(paymentId)),
+                argThat(a -> a.compareTo(new BigDecimal("20.00")) == 0), eq("Goodwill"), anyString());
+        assertThat(JsonPath.<List<String>>read(detail(subId), "$.activity[?(@.type == 'REFUNDED')].message"))
+                .singleElement().asString().contains("to the customer's card").contains("Goodwill");
+
+        // The rest can still go back, but not a penny more.
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{ \"amount\": 50.00 }")
+                .exchange().expectStatus().isEqualTo(400);
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{}")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.payments[0].refundedAmount").isEqualTo(59.00);
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{}")
+                .exchange().expectStatus().isEqualTo(409);
+    }
+
+    @Test
+    void aCashDeskPaymentIsRecordedAsRefundedWithoutCallingStripe() {
+        var body = client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Walk In", "walkin@example.com", "CASH"))
+                .exchange().expectStatus().isCreated().expectBody().returnResult().getResponseBody();
+        long subId = json(body, "$.subscriptionId");
+        long paymentId = ((Number) latestPayment(subId).get("id")).longValue();
+
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{}")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.payments[0].refundedAmount").isEqualTo(59.00);
+
+        verify(stripe, org.mockito.Mockito.never())
+                .refundIfPaid(eq(salonId), anyString(), anyString(), any(), any(), anyString());
+        assertThat(JsonPath.<List<String>>read(detail(subId), "$.activity[?(@.type == 'REFUNDED')].message"))
+                .singleElement().asString().contains("in cash at the desk");
+    }
+
+    @Test
+    void anUnpaidPeriodCannotBeRefunded() {
+        long subId = checkout("Ann", "ann@example.com");
+        long paymentId = ((Number) latestPayment(subId).get("id")).longValue();
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{}")
+                .exchange().expectStatus().isEqualTo(409);
+    }
+
+    @Test
+    void aMembershipEndedByMistakeCanBeReinstatedWhileStillPaidFor() {
+        long subId = checkout("Ann", "ann@example.com");
+        pay(latestPayment(subId), true);
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/cancel").contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"atPeriodEnd\": false, \"reason\": \"Misclick\" }").exchange().expectStatus().isOk();
+
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/resume").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.subscription.status").isEqualTo("ACTIVE")
+                .jsonPath("$.subscription.cancelReason").doesNotExist();
+
+        // Back to a working member: the desk finds them and the renewal link lives again.
+        var after = detail(subId);
+        client.get().uri(adminBase() + "/verify?code=" + JsonPath.<String>read(after, "$.subscription.memberCode"))
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.subscription.status").isEqualTo("ACTIVE");
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/send-renewal-link").exchange().expectStatus().isOk();
+
+        // Once the paid period really is over, there is nothing left to reinstate.
+        jdbcTemplate.update("UPDATE membership_subscription SET status = 'CANCELLED', current_period_end = now() - interval '1 day' WHERE id = ?", subId);
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/resume").exchange().expectStatus().isEqualTo(409);
+    }
+
+    @Test
+    void theMemberListSearchesFiltersAndPagesInTheDatabase() {
+        jdbcTemplate.update("UPDATE membership_plan SET max_members = NULL WHERE id = ?", planId);
+        long ann = checkout("Ann Adams", "ann@example.com");
+        pay(latestPayment(ann), true);
+        long bob = checkout("Bob Brown", "bob@contractor.org");
+        pay(latestPayment(bob), true);
+        checkout("Carol Clark", "carol@example.com");   // left unpaid → PENDING_PAYMENT
+
+        // Status tallies ignore the status filter, so the chips show what else there is to switch to.
+        client.get().uri(adminBase() + "/subscriptions?status=ACTIVE").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(2)
+                .jsonPath("$.totalElements").isEqualTo(2)
+                .jsonPath("$.statusCounts.ACTIVE").isEqualTo(2)
+                .jsonPath("$.statusCounts.PENDING_PAYMENT").isEqualTo(1);
+
+        // Search covers name, email and the member code.
+        client.get().uri(adminBase() + "/subscriptions?q=contractor").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].customerName").isEqualTo("Bob Brown");
+        client.get().uri(adminBase() + "/subscriptions?q=ADAMS").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1);
+        var code = JsonPath.<String>read(detail(ann), "$.subscription.memberCode");
+        client.get().uri(adminBase() + "/subscriptions?q=" + code.toLowerCase().substring(0, 3) + "-" + code.toLowerCase().substring(3))
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.content[0].id").isEqualTo(ann);
+
+        // A wildcard in the search box is matched literally, not as "everything".
+        client.get().uri(adminBase() + "/subscriptions?q=%25").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.content.length()").isEqualTo(0);
+
+        // Paging walks the whole set, newest first, without repeating anyone.
+        var first = client.get().uri(adminBase() + "/subscriptions?size=2&page=0").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.totalPages").isEqualTo(2)
+                .jsonPath("$.content.length()").isEqualTo(2).returnResult().getResponseBody();
+        var second = client.get().uri(adminBase() + "/subscriptions?size=2&page=1").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.content.length()").isEqualTo(1).returnResult().getResponseBody();
+        List<Integer> firstIds = JsonPath.read(new String(first, StandardCharsets.UTF_8), "$.content[*].id");
+        List<Integer> secondIds = JsonPath.read(new String(second, StandardCharsets.UTF_8), "$.content[*].id");
+        assertThat(firstIds).doesNotContainAnyElementsOf(secondIds);
+        assertThat(firstIds).hasSize(2);
+    }
+
+    @Test
+    void theDaySheetIncludesMembershipCashAndWhatWasHandedBack() {
+        var body = client.post().uri(adminBase() + "/desk-sales").contentType(MediaType.APPLICATION_JSON)
+                .body(deskSaleBody("Walk In", "walkin@example.com", "CASH"))
+                .exchange().expectStatus().isCreated().expectBody().returnResult().getResponseBody();
+        long subId = json(body, "$.subscriptionId");
+        long paymentId = ((Number) latestPayment(subId).get("id")).longValue();
+
+        // A cash membership never touches the till's own sales, so without this the drawer can't reconcile.
+        var report = "/api/salon-admin/" + salonId + "/dashboard/reports/daily?zone=UTC";
+        client.get().uri(report).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.takings[?(@.method=='CASH')].total").value((List<Number> t) ->
+                        assertThat(t.get(0).doubleValue()).isEqualTo(59.00))
+                .jsonPath("$.refunded.length()").isEqualTo(0);
+
+        // Handing some back is shown apart, not netted away.
+        client.post().uri(adminBase() + "/subscriptions/" + subId + "/payments/" + paymentId + "/refund")
+                .contentType(MediaType.APPLICATION_JSON).body("{ \"amount\": 20.00 }")
+                .exchange().expectStatus().isOk();
+        client.get().uri(report).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.takings[?(@.method=='CASH')].total").value((List<Number> t) ->
+                        assertThat(t.get(0).doubleValue()).isEqualTo(59.00))
+                .jsonPath("$.refunded[?(@.method=='CASH')].total").value((List<Number> t) ->
+                        assertThat(t.get(0).doubleValue()).isEqualTo(20.00));
     }
 
     private long checkout(String name, String email) {

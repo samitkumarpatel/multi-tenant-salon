@@ -59,9 +59,16 @@ public class MultiTenantSalonApplication {
 	@Bean
 	ThrowingCustomizer<HttpSecurity> httpSecurityCustomizer(
 			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
+			@Value("${app.security.permit-all:false}") boolean permitAll,
 			SalonDeskAccess deskAccess) {
-		if (issuerUri.contains("localhost")) {
-			log.warn("No OAuth2 issuer configured (still the localhost default) — running with security disabled for local development.");
+		// Opening the whole API needs an explicit opt-in, not merely an unset issuer. The issuer
+		// defaults to localhost, so keying off that alone meant a deploy that forgot OAUTH2_ISSUER_URI
+		// silently served every owner endpoint unauthenticated with nothing but a warning in the log.
+		// Set app.security.permit-all=true for local development (it is on in src/test/resources).
+		// Both conditions, so neither alone can open the API: a real issuer always wins (the flag is
+		// ignored), and an unset issuer alone is no longer enough.
+		if (permitAll && issuerUri.contains("localhost")) {
+			log.warn("app.security.permit-all=true — running with security disabled. Never set this outside local development.");
 			return http -> http.csrf(AbstractHttpConfigurer::disable).cors(Customizer.withDefaults())
 					.headers(headers -> headers.frameOptions(frame -> frame.disable())
 							.addHeaderWriter((request, response) -> {

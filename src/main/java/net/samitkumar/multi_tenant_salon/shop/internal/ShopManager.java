@@ -448,9 +448,7 @@ class ShopManager {
                 .param("reference", sessionId).param("id", orderId).param("salon", salonId).update();
         if (changed != 1) return;
         if (!succeeded) {
-            order.lines().stream().filter(line -> line.variantId() != null).forEach(line ->
-                    jdbcClient.sql("UPDATE product_variant SET quantity_on_hand = quantity_on_hand + :qty WHERE id = :id AND salon_id = :salon")
-                            .param("qty", line.quantity()).param("id", line.variantId()).param("salon", salonId).update());
+            restockOrderLines(salonId, order);
             recordOrderActivity(order.id(), salonId, "PAYMENT_FAILED", "Payment failed or checkout expired", "system", false, null, null);
         } else {
             publishOrderPlaced(new ShopOrder(order.id(), order.salonId(), order.orderNumber(), order.customerName(),
@@ -464,6 +462,32 @@ class ShopManager {
                     "customer", false, order.customerEmail(), order.customerPhone());
             recordOrderActivity(order.id(), salonId, "PAYMENT_PAID", "Payment received", "system", false, null, null);
         }
+    }
+
+    /**
+     * Puts an order's items back on the shelf, at most once per order. A cancellation, a received
+     * return and a failed payment can all reach this for the same order; claiming
+     * {@code stock_restored_at} with a conditional UPDATE is what keeps the credit single, the same
+     * way the checkout decrement guards itself with {@code quantity_on_hand >= :qty}.
+     *
+     * @return whether this call was the one that restocked
+     */
+    private boolean restockOrderLines(UUID salonId, ShopOrder order) {
+        int claimed = jdbcClient.sql("""
+                        UPDATE shop_order SET stock_restored_at = :at
+                        WHERE id = :id AND salon_id = :salon AND stock_restored_at IS NULL
+                        """)
+                // OffsetDateTime, not Instant — see the note in acceptRefund.
+                .param("at", OffsetDateTime.now(ZoneOffset.UTC))
+                .param("id", order.id())
+                .param("salon", salonId)
+                .update();
+        if (claimed != 1) return false;
+        order.lines().stream().filter(line -> line.variantId() != null).forEach(line ->
+                jdbcClient.sql("UPDATE product_variant SET quantity_on_hand = quantity_on_hand + :qty WHERE id = :id AND salon_id = :salon")
+                        .param("qty", line.quantity()).param("id", line.variantId()).param("salon", salonId).update());
+        log.info("[ShopManager] Restocked order id={} salon={} lines={}", order.id(), salonId, order.lines().size());
+        return true;
     }
 
     private void publishOrderPlaced(ShopOrder order) {
@@ -480,13 +504,14 @@ class ShopManager {
         if (order == null) return Optional.empty();
         if (order.status() == newStatus) return getOrder(salonId, orderId);
 
-        if (newStatus == OrderStatus.CANCELLED) {
-            var current = order.status();
-            if (current == OrderStatus.SHIPPED || current == OrderStatus.DELIVERED
-                    || current == OrderStatus.FULFILLED) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "Cannot cancel a " + current.name().toLowerCase() + " order. Start a return instead.");
-            }
+        if (order.status().isTerminal()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This order is " + prettyStatus(order.status()).toLowerCase(Locale.ROOT)
+                            + " and can no longer change status.");
+        }
+        if (newStatus == OrderStatus.CANCELLED && order.status().isDispatched()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Cannot cancel a " + order.status().name().toLowerCase() + " order. Start a return instead.");
         }
 
         jdbcClient.sql("UPDATE shop_order SET status = :s WHERE id = :id AND salon_id = :salon")
@@ -494,6 +519,10 @@ class ShopManager {
                 .param("id", orderId)
                 .param("salon", salonId)
                 .update();
+
+        // Cancelling frees the goods again — without this the quantity the checkout took stays
+        // gone and the owner has to notice and re-enter it by hand on the Inventory tab.
+        if (newStatus == OrderStatus.CANCELLED) restockOrderLines(salonId, order);
 
         var now = Instant.now();
         var message = "Order moved to " + prettyStatus(newStatus);
@@ -611,6 +640,11 @@ class ShopManager {
     Optional<OrderView> addShipping(UUID salonId, Long orderId, String carrier, String trackingNumber) {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElse(null);
         if (order == null) return Optional.empty();
+        if (order.status().isTerminal()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This order is " + prettyStatus(order.status()).toLowerCase(Locale.ROOT)
+                            + " — add shipping only to an open order.");
+        }
 
         jdbcClient.sql("UPDATE shop_order SET tracking_carrier = :c, tracking_number = :t WHERE id = :id AND salon_id = :salon")
                 .param("c", trimToNull(carrier))
@@ -619,17 +653,17 @@ class ShopManager {
                 .param("salon", salonId)
                 .update();
 
-        if (order.status() != OrderStatus.SHIPPED && order.status() != OrderStatus.DELIVERED
-                && order.status() != OrderStatus.FULFILLED) {
-            jdbcClient.sql("UPDATE shop_order SET status = 'SHIPPED' WHERE id = :id AND salon_id = :salon")
-                    .param("id", orderId).param("salon", salonId).update();
-        }
-
         var msg = "Shipment dispatched"
                 + (carrier != null && !carrier.isBlank() ? " via " + carrier.trim() : "")
                 + (trackingNumber != null && !trackingNumber.isBlank() ? " — tracking: " + trackingNumber.trim() : "");
         recordOrderActivity(orderId, salonId, "SHIPMENT_CREATED", msg, "admin", true,
                 order.customerEmail(), order.customerPhone());
+        // Dispatching is a status change like any other, so it goes through updateOrderStatus and
+        // publishes OrderStatusChangedEvent — writing 'SHIPPED' straight to the row here would
+        // leave notifications and the timeline blind to the transition.
+        if (!order.status().isDispatched()) {
+            updateOrderStatus(salonId, orderId, OrderStatus.SHIPPED, "admin");
+        }
         log.info("[ShopManager] Shipping set orderId={} carrier={} tracking={}", orderId, carrier, trackingNumber);
         return getOrder(salonId, orderId);
     }
@@ -804,6 +838,9 @@ class ShopManager {
                 .param("id", orderId)
                 .param("salon", salonId)
                 .update();
+        // The goods are physically back at this point, so they go back on the shelf.
+        if ("RECEIVED".equals(status) || "ACCEPTED".equals(status)) restockOrderLines(salonId, order);
+
         boolean notify = "APPROVED".equals(status) || "ACCEPTED".equals(status);
         recordOrderActivity(orderId, salonId, "RETURN_UPDATED",
                 "Return → " + status.toLowerCase().replace('_', ' '),

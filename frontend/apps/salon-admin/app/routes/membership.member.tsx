@@ -31,7 +31,21 @@ const ACTIVITY_DOT: Record<MembershipActivityType, string> = {
   CANCELLED: "bg-red-400",
   CUSTOMER_NOTIFIED: "bg-indigo-400",
   NOTE: "bg-slate-500",
+  CONTACT_UPDATED: "bg-sky-400",
+  REFUNDED: "bg-amber-600",
 };
+
+/** What is still left to give back on a payment — the charge minus anything already refunded. */
+function refundableOf(p: { status: string; amount: number | string; refundedAmount?: number | string | null }) {
+  if (p.status !== "PAID") return 0;
+  return Math.max(0, Number(p.amount) - Number(p.refundedAmount ?? 0));
+}
+
+/** Whole days the member has already paid for but not yet used — what a fair refund is usually based on. */
+function daysLeft(periodEnd: string | null | undefined) {
+  if (!periodEnd) return 0;
+  return Math.max(0, Math.ceil((new Date(periodEnd).getTime() - Date.now()) / 86_400_000));
+}
 
 const PAYMENT_LABEL = { PENDING: "Awaiting payment", PAID: "Paid", FAILED: "Not completed" } as const;
 const PAYMENT_TONE = { PENDING: "text-slate-500", PAID: "text-green-700", FAILED: "text-red-600" } as const;
@@ -48,9 +62,11 @@ export default function MembershipMember() {
   const [detail, setDetail] = useState<MembershipDetail>(init);
   const [qr, setQr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [modal, setModal] = useState<"cancel" | "note" | null>(null);
+  const [modal, setModal] = useState<"cancel" | "note" | "contact" | "refund" | null>(null);
   const [atPeriodEnd, setAtPeriodEnd] = useState(true);
   const [text, setText] = useState("");
+  const [contact, setContact] = useState({ customerName: "", customerEmail: "", customerPhone: "" });
+  const [refund, setRefund] = useState({ paymentId: 0, amount: "", reason: "" });
   const { toast, notify } = useToast();
   const m = detail.subscription;
   const current = m.status === "ACTIVE";
@@ -64,10 +80,10 @@ export default function MembershipMember() {
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [sid, m.id]);
 
-  async function act(path: string, body: unknown, success: string) {
+  async function act(path: string, body: unknown, success: string, method: "POST" | "PATCH" = "POST") {
     setBusy(true);
     try {
-      const next = await apiFetch<MembershipDetail>(`${base}/${path}`, { method: "POST", body: body == null ? undefined : JSON.stringify(body) });
+      const next = await apiFetch<MembershipDetail>(`${base}/${path}`, { method, body: body == null ? undefined : JSON.stringify(body) });
       setDetail(next);
       setModal(null);
       setText("");
@@ -111,6 +127,21 @@ export default function MembershipMember() {
           <p className="text-sm text-slate-500 mt-0.5">
             <a href={`mailto:${m.customerEmail}`} className="text-slate-600">{m.customerEmail}</a>
             {m.customerPhone && <> · <a href={`tel:${m.customerPhone}`} className="text-slate-600">{m.customerPhone}</a></>}
+            {" · "}
+            <button
+              type="button"
+              className="text-matcha-700 hover:underline font-medium"
+              onClick={() => {
+                setContact({
+                  customerName: m.customerName,
+                  customerEmail: m.customerEmail,
+                  customerPhone: m.customerPhone ?? "",
+                });
+                setModal("contact");
+              }}
+            >
+              {translateUi("Edit details")}
+            </button>
           </p>
 
           <dl className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 text-sm">
@@ -152,6 +183,13 @@ export default function MembershipMember() {
                 </button>
               </>
             )}
+            {/* Ending a membership is one click, so it needs a way back while the member is still
+                inside the period they paid for. Past that there is nothing to reinstate. */}
+            {m.status === "CANCELLED" && daysLeft(m.currentPeriodEnd) > 0 && (
+              <button className={btnCls} disabled={busy} onClick={() => act("resume", null, "Membership reinstated")}>
+                <RotateCcw className="w-3.5 h-3.5" /> {translateUi("Reinstate membership")}
+              </button>
+            )}
             {current && (
               <button className={btnCls} disabled={busy} onClick={() => act("resend-welcome", null, "QR code email sent")}>
                 <Mail className="w-3.5 h-3.5" /> {translateUi("Resend QR email")}
@@ -191,10 +229,23 @@ export default function MembershipMember() {
                       {translateUi(p.kind === "SIGNUP" ? "Sign-up" : "Renewal")}
                       {p.periodStart && p.periodEnd && ` · ${fmtDate(p.periodStart, uiLocale)} – ${fmtDate(p.periodEnd, uiLocale)}`}
                     </span>
+                    {p.refundedAmount != null && Number(p.refundedAmount) > 0 && (
+                      <span className="block text-xs text-amber-700">
+                        {translateUi("Refunded {amount}", { amount: formatPrice(p.refundedAmount, p.currency, uiLocale) })}
+                        {p.refundedAt && ` · ${fmtDate(p.refundedAt, uiLocale)}`}
+                      </span>
+                    )}
                   </span>
-                  <span className="text-xs text-slate-500 text-right">
+                  <span className="text-xs text-slate-500 text-right shrink-0">
                     {fmtDateTime(p.paidAt ?? p.createdAt, uiLocale)}
                     {p.checkoutSessionId && <span className="block font-mono text-[10px] text-slate-300 max-w-[160px] truncate">{p.checkoutSessionId}</span>}
+                    {p.status === "PAID" && refundableOf(p) > 0 && (
+                      <button type="button" disabled={busy}
+                        className="block ml-auto mt-1 text-matcha-700 hover:underline font-medium disabled:opacity-50"
+                        onClick={() => { setRefund({ paymentId: p.id, amount: String(refundableOf(p)), reason: "" }); setModal("refund"); }}>
+                        {translateUi(p.method === "CARD" ? "Refund to card" : "Record refund")}
+                      </button>
+                    )}
                   </span>
                 </li>
               ))}
@@ -227,7 +278,9 @@ export default function MembershipMember() {
                 hint={translateUi("Stays active until {date}, then ends. No renewal reminder is sent.", { date: fmtDate(m.currentPeriodEnd, uiLocale) })} />
               <Choice checked={!atPeriodEnd} onChange={() => setAtPeriodEnd(false)}
                 title={translateUi("Immediately")}
-                hint={translateUi("Ends today. No refund is issued automatically — refund in Stripe if needed.")} />
+                hint={daysLeft(m.currentPeriodEnd) > 0
+                  ? translateUi("Ends today, with {days} paid days unused. No money is returned automatically — refund the payment below if you want to give some back.", { days: daysLeft(m.currentPeriodEnd) })
+                  : translateUi("Ends today. No money is returned automatically.")} />
             </div>
           )}
           {m.cancelAtPeriodEnd && (
@@ -242,6 +295,61 @@ export default function MembershipMember() {
           <ModalActions busy={busy} danger onCancel={() => setModal(null)} saveLabel={translateUi("Cancel membership")}
             onSave={() => act("cancel", { atPeriodEnd: current && !m.cancelAtPeriodEnd && atPeriodEnd, reason: text || null },
               current && !m.cancelAtPeriodEnd && atPeriodEnd ? "Cancellation scheduled" : "Membership cancelled")} />
+        </Modal>
+      )}
+
+      {modal === "refund" && (() => {
+        const p = detail.payments.find((x) => x.id === refund.paymentId);
+        if (!p) return null;
+        const max = refundableOf(p);
+        const entered = Number(refund.amount);
+        return (
+          <Modal title={translateUi("Refund payment")} onClose={() => setModal(null)} narrow>
+            <p className="text-sm text-slate-600 mb-3">
+              {p.method === "CARD"
+                ? translateUi("This goes back to the card the member paid with. It can take a few days to appear on their statement.")
+                : translateUi("This was paid at the desk, so hand the money back there — this only records that you did, so the period isn't refunded twice.")}
+            </p>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{translateUi("Amount")}</label>
+            <input type="number" step="0.01" min="0.01" max={max} autoFocus className={inputCls}
+              value={refund.amount} onChange={(e) => setRefund({ ...refund, amount: e.target.value })} />
+            <p className="text-[11px] text-slate-400 mt-1">
+              {translateUi("At most {amount}", { amount: formatPrice(max, p.currency, uiLocale) })}
+            </p>
+            <label className="block text-sm font-medium text-slate-700 mb-1 mt-3">{translateUi("Reason (internal)")}</label>
+            <input className={inputCls} value={refund.reason} maxLength={500}
+              onChange={(e) => setRefund({ ...refund, reason: e.target.value })} />
+            <ModalActions busy={busy} disabled={!(entered > 0 && entered <= max)}
+              onCancel={() => setModal(null)} saveLabel={translateUi("Refund")}
+              onSave={() => act(`payments/${p.id}/refund`, { amount: entered, reason: refund.reason || null }, "Refund recorded")} />
+          </Modal>
+        );
+      })()}
+
+      {modal === "contact" && (
+        <Modal title={translateUi("Edit member details")} onClose={() => setModal(null)} narrow>
+          <label className="block text-sm font-medium text-slate-700 mb-1">{translateUi("Full name")}</label>
+          <input autoFocus className={inputCls} value={contact.customerName}
+            onChange={(e) => setContact({ ...contact, customerName: e.target.value })} />
+          <label className="block text-sm font-medium text-slate-700 mb-1 mt-3">{translateUi("Email")}</label>
+          <input type="email" className={inputCls} value={contact.customerEmail}
+            onChange={(e) => setContact({ ...contact, customerEmail: e.target.value })} />
+          <label className="block text-sm font-medium text-slate-700 mb-1 mt-3">{translateUi("Phone")}</label>
+          <input className={inputCls} value={contact.customerPhone}
+            onChange={(e) => setContact({ ...contact, customerPhone: e.target.value })} />
+          {contact.customerEmail.trim().toLowerCase() !== m.customerEmail.toLowerCase() && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mt-3">
+              {translateUi("Changing the email issues a new renewal link. Any link already sent to the old address stops working.")}
+            </p>
+          )}
+          <ModalActions busy={busy}
+            disabled={!contact.customerName.trim() || !contact.customerEmail.trim()}
+            onCancel={() => setModal(null)} saveLabel={translateUi("Save details")}
+            onSave={() => act("contact", {
+              customerName: contact.customerName,
+              customerEmail: contact.customerEmail,
+              customerPhone: contact.customerPhone || null,
+            }, "Member details updated", "PATCH")} />
         </Modal>
       )}
 

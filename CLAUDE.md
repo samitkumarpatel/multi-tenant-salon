@@ -18,7 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./mvnw spring-boot:test-run
 
 # Run the app in production mode (requires a running PostgreSQL instance at localhost:5432 or with a real connection string configured in application.yaml)
+# Security is ON by default here. Either run the auth server too, or add the `local` profile to turn it off:
 ./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 
 # Build native image (requires GraalVM 25+)
 ./mvnw native:compile -Pnative
@@ -63,6 +65,22 @@ Key conventions:
 - **`staff`** — `StaffMember` roster per salon (role, status, specializations).
 - **`shop`** — Web-shop for the `WEBSHOP` feature. Per-salon `Brand` / `Category` / `Product`, with `ProductVariant` as a **separate aggregate** (its own table, keyed by order lines + inventory — never a `@MappedCollection`, so a product edit can't renumber variant rows). A product carries an ordered image gallery (`product_image` child table, `@MappedCollection` — nothing FKs it so re-insert on save is fine); `product.image_url` stays as the cover and always mirrors `images[0]`. Stock lives on the variant; checkout does an atomic conditional `UPDATE` to decrement it. `ShopOrder` → `OrderLine` is written once at checkout; `OrderLineActivity` is a separate aggregate (insert-only) so the per-line timeline survives status updates. Payment is a dummy step (`placeOrder` returns the order `PAID`). Publishes `OrderPlacedEvent`, `OrderStatusChangedEvent`, `OrderLineActivityAddedEvent`, and listens for `OrderCustomerNotifiedEvent` (the notification module's send acknowledgement — see below) to append the exact customer email to the order's `CUSTOMER_NOTIFIED` activity timeline.
 - **`membership`** — `MEMBERSHIP` feature. Per-salon `MembershipPlan` (perks + included services as `@MappedCollection` child tables; `DRAFT`/`ACTIVE`/`ARCHIVED` — a plan with members can only be archived) and `MembershipSubscription`, a **separate aggregate** that snapshots price/interval at purchase and is only ever changed by conditional `UPDATE`s. Paid **the same way as the shop and the till**: each billing period is one `MembershipPayment` (sign-up or renewal) and one one-time `PaymentGateway.createCheckout(salonId, CheckoutRequest("MEMBERSHIP", <paymentId>, …))`; `MembershipEventListeners` handles `StripePaymentEvent` for that area and calls `recordStripePayment`, which moves only `PENDING` payments and extends `currentPeriodEnd` by one interval. Nothing renews automatically — `processRenewals` (`@Scheduled`, `spring.application.membership.*`) emails a renewal link (`renewalToken`) before the end and flips lapsed members to `EXPIRED` (or `CANCELLED` if the salon scheduled it). Statuses `PENDING_PAYMENT → ACTIVE → EXPIRED/CANCELLED`, `INCOMPLETE` for an abandoned first checkout. Admin cancellation needs no Stripe call. The salon desk (`salon-dashboard`) checks members in by QR/code and sells memberships via `POST …/membership/desk-sales`: `CASH`/`OTHER` settle the payment on the spot (`membership_payment.method`), `CARD` is either a card reader (`terminalId` → `PaymentGateway.collectOnTerminal`) or the same Stripe Checkout returning to the desk.
+
+## Security: local vs. deployed
+
+The API is **fail-closed**. `app.security.permit-all` (default `false`) is what opens it, and only
+while the OAuth2 issuer is still the `localhost` default — so neither an unset issuer nor a stray
+flag alone can serve the owner API unauthenticated, and a real issuer always wins.
+
+| Where | How |
+|---|---|
+| `spring-boot:test-run` and all tests | `app.security.permit-all=true` in `src/test/resources/application.properties` |
+| `spring-boot:run` locally | add `-Dspring-boot.run.profiles=local` (`application-local.yaml`), or run the auth server and leave security on |
+| Deployed | neither is set, so the real JWT chain applies. `OAUTH2_ISSUER_URI` is set in `helm/api/values.yaml` and the Terraform container app |
+
+`/internal/user-identity` is reachable without a token because the Authorization Server calls it
+while issuing a JWT. Set `spring.application.identity.internal-api-key` here and send it as
+`X-Internal-Api-Key` from the auth server; unset, it logs a warning on every startup and stays open.
 
 ## Desk access for staff
 

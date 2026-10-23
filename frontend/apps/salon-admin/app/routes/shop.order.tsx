@@ -374,7 +374,10 @@ export default function ShopOrderDetail() {
                 label={hasTracking
                   ? `Shipping: ${order.trackingCarrier ?? ""}${order.trackingCarrier && order.trackingNumber ? " · " : ""}${order.trackingNumber ?? ""}`
                   : translateUi("Update Shipping")}
-                disabled={busy}
+                // Still shown on a settled order so existing tracking stays readable, but not
+                // editable: adding shipping moves an order to SHIPPED, which the server refuses
+                // once the order is cancelled, fulfilled or failed.
+                disabled={busy || isClosed}
                 onClick={() => setModal({ kind: "shipping" })}
               />
               {isDelivered && !order.returnStatus && (

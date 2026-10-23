@@ -78,14 +78,17 @@ export function MembershipDesk({ sid, view, cardEnabled, notify, terminals = [],
   const [plansError, setPlansError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Every plan is kept, not just the on-sale ones: check-in has to show the benefits of the plan
+    // the member actually holds, and a salon that stops selling a plan still owes its existing
+    // members what they bought. Selling is filtered to on-sale plans below.
     apiFetch<MembershipPlan[]>(`${ADMIN_API}/${sid}/membership/plans`)
-      .then((all) => setPlans(all.filter((plan) => plan.status === "ACTIVE")))
+      .then((all) => setPlans(all))
       .catch((error: unknown) => { setPlans([]); setPlansError(error instanceof Error ? error.message : String(error)); });
   }, [sid]);
 
   return view === "sell"
-    ? <SellMembership sid={sid} plans={plans} plansError={plansError} cardEnabled={cardEnabled} notify={notify}
-        terminals={terminals} testMode={testMode} />
+    ? <SellMembership sid={sid} plans={plans?.filter((plan) => plan.status === "ACTIVE") ?? null} plansError={plansError}
+        cardEnabled={cardEnabled} notify={notify} terminals={terminals} testMode={testMode} />
     : <CheckIn sid={sid} plans={plans ?? []} notify={notify} translateUi={translateUi} />;
 }
 
@@ -106,18 +109,26 @@ function CheckIn({ sid, plans, notify, translateUi }: { sid: string; plans: Memb
   const [sendingLink, setSendingLink] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const lookUpSeq = useRef(0);
 
   async function lookUp(raw: string) {
     const value = raw.trim();
     if (!value) return;
+    // At a counter queue the next customer is scanned while the previous answer is still on screen.
+    // Clearing first means nobody is ever shown someone else's green "Valid member" card, and the
+    // sequence number drops a slow reply that would otherwise land on top of a newer one.
+    const seq = ++lookUpSeq.current;
+    setResult(null);
     setBusy(true);
     try {
       const detail = await apiFetch<MembershipDetail>(`${ADMIN_API}/${sid}/membership/verify?code=${encodeURIComponent(value)}`);
-      setResult({ kind: "found", detail });
+      if (seq === lookUpSeq.current) setResult({ kind: "found", detail });
     } catch (e) {
-      setResult(isNotFoundError(e) ? { kind: "missing", code: value } : { kind: "error", message: e instanceof Error ? e.message : String(e) });
+      if (seq === lookUpSeq.current) {
+        setResult(isNotFoundError(e) ? { kind: "missing", code: value } : { kind: "error", message: e instanceof Error ? e.message : String(e) });
+      }
     } finally {
-      setBusy(false);
+      if (seq === lookUpSeq.current) setBusy(false);
       setCode("");
       inputRef.current?.focus();
     }

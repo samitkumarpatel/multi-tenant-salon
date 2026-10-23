@@ -26,6 +26,10 @@ interface MembershipSubscriptionRepository extends ListCrudRepository<Membership
 
 interface MembershipPaymentRepository extends ListCrudRepository<MembershipPayment, Long> {
     List<MembershipPayment> findBySubscriptionIdOrderByCreatedAtDesc(Long subscriptionId);
+
+    /** The renewal checkout already open for this membership, if any — reused instead of minting a second one. */
+    Optional<MembershipPayment> findFirstBySubscriptionIdAndKindAndStatus(
+            Long subscriptionId, MembershipPayment.Kind kind, MembershipPayment.Status status);
 }
 
 interface MembershipActivityRepository extends ListCrudRepository<MembershipActivity, Long> {

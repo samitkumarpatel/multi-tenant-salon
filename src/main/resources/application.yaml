@@ -154,6 +154,7 @@ spring:
         - classpath:db/V19__membership_desk_sales.sql
         - classpath:db/V20__payment_areas_and_ledger.sql
         - classpath:db/V21__payment_terminals.sql
+        - classpath:db/V22__desk_shop_membership_hardening.sql
   modulith:
     events:
       jdbc:

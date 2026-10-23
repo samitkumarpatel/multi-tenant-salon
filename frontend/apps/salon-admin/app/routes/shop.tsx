@@ -1,16 +1,15 @@
 import { useI18n } from "@salon/i18n";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw, CreditCard } from "lucide-react";
+import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw, CreditCard, Undo2, Receipt } from "lucide-react";
 import { InfoBar } from "@salon/ui-shared";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
-import type { LayoutContext, Salon, ShopOrder } from "~/lib/types";
+import type { LayoutContext, Salon } from "~/lib/types";
+import type { ShopOrdersPage } from "~/lib/shopOrders";
 
 export interface ShopOutletContext {
   salon: Salon;
 }
-
-const PENDING_STATUSES = new Set(["NEW"]);
 
 export default function Shop() {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -20,9 +19,11 @@ export default function Shop() {
 
   useEffect(() => {
     if (!salonId) return;
+    // `size=1` because only statusCounts is wanted — the server counts every matching order,
+    // not just the ones on the page, so there is no reason to fetch the orders themselves.
     resolveSalonUUID(salonId).then((uuid) =>
-      apiFetch<ShopOrder[]>(`${ADMIN_API}/${uuid}/shop/orders`)
-        .then((orders) => setPendingCount(orders.filter((o) => PENDING_STATUSES.has(o.status)).length))
+      apiFetch<ShopOrdersPage>(`${ADMIN_API}/${uuid}/shop/orders?size=1`)
+        .then((page) => setPendingCount(page.statusCounts?.NEW ?? 0))
         .catch(() => {})
     );
   }, [salonId]);
@@ -41,6 +42,8 @@ export default function Shop() {
     { to: "inventory", label: "Inventory", icon: Boxes, end: false, badge: 0 },
     { to: "orders", label: "Orders", icon: ClipboardList, end: false, badge: pendingCount },
     { to: "refunds", label: "Refunds", icon: RefreshCcw, end: false, badge: 0 },
+    { to: "returns", label: "Returns", icon: Undo2, end: false, badge: 0 },
+    { to: "credit-notes", label: "Credit Notes", icon: Receipt, end: false, badge: 0 },
     { to: "../payments", label: "Payments", icon: CreditCard, end: false, badge: 0 },
   ];
 

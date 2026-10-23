@@ -14,13 +14,12 @@ import { SalonPolicyLinks } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { ShopView } from "./ShopView";
 import { MembershipView } from "./MembershipView";
-import { FEATURE_NAV } from "./SiteChrome";
+import { FEATURE_NAV, FooterOpeningHours, holidayOn, useSalonHolidays } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
 import { CategoryIcon } from "./CategoryIcon";
 import { useIsScrollable } from "./useIsScrollable";
-import { apiFetch, API_BASE } from "./api";
 import { staffAvatar, MediaThumb, Lightbox, StaffSpotlight } from "./StaffMedia";
-import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme, SalonHoliday } from "./types";
+import type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme } from "./types";
 
 export type { Salon, StaffMember, ServiceItem, OperatingHours, WebsiteTheme };
 
@@ -632,8 +631,8 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   const [bookServiceId, setBookServiceId] = useState<number | null>(null);
   const [bookStaffId, setBookStaffId]     = useState<number | null>(null);
   const [mounted, setMounted]             = useState(false);
-  const [holidays, setHolidays]           = useState<SalonHoliday[]>([]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const holidays = useSalonHolidays(salon.id);
   const isScrollable = useIsScrollable();
   const heroRef = useRef<HTMLElement>(null);
 
@@ -648,12 +647,6 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
     if (max <= 4) { setTeamEdge("start"); return; }
     setTeamEdge(el.scrollLeft <= 4 ? "start" : el.scrollLeft >= max - 4 ? "end" : "middle");
   };
-
-  useEffect(() => {
-    apiFetch<SalonHoliday[]>(`${API_BASE}/api/salon/${salon.id}/holidays`)
-      .then(setHolidays)
-      .catch(() => {});
-  }, [salon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setMounted(true);
@@ -688,7 +681,6 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   const shownServices = canCollapseServices && !showAllServices
     ? visibleServices.slice(0, SERVICE_PREVIEW)
     : visibleServices;
-  const openHours = salon.operatingHours?.filter((h) => !h.closed) ?? [];
   const hasBooking = salon.features?.includes("BOOKING");
 
   // Re-measure the team carousel edges after it renders and on viewport resize.
@@ -700,28 +692,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   }, [activeStaff.length]);
 
   const todayDate = new Date();
-  const todayHoliday = holidays.find((h) =>
-    h.month === todayDate.getMonth() + 1 &&
-    h.day === todayDate.getDate() &&
-    (h.year == null || h.year === todayDate.getFullYear())
-  ) ?? null;
-
-  const upcomingHolidays = (() => {
-    const now = todayDate.getTime();
-    const windowEnd = now + 90 * 24 * 60 * 60 * 1000;
-    const yr = todayDate.getFullYear();
-    return holidays
-      .flatMap((h) => {
-        const years = h.year != null ? [h.year] : [yr, yr + 1];
-        return years.map((y) => {
-          const d = new Date(y, h.month - 1, h.day);
-          return { h, ts: d.getTime() };
-        });
-      })
-      .filter(({ ts }) => ts >= now && ts <= windowEnd)
-      .sort((a, b) => a.ts - b.ts)
-      .map(({ h }) => h);
-  })();
+  const todayHoliday = holidayOn(holidays, todayDate);
   const featureBadges = (salon.features ?? []).filter((f) => f !== "STATIC_WEBSITE" && f !== "ANALYTICS");
   const statusDetail = openStatusDetail(salon.operatingHours);
   const currentPage = activePage ?? "";
@@ -986,15 +957,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                       <div className="pt-2 pl-7 space-y-0.5">
                         {week.map((h) => {
                           const isToday = h.day === todayName;
-                          const dayIdx = DAY_ORDER.indexOf(h.day);
-                          const offset = dayIdx - todayDate.getDay();
+                          const offset = DAY_ORDER.indexOf(h.day) - todayDate.getDay();
                           const slotDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + offset);
-                          const dayHoliday = holidays.find(
-                            (hol) =>
-                              hol.month === slotDate.getMonth() + 1 &&
-                              hol.day === slotDate.getDate() &&
-                              (hol.year == null || hol.year === slotDate.getFullYear())
-                          ) ?? null;
+                          const dayHoliday = holidayOn(holidays, slotDate);
                           return (
                             <div key={h.day} className="flex items-center gap-3 text-xs py-0.5"
                               style={{ color: isToday ? theme.accentColor : `${theme.heroTextColor}90`, fontWeight: isToday ? 700 : 400 }}>
@@ -1429,64 +1394,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
             </div>
 
             {/* Right column: opening hours, matched in width to the left column and stretched to its height */}
-            {openHours.length > 0 && (
-              <div className="min-w-0 lg:order-2">
-                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                  <Clock className="w-3.5 h-3.5" /> {translateUi("Opening hours ")}</h3>
-                <div className="space-y-1">
-                  {openHours.map((h) => {
-                    const isToday = h.day === todayName;
-                    const dayIdx = DAY_ORDER.indexOf(h.day);
-                    const offset = dayIdx - todayDate.getDay();
-                    const slotDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + offset);
-                    const dayHoliday = holidays.find(
-                      (hol) =>
-                        hol.month === slotDate.getMonth() + 1 &&
-                        hol.day === slotDate.getDate() &&
-                        (hol.year == null || hol.year === slotDate.getFullYear())
-                    ) ?? null;
-                    return (
-                      <div key={h.day} className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs ${isToday ? "font-semibold" : ""}`} style={isToday ? { color: theme.accentColor } : { color: footerDim }}>
-                        <span className="w-8 shrink-0">{translateUi(DAY_SHORT[h.day] ?? h.day)}</span>
-                        {dayHoliday ? (
-                          <>
-                            <span className="font-mono opacity-40 line-through">{h.openTime}–{h.closeTime}</span>
-                            <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded" style={{ backgroundColor: `${theme.accentColor}25`, color: theme.accentColor }}>{dayHoliday.name}</span>
-                          </>
-                        ) : (
-                          <span className="font-mono">{h.openTime}–{h.closeTime}</span>
-                        )}
-                        {isToday && !dayHoliday && <span className="text-[9px] font-bold uppercase tracking-wider">{translateUi("today")}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-                {upcomingHolidays.length > 0 && (
-                  <div className="mt-3 pt-2 space-y-1" style={{ borderTop: `1px solid ${footerBorder}` }}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: footerDim }}>{translateUi("Upcoming holidays")}</p>
-                    {upcomingHolidays.map((h, i) => {
-                      const yr = h.year ?? new Date().getFullYear();
-                      const start = new Date(yr, h.month - 1, h.day);
-                      const startLabel = start.toLocaleDateString(uiLocale, { day: "numeric", month: "short" });
-                      const isRange = h.endMonth != null && h.endDay != null && (h.endMonth !== h.month || h.endDay !== h.day);
-                      let dateLabel = startLabel;
-                      if (isRange) {
-                        const endYr = (h.endMonth! < h.month || (h.endMonth === h.month && h.endDay! < h.day)) ? yr + 1 : yr;
-                        const end = new Date(endYr, h.endMonth! - 1, h.endDay!);
-                        dateLabel = `${startLabel} – ${end.toLocaleDateString(uiLocale, { day: "numeric", month: "short" })}`;
-                      }
-                      return (
-                        <div key={`${h.id}-${i}`} className="flex items-center gap-2 text-xs" style={{ color: footerDim }}>
-                          <span className="font-mono shrink-0">{dateLabel}</span>
-                          <span>·</span>
-                          <span className="truncate">{h.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+            <FooterOpeningHours salon={salon} theme={theme} holidays={holidays} />
           </div>
 
           <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>

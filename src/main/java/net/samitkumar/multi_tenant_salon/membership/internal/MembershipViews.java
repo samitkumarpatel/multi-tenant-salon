@@ -12,6 +12,7 @@ import net.samitkumar.multi_tenant_salon.membership.MembershipSubscription;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /** API shapes for the membership endpoints. */
 final class MembershipViews {
@@ -58,6 +59,13 @@ final class MembershipViews {
 
     record SubscriptionDetail(MembershipSubscription subscription, List<MembershipPayment> payments,
                               List<MembershipActivity> activity) {}
+
+    /**
+     * One page of members. {@code statusCounts} deliberately ignores the status filter, so the chips
+     * can show how many members sit behind each of the other statuses without a second request.
+     */
+    record SubscriptionPage(List<MembershipSubscription> content, int page, int size, long totalElements,
+                            int totalPages, Map<MembershipSubscription.Status, Long> statusCounts) {}
 
     record Money(String currency, BigDecimal amount) {}
 

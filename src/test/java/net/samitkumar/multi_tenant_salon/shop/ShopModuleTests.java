@@ -15,6 +15,8 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
 @Import(TestcontainersConfiguration.class)
 class ShopModuleTests {
@@ -429,6 +431,142 @@ class ShopModuleTests {
                 .jsonPath("$.imageUrl").isEqualTo("https://cdn.test/legacy.jpg")
                 .jsonPath("$.images.length()").isEqualTo(1)
                 .jsonPath("$.images[0]").isEqualTo("https://cdn.test/legacy.jpg");
+    }
+
+    // ── Stock restoration & order status transitions ────────────────────────
+
+    /** A product with one variant holding {@code stock} units; returns the variant id. */
+    private long variantWithStock(String name, int stock) {
+        var created = client.post().uri(adminBase() + "/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {
+                          "name": "%s",
+                          "variants": [ { "label": "100 ml", "price": 10.00, "currency": "USD", "quantityOnHand": %d } ]
+                        }
+                        """.formatted(name, stock))
+                .exchange().expectStatus().isCreated().expectBody().returnResult();
+        return jsonLong(created.getResponseBody(), "$.variants[0].id");
+    }
+
+    private int stockOf(long variantId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT quantity_on_hand FROM product_variant WHERE id = ?", Integer.class, variantId);
+    }
+
+    private long placeOrderReturningId(long variantId, int qty) {
+        var order = client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Alex Doe", "customerEmail": "alex@example.com",
+                          "items": [ { "variantId": %d, "quantity": %d } ] }
+                        """.formatted(variantId, qty))
+                .exchange().expectStatus().isCreated().expectBody().returnResult();
+        return jsonLong(order.getResponseBody(), "$.id");
+    }
+
+    private void setStatus(long orderId, String status, int expectedCode) {
+        client.post().uri(adminBase() + "/orders/" + orderId + "/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"status\": \"%s\" }".formatted(status))
+                .exchange().expectStatus().isEqualTo(expectedCode);
+    }
+
+    @Test
+    void cancellingAnOrderPutsTheStockBack() {
+        var variantId = variantWithStock("Restock Clay", 2);
+        var orderId = placeOrderReturningId(variantId, 2);
+        assertThat(stockOf(variantId)).isZero();
+
+        setStatus(orderId, "CANCELLED", 200);
+
+        assertThat(stockOf(variantId)).isEqualTo(2);
+        // and the freed stock is genuinely sellable again
+        client.post().uri(customerBase() + "/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        { "customerName": "Sam Roe", "customerEmail": "sam@example.com",
+                          "items": [ { "variantId": %d, "quantity": 2 } ] }
+                        """.formatted(variantId))
+                .exchange().expectStatus().isCreated();
+    }
+
+    @Test
+    void stockIsOnlyEverCreditedOnce() {
+        var variantId = variantWithStock("Once Only Clay", 5);
+        var orderId = placeOrderReturningId(variantId, 3);
+        assertThat(stockOf(variantId)).isEqualTo(2);
+
+        // Stand in for an earlier restock (a failed payment takes this same path): once the order
+        // is marked restored, cancelling must not credit the quantity a second time.
+        jdbcTemplate.update("UPDATE shop_order SET stock_restored_at = now() WHERE id = ?", orderId);
+
+        setStatus(orderId, "CANCELLED", 200);
+
+        assertThat(stockOf(variantId)).isEqualTo(2);
+    }
+
+    @Test
+    void aReceivedReturnPutsTheStockBack() {
+        var variantId = variantWithStock("Returnable Clay", 4);
+        var orderId = placeOrderReturningId(variantId, 1);
+        assertThat(stockOf(variantId)).isEqualTo(3);
+
+        client.post().uri(adminBase() + "/orders/" + orderId + "/returns")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"reason\": \"Wrong shade\" }")
+                .exchange().expectStatus().isOk();
+        assertThat(stockOf(variantId)).isEqualTo(3); // merely requesting changes nothing
+
+        client.post().uri(adminBase() + "/orders/" + orderId + "/returns/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"status\": \"RECEIVED\" }")
+                .exchange().expectStatus().isOk();
+
+        assertThat(stockOf(variantId)).isEqualTo(4);
+    }
+
+    @Test
+    void aSettledOrderCanNoLongerChangeStatus() {
+        var variantId = variantWithStock("Terminal Clay", 3);
+        var cancelled = placeOrderReturningId(variantId, 1);
+        setStatus(cancelled, "CANCELLED", 200);
+        setStatus(cancelled, "NEW", 409);          // un-cancelling is refused
+        setStatus(cancelled, "PROCESSING", 409);
+
+        var fulfilled = placeOrderReturningId(variantId, 1);
+        setStatus(fulfilled, "FULFILLED", 200);
+        setStatus(fulfilled, "PROCESSING", 409);
+
+        client.get().uri(adminBase() + "/orders/" + cancelled).exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.status").isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void addingShippingShipsTheOrderButNeverRevivesACancelledOne() {
+        var variantId = variantWithStock("Shipping Clay", 5);
+
+        var open = placeOrderReturningId(variantId, 1);
+        client.post().uri(adminBase() + "/orders/" + open + "/shipping")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"carrier\": \"DHL\", \"trackingNumber\": \"TRACK-1\" }")
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("SHIPPED");
+
+        // a shipped order can no longer be cancelled — a return is the way back
+        setStatus(open, "CANCELLED", 409);
+
+        var cancelled = placeOrderReturningId(variantId, 1);
+        setStatus(cancelled, "CANCELLED", 200);
+        client.post().uri(adminBase() + "/orders/" + cancelled + "/shipping")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"carrier\": \"DHL\", \"trackingNumber\": \"TRACK-2\" }")
+                .exchange().expectStatus().isEqualTo(409);
+
+        client.get().uri(adminBase() + "/orders/" + cancelled).exchange()
+                .expectStatus().isOk().expectBody()
+                .jsonPath("$.status").isEqualTo("CANCELLED");
     }
 
     // ── helpers ────────────────────────────────────────────────────────────

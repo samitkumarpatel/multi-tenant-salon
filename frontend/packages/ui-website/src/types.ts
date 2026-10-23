@@ -394,7 +394,8 @@ export type MembershipStatus = "PENDING_PAYMENT" | "ACTIVE" | "EXPIRED" | "CANCE
 export type MembershipPaymentStatus = "PENDING" | "PAID" | "FAILED";
 export type MembershipActivityType =
   | "CHECKOUT_STARTED" | "CHECKOUT_FAILED" | "ACTIVATED" | "RENEWAL_STARTED" | "RENEWED" | "PAYMENT_FAILED" | "EXPIRED"
-  | "CANCELLATION_SCHEDULED" | "CANCELLATION_UNDONE" | "CANCELLED" | "CUSTOMER_NOTIFIED" | "NOTE";
+  | "CANCELLATION_SCHEDULED" | "CANCELLATION_UNDONE" | "CANCELLED" | "CUSTOMER_NOTIFIED" | "NOTE"
+  | "CONTACT_UPDATED" | "REFUNDED";
 
 /** A service included in a plan every billing period, with its live name and list price. */
 export interface MembershipIncludedService {
@@ -487,6 +488,10 @@ export interface MembershipPayment {
   periodEnd?: string | null;
   paidAt?: string | null;
   createdAt: string;
+  /** Running total given back to the member; repeated partial refunds accumulate here. */
+  refundedAmount?: number | null;
+  refundedAt?: string | null;
+  refundReason?: string | null;
 }
 
 /** What a renewal link shows (public, by token). */

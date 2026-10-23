@@ -42,7 +42,13 @@ The **Members** tab lists every member who has ever signed up for any plan. If n
 - An **"All plans"** dropdown narrows the list to one specific plan.
 - A row of **status chips** — **All**, then one chip per status that has at least one member (**Active**, **Expired**, **Awaiting payment**, **Cancelled**, **Checkout abandoned**) — each showing a count. Click a chip to filter to that status.
 - A **Clear** link appears once you've searched or filtered, to reset everything.
-- An **Export CSV** button downloads the members currently shown (respecting your search and filters) as a spreadsheet file, with columns for member code, name, email, phone, plan, status, price, currency, billing, member-since date, paid-through date, whether it cancels at period end, and last payment details.
+- An **Export CSV** button downloads everything your current search and filters match — not just the page you're looking at — as a spreadsheet file, with columns for member code, name, email, phone, plan, status, price, currency, billing, member-since date, paid-through date, whether it cancels at period end, and last payment details.
+
+<Callout type="info">
+  Searching and filtering look through **all** your members, not only the ones on screen, so you don't
+  need to page through looking for someone. The list shows 50 at a time with **Previous** / **Next**
+  buttons underneath once you have more than that.
+</Callout>
 
 ### The member list
 
@@ -77,25 +83,52 @@ Which buttons appear depends on the member's current status:
 - **End now** — available for an Active member who is scheduled to cancel at period end. Ends the membership immediately instead of waiting for the period to finish.
 - **Resend QR email** — available for Active members. Re-sends the welcome email with their QR code.
 - **Add note** — always available. Adds an internal, staff-only note to the member's timeline.
+- **Edit details** — always available, next to the member's email address at the top of the page. Corrects their name, email address or phone number.
+
+<Callout type="info">
+  **Mistyped a member's email?** Use **Edit details** to fix it. This matters more than it looks: their
+  QR code email and their renewal link — the only way they can pay for another period — both go to that
+  address, so a typo leaves the membership unreachable until it's corrected.
+
+  Changing the email address issues a **new renewal link**, and any link already sent to the old address
+  stops working. That's deliberate — the old link went to the wrong person. After fixing the address, use
+  **Resend QR email** so the member gets their card at the right address.
+</Callout>
 
 ### Cancelling a membership
 
 Clicking **Cancel membership** opens a dialog. If the member is Active and not already scheduled to cancel, you choose one of:
 
 - **At the end of the paid period** — stays active until the paid-through date, then ends. No renewal reminder is sent.
-- **Immediately** — "Ends today. No refund is issued automatically — refund in Stripe if needed."
+- **Immediately** — ends the membership today. The dialog tells you how many paid days the member hasn't used, so you know what a fair refund would be. No money is returned automatically — use **Refund** on the payment itself (below) if you want to give some back.
 
 If the member is already scheduled to cancel at period end, the dialog instead asks to confirm: "End this membership today instead of at the end of the period? No refund is issued automatically." If the member is Expired, it explains: "This membership has expired. Cancelling it stops the member from renewing with their link."
 
 In every case, you can type an optional **Reason (internal)** — this is for your own records only. A note under the field reminds you: "The member gets an email confirming the cancellation." Click **Cancel membership** to confirm.
 
 <Callout type="info">
-  No refund is issued automatically when you cancel — since nothing charges automatically to begin with, there's nothing further to stop. If you owe the member a refund for time already paid, do it from your Stripe account.
+  No money is returned automatically when you cancel — since nothing charges automatically to begin with, there's nothing further to stop. If you owe the member something back for time they paid for but won't use, refund the payment itself from the **Payments** panel below.
+</Callout>
+
+<Callout type="info">
+  **Ended a membership by mistake?** As long as the period the member paid for hasn't run out yet, a
+  **Reinstate membership** button appears on their page and puts them straight back to Active, with
+  their original member code and QR still valid. Once that paid period has passed there's nothing left
+  to reinstate, and you'll need to sell them a new membership.
 </Callout>
 
 ### Payments
 
 A **Payments** panel lists every payment attempt for this member: whether it was a **Sign-up** or **Renewal** payment, its status (**Paid**, **Awaiting payment**, or **Not completed**), the amount, the period it covers, and when it happened.
+
+### Refunding a payment
+
+Any payment that's been **Paid** has a refund button next to it:
+
+- **Refund to card** — for memberships paid online by card. The money goes back to the card the member paid with; it usually takes a few days to show on their statement.
+- **Record refund** — for memberships paid in cash or by another method at the desk. Hand the money back at the salon, then use this so the refund is written down and the same period can't be refunded twice by mistake.
+
+Either way you can refund the whole amount or just part of it — useful when a member cancels partway through a period and you want to return only the unused days. Refund amounts add up, so you can refund a bit now and the rest later, and the system won't let you give back more than was charged. Every refund is recorded on the member's timeline and shown under the payment.
 
 ### Timeline
 

@@ -13,13 +13,15 @@ If **Till / POS** doesn't show up in the menu, the owner hasn't switched on the 
 
 <Steps>
 <Step>
-Open **Till / POS** from the menu. Under **Services and products**, you'll see every active service, plus any products that are in stock if the webshop is switched on.
+Open **Till / POS** from the menu. Under **Appointments, services and products**, you'll see today's unpaid appointments first, then every active service, then any products that are in stock if the webshop is switched on.
 </Step>
 <Step>
-Use the **Search services and products** box, or the **All** / **Services** / **Products** filter buttons above the list, to find what you're adding. Select an item's tile to add one to the **Current sale** panel; select it again to add another. A small count badge on the tile shows how many of that item are already in the sale.
+Use the **Search appointments, services and products** box, or the **All** / **Appointments** / **Services** / **Products** filter buttons above the list, to find what you're adding. Select an item's tile to add one to the **Current sale** panel; select it again to add another. A small count badge on the tile shows how many of that item are already in the sale.
 </Step>
 <Step>
-In the **Current sale** panel, you can adjust quantity on any line with the **−** and **+** buttons. The **Total** updates as you go.
+In the **Current sale** panel, you can adjust quantity on any line with the **−** and **+** buttons, take a line out entirely with the bin button, or start again with **Clear sale** at the top. The **Total** updates as you go.
+
+Products show how many are **left** on their tile (in amber once there are only a few), and the till won't let you add more than are in stock. An appointment can only be added once — it's paid for once.
 </Step>
 <Step>
 Optionally type the customer's name into the **Customer name (optional)** field, so the sale is easy to find later.
@@ -28,6 +30,20 @@ Optionally type the customer's name into the **Customer name (optional)** field,
 Choose how the customer is paying from the payment dropdown, then select the button at the bottom of the panel to complete the sale (see below).
 </Step>
 </Steps>
+
+<Callout type="info">
+  **A customer who booked online and is paying now?** Don't look for the service they had — select
+  **Appointments** and pick their booking by name and time. It's already priced from the service they
+  chose, so you can't charge the wrong amount, and paying for it marks that appointment as paid.
+
+  Only today's appointments that still owe money are listed. Once an appointment is paid for it drops
+  off the list, so there's no way to charge someone twice for the same visit. A cancelled appointment
+  never appears. If a customer tried to pay online and it didn't go through, their appointment is
+  still here — just take the payment at the counter as normal.
+
+  You can mix an appointment with other items in the same sale — add their booking and the shampoo
+  they're buying, and take one payment for both.
+</Callout>
 
 ### Taking payment
 
@@ -44,6 +60,36 @@ The payment dropdown offers:
 
 Every sale you complete — by any payment method — is saved and appears at the bottom of the Till / POS screen under **Recent sales**, and in full under **Invoices**.
 
+### If a sale goes wrong
+
+If a card payment fails, or the customer backs out of the payment page, the till tells you so in a message that stays on screen until you dismiss it — it doesn't flash and disappear. When someone backs out of a card payment, the message confirms **the customer has not been charged**, and the sale stays in **Recent sales** marked **Awaiting payment** until you void it or take the payment again.
+
+If an error stops a sale going through, your sale is **kept as it was**. Tap **Record payment** again — for a cash or other payment, if the first attempt actually did go through and only the reply was lost, the till recognises it's the same sale and gives you the original back rather than recording it twice. For a **card** payment it's more careful still: if that sale was already started, the till says so and asks you to check **Recent sales** rather than risk charging the customer again. (Change anything in the sale, though, and it counts as a new one.)
+
+### Correcting a sale you rang up wrong
+
+Under **Recent sales**, every paid sale has a **Void** button.
+
+<Steps>
+<Step>
+Select **Void** next to the sale. A confirmation asks you to check it's the right one.
+</Step>
+<Step>
+Optionally type a reason, such as "Rang up the wrong customer".
+</Step>
+<Step>
+Select **Void sale**. Any products go back into stock, and an appointment that was on the sale becomes payable again.
+</Step>
+</Steps>
+
+What happens to the money depends on how it was paid. A **card** payment is refunded to the customer's card automatically. **Cash** and **other** payments are handed back at the counter — voiding records that you did, so the day's figures stay right. A voided sale stays in the list, crossed out, so there's a record of what happened and who did it.
+
+<Callout type="info">
+  A card sale that's still **Awaiting payment** can't be voided — nothing has been charged yet. If the
+  customer walked away from the card reader, you don't need to do anything: after about half an hour
+  the till releases the products it was holding.
+</Callout>
+
 ### Looking back at past sales
 
 <Steps>
@@ -57,6 +103,19 @@ Filter the list with the **All**, **Today**, **This week**, **Month**, or **Date
 Each row shows the sale number, the customer's name (or "Walk-in customer" if none was entered), the date and time, the payment method, and the total. A sale still waiting on a card payment shows "· awaiting payment"; one that failed shows "· failed".
 </Step>
 </Steps>
+
+## Closing the till: End of day
+
+Open **End of day** from the menu (under Cashier) to see what was taken, how, and by whom — enough to count the drawer against. It opens on today; use the arrows or the date box to look at an earlier day, and **Print** for a paper copy.
+
+- **Taken today** — totals by **Cash**, **Card** and **Other**. This includes memberships sold at the desk, not just till sales, so the cash figure matches what's really in the drawer.
+- **Cash to count** — the cash you took, less any cash you handed back. Add whatever float you started the day with. Card payments are never in the drawer.
+- **Handed back** and **voided sales** are listed underneath rather than quietly subtracted, so you can see exactly what happened.
+- **Rung up by** — each person's sales for the day, so a short drawer can be traced. (It covers till sales; memberships sold at the desk are counted in the totals above but aren't split by person.)
+
+If any card sales are still waiting for payment, a notice at the top says so — they're **not** counted, because that money doesn't exist yet.
+
+"A day" means the calendar day on the tablet you're using, so a sale at 00:30 lands on the new day rather than the previous one.
 
 ## Checking in a member
 

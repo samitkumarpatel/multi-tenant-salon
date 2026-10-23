@@ -13,7 +13,6 @@ import net.samitkumar.multi_tenant_salon.payments.PaymentGateway;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -78,8 +77,15 @@ class ShopCustomerController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Deliberately not {@code @Transactional}: {@code placeOrder} commits the PENDING order and its
+     * stock decrement on its own, and only then do we call Stripe. Creating the Checkout Session
+     * inside the transaction would pin a database connection across an external network call, and —
+     * because a Stripe session cannot be rolled back — a commit failure after it would leave a live,
+     * payable session with no order behind it. With the commit first, the catch below is a real
+     * compensation that survives; inside a transaction it would simply roll back with everything else.
+     */
     @PostMapping("/orders")
-    @Transactional
     ResponseEntity<?> checkout(@PathVariable String salonId, @RequestBody CheckoutBody body) {
         var id = salonApi.resolveId(salonId);
         boolean stripeEnabled = stripe.enabled(id, "SHOP");

@@ -9,6 +9,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,8 +20,10 @@ final class StripeTestSupport {
 
     private StripeTestSupport() {}
 
+    /** Zero timeouts so the builder keeps the {@code MockRestServiceServer} transport bound to it. */
     static StripeClient client(RestClient.Builder builder, String publishableKey) {
-        return new StripeClient(builder, "sk_test_x", publishableKey, API_VERSION);
+        return new StripeClient(builder, "sk_test_x", publishableKey, API_VERSION,
+                Duration.ZERO, Duration.ZERO);
     }
 
     @SuppressWarnings("unchecked")

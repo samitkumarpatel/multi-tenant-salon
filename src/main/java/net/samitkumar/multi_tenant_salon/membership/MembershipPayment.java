@@ -27,8 +27,27 @@ public record MembershipPayment(
         Instant periodStart,
         Instant periodEnd,
         Instant paidAt,
-        Instant createdAt
+        Instant createdAt,
+        /** Running total given back to the member, so repeated partial refunds accumulate. */
+        BigDecimal refundedAmount,
+        Instant refundedAt,
+        String refundReason
 ) {
+    /** A fresh, unpaid payment for one period — nothing settled and nothing refunded yet. */
+    public static MembershipPayment pending(Long subscriptionId, UUID salonId, Kind kind, Method method,
+                                            BigDecimal amount, String currency, Instant createdAt) {
+        return new MembershipPayment(null, subscriptionId, salonId, kind, Status.PENDING, method, amount, currency,
+                null, null, null, null, createdAt, null, null, null);
+    }
+
+    /** How much of this payment can still be given back. */
+    public BigDecimal refundable() {
+        if (status != Status.PAID) return BigDecimal.ZERO;
+        var back = refundedAmount == null ? BigDecimal.ZERO : refundedAmount;
+        var left = amount.subtract(back);
+        return left.signum() > 0 ? left : BigDecimal.ZERO;
+    }
+
     public enum Kind { SIGNUP, RENEWAL }
 
     public enum Status { PENDING, PAID, FAILED }
