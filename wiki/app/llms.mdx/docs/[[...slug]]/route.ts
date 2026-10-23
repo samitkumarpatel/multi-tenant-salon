@@ -6,7 +6,8 @@ export const revalidate = false;
 
 export async function GET(_req: Request, { params }: RouteContext<'/llms.mdx/docs/[[...slug]]'>) {
   const { slug } = await params;
-  const page = source.getPage(slug?.slice(0, -1));
+  const [lang, ...rest] = slug ?? [];
+  const page = source.getPage(rest.slice(0, -1), lang);
   if (!page) notFound();
 
   return new Response(await docsLlms.page(page), {
@@ -17,8 +18,7 @@ export async function GET(_req: Request, { params }: RouteContext<'/llms.mdx/doc
 }
 
 export function generateStaticParams() {
-  return source.getPages().map((page) => ({
-    lang: page.locale,
+  return source.getLanguages().flatMap(({ pages }) => pages).map((page) => ({
     slug: getPageMarkdownUrl(page).segments,
   }));
 }

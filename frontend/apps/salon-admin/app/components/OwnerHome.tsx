@@ -1,8 +1,8 @@
 import { useI18n } from "@salon/i18n";
 import { Link, useOutletContext } from "react-router";
-import { ArrowRight, Briefcase, CalendarCheck, CalendarDays, Clock, ExternalLink, Gauge, Globe, HelpCircle, ListChecks, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Briefcase, CalendarCheck, CalendarDays, Clock, ExternalLink, Gauge, Globe, HelpCircle, ListChecks, Users } from "lucide-react";
 import type { LayoutContext } from "~/lib/types";
-import { dashboardUrl } from "~/lib/config";
+import { dashboardUrl, helpUrl } from "~/lib/config";
 
 export function OwnerHome({ dashboardAvailable }: { dashboardAvailable: boolean }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -63,8 +63,12 @@ export function OwnerHome({ dashboardAvailable }: { dashboardAvailable: boolean 
         </div>
       </section>
 
-      <Link to="help" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-matcha-700 hover:underline">
-        <HelpCircle className="h-4 w-4" aria-hidden="true" /> {translateUi("Need a hand? Visit help & support ")}</Link>
+      <div className="flex flex-wrap items-center gap-x-6">
+        <a href={helpUrl("", uiLocale)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-matcha-700 hover:underline">
+          <BookOpen className="h-4 w-4" aria-hidden="true" /> {translateUi("Browse the Help Center guides")}</a>
+        <Link to="help" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-matcha-700 hover:underline">
+          <HelpCircle className="h-4 w-4" aria-hidden="true" /> {translateUi("Need a hand? Visit help & support ")}</Link>
+      </div>
     </div>
   );
 }

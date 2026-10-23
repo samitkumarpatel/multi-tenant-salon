@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useEffect, useState, type ElementType } from "react";
 import { useOutletContext } from "react-router";
 import { BarChart2, CalendarCheck, Eye, MessageCircle, MessageSquare, MousePointerClick, TrendingUp } from "lucide-react";
@@ -99,7 +100,7 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-xl font-bold text-slate-900">{translateUi("Analytics")}</h1>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Analytics")}</h1><GuideLink path="insights/business-analytics" /></div>
           <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
             {RANGE_OPTIONS.map((opt) => (
               <button

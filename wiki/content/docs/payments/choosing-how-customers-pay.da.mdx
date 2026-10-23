@@ -1,0 +1,77 @@
+---
+title: "Vælg, hvordan kunderne betaler"
+description: "Slå kortbetaling til for din butik, bookinger, kasse og medlemskaber, og vælg, hvordan betalingsskærmen ser ud for kunderne."
+---
+
+Når din Stripe-konto er tilknyttet (se [Tilknyt din Stripe-konto](/da/docs/payments/connecting-your-stripe-account)), har fanen **Opsætning** på siden Betalinger også et kort, der hedder **Payment areas**. Her bestemmer du for hver del af din forretning, om kunderne betaler med kort, og hvordan betalingsskærmen ser ud.
+
+<Callout type="info">
+  Har du endnu ikke tilknyttet en Stripe-konto, beder kortet dig blot om at gøre det først — der er ikke noget at indstille før da.
+</Callout>
+
+## Hvor du kan slå kortbetaling til
+
+Under **Payment areas** er der et afkrydsningsfelt for hvert område af din forretning, der gælder for din salon:
+
+- **Online Shop** — kortbetaling for kundernes ordrer (vises kun, hvis funktionen Webshop er slået til).
+- **Online bookings** — opkræv et depositum eller den fulde pris, når kunden booker (vises kun, hvis funktionen Booking er slået til).
+- **Kasse / POS** — kortbetaling ved salonens disk, på en kortlæser eller i en kortformular. Kontant betaling kan stadig registreres manuelt (vises kun, hvis funktionen Dashboard er slået til).
+- **Memberships** — lad kunderne betale for en medlemsperiode online eller ved disken. Medlemmerne får et fornyelseslink, før hver periode slutter (vises kun, hvis funktionen Medlemskab er slået til).
+
+Er ingen af funktionerne slået til for din salon endnu, ser du en note om, at du først skal slå Butik, Booking, Medlemskab eller Dashboard til.
+
+Sæt flueben for at slå et område til. Det kan du gøre, allerede før Stripe er færdig med at gennemgå din konto — når feltet er krydset af, vises et lille mærke ved området:
+
+- **Waiting for Stripe** — området er slået til, men opkræver endnu ikke kunderne, fordi Stripe ikke er færdig med at aktivere din konto.
+- **Live** — området er slået til og tager imod betalinger.
+
+<Callout type="info">
+  Har du tilknyttet en konto, der endnu ikke er helt aktiv, minder kortet Payment areas dig om, at du godt kan vælge dine betalingsområder nu: de forbliver slået fra for kunderne, indtil Stripe aktiverer kortbetalinger på din konto, og slår derefter automatisk til. Du behøver ikke vende tilbage og slå noget til selv, når Stripe er færdig.
+</Callout>
+
+## Vælg, hvordan betalingsskærmen ser ud
+
+Når du slår et område til, vises tre muligheder under det, under overskriften **Sådan betaler kunderne**. Kort fortalt:
+
+<Steps>
+<Step>
+### Stripes betalingsside
+
+Hedder **Stripes betalingsside**: Kunden sendes til en sikker betalingsside hos Stripe i dine farver, indtaster sine kortoplysninger og kommer straks tilbage til din side, når betalingen er gennemført. Siden har salonens navn og farver, så den stadig føles som en del af din forretning — den åbner bare kortvarigt uden for dine egne sider. Denne mulighed virker altid og er standard.
+</Step>
+<Step>
+### Stripe-formular på din side
+
+Hedder **Stripe-formular på din side**: Stripes egen betalingsformular vises direkte i din butik, din booking eller din receptionsside — kunden ser aldrig en anden hjemmeside — men formularen har Stripes standarddesign.
+</Step>
+<Step>
+### Din egen betalingsformular
+
+Hedder **Din egen betalingsformular**: Ligesom ovenfor bliver formularen på din egen side, men den er desuden tilpasset din hjemmesides farver og skrifttype, så den falder endnu bedre ind i resten af siden.
+</Step>
+</Steps>
+
+Du kan vælge forskellig stil for hvert område — for eksempel "Stripe-formular på din side" til butikken, men "Stripes betalingsside" til medlemskaber. Uanset hvad du vælger, ender kunden tilbage på den rigtige side af din hjemmeside, når de har betalt (eller hvis de afbryder).
+
+<Callout type="info">
+  De to sidste stilarter ("Stripe-formular på din side" og "Din egen betalingsformular") afhænger af en indstilling for hele platformen, ikke for din salon alene. Er de ikke tilgængelige i dit miljø, er de nedtonede, og kortet viser "Only the Stripe checkout page is available in this environment." Så bruger alle områder Stripes betalingsside, indtil det ændres — det har intet at gøre med, hvor langt du er med din egen Stripe-opsætning.
+</Callout>
+
+<Callout type="info">
+  Booker eller køber en kunde gennem en kanal, der ikke kan vise en betalingsformular på siden (for eksempel en chatassistent eller en ældre browser), får de altid Stripes betalingsside, uanset hvad du har valgt — det sker automatisk, uden at du skal gøre noget.
+</Callout>
+
+## Fuld betaling eller depositum ved booking
+
+Har du slået **Online bookings** til, vises en sektion, **Booking payment**, længere nede på kortet, hvor du vælger, hvor meget kunden betaler ved bookingen:
+
+- **Full service price** — kunden betaler hele prisen for aftalen på forhånd, når de booker.
+- **Deposit** — kunden betaler en procentdel af prisen på forhånd og resten i salonen. Vælger du det, vises feltet **% deposit**, hvor du skriver den procentdel, kunden betaler ved bookingen (et helt tal fra 1 til 100).
+
+## Gem dine ændringer
+
+Når du har krydset de ønskede områder af og valgt en betalingsstil for hvert, klikker du på **Save payment settings** nederst på kortet. Knappen er deaktiveret, indtil du har tilknyttet en Stripe-konto.
+
+## Om betalingsmetoder
+
+Hvilke betalingsmetoder der vises (kort, Apple Pay, Google Pay og lignende), indstilles ikke pr. område — det styres én gang for hele din Stripe-konto fra indstillingerne for betalingsmetoder i dit Stripe-dashboard (linket **Manage payment methods** på fanen Opsætning, ved siden af mærket Connected). Det, du slår til der, gælder for butik, bookinger, medlemskaber og kassen.

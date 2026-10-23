@@ -1,10 +1,10 @@
 import { useI18n } from "@salon/i18n";
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLoaderData, useRevalidator } from "react-router";
-import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown, Gauge, RefreshCw } from "lucide-react";
+import { Check, Copy, Scissors, Loader2, AlertCircle, Mail, Globe, Users, CalendarCheck, LayoutDashboard, ChevronDown, Gauge, RefreshCw, BookOpen } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@salon/ui-website";
 import { ONBOARDING_API, COUNTRIES_API, apiFetch } from "~/lib/api";
-import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl, dashboardUrl } from "~/lib/config";
+import { SALON_DOMAIN, ADMIN_APP_URL, STAFF_APP_URL, websiteUrl, bookingUrl, dashboardUrl, helpUrl } from "~/lib/config";
 import { SiteFooter } from "~/components/SiteFooter";
 import { DAY_SHORT, FEATURES, FEATURE_LABEL, FEATURE_DESCRIPTION, defaultHours } from "~/lib/constants";
 import { TERMS_TEXT, PRIVACY_TEXT } from "~/lib/legal";
@@ -316,6 +316,19 @@ function SuccessScreen({ salonId, salonHandler, emailId, salonName, features }: 
             <p className="text-xs text-matcha-800 leading-relaxed">
               {translateUi("We've sent a welcome email to ")}<span className="font-semibold">{emailId}</span> {translateUi("with your login link and a setup guide to get you started. ")}</p>
           </div>
+
+          <a
+            href={helpUrl("getting-started/sign-up-and-onboarding", uiLocale)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-3 px-4 py-3 bg-white border border-stone-200 rounded-2xl text-stone-700 hover:border-matcha-300 no-underline transition-colors"
+          >
+            <BookOpen className="w-4 h-4 text-matcha-600 mt-0.5 shrink-0" aria-hidden="true" />
+            <span className="text-xs leading-relaxed">
+              <span className="block font-semibold">{translateUi("Help Center")}</span>
+              {translateUi("Step-by-step guides for setting up your salon, services, staff and payments.")}
+            </span>
+          </a>
 
           {/* Links section */}
           <details className="bg-white border border-stone-200 rounded-2xl overflow-hidden">

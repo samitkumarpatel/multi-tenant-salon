@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useState } from "react";
 import { Link, useOutletContext, useLoaderData, useSearchParams, useRevalidator } from "react-router";
 import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached } from "~/lib/api";
@@ -291,7 +292,7 @@ export default function Edit() {
       <div className="mb-6 space-y-2">
         <Link to=".." relative="path" className="inline-flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-stone-600 no-underline">
           {translateUi("← Overview ")}</Link>
-        <h1 className="text-xl font-bold text-stone-900">{translateUi("Edit Salon")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-stone-900">{translateUi("Edit Salon")}</h1><GuideLink path="getting-started/salon-profile-and-settings" /></div>
         <InfoBar id="edit-salon">
           {translateUi("Update your salon's name, location, contact info, opening hours, and which features are active. Enabling a feature here unlocks its dedicated section in the sidebar. ")}</InfoBar>
       </div>

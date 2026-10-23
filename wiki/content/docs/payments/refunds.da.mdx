@@ -1,0 +1,45 @@
+---
+title: "Refusioner"
+description: "Sådan refunderer du en betalt ordre, booking eller medlemsbetaling til kundens kort fra fanen Transaktioner."
+---
+
+Har en kunde betalt med kort — online eller på en kortlæser i din reception — kan du refundere beløbet direkte til samme kort fra siden Betalinger, uanset om det var en butiksordre, en booking eller en medlemsbetaling.
+
+## Lav en refusion
+
+<Steps>
+<Step>
+### Gå til Betalinger → Transaktioner
+
+Åbn siden **Betalinger**, og skift til fanen **Transaktioner** (den vises, når du har tilknyttet en Stripe-konto). Den viser alle kortbetalinger fra din butik, dine bookinger, medlemskaber og kassen, nyeste først; refusioner går tilbage til kundens kort. Brug rullemenuen **Area** (All areas, Shop, Booking, Till, Membership) til at indsnævre listen, hvis du leder efter en bestemt betaling.
+</Step>
+<Step>
+### Find betalingen
+
+Hver række viser fra venstre mod højre: dato og tidspunkt for betalingen, området og en kort beskrivelse (eller referencenummer), om den kom fra en **Kortlæser** eller en **Online**-betaling og kundens e-mail, hvis den kendes, et statusmærke og beløbet. Statusmærket er et af: **Afventer**, **Betalt**, **Failed** (mislykket), **Canceled** (annulleret), **Partly refunded** (delvist refunderet) eller **Refunderet**. Find den betaling, du vil refundere — kun betalinger markeret **Betalt** eller **Partly refunded** kan refunderes.
+</Step>
+<Step>
+### Klik på Refusion
+
+Klik på **Refusion** ud for betalingen. En lille formular åbner, hvor du kan:
+
+- Ændre **Beløb** — som standard er det hele det beløb, der stadig kan refunderes, men du kan skrive et mindre beløb for en delvis refusion.
+- Tilføje en **Årsag** (valgfri) — en kort note til dit eget brug.
+</Step>
+<Step>
+### Bekræft
+
+Klik på **Refunder til kort**. Pengene sendes tilbage til kundens oprindelige kort. Du ser en bekræftelse ("Refund sent to the customer's card."), og rækken opdateres, så den viser, hvor meget der er refunderet (for eksempel "Refunded $12.00").
+</Step>
+</Steps>
+
+## Godt at vide
+
+- **Du kan refundere delvist og flere gange** — refunder en del af en betaling nu og resten senere, så længe du ikke overskrider det, der er tilbage. Når der ikke er mere tilbage, viser rækken **Refunderet**, og knappen Refusion forsvinder.
+- **Kun kortbetalinger kan refunderes på denne måde.** En kontant betaling refunderes ikke til et kort — klar det uden for systemet, som du normalt gør med kontanter.
+- **Refusion af butiksordrer** — refunderer du en butiksordre, som kunden betalte online, sender godkendelsen af refusionen fra ordreskærmen også automatisk pengene tilbage til kortet; du skal ikke gøre mere på siden Betalinger i det tilfælde.
+- **Hvis en refusion mislykkes** — det kan en sjælden gang ske hos Stripe (for eksempel ved et lukket kort). Så bliver beløbet tilgængeligt til refusion igen, og du kan bare prøve en gang til.
+
+<Callout type="info">
+  Hver refusion er knyttet til den oprindelige betaling, så din transaktionshistorik altid viser præcis, hvad der blev betalt, og hvad der siden er refunderet.
+</Callout>

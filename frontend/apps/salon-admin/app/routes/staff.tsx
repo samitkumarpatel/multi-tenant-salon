@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { FixWithAi } from "~/components/FixWithAi";
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -870,7 +871,7 @@ export default function Staff() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Staff")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Staff")}</h1><GuideLink path="staff/managing-your-team" /></div>
         <InfoBar id="staff">
           {translateUi("Add and manage the people working at your salon — their roles, contact details, and service specializations. Staff members can be assigned to specific services. ")}</InfoBar>
       </div>

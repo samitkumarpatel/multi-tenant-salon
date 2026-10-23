@@ -6,11 +6,11 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText } from "lucide-react";
+import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
-import { SALON_DOMAIN } from "~/lib/config";
+import { SALON_DOMAIN, helpUrl } from "~/lib/config";
 import type { Salon, LayoutContext, WebsiteMode } from "~/lib/types";
 
 // Pages whose edits can change the onboarding flags (pendingServices / pendingStaff /
@@ -821,6 +821,10 @@ export default function Layout() {
           </nav>
 
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
+            <Tooltip content="Step-by-step guides for every part of the platform. Opens in a new tab.">
+              <a href={helpUrl("", uiLocale)} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors no-underline" onClick={() => setSidebarOpen(false)}>
+                <BookOpen className="w-4 h-4 shrink-0" /> {translateUi("Help Center")}</a>
+            </Tooltip>
             <Tooltip content="Find documentation, FAQs, and ways to get in touch with support.">
               <NavLink to="help" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
                 <HelpCircle className="w-4 h-4 shrink-0" /> {translateUi("Help & Support ")}</NavLink>

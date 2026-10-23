@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useState } from "react";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -47,7 +48,7 @@ export default function DashboardSettingsPage() {
 
   return <div className="max-w-3xl space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-xl font-bold text-slate-900">{translateUi("Dashboard")}</h1><p className="mt-1 text-sm text-slate-500">{translateUi("Choose which operational tools your salon can use.")}</p></div>
+      <div><div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Dashboard")}</h1><GuideLink path="front-desk/what-is-the-front-desk-app" /></div><p className="mt-1 text-sm text-slate-500">{translateUi("Choose which operational tools your salon can use.")}</p></div>
       <div className="flex flex-wrap gap-2"><Link to={`/${salon.id}/payments`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 no-underline hover:bg-slate-50">{translateUi("Payment setup")}</Link><a href={dashboardUrl(String(salon.id))} className="inline-flex items-center gap-2 rounded-lg bg-matcha-600 px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-matcha-700">{translateUi("Open Dashboard ")}<ExternalLink className="h-4 w-4" /></a></div>
     </div>
 

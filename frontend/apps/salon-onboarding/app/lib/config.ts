@@ -1,3 +1,5 @@
+import { normalizeLanguage } from "@salon/i18n";
+
 export const SALON_DOMAIN =
   import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org";
 
@@ -26,8 +28,17 @@ export const STAFF_APP_URL: string =
   import.meta.env.VITE_STAFF_APP_URL ??
   (import.meta.env.DEV ? "http://localhost:5176" : `https://staff.${SALON_DOMAIN}`);
 
-// Placeholder until a docs site exists — same subdomain convention as the other apps.
-export const DOCS_URL: string = `https://docs.${SALON_DOMAIN}`;
+// Help Center for salon owners and staff (the wiki/ site). Never link it from customer-facing apps.
+const HELP_BASE_URL: string =
+  import.meta.env.VITE_HELP_URL || `https://help.${SALON_DOMAIN}`;
+
+/**
+ * A Help Center page in the user's language, e.g. `helpUrl("payments/refunds", locale)`; no path opens the guides.
+ * The help site sends languages it hasn't translated yet to English, so any app language is safe to pass.
+ */
+export function helpUrl(path = "", lang?: string): string {
+  return `${HELP_BASE_URL}/${normalizeLanguage(lang) ?? "en"}/docs${path ? `/${path}` : ""}`;
+}
 
 const BOOKING_BASE_URL: string =
   import.meta.env.VITE_BOOKING_APP_URL ??

@@ -1,0 +1,103 @@
+---
+title: "Tilknyt din Stripe-konto"
+description: "Hvorfor du skal bruge Stripe, hvordan du tilknytter salonens konto på fanen Opsætning, og hvordan du læser forbindelsens status."
+---
+
+For at tage imod kortbetalinger — online i din butik, til bookinger, i receptionen eller til medlemskaber — skal du tilknytte din egen Stripe-konto. Stripe er den betalingsudbyder, der håndterer kortoplysninger sikkert og overfører pengene til din bankkonto; du behøver ikke have brugt Stripe før.
+
+## Hvorfor du skal bruge det
+
+Når du har tilknyttet Stripe:
+
+- Går betalingerne **direkte til din egen bankkonto** — pengene går aldrig gennem os.
+- Får du **dit eget fulde Stripe-dashboard** med alle betalinger, kontoudtog og udbetalinger direkte hos Stripe.
+- Betaler du **Stripes almindelige kortgebyrer** direkte (de samme gebyrer, som enhver virksomhed betaler Stripe) — vi lægger ikke noget gebyr oveni.
+- Er kontoen helt din, så **du har selv ansvaret for dine betalinger og udbetalinger**, ligesom enhver anden virksomhed med sin egen Stripe-konto.
+
+<Callout type="info">
+  Det skal kun gøres én gang pr. salon.
+</Callout>
+
+## Trin for trin: tilknyt din konto
+
+<Steps>
+<Step>
+### Åbn siden Betalinger
+
+Gå til **Betalinger** i dit salonadmin. Siden åbner på fanen **Opsætning** med et kort, der hedder **Stripe account**.
+</Step>
+<Step>
+### Start opsætningen
+
+Under **Stripe account** finder du en knap til at komme i gang:
+
+- Kan en kort tilmeldingsformular åbne direkte på siden, står der **Opsæt betalinger** på knappen (eller **Fortsæt opsætning**, hvis du allerede har oprettet en konto og fortsætter, hvor du slap). Klik på den, så vises formularen lige nedenunder på siden Betalinger — du forlader aldrig dit salonadmin.
+- Ved siden af kan der også være et mindre link — **or continue on Stripe's site** — hvis du hellere vil udfylde de samme oplysninger på Stripes egen tilmeldingsside og automatisk komme tilbage bagefter.
+- Kan formularen ikke vises på siden i dit miljø, ser du kun én knap — **Connect with Stripe** (eller **Continue Stripe setup**) — som fører dig til Stripes egen tilmeldingsside og tilbage til siden Betalinger bagefter.
+
+Uanset hvad udfylder du de samme oplysninger, som Stripe beder alle virksomheder om: virksomheds- eller personoplysninger, adresse og den bankkonto, udbetalingerne skal sendes til.
+</Step>
+<Step>
+### Besvar Stripes spørgsmål
+
+Stripe beder blandt andet om:
+
+- Virksomhedens (eller din personlige) juridiske oplysninger og adresse
+- En bankkonto til udbetalinger
+- Identitetsbekræftelse (for eksempel et billed-ID)
+
+Bliver du afbrudt undervejs, er det helt fint — vend tilbage til siden Betalinger når som helst, og klik på **Fortsæt opsætning** (eller **Continue Stripe setup**) for at fortsætte, hvor du slap.
+</Step>
+<Step>
+### Vent på, at Stripe gennemgår oplysningerne
+
+Når du har indsendt dine oplysninger, gennemgår Stripe dem. Det går som regel hurtigt, men kan tage lidt længere tid, hvis Stripe har brug for ekstra kontrol.
+</Step>
+</Steps>
+
+## Tjek din status
+
+Tilbage på fanen **Opsætning** fortæller kortet **Stripe account** dig præcis, hvor du står. Beskederne vises på engelsk:
+
+| Det står der | Betydning |
+|---|---|
+| "Connect your salon's Stripe account to receive card payments." | Du er ikke begyndt på opsætningen endnu. |
+| "Your Stripe account is created, but Stripe still needs some details from you before it can accept payments." | Stripe mangler flere oplysninger fra dig — se listen nedenfor. |
+| "You've submitted everything Stripe asked for. Stripe is reviewing your account — card payments switch on automatically once it's approved." | Du er færdig; Stripe tjekker dine oplysninger. |
+| "Your Stripe account can accept payments." | Alt er sat op, og du kan tage imod betalinger. |
+| "Your Stripe account can accept payments. Payouts to your bank aren't enabled yet — finish the setup to receive your money." | Kortbetalinger virker, men du mangler et trin, før pengene kan nå din bankkonto. |
+
+Under beskeden følger en kort tjekliste med fire milepæle, som hver får et flueben, når de er klaret:
+
+1. **Stripe account created** — Stripe-kontoen er oprettet
+2. **Business details submitted** — virksomhedsoplysningerne er indsendt
+3. **Card payments activated by Stripe** — Stripe har aktiveret kortbetalinger
+4. **Payouts to your bank enabled** — udbetalinger til din bank er slået til
+
+Venter Stripe på noget fra dig, ser du en gul boks, **Stripe still needs from you**, der viser præcis, hvad der mangler — og markerer alt, der er **overdue** (overskredet), så du ved, hvad du skal tage dig af først. Tjekker Stripe selv noget (og du ikke skal gøre noget), ser du i stedet boksen **Stripe is checking** med det, der bliver gennemgået.
+
+Når alt er tilknyttet, vises et grønt **Connected**-mærke ved siden af opsætningsknapperne.
+
+<Callout type="info">
+  Kører din salon med en Stripe-nøgle i testtilstand (sandbox), ser du en note om, at du skal færdiggøre opsætningen med Stripes testoplysninger for at prøve testbetalinger med kort — der flyttes ingen rigtige penge, før du skifter til en live Stripe-konto.
+</Callout>
+
+<Callout type="info">
+  Du kan vælge, hvilke dele af din forretning der tager imod kort (butik, bookinger, kasse, medlemskaber), og slå dem til, allerede før Stripe er færdig med at gennemgå din konto — se [Vælg, hvordan kunderne betaler](/da/docs/payments/choosing-how-customers-pay). De områder begynder først at tage imod kortbetalinger, når din konto kan modtage betalinger.
+</Callout>
+
+## Administrer din konto bagefter
+
+Når du er tilknyttet, kommer der flere faner øverst på siden Betalinger, ved siden af **Opsætning**:
+
+- **Transaktioner** — alle kortbetalinger fra din butik, dine bookinger, medlemskaber og kassen, inklusive refusioner. Se [Refusioner](/da/docs/payments/refunds).
+- **Kortlæsere** — har din salon receptionsappen (Dashboard) slået til, kan du parre fysiske kortlæsere her. Se [Kortlæsere og betaling i salonen](/da/docs/payments/card-readers-and-in-person-payments).
+- **Udbetalinger** — se, hvornår pengene sendes til din bankkonto, og tilpas din udbetalingsplan.
+- **Betalinger og indsigelser** — se dine betalinger og eventuelle indsigelser direkte fra Stripe.
+- **Konto** — opdater dine virksomhedsoplysninger.
+
+De sidste tre faner vises kun, når dit miljø understøtter Stripes kontoværktøjer på siden; mangler de, så brug linket **or continue on Stripe's site** for at klare det samme direkte på stripe.com.
+
+Da det er din egen fulde Stripe-konto, kan Stripe af og til bede dig bekræfte dit login ved følsomme handlinger i fanerne — det er forventet og holder din konto sikker. Du kan også nogle gange se en besked fra Stripe selv øverst på siden Betalinger, for eksempel hvis Stripe skal have dig til at bekræfte noget om din konto — læs og følg den, ligesom du ville med alt andet på siden.
+
+Vil du ændre, hvilke betalingsmetoder du tager imod (kort, Apple Pay, Google Pay osv.), så brug linket **Manage payment methods** ved siden af mærket Connected. Det åbner indstillingerne for betalingsmetoder i dit Stripe-dashboard i en ny fane. Det gælder hele din salon — butik, bookinger, medlemskaber og kassen deler de samme betalingsmetoder, for eksempel kort, Apple Pay, Google Pay, MobilePay eller Klarna, afhængigt af hvad der findes for dit land og din valuta.

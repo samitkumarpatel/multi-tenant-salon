@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import React, { useEffect, useState } from "react";
 import { useOutletContext, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
@@ -179,7 +180,7 @@ export default function WebsiteManagement() {
     <div className="max-w-2xl">
       <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{translateUi("Website")}</h1>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Website")}</h1><GuideLink path="website/your-salon-website" /></div>
           <p className="text-sm text-slate-500 mt-1">
             {translateUi("Choose how to present ")}<span className="font-medium text-slate-700">{salon.name}</span> {translateUi("to visitors online. ")}</p>
         </div>

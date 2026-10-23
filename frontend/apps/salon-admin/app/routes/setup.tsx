@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { Link, useLoaderData, useOutletContext } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
@@ -143,7 +144,7 @@ export default function Setup() {
     <div className="max-w-xl">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Get started")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Get started")}</h1><GuideLink path="getting-started/sign-up-and-onboarding" /></div>
         <p className="text-sm text-slate-500 mt-1">
           {translateUi("Complete these steps to set up")}{" "}
           <span className="font-medium text-slate-700">{salon.name}</span>.

@@ -1,0 +1,84 @@
+---
+title: "Kortlæsere og betaling i salonen"
+description: "Opsæt en fysisk kortlæser i receptionen på fanen Kortlæsere, og tag imod kortbetalinger i salonen med den."
+---
+
+Har din salon receptionsfunktionen Dashboard slået til, vises fanen **Kortlæsere** på siden Betalinger, når du har tilknyttet din Stripe-konto. Her parrer du fysiske kortlæsere, så dine medarbejdere kan tage imod kortbetalinger i salonen — ved salg i kassen og ved salg eller indtjekning af medlemskaber ved disken.
+
+<Callout type="info">
+  Kortlæsere kræver, at din Stripe-konto er tilknyttet (se [Tilknyt din Stripe-konto](/da/docs/payments/connecting-your-stripe-account)), og at funktionen Dashboard er slået til.
+</Callout>
+
+## Opsæt en kortlæser
+
+<Steps>
+<Step>
+### Tjek, at salonens adresse er udfyldt
+
+Den første kortlæser, du tilføjer, registrerer sin placering hos Stripe ud fra salonens adresse, by og postnummer. Tjek, at de er udfyldt under salonoplysningerne, før du tilføjer en kortlæser — mangler noget, mislykkes tilføjelsen, og du bliver bedt om at udfylde det først.
+</Step>
+<Step>
+### Gå til Betalinger → Kortlæsere
+
+Åbn fanen **Kortlæsere** på siden **Betalinger**. Fanen beskriver Stripe Terminal-læserne, der bruges ved salonens disk til kassen og medlemssalg; medarbejderne vælger en læser, når de tager imod en kortbetaling.
+</Step>
+<Step>
+### Indtast kortlæserens registreringskode
+
+Tænd den fysiske kortlæser; den viser en kort kode på sin egen skærm, når den er klar til at blive parret. Åbn læserens indstillinger på selve læseren, og vælg **Generate pairing code** for at få koden. Skriv den i feltet **Registreringskode** på fanen Kortlæsere.
+
+I testtilstand (uden fysisk læser) skriver du i stedet den faste demokode `simulated-wpe` for at tilføje en simuleret læser.
+
+Giv også læseren et sigende **Navn**, for eksempel "Reception" (feltet er valgfrit).
+</Step>
+<Step>
+### Tilføj læseren
+
+Klik på **Tilføj kortlæser**. Din nye læser vises på listen nedenfor med en lille farvet prik, der viser, om den er online (grøn), offline (grå) eller i en anden tilstand (gul).
+</Step>
+</Steps>
+
+Du kan omdøbe en læser når som helst med blyantikonet ved siden af den (og derefter **Gem** eller **Annuller**) eller fjerne den med skraldespandsikonet (du skal bekræfte ved at klikke på **Fjern kortlæser**) — når du fjerner den her, afbrydes den også hos Stripe. Brug knappen **Opdater** øverst på fanen, hvis du med det samme vil tjekke alle læseres onlinestatus hos Stripe igen.
+
+## Tag imod en kortbetaling i salonen
+
+Når en læser er sat op og online, foregår et kortsalg i kassen eller ved medlemsdisken sådan her:
+
+<Steps>
+<Step>
+### Slå salget ind
+
+Opret salget (et kassesalg eller et medlemskøb) som normalt i receptionen, og vælg betaling med **Kortlæser**. Har du flere læsere, vælger du, hvilken der skal bruges.
+</Step>
+<Step>
+### Giv kunden kortlæseren
+
+En besked beder kunden om at holde kortet mod, indsætte eller trække det i den valgte læser (for eksempel "Reception"). Giv kunden den fysiske læser.
+</Step>
+<Step>
+### Vent på resultatet
+
+Skærmen viser beløbet med store tal og et ikon, der drejer rundt, mens betalingen afventer. Den opdateres automatisk, når Stripe godkender eller afviser kortet — du behøver ikke opdatere noget, men knappen **Tjek status** er der, hvis du selv vil se den seneste status.
+</Step>
+<Step>
+### Hvis kortet afvises
+
+Afvises kortet, forbliver betalingen åben, og årsagen vises på skærmen (for eksempel "Card declined" eller en note om, at læseren er offline eller optaget). Du kan derefter enten:
+
+- Vælge en læser i rullemenuen og klikke på **Prøv igen** for at prøve betalingen igen — på samme eller en anden læser, eller
+- Klikke på **Annuller betaling** for at stoppe og bruge en anden betalingsmetode.
+
+Der trækkes aldrig penge to gange.
+</Step>
+<Step>
+### Færdig
+
+Når betalingen er gennemført, annulleret eller helt mislykket, viser vinduet "Betaling modtaget", "Betaling annulleret" eller "Betaling mislykkedes" med et tilsvarende ikon og en **Færdig**-knap til at lukke det.
+</Step>
+</Steps>
+
+<Callout type="info">
+  I Stripes testtilstand kan du med knappen **Testtilstand: hold et testkort** simulere, at et kort holdes mod en simuleret læser i stedet for at bruge fysisk udstyr — praktisk, når du vil prøve forløbet af, før du går live.
+</Callout>
+
+Alle betalinger på kortlæser vises sammen med dine onlinebetalinger på fanen **Transaktioner** på siden Betalinger, så du har ét sted at se alt, hvad der er betalt, uanset hvordan.

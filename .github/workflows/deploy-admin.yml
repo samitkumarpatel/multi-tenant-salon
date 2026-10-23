@@ -34,6 +34,7 @@ jobs:
           VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN || 'salonsaas.org' }}
           VITE_BASE_PATH: /
           VITE_BOOKING_BASE_URL: ${{ vars.VITE_BOOKING_BASE_URL || 'https://book.salonsaas.org' }}
+          VITE_HELP_URL: ${{ vars.VITE_HELP_URL || 'https://help.salonsaas.org' }}
         run: npm run build:admin
 
       - name: Upload build artifact

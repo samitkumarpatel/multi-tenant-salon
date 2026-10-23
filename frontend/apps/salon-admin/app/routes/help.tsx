@@ -1,7 +1,7 @@
 import { useI18n } from "@salon/i18n";
 import { Mail, Phone, MessageCircle, ExternalLink, BookOpen, Lightbulb, Bug, Shield } from "lucide-react";
 import { InfoBar } from "@salon/ui-shared";
-import { SUPPORT_EMAIL } from "~/lib/config";
+import { SUPPORT_EMAIL, helpUrl } from "~/lib/config";
 
 const SUPPORT_PHONE = "+1 (800) 123-4567";
 
@@ -15,6 +15,24 @@ export default function Help() {
         <InfoBar id="help">
           {translateUi("Need assistance? Reach out to our support team — we typically respond within one business day. ")}</InfoBar>
       </div>
+
+      <a
+        href={helpUrl("", uiLocale)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-4 bg-white rounded-xl p-5 border border-matcha-200 shadow-sm hover:border-matcha-400 transition-colors no-underline group"
+      >
+        <span className="w-10 h-10 rounded-lg bg-matcha-50 border border-matcha-100 flex items-center justify-center shrink-0">
+          <BookOpen className="w-5 h-5 text-matcha-600" aria-hidden="true" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-semibold text-slate-900">{translateUi("Help Center")}</span>
+          <span className="block text-xs text-slate-500 leading-relaxed">
+            {translateUi("Step-by-step guides for setting up your salon, bookings, shop, memberships, payments and the front desk.")}
+          </span>
+        </span>
+        <ExternalLink className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-matcha-600 transition-colors" aria-hidden="true" />
+      </a>
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
 
@@ -70,7 +88,7 @@ export default function Help() {
         </div>
         <div className="divide-y divide-slate-100">
           {[
-            { icon: BookOpen,   label: "Documentation",        hint: "Setup guides, feature walkthroughs, and API reference",   href: "#" },
+            { icon: BookOpen,   label: "Help Center",          hint: "Setup guides and feature walkthroughs for owners and staff", href: helpUrl("", uiLocale) },
             { icon: Lightbulb, label: "Feature Requests",     hint: "Suggest new capabilities or vote on what we build next",   href: "#" },
             { icon: Bug,       label: "Report a Bug",         hint: "Found something broken? Let us know and we'll fix it fast", href: `mailto:${SUPPORT_EMAIL}?subject=Bug%20Report` },
             { icon: Shield,    label: "Security &amp; Privacy", hint: "Privacy policy, data handling, and security disclosures",  href: "#" },
@@ -78,6 +96,7 @@ export default function Help() {
             <a
               key={label}
               href={href}
+              {...(href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors no-underline group"
             >
               <Icon className="w-4 h-4 text-slate-400 shrink-0 group-hover:text-matcha-600 transition-colors" />

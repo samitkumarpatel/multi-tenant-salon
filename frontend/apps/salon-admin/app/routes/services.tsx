@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { FixWithAi } from "~/components/FixWithAi";
 import { useState } from "react";
 import { useLoaderData, useOutletContext } from "react-router";
@@ -464,7 +465,7 @@ export default function Services() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Services")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Services")}</h1><GuideLink path="services/service-catalog" /></div>
         <InfoBar id="services">
           {translateUi("Define everything your salon offers — name, price, duration, category, and assigned staff. Customers see these on your public website. ")}</InfoBar>
       </div>

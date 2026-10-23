@@ -27,6 +27,7 @@ const PER: Record<MembershipBillingInterval, string> = { MONTHLY: "/ month", QUA
 const COVERS: Record<MembershipBillingInterval, string> = { MONTHLY: "one month", QUARTERLY: "3 months", YEARLY: "one year" };
 const PERIOD: Record<MembershipBillingInterval, string> = { MONTHLY: "a month", QUARTERLY: "every 3 months", YEARLY: "a year" };
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const DESCRIPTION_PREVIEW_CHARS = 100;
 
 type Translate = (s: string, v?: Record<string, string | number>) => string;
 
@@ -158,7 +159,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
           {translateUi("Your look, on subscription")}
         </h1>
         <p className="mt-3 text-sm sm:text-base max-w-xl mx-auto" style={{ color: sub }}>
-          {translateUi("Join {salon} as a member for regular treatments, member prices and perks. Pay by card for each period — no automatic charges.", { salon: salon.name })}
+          {translateUi("Regular treatments, member prices and perks at {salon}.", { salon: salon.name })}
         </p>
       </section>
 
@@ -230,6 +231,9 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
   const { t: translateUi, locale: uiLocale } = useI18n();
   const benefits = membershipBenefits(plan, translateUi);
   const worth = plan.includedValue && plan.includedValue > plan.price ? plan.includedValue : null;
+  // Long descriptions crowd the price and perks: show two lines and let the visitor expand.
+  const longDescription = (plan.description?.length ?? 0) > DESCRIPTION_PREVIEW_CHARS;
+  const [expanded, setExpanded] = useState(false);
   return (
     <article className="relative rounded-2xl p-6 flex flex-col"
       style={{ backgroundColor: cardBg, border: plan.highlighted ? `2px solid ${theme.accentColor}` : `1px solid ${cardBorder}`,
@@ -241,9 +245,9 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
         </span>
       )}
       <h3 className="text-lg font-bold" style={{ color: text }}>{plan.name}</h3>
-      <p className="mt-2 flex items-baseline gap-1.5" style={{ color: text }}>
+      <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5" style={{ color: text }}>
         <span className="text-3xl font-black tabular-nums">{formatPrice(plan.price, plan.currency, uiLocale)}</span>
-        <span className="text-sm" style={{ color: sub }}>{translateUi(PER[plan.billingInterval])}</span>
+        <span className="text-sm whitespace-nowrap" style={{ color: sub }}>{translateUi(PER[plan.billingInterval])}</span>
       </p>
       {plan.signupFee ? (
         <p className="text-xs mt-1" style={{ color: sub }}>
@@ -255,9 +259,19 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
           {translateUi("Includes {value} of treatments", { value: formatPrice(worth, plan.currency, uiLocale) })}
         </p>
       )}
-      {plan.description && <p className="text-sm mt-3 leading-relaxed" style={{ color: sub }}>{plan.description}</p>}
+      {plan.description && (
+        <div className="mt-3 text-sm leading-relaxed" style={{ color: sub }}>
+          <p className={longDescription && !expanded ? "line-clamp-2" : undefined}>{plan.description}</p>
+          {longDescription && (
+            <button type="button" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}
+              className="mt-1 text-xs font-semibold underline-offset-2 hover:underline cursor-pointer" style={{ color: text }}>
+              {expanded ? translateUi("Show less") : translateUi("Show more")}
+            </button>
+          )}
+        </div>
+      )}
       {benefits.length > 0 && (
-        <ul className="mt-4 space-y-2 flex-1">
+        <ul className="mt-4 space-y-2">
           {benefits.map((b, i) => (
             <li key={i} className="flex items-start gap-2 text-sm" style={{ color: text }}>
               <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: theme.accentColor }} /> <span>{b}</span>
@@ -271,13 +285,15 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
         </p>
       )}
       {onlineSignup && (
-        <button onClick={onJoin} disabled={plan.soldOut}
-          className="mt-5 w-full text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          style={plan.highlighted || plan.soldOut
-            ? { backgroundColor: theme.accentColor, color: accentText }
-            : { backgroundColor: "transparent", color: text, border: `1.5px solid ${theme.accentColor}` }}>
-          {plan.soldOut ? translateUi("Fully booked") : translateUi("Join {plan}", { plan: plan.name })}
-        </button>
+        <div className="mt-auto pt-5">
+          <button onClick={onJoin} disabled={plan.soldOut} aria-label={translateUi("Join {plan}", { plan: plan.name })}
+            className="w-full text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={plan.highlighted || plan.soldOut
+              ? { backgroundColor: theme.accentColor, color: accentText }
+              : { backgroundColor: "transparent", color: text, border: `1.5px solid ${theme.accentColor}` }}>
+            {plan.soldOut ? translateUi("Fully booked") : translateUi("Join")}
+          </button>
+        </div>
       )}
     </article>
   );

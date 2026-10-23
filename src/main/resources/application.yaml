@@ -48,6 +48,8 @@ spring:
       staff-app-url: ${NOTIFICATION_STAFF_APP_URL:https://staff.salonsaas.org}
       booking-app-url: ${NOTIFICATION_BOOKING_APP_URL:https://book.salonsaas.org}
       support-email: ${NOTIFICATION_SUPPORT_EMAIL:admin@salonsaas.org}
+      # Help Center (wiki/) — linked from owner/staff emails only, never customer ones.
+      help-url: ${NOTIFICATION_HELP_URL:https://help.salonsaas.org}
     payments:
       stripe-secret-key: ${STRIPE_SECRET_KEY:}
       stripe-webhook-secret: ${STRIPE_WEBHOOK_SECRET:}

@@ -56,6 +56,11 @@ class NotificationService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
 
+    // Help Center guides (wiki/content/docs) linked from owner- and staff-facing emails.
+    private static final String GUIDE_GETTING_STARTED = "getting-started/sign-up-and-onboarding";
+    private static final String GUIDE_SALON_SETTINGS = "getting-started/salon-profile-and-settings";
+    private static final String GUIDE_STAFF_PORTAL = "staff-portal/logging-in-and-your-schedule";
+
     private final MailjetClient mailjetClient;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -75,6 +80,9 @@ class NotificationService {
     private String bookingAppUrl;
     @Value("${spring.application.notification.support-email:admin@salonsaas.org}")
     private String supportEmail;
+    // Help Center for salon owners and staff only — never link it from a customer-facing email.
+    @Value("${spring.application.notification.help-url:https://help.salonsaas.org}")
+    private String helpUrl;
 
     NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher) {
         this.mailjetClient = mailjetClient;
@@ -109,13 +117,17 @@ class NotificationService {
                 Manage your salon: %s
                 Your staff portal: %s
 
+                New here? Our step-by-step setup guide walks you through services, staff, bookings and payments:
+                %s
+
                 Features enabled:
                 %s
 
-                Need a hand? Reply to this email or reach us at %s.
+                Need a hand? Browse the Help Center (%s), reply to this email or reach us at %s.
 
                 — The SalonSaaS Team
-                """.formatted(event.ownerName(), event.salonName(), manageLink, staffAppUrl, textFeatures, supportEmail);
+                """.formatted(event.ownerName(), event.salonName(), manageLink, staffAppUrl,
+                helpUrl(GUIDE_GETTING_STARTED), textFeatures, helpUrl(""), supportEmail);
         var html = """
                 <p>Hi %s,</p>
                 <p>Your salon "<strong>%s</strong>" is now live on SalonSaaS.</p>
@@ -123,13 +135,16 @@ class NotificationService {
                 <p><a href="%s">Manage your salon</a><br>
                 <a href="%s">Your staff portal</a></p>
 
+                <p>New here? Our <a href="%s"><strong>step-by-step setup guide</strong></a> walks you through services, staff, bookings and payments.</p>
+
                 <p><strong>Features enabled</strong></p>
                 <ul>
                 %s
                 </ul>
 
-                <p><small>Need a hand? Reply to this email or reach us at <a href="mailto:%s">%s</a>.</small></p>
-                """.formatted(event.ownerName(), event.salonName(), manageLink, staffAppUrl, htmlFeatures, supportEmail, supportEmail);
+                <p><small>Need a hand? Browse the <a href="%s">Help Center</a>, reply to this email or reach us at <a href="mailto:%s">%s</a>.</small></p>
+                """.formatted(event.ownerName(), event.salonName(), manageLink, staffAppUrl,
+                helpUrl(GUIDE_GETTING_STARTED), htmlFeatures, helpUrl(""), supportEmail, supportEmail);
 
         sendEmail(event.ownerEmail(), event.ownerName(), subject, text, html);
     }
@@ -177,17 +192,18 @@ class NotificationService {
                 Your salon "%s" settings were just updated.
 
                 Review your salon: %s
+                What each setting does: %s
 
                 If this wasn't you, write to us at %s immediately.
 
                 — The SalonSaaS Team
-                """.formatted(event.ownerName(), event.salonName(), manageLink, supportEmail);
+                """.formatted(event.ownerName(), event.salonName(), manageLink, helpUrl(GUIDE_SALON_SETTINGS), supportEmail);
         var html = """
                 <p>Hi %s,</p>
                 <p>Your salon "<strong>%s</strong>" settings were just updated.</p>
-                <p><a href="%s">Review your salon</a></p>
+                <p><a href="%s">Review your salon</a> · <a href="%s">What each setting does</a></p>
                 <p><small>If this wasn't you, write to us at <a href="mailto:%s">%s</a> immediately.</small></p>
-                """.formatted(event.ownerName(), event.salonName(), manageLink, supportEmail, supportEmail);
+                """.formatted(event.ownerName(), event.salonName(), manageLink, helpUrl(GUIDE_SALON_SETTINGS), supportEmail, supportEmail);
 
         sendEmail(event.ownerEmail(), event.ownerName(), subject, text, html);
     }
@@ -350,17 +366,18 @@ class NotificationService {
                 You've been added as a %s at "%s" on SalonSaaS.
 
                 Your staff portal: %s
+                How to sign in and use it: %s
 
                 If this doesn't look right, reply to this email or reach us at %s.
 
                 — The SalonSaaS Team
-                """.formatted(event.staffName(), roleLabel, salonName, staffAppUrl, supportEmail);
+                """.formatted(event.staffName(), roleLabel, salonName, staffAppUrl, helpUrl(GUIDE_STAFF_PORTAL), supportEmail);
         var html = """
                 <p>Hi %s,</p>
                 <p>You've been added as a <strong>%s</strong> at "<strong>%s</strong>" on SalonSaaS.</p>
-                <p><a href="%s">Your staff portal</a></p>
+                <p><a href="%s">Your staff portal</a> · <a href="%s">How to sign in and use it</a></p>
                 <p><small>If this doesn't look right, reply to this email or reach us at <a href="mailto:%s">%s</a>.</small></p>
-                """.formatted(event.staffName(), roleLabel, salonName, staffAppUrl, supportEmail, supportEmail);
+                """.formatted(event.staffName(), roleLabel, salonName, staffAppUrl, helpUrl(GUIDE_STAFF_PORTAL), supportEmail, supportEmail);
 
         sendEmail(event.staffEmail(), event.staffName(), subject, text, html);
     }
@@ -377,17 +394,18 @@ class NotificationService {
                 Your weekly availability has been updated — %d day(s) now set.
 
                 View your schedule: %s
+                How availability works: %s
 
                 If this doesn't look right, please contact your salon manager.
 
                 — The SalonSaaS Team
-                """.formatted(event.staffName(), event.scheduleEntriesCount(), staffAppUrl);
+                """.formatted(event.staffName(), event.scheduleEntriesCount(), staffAppUrl, helpUrl(GUIDE_STAFF_PORTAL));
         var html = """
                 <p>Hi %s,</p>
                 <p>Your weekly availability has been updated — <strong>%d day(s)</strong> now set.</p>
-                <p><a href="%s">View your schedule</a></p>
+                <p><a href="%s">View your schedule</a> · <a href="%s">How availability works</a></p>
                 <p><small>If this doesn't look right, please contact your salon manager.</small></p>
-                """.formatted(event.staffName(), event.scheduleEntriesCount(), staffAppUrl);
+                """.formatted(event.staffName(), event.scheduleEntriesCount(), staffAppUrl, helpUrl(GUIDE_STAFF_PORTAL));
 
         sendEmail(event.staffEmail(), event.staffName(), subject, text, html);
     }
@@ -685,6 +703,11 @@ class NotificationService {
     }
 
     // ── Dispatch ──────────────────────────────────────────────────────────────
+
+    // Emails are English-only, so they link the English guides.
+    private String helpUrl(String guide) {
+        return helpUrl + "/en/docs" + (guide.isEmpty() ? "" : "/" + guide);
+    }
 
     private String adminSalonUrl(Object salonId) {
         return adminAppUrl + "/" + salonId;

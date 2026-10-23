@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
@@ -2359,7 +2360,7 @@ export default function BookingPage() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Bookings")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Bookings")}</h1><GuideLink path="bookings/managing-bookings" /></div>
         <p className="text-sm text-slate-500">{sectionMeta.label}</p>
         <InfoBar id={`booking-${section}`}>
           {sectionMeta.description}

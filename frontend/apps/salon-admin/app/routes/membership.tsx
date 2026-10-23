@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { NavLink, Outlet, useOutletContext } from "react-router";
 import { CreditCard, LayoutDashboard, ScanLine, Ticket, Users } from "lucide-react";
 import { InfoBar } from "@salon/ui-shared";
@@ -30,7 +31,7 @@ export default function Membership() {
   return (
     <div>
       <div className="mb-5 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Membership")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Membership")}</h1><GuideLink path="membership/creating-membership-plans" /></div>
         <InfoBar id="membership">
           {translateUi("Create membership plans, follow your members and their payments, and check members in with the QR code they receive by email. Plans on sale appear on your public website's Membership page. Customers pay each period by card through your Stripe account — like shop orders — and get an email with a renewal link before their membership ends.")}
         </InfoBar>

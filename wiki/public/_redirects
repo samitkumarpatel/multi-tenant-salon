@@ -1,1 +1,10 @@
-/  /docs  301
+# Links from before the guides were translated.
+/docs     /en/docs         301
+/docs/*   /en/docs/:splat  301
+
+# Languages the apps offer whose guides aren't translated yet: read English for now.
+# Remove a line once that language is added in lib/i18n.ts.
+/sv/*  /en/:splat  302
+/nb/*  /en/:splat  302
+/fr/*  /en/:splat  302
+/de/*  /en/:splat  302

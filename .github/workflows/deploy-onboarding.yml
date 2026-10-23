@@ -34,6 +34,7 @@ jobs:
           VITE_SALON_DOMAIN: ${{ vars.VITE_SALON_DOMAIN || 'salonsaas.org' }}
           VITE_ADMIN_APP_URL: ${{ vars.VITE_ADMIN_APP_URL || 'https://admin.salonsaas.org' }}
           VITE_BASE_PATH: /
+          VITE_HELP_URL: ${{ vars.VITE_HELP_URL || 'https://help.salonsaas.org' }}
         run: npm run build:onboarding
 
       - name: Upload build artifact

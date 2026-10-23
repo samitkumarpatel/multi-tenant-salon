@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Building2, Users, ArrowRight, Cookie, Mail } from "lucide-react";
 import { AppLogo } from "@salon/ui-shared";
-import { ADMIN_APP_URL, CONTACT_EMAIL, SALON_DOMAIN } from "~/lib/config";
+import { ADMIN_APP_URL, CONTACT_EMAIL, SALON_DOMAIN, helpUrl } from "~/lib/config";
 import { PRIVACY_TEXT } from "~/lib/legal";
 import { LegalModal } from "~/components/LegalModal";
 import { SiteFooter } from "~/components/SiteFooter";
@@ -110,9 +110,14 @@ export default function Home() {
                   {translateUi("Get started ")}<ArrowRight className="w-4 h-4" />
                 </div>
               </Link>
-              <a href={ADMIN_APP_URL} className="mt-4 border-t border-stone-100 pt-3 text-xs font-medium text-stone-500 hover:text-matcha-700 no-underline transition-colors">
-                {translateUi("Sign in to your salon ")}
-              </a>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-stone-100 pt-3 text-xs font-medium">
+                <a href={ADMIN_APP_URL} className="text-stone-500 hover:text-matcha-700 no-underline transition-colors">
+                  {translateUi("Sign in to your salon ")}
+                </a>
+                <a href={helpUrl("getting-started/sign-up-and-onboarding", uiLocale)} target="_blank" rel="noopener noreferrer" className="text-stone-500 hover:text-matcha-700 no-underline transition-colors">
+                  {translateUi("Owner guides")}
+                </a>
+              </div>
             </div>
 
             <div className="flex flex-col flex-1 bg-white border border-stone-200 rounded-2xl p-5 sm:p-8 opacity-50 cursor-not-allowed select-none">

@@ -1,3 +1,5 @@
+import { normalizeLanguage } from "@salon/i18n";
+
 export const SALON_DOMAIN =
   import.meta.env.VITE_SALON_DOMAIN ?? "salonsaas.org";
 
@@ -39,4 +41,16 @@ const DASHBOARD_BASE_URL: string =
 
 export function dashboardUrl(salonId: string): string {
   return `${DASHBOARD_BASE_URL}/${salonId}`;
+}
+
+// Help Center for salon owners and staff (the wiki/ site). Never link it from customer-facing apps.
+const HELP_BASE_URL: string =
+  import.meta.env.VITE_HELP_URL || `https://help.${SALON_DOMAIN}`;
+
+/**
+ * A Help Center page in the user's language, e.g. `helpUrl("payments/refunds", locale)`; no path opens the guides.
+ * The help site sends languages it hasn't translated yet to English, so any app language is safe to pass.
+ */
+export function helpUrl(path = "", lang?: string): string {
+  return `${HELP_BASE_URL}/${normalizeLanguage(lang) ?? "en"}/docs${path ? `/${path}` : ""}`;
 }

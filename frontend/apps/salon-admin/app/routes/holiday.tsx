@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router";
 import { CalendarDays, Plus, Trash2, X, AlertCircle } from "lucide-react";
@@ -119,7 +120,7 @@ export default function HolidayPage() {
   return (
     <>
       <div className="mb-6 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Holidays")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Holidays")}</h1><GuideLink path="bookings/staff-availability-holidays-and-closures" /></div>
         <InfoBar id="holidays">
           {translateUi("Define public or private holidays that block the booking calendar. ")}<strong>{translateUi("Recurring")}</strong> {translateUi("holidays (e.g. Christmas) apply every year automatically. ")}<strong>{translateUi("One-time")}</strong> {translateUi("holidays apply to a specific year only. You can set a single day or a ")}<strong>{translateUi("date range")}</strong> {translateUi("(e.g. Christmas break Dec 24 – Jan 2). ")}</InfoBar>
       </div>

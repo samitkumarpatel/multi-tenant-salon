@@ -1,11 +1,13 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
-import { appName, gitConfig } from './shared';
+import { appName, docsRoute, gitConfig } from './shared';
 
-export function baseOptions(): BaseLayoutProps {
+const SITE_TITLES: Partial<Record<string, string>> = { da: 'Salon SaaS Hjælpecenter' };
+
+export function baseOptions(lang: string): BaseLayoutProps {
   return {
     nav: {
-      // JSX supported
-      title: appName,
+      title: SITE_TITLES[lang] ?? appName,
+      url: `/${lang}${docsRoute}`,
     },
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   };

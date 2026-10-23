@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useCallback, useEffect, useState } from "react";
 import { useLoaderData, useOutletContext, useRevalidator, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -77,7 +78,7 @@ export default function PaymentsPage() {
   const go = (next: Tab) => { const p = new URLSearchParams(params); p.set("tab", next); setParams(p, { replace: true }); };
 
   return <div className="mx-auto max-w-4xl space-y-5">
-    <div><h1 className="text-xl font-bold text-slate-900">{translateUi("Payments")}</h1><p className="mt-1 text-sm text-slate-500">{translateUi("Connect one Stripe account for this salon, choose where and how customers pay, and manage your money — all here.")}</p></div>
+    <div><div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Payments")}</h1><GuideLink path="payments/connecting-your-stripe-account" /></div><p className="mt-1 text-sm text-slate-500">{translateUi("Connect one Stripe account for this salon, choose where and how customers pay, and manage your money — all here.")}</p></div>
     {account && publishableKey && <StripeConnectEmbed sid={sid} publishableKey={publishableKey} component="notification-banner" />}
     {tabs.length > 1 && <nav className="flex flex-wrap gap-1 border-b border-slate-200" aria-label={translateUi("Payments")}>
       {tabs.map((item) => <button key={item.key} type="button" onClick={() => go(item.key)} aria-current={tab === item.key ? "page" : undefined}

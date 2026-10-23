@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { GuideLink } from "~/components/GuideLink";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useOutletContext, useParams } from "react-router";
 import { Boxes, ClipboardList, Layers, Package, Tag, RefreshCcw, CreditCard, Undo2, Receipt } from "lucide-react";
@@ -50,7 +51,7 @@ export default function Shop() {
   return (
     <div>
       <div className="mb-5 space-y-2">
-        <h1 className="text-xl font-bold text-slate-900">{translateUi("Shop")}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Shop")}</h1><GuideLink path="shop/setting-up-your-shop" /></div>
         <InfoBar id="shop">
           {translateUi("Manage your product catalogue, keep stock up to date, and work through customer orders. Shoppers see active products on your public website's Shop page. ")}</InfoBar>
       </div>
