@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.booking.internal;
 
 import net.samitkumar.multi_tenant_salon.booking.Booking;
+import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
@@ -28,4 +29,8 @@ interface BookingRepository extends ListCrudRepository<Booking, Long> {
 
     @Query("SELECT * FROM booking WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) ORDER BY appointment_date DESC, start_time DESC")
     List<Booking> findByCustomerEmail(UUID salonId, String email);
+
+    @Modifying
+    @Query("UPDATE booking SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL WHERE salon_id = :salonId AND lower(customer_email) = lower(:email)")
+    int anonymizeCustomer(UUID salonId, String email, String replacement);
 }

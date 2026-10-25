@@ -51,7 +51,7 @@ export function FeatureView({
       <SiteHeader salon={salon} theme={theme} current={pageKey} onBack={onBack} getPagePath={getPagePath} onNavigate={onNavigate} />
 
       <main className="flex-1 flex items-center">
-        <div className="max-w-5xl mx-auto px-6 py-16 w-full text-center">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-6 py-16 w-full text-center">
           <div
             className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center"
             style={{ backgroundColor: `${theme.accentColor}22`, border: `1px solid ${theme.accentColor}44` }}

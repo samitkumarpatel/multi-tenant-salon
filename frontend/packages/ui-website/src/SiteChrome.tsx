@@ -237,7 +237,7 @@ export function SiteHeader({
     <header className="sticky top-0 z-30 backdrop-blur-sm border-b" style={{ backgroundColor: `${headerBg}F2`, borderColor: headerBorder }}>
       {/* Standalone mode: logo left, toggle right */}
       {standalone ? (
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           {/* Left: logo + salon name */}
           <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group min-w-0">
             <div
@@ -258,7 +258,7 @@ export function SiteHeader({
           </div>
         </div>
       ) : (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-6">
+      <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-6">
         <div className="flex items-center gap-2 sm:gap-8 min-w-0 flex-1">
           {/* Mobile: the "Back to website" text link below is sm+ only and doesn't fit
               beside the shop's cart/avatar icons — give small screens an icon button so
@@ -408,7 +408,7 @@ export function SiteFooter({
           borderColor: footerBorder,
         }}
       >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-4 flex-wrap">
             <p className="text-[11px]" style={{ color: footerDim }}>
               © {new Date().getFullYear()} {salon.name}
@@ -460,7 +460,7 @@ export function SiteFooter({
 
   return (
     <footer className="mt-auto" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
+      <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
         <div className="grid grid-cols-2 items-start gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
           {/* Left column: brand (desktop only) + find us + social — mirrors the home-page

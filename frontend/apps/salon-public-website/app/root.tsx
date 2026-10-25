@@ -36,7 +36,7 @@ export function HydrateFallback() {
               {translateUi("↻ Retry ")}</button>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
+          <div className="flex flex-col items-center justify-center min-h-dvh gap-3 text-slate-400">
             <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
             <p className="text-sm">{translateUi("Loading…")}</p>
           </div>

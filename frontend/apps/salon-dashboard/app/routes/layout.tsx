@@ -170,7 +170,7 @@ export default function DashboardLayout() {
   ];
   const navTarget = (key: string) => key === "cashier" ? "?view=cashier&cashierView=pos"
     : key === "membership" ? "?view=membership&membershipView=check-in" : `?view=${key}`;
-  return <div className="min-h-screen">
+  return <div className="min-h-dvh">
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-7">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: theme.logoBgColor }}>
@@ -184,8 +184,8 @@ export default function DashboardLayout() {
         </div>
       </div>
     </header>
-    <div className="mx-auto flex max-w-7xl">
-      <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-48 shrink-0 px-4 py-6 md:flex md:flex-col">
+    <div className="mx-auto flex max-w-7xl 2xl:max-w-screen-2xl">
+      <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-48 shrink-0 px-4 py-6 md:flex md:flex-col">
         <nav className="space-y-1">
           {navItems.map(({ key, label, icon: Icon }) => <div key={key}>
             <Link to={navTarget(key)} className={`flex items-center gap-3 rounded-md px-2 py-2.5 text-sm font-semibold no-underline transition-colors ${activeView === key ? "text-matcha-800" : "text-slate-500 hover:text-slate-800"}`}><Icon className={`h-4 w-4 ${activeView === key ? "text-matcha-600" : ""}`} />{translateUi(label)}<ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition-transform duration-300 ${SUBMENU_EASE} motion-reduce:transition-none ${activeView === key ? "rotate-180" : ""}`} /></Link>
@@ -224,7 +224,7 @@ export default function DashboardLayout() {
             <Link to="?view=membership&membershipView=sell" className={`shrink-0 rounded px-2 py-1 no-underline ${sellingMembership ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Sell")}</Link>
           </AnimatedSubmenu>
         </nav>
-        <main className="px-4 py-6 sm:px-7"><div className="mx-auto w-full max-w-5xl"><Outlet /></div></main>
+        <main className="px-4 py-6 sm:px-7"><div className="mx-auto w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"><Outlet /></div></main>
       </div>
     </div>
     {idleSecondsLeft !== null && (

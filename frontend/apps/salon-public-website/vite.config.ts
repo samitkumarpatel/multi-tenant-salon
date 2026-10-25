@@ -37,6 +37,10 @@ export default defineConfig({
     // Rebuild the optimizer cache on startup so hooks share the app renderer.
     force: true,
     include: [
+      // Imported by @salon/ui-website (StripeCheckout) only once a checkout opens. The workspace package is
+      // served from source, so the startup scan misses it; discovering it later re-optimizes
+      // mid-session and splits React into two copies (null useContext).
+      "@stripe/stripe-js",
       "react",
       "react-dom",
       "react-dom/client",

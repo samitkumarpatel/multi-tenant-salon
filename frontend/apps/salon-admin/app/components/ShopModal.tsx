@@ -14,11 +14,11 @@ export function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className={`bg-white rounded-2xl p-6 w-full ${narrow ? "max-w-sm" : "max-w-lg"} shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto`}
+        className={`bg-white rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] w-full ${narrow ? "max-w-sm" : "max-w-lg"} shadow-2xl border border-slate-200 max-h-[calc(100dvh-1rem)] sm:max-h-[92dvh] overflow-y-auto`}
       >
         <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
           <span className="text-base font-bold text-slate-900">{title}</span>

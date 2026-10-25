@@ -543,7 +543,7 @@ export default function SuperAdminHome() {
               ))}
             </div>
 
-            <div className="hidden sm:block bg-white border border-stone-200 rounded-xl overflow-hidden">
+            <div className="hidden sm:block bg-white border border-stone-200 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-left">

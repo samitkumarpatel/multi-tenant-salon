@@ -76,7 +76,7 @@ export function StripeCheckoutPanel({ checkout, title, customerEmail }: StripeCh
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true"
          aria-label={title ?? t("Payment")}>
-      <div className="w-full sm:max-w-lg max-h-[95vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-xl"
+      <div className="w-full sm:max-w-lg max-h-[95dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-xl"
            style={{ fontFamily: fontStack(checkout.branding?.fontFamily) }}>
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div className="min-w-0">

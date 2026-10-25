@@ -555,7 +555,7 @@ export default function ShopProducts() {
               <button
                 onClick={() => setView("list")}
                 title={translateUi("List view")}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   view === "list"
                     ? "bg-white text-slate-800 shadow-sm border border-slate-200"
                     : "text-slate-500 hover:text-slate-700"
@@ -567,7 +567,7 @@ export default function ShopProducts() {
               <button
                 onClick={() => setView("card")}
                 title={translateUi("Card view")}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   view === "card"
                     ? "bg-white text-slate-800 shadow-sm border border-slate-200"
                     : "text-slate-500 hover:text-slate-700"
@@ -639,14 +639,14 @@ export default function ShopProducts() {
                       </span>
 
                       {/* Actions — hover-revealed on desktop, always visible on touch */}
-                      <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                      <div className="shrink-0 flex items-center gap-1.5 row-actions">
                         <button
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); openEdit(p); }}
                         >
                           <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
                         <button
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); openDel(p); }}
                           aria-label={`Delete ${p.name}`}
                         >
@@ -691,12 +691,12 @@ export default function ShopProducts() {
                     </div>
                     <div className="mt-auto pt-2 flex items-center gap-1.5">
                       <button
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
                         onClick={() => openEdit(p)}
                       >
                         <Pencil className="w-3 h-3" /> {translateUi("Edit ")}</button>
                       <button
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
                         onClick={() => openDel(p)}
                       >
                         <Trash2 className="w-3 h-3" />

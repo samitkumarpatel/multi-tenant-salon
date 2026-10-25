@@ -148,7 +148,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
           aria-modal="true"
           aria-label={`${member.name} — profile`}
           className="flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
-          style={{ maxHeight: "90vh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
+          style={{ maxHeight: "90dvh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

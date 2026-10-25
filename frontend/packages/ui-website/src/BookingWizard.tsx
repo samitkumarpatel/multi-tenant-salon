@@ -222,7 +222,7 @@ function StepService({
             </p>
           ) : (
             <div className="relative">
-              <div className="space-y-2 overflow-y-auto pr-1 max-h-[45vh] sm:max-h-[400px]">
+              <div className="space-y-2 overflow-y-auto pr-1 max-h-[45dvh] sm:max-h-[400px]">
                 {filtered.map((s) => {
                   const isSel = selected?.id === s.id;
                   return (
@@ -1800,7 +1800,7 @@ export function BookingWizard({
         style={{ background: `radial-gradient(80% 50% at 50% 0%, ${accent.color}0a, transparent 70%)` }}
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}
-        <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl" : "max-w-lg"}`}>
+        <div className={`w-full transition-all duration-300 ${step === 2 ? "max-w-5xl 2xl:max-w-6xl" : "max-w-lg"}`}>
           {typeof salon.rating === "number" && (salon.ratingCount ?? 0) > 0 && (
             <p className="mb-3 flex items-center justify-end gap-1 text-xs font-semibold text-slate-600" aria-label={`${salon.rating.toFixed(1)} out of 5 from ${salon.ratingCount} ratings`}>
               <span className="text-amber-400" aria-hidden="true">★</span> {salon.rating.toFixed(1)}

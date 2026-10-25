@@ -137,7 +137,7 @@ export default function CountrySelect({ value, onChange, countries, className = 
             role="dialog"
             aria-modal="true"
             aria-label={translateUi("Select country")}
-            className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70vh]"
+            className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-80 sm:max-h-[70dvh]"
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
               <svg className="w-4 h-4 text-stone-400 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">

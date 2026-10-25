@@ -55,7 +55,7 @@ export default function ShopReturns() {
     <>
       {/* ── Cards (below sm — a 6-column table has no room here and overflow-x-auto
              on a table isn't a discoverable mobile gesture) ─────────────────── */}
-      <div className="sm:hidden flex flex-col gap-2">
+      <div className="lg:hidden flex flex-col gap-2">
         {orders.map((o) => (
           <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
             <div className="flex items-center justify-between gap-2">
@@ -109,7 +109,7 @@ export default function ShopReturns() {
         ))}
       </div>
 
-      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="hidden lg:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">

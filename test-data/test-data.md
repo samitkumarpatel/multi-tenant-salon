@@ -6,7 +6,9 @@ Dummy data for local development against `http://localhost:8080`.
 > fully-populated salon** — website theme, 7 staff (avatars + work galleries + schedules),
 > 9 services, a web-shop (6 brands, 7 categories, 21 multi-image / multi-variant products with
 > low / out-of-stock / inactive states), 8 orders taken through the fulfilment lifecycle, ~12
-> bookings, plus closures and a holiday — in one go. Start the backend first
+> bookings, plus closures and a holiday, the owner's customer list (with notes and an erasable
+> walk-in) and the customer self-service rules (Riya Kapoor's `/account` can cancel and
+> reschedule her upcoming appointments) — in one go. Start the backend first
 > (`./mvnw spring-boot:test-run`), then run the script. Requires `bash`, `curl`, `jq`.
 > Override the target/name with `BASE_URL=…` / `SALON_NAME=…`.
 >

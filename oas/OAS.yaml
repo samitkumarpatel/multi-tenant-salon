@@ -139,6 +139,10 @@ tags:
       Public membership catalogue, online sign-up and renewal for the `MEMBERSHIP` feature. Members pay each
       period with a one-time Stripe Checkout on the salon's connected account (like shop orders), receive a QR
       code (their member code) by email, and get a renewal link before the period ends.
+  - name: AdminCustomers
+    description: |
+      The owner's customer list for a salon — search, add, edit, notes, and erase. A customer is the salon's
+      record for one email; bookings, orders and memberships stay keyed by their own `customerEmail`.
   - name: AdminMembership
     description: |
       Owner/admin management of membership plans and members — payment status and history, renewal links,
@@ -4146,6 +4150,99 @@ paths:
         "204":
           description: Signed out
 
+  /api/salon/{salonId}/account/bookings/{bookingId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CustomerSessionHeader"
+      - { in: path, name: bookingId, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [CustomerAccount]
+      summary: Cancel one of my appointments
+      description: >
+        Allowed while the salon's policy (`selfService.allowCancel`) is on, the appointment is `PENDING` or
+        `CONFIRMED`, starts at least `cancelNoticeHours` from now, and was not paid online. Cancelling an already
+        cancelled appointment succeeds. The customer and salon are emailed. Someone else's appointment is `404`.
+      operationId: customerCancelBooking
+      responses:
+        "200":
+          description: The appointment, now `CANCELLED`
+        "401":
+          description: Missing, expired or foreign session
+        "404":
+          description: Not this customer's appointment
+        "409":
+          description: Not allowed now (policy off, too close to the start, not cancellable, paid online); the message says which
+
+  /api/salon/{salonId}/account/bookings/{bookingId}/reschedule:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CustomerSessionHeader"
+      - { in: path, name: bookingId, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [CustomerAccount]
+      summary: Move one of my appointments
+      description: >
+        Same rules as cancelling, with `selfService.allowReschedule` / `rescheduleNoticeHours`. The new time must be a
+        free slot from `GET /api/salon/{salonId}/booking/slots` (salon hours, closures, staff schedule, no overlap)
+        and in the future. The status is kept. The customer, salon and staff are emailed.
+      operationId: customerRescheduleBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appointmentDate, startTime]
+              properties:
+                appointmentDate: { type: string, format: date }
+                startTime: { type: string, example: "11:00" }
+                staffId: { type: integer, format: int64, nullable: true, description: The slot's staff member; omitted keeps the current one }
+      responses:
+        "200":
+          description: The moved appointment
+        "401":
+          description: Missing, expired or foreign session
+        "404":
+          description: Not this customer's appointment
+        "409":
+          description: Not allowed now, or the slot is no longer available
+
+  /api/salon-admin/{salonId}/customer-self-service:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminCustomers]
+      summary: Rules for customers changing their own appointments
+      description: Defaults (no row yet) are cancel and reschedule allowed up to 24 hours before.
+      operationId: getCustomerSelfServicePolicy
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: The policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerSelfServicePolicy" }
+    put:
+      tags: [AdminCustomers]
+      summary: Set the rules
+      operationId: putCustomerSelfServicePolicy
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomerSelfServicePolicy" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerSelfServicePolicy" }
+        "400":
+          description: Notice outside 0–720 hours
+
   # ─── Membership — Admin ──────────────────────────────────────────────────────
 
   /api/salon-admin/{salonId}/membership/plans:
@@ -4264,6 +4361,115 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MembershipPlan" }
+
+  /api/salon-admin/{salonId}/customers:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminCustomers]
+      summary: List customers
+      description: >
+        Paged. `q` matches name, email or phone (case-insensitive; `%` and `_` are matched literally).
+        `sort=recent` (default) orders by last activity, `sort=name` alphabetically.
+      operationId: listCustomers
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: sort, schema: { type: string, enum: [recent, name], default: recent } }
+        - { in: query, name: page, schema: { type: integer, default: 0 } }
+        - { in: query, name: size, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: A page of customers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalonCustomerPage" }
+    post:
+      tags: [AdminCustomers]
+      summary: Add a customer
+      description: Customers are also added automatically when someone books, orders or joins.
+      operationId: createCustomer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SalonCustomerSpec" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalonCustomer" }
+        "400":
+          description: Name missing or email invalid
+        "409":
+          description: A customer with this email already exists in the salon
+
+  /api/salon-admin/{salonId}/customers/{customerId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CustomerId"
+    get:
+      tags: [AdminCustomers]
+      summary: Get a customer with their history
+      description: >
+        The customer plus everything the salon holds under their email (the same shape as the customer's own
+        account), and whether they can be erased right now.
+      operationId: getCustomer
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Customer detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalonCustomerDetail" }
+        "404":
+          description: Not found
+    put:
+      tags: [AdminCustomers]
+      summary: Edit a customer
+      description: >
+        Replaces name, phone and notes. `email` in the body is ignored — it is the customer's identity.
+        Past bookings, orders and memberships keep the details they were made with.
+      operationId: updateCustomer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SalonCustomerSpec" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalonCustomer" }
+        "400":
+          description: Name missing
+        "404":
+          description: Not found
+    delete:
+      tags: [AdminCustomers]
+      summary: Erase a customer
+      description: >
+        Removes the customer's name, phone and email from every booking, order (including shipping address and the
+        stored copies of emails sent) and membership, and drops the record and any sign-in state. The bookings,
+        orders and memberships themselves stay, attributed to "Deleted customer". All or nothing.
+      operationId: deleteCustomer
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Erased
+        "404":
+          description: Not found
+        "409":
+          description: Blocked by an active (or pending) membership or an upcoming pending/confirmed appointment; the message says which
 
   /api/salon-admin/{salonId}/membership/subscriptions:
     parameters:
@@ -4614,6 +4820,11 @@ components:
       required: true
       description: The `sessionToken` from `POST /api/salon/{salonId}/account/verify`.
       schema: { type: string }
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     MembershipSubscriptionId:
       name: subscriptionId
       in: path
@@ -4874,6 +5085,14 @@ components:
         email: { type: string, format: email }
         expiresAt: { type: string, format: date-time }
 
+    CustomerSelfServicePolicy:
+      type: object
+      properties:
+        allowCancel: { type: boolean }
+        cancelNoticeHours: { type: integer, minimum: 0, maximum: 720 }
+        allowReschedule: { type: boolean }
+        rescheduleNoticeHours: { type: integer, minimum: 0, maximum: 720 }
+
     CustomerAccount:
       type: object
       properties:
@@ -4883,6 +5102,8 @@ components:
             email: { type: string, format: email }
             name: { type: string, nullable: true }
             phone: { type: string, nullable: true }
+        selfService:
+          $ref: "#/components/schemas/CustomerSelfServicePolicy"
         bookings:
           type: array
           items:
@@ -4901,6 +5122,15 @@ components:
               paymentStatus: { type: string, nullable: true }
               notes: { type: string, nullable: true }
               createdAt: { type: string, format: date-time }
+              canCancel: { type: boolean, description: "The salon's policy lets the customer cancel this appointment now" }
+              canReschedule: { type: boolean, description: "The salon's policy lets the customer move this appointment now" }
+              blockedReason:
+                type: string
+                nullable: true
+                enum: [TOO_LATE, PAID, DISABLED]
+                description: Why an upcoming appointment can't be cancelled and/or moved online
+              serviceId: { type: integer, format: int64, nullable: true, description: For the slot lookup when rescheduling }
+              staffId: { type: integer, format: int64, nullable: true }
         orders:
           type: array
           items:
@@ -5130,6 +5360,45 @@ components:
         refundedAmount: { type: number, nullable: true, description: Running total given back }
         refundedAt: { type: string, format: date-time, nullable: true }
         refundReason: { type: string, nullable: true }
+
+    SalonCustomer:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        salonId: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+
+    SalonCustomerSpec:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email, description: Required on create, ignored on update }
+        phone: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    SalonCustomerPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: "#/components/schemas/SalonCustomer" } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+
+    SalonCustomerDetail:
+      type: object
+      properties:
+        customer: { $ref: "#/components/schemas/SalonCustomer" }
+        history: { $ref: "#/components/schemas/CustomerAccount" }
+        canDelete: { type: boolean }
+        deleteBlockedReason: { type: string, nullable: true }
 
     MembershipSubscriptionPage:
       type: object

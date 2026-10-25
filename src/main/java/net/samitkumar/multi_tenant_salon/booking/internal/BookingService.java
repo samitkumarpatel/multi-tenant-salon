@@ -32,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -196,6 +198,65 @@ class BookingService implements BookingApi {
     @Override
     public List<Booking> findByCustomerEmail(UUID salonId, String email) {
         return bookingRepo.findByCustomerEmail(salonId, email);
+    }
+
+    @Override
+    @Transactional
+    public Booking cancelForCustomer(UUID salonId, Long bookingId, String customerEmail, Duration minNotice) {
+        var booking = ownedForUpdate(salonId, bookingId, customerEmail);
+        if (booking.status() == BookingStatus.CANCELLED) return booking;
+        requireChangeable(booking, minNotice, "cancelled");
+        if ("PAID".equals(booking.paymentStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This appointment was paid online, so it can only be cancelled by the salon. Please contact them.");
+        }
+        return updateStatus(salonId, bookingId, BookingStatus.CANCELLED).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public Booking rescheduleForCustomer(UUID salonId, Long bookingId, String customerEmail,
+                                         LocalDate newDate, LocalTime newStartTime, Long staffId, Duration minNotice) {
+        if (newDate == null || newStartTime == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A new date and time are required");
+        }
+        var booking = ownedForUpdate(salonId, bookingId, customerEmail);
+        requireChangeable(booking, minNotice, "changed");
+        var staff = staffId != null ? staffId : booking.staffId();
+        if (!LocalDateTime.of(newDate, newStartTime).isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "That time has already passed");
+        }
+        // findAvailableSlots applies salon hours, closures, the staff schedule and existing bookings — the
+        // same rules as booking online. reschedule() then re-checks the overlap under the staff/day lock.
+        boolean offered = findAvailableSlots(salonId, booking.serviceId(), newDate, staff).stream()
+                .anyMatch(s -> !s.booked() && staff.equals(s.staffId()) && newStartTime.equals(s.startTime()));
+        if (!offered) throw new ResponseStatusException(HttpStatus.CONFLICT, "That time is no longer available");
+        return reschedule(salonId, bookingId, newDate, newStartTime, staff, null).orElseThrow();
+    }
+
+    /** The booking under a row lock, if it is this customer's; anyone else's looks like it doesn't exist. */
+    private Booking ownedForUpdate(UUID salonId, Long bookingId, String customerEmail) {
+        return bookingRepo.findBySalonIdAndIdForUpdate(salonId, bookingId)
+                .filter(b -> b.customerEmail() != null && customerEmail != null
+                        && b.customerEmail().trim().equalsIgnoreCase(customerEmail.trim()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
+    }
+
+    private static void requireChangeable(Booking booking, Duration minNotice, String verb) {
+        if (booking.status() != BookingStatus.PENDING && booking.status() != BookingStatus.CONFIRMED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This appointment can no longer be " + verb + " online.");
+        }
+        var start = LocalDateTime.of(booking.appointmentDate(), booking.startTime());
+        if (start.isBefore(LocalDateTime.now().plus(minNotice))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointments can only be " + verb + " online up to "
+                    + minNotice.toHours() + " hours before they start. Please contact the salon.");
+        }
+    }
+
+    @Override
+    @Transactional
+    public int anonymizeCustomer(UUID salonId, String email, String replacementEmail) {
+        return bookingRepo.anonymizeCustomer(salonId, email, replacementEmail);
     }
 
     @Override
@@ -667,7 +728,7 @@ class BookingService implements BookingApi {
     Optional<Booking> reschedule(UUID salonId, Long bookingId,
                                  LocalDate newDate, LocalTime newStartTime, Long newStaffId, String notes) {
         log.info("[BookingService] Rescheduling booking id={} salon={} newDate={} newTime={}", bookingId, salonId, newDate, newStartTime);
-        return bookingRepo.findBySalonIdAndId(salonId, bookingId).map(existing -> {
+        return bookingRepo.findBySalonIdAndIdForUpdate(salonId, bookingId).map(existing -> {
             var serviceItem = salonServiceApi.findByIdAndSalonId(existing.serviceId(), salonId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
             LocalTime newEndTime = newStartTime.plusMinutes(serviceItem.durationMinutes() != null ? serviceItem.durationMinutes() : DEFAULT_DURATION_MINUTES);

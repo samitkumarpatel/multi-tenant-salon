@@ -32,6 +32,11 @@
 #   • ~12 bookings over the next two weeks, some confirmed / completed / cancelled
 #   • Dashboard settings plus several in-salon cashier sales mixing services and products
 #   • 2 salon closures and 1 recurring holiday
+#   • the owner's customer list (Customers in the admin): filled by the bookings / orders / memberships
+#     above, then enriched with owner notes, plus a walk-in customer with no history (erasable). Riya
+#     can't be erased (active membership + upcoming booking); Priyanka (cancelled) and Chris (no-show) can.
+#   • customer self-service rules (cancel up to 12 h / reschedule up to 24 h before) and two extra
+#     upcoming bookings for Riya, so her /account offers Cancel + Reschedule
 #
 # Not seedable without Stripe: online card checkouts, so no PENDING_PAYMENT / INCOMPLETE
 # memberships and no unpaid shop orders. EXPIRED memberships need time to pass (the renewal job).
@@ -838,6 +843,65 @@ req POST "/api/salon-admin/${SALON_ID}/closures" \
 req POST "/api/salon-admin/${SALON_ID}/holidays" '{"name":"New Year Day","month":1,"day":1}' >/dev/null
 ok && echo "  holiday: New Year Day (recurring)" || warn "holiday failed (HTTP $(code))"
 
+# ── 9b. customer list + self-service rules ──────────────────────────────────────
+# The list is filled by event listeners (a booking / order / membership adds its customer), which run
+# asynchronously after commit — so wait for the last of them before editing.
+echo "▶ Preparing the customer list…"
+C="/api/salon-admin/${SALON_ID}/customers"
+# Wait until the list stops growing (same count on two checks a second apart).
+prev=-1; seen=0
+for _ in $(seq 1 30); do
+  seen=$(req GET "${C}?size=1" | jq -r '.totalElements // 0' 2>/dev/null)
+  [[ "${seen:-0}" -gt 0 && "$seen" == "$prev" ]] && break
+  prev=$seen; sleep 1
+done
+[[ "${seen:-0}" -gt 0 ]] || warn "customer list is still empty — notes below may be skipped"
+
+# Owner notes on customers the events created. PUT replaces name/phone/notes, so keep the current name and phone.
+annotate() { # annotate EMAIL NOTES
+  local row id name phone
+  row=$(req GET "${C}?q=$1" | jq -c '.content[0] // empty')
+  [[ -n "$row" ]] || { warn "  no customer $1 yet"; return; }
+  id=$(jq -r '.id' <<<"$row"); name=$(jq -r '.name' <<<"$row"); phone=$(jq -r '.phone // ""' <<<"$row")
+  req PUT "${C}/${id}" "$(jq -nc --arg n "$name" --arg p "$phone" --arg t "$2" '{name:$n,phone:$p,notes:$t}')" >/dev/null
+  ok && echo "  note: ${name}" || warn "  note for $1 failed (HTTP $(code))"
+}
+annotate riya.kapoor@example.com   "Regular — prefers Saturday mornings. Sensitive scalp: no strong colour developer. Founding member."
+annotate grace.oduya@example.com   "Books for her mother too. Pays at the desk, always cash."
+annotate jordan.blake@example.com  "Vegan products only. Ask before using any wax."
+annotate fatima.noor@example.com   "Allergic to ammonia-based dyes (patch test done)."
+annotate henry.watts@example.com   "Sends the same photo every visit — keep the reference on the booking notes."
+
+# A walk-in who never booked online: no bookings, orders or memberships, so the owner can erase her straight away.
+req POST "${C}" '{"name":"Wendy Walk-in","email":"wendy.walkin@example.com","phone":"+1 415 555 0399","notes":"Walked in, left her number. Call about the spring promo."}' >/dev/null
+ok && echo "  + Wendy Walk-in (no history — erasable)" || warn "walk-in customer failed (HTTP $(code))"
+
+# Rules for customers changing their own appointments (the defaults are 24 h / 24 h; this makes them differ).
+req PUT "/api/salon-admin/${SALON_ID}/customer-self-service" \
+  '{"allowCancel":true,"cancelNoticeHours":12,"allowReschedule":true,"rescheduleNoticeHours":24}' >/dev/null
+ok && echo "  self-service: cancel up to 12 h, reschedule up to 24 h before" || warn "self-service policy failed (HTTP $(code))"
+
+# Extra upcoming bookings for Riya well outside the notice windows, so /account offers Cancel + Reschedule.
+RIYA_EXTRA=0
+for offset in 9 12; do
+  [[ ${#SERVICE_IDS[@]} -gt 0 ]] || break
+  date=$(day "$offset"); [[ "$(weekday "$date")" == "7" ]] && date=$(day $((offset+1)))
+  svc=${SERVICE_IDS[$(( offset % ${#SERVICE_IDS[@]} ))]}
+  slots=$(req GET "/api/salon/${SALON_ID}/booking/slots?serviceId=${svc}&date=${date}")
+  read -r start sstaff < <(jq -r '[.[] | select(.booked==false)] | (.[2] // .[0]) | "\(.startTime) \(.staffId)"' <<<"$slots")
+  if [[ -z "$start" || "$start" == "null" ]]; then warn "no open slot on ${date} for Riya"; continue; fi
+  resp=$(req POST "/api/salon/${SALON_ID}/booking" "$(jq -nc --argjson svc "$svc" --argjson staff "${sstaff:-null}" --arg d "$date" --arg t "$start" \
+    '{serviceId:$svc,staffId:$staff,customerName:"Riya Kapoor",customerEmail:"riya.kapoor@example.com",customerPhone:"+1 415 555 0201",appointmentDate:$d,startTime:$t,notes:"Seeded — for cancel / reschedule from the account"}')")
+  if ok; then
+    transition "$(jq -r '.id' <<<"$resp")" confirm
+    BOOKING_IDS+=("$(jq -r '.id' <<<"$resp")"); RIYA_EXTRA=$((RIYA_EXTRA+1))
+    echo "  + Riya Kapoor — ${date} ${start} (self-service cancel / reschedule)"
+  else
+    warn "extra booking for Riya on ${date} failed (HTTP $(code))"
+  fi
+done
+CUSTOMER_COUNT=$(req GET "${C}?size=1" | jq -r '.totalElements // "?"' 2>/dev/null)
+
 # ── summary ─────────────────────────────────────────────────────────────────────
 cat <<SUMMARY
 
@@ -860,9 +924,11 @@ cat <<SUMMARY
   Shipping methods .. $(req GET "/api/salon-admin/${SALON_ID}/shop/shipping-methods" | jq 'length' 2>/dev/null)
   Membership plans .. $(req GET "/api/salon-admin/${SALON_ID}/membership/plans" | jq 'length' 2>/dev/null)
   Members ........... ${#MEMBER_IDS[@]}
+  Customers ......... ${CUSTOMER_COUNT} (admin → Customers; Wendy Walk-in is erasable, Riya is not)
 
   Customer account .. sign in as riya.kapoor@example.com (booking + orders + membership);
-                      without Mailjet the 6-digit code is printed in the backend log
+                      without Mailjet the 6-digit code is printed in the backend log.
+                      Her upcoming appointments offer Cancel + Reschedule (${RIYA_EXTRA} extra seeded 9–12 days out)
 
   Public website ..... http://localhost:5174/?slug=${HANDLER}
   Shop ............... http://localhost:5174/shop?slug=${HANDLER}

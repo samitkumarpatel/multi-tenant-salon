@@ -92,7 +92,7 @@ export default function ShopInventory() {
 
       {/* ── Cards (below sm — a 7-column table has no room here and overflow-x-auto
              on a table isn't a discoverable mobile gesture) ─────────────────── */}
-      <div className="sm:hidden flex flex-col gap-2">
+      <div className="lg:hidden flex flex-col gap-2">
         {rows.map((r) => {
           const d = rowDraft(r);
           const low = r.active && r.quantityOnHand <= r.reorderLevel;
@@ -140,7 +140,7 @@ export default function ShopInventory() {
       </div>
 
       {/* ── Table (sm and up) ────────────────────────────────────────────── */}
-      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
+      <div className="hidden lg:block bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">

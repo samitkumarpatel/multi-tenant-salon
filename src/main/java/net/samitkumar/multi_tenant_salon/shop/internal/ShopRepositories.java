@@ -8,6 +8,7 @@ import net.samitkumar.multi_tenant_salon.shop.ProductVariant;
 import net.samitkumar.multi_tenant_salon.shop.ShippingMethod;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrder;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderActivity;
+import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
@@ -46,6 +47,13 @@ interface ShopOrderRepository extends ListCrudRepository<ShopOrder, Long> {
 
     @Query("SELECT * FROM shop_order WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) ORDER BY created_at DESC")
     List<ShopOrder> findByCustomerEmail(UUID salonId, String email);
+
+    @Modifying
+    @Query("""
+            UPDATE shop_order SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL,
+                   ship_line1 = NULL, ship_line2 = NULL, ship_city = NULL, ship_state = NULL, ship_country = NULL, ship_zip_code = NULL
+            WHERE salon_id = :salonId AND lower(customer_email) = lower(:email)""")
+    int anonymizeCustomer(UUID salonId, String email, String replacement);
 }
 
 interface OrderLineActivityRepository extends ListCrudRepository<OrderLineActivity, Long> {
@@ -54,6 +62,14 @@ interface OrderLineActivityRepository extends ListCrudRepository<OrderLineActivi
 
 interface ShopOrderActivityRepository extends ListCrudRepository<ShopOrderActivity, Long> {
     List<ShopOrderActivity> findByOrderIdOrderByCreatedAtAsc(Long orderId);
+
+    /** The subject/body are the email as the customer received it — their name and address are in it. */
+    @Modifying
+    @Query("""
+            UPDATE shop_order_activity SET subject = NULL, body = NULL
+            WHERE salon_id = :salonId AND (subject IS NOT NULL OR body IS NOT NULL)
+              AND order_id IN (SELECT id FROM shop_order WHERE salon_id = :salonId AND customer_email = :replacement)""")
+    int redactNotifiedEmails(UUID salonId, String replacement);
 }
 
 interface ShippingMethodRepository extends ListCrudRepository<ShippingMethod, Long> {

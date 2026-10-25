@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.shop.internal;
 import net.samitkumar.multi_tenant_salon.shop.PaymentStatus;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderHistoryApi;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
@@ -31,5 +32,14 @@ class ShopOrderHistoryService implements ShopOrderHistoryApi {
                         .filter(a -> !STAFF_ONLY.contains(a.type()))
                         .toList()))
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public int anonymizeCustomer(UUID salonId, String email, String replacementEmail) {
+        var count = orders.anonymizeCustomer(salonId, email, replacementEmail);
+        // Runs after the orders carry the replacement address, which is how their timelines are found.
+        activities.redactNotifiedEmails(salonId, replacementEmail);
+        return count;
     }
 }

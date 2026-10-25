@@ -439,7 +439,7 @@ function ServiceSpotlight({
         aria-modal="true"
         aria-label={`${service.name} — details`}
         className="flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
-        style={{ maxHeight: "90vh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
+        style={{ maxHeight: "90dvh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -818,7 +818,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 backdrop-blur-md border-b" style={{ backgroundColor: `${headerBg}CC`, borderColor: headerBorder }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-8 min-w-0">
             <a href="#top" className="flex items-center gap-2 no-underline group min-w-0">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.logoBgColor }}>
@@ -885,7 +885,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section ref={heroRef} id="top" style={{ backgroundColor: theme.heroBg }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-10 items-start">
 
             <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(18px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
@@ -1051,7 +1051,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
 
       {/* ── Services + Team ─────────────────────────────────────────────── */}
       {(activeServices.length > 0 || activeStaff.length > 0) && (
-        <section id="services" className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 w-full scroll-mt-16">
+        <section id="services" className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 w-full scroll-mt-16">
           <div className={`grid grid-cols-1 gap-10 md:gap-12 items-start ${activeServices.length > 0 && activeStaff.length > 0 ? "md:grid-cols-2" : ""}`}>
 
             {activeServices.length > 0 && (
@@ -1369,7 +1369,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer id="contact" className="mt-auto scroll-mt-16" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
           <div className="grid grid-cols-2 items-stretch gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
             {/* Left column: brand (desktop only) + find us + social — mobile shows just find us, then social below a divider */}

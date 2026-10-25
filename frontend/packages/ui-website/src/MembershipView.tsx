@@ -153,7 +153,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
 
   return shell(
     <>
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-12 pb-6 text-center">
+      <section className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-6 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] mb-3" style={{ color: theme.accentColor }}>{translateUi("Membership")}</p>
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: text }}>
           {translateUi("Your look, on subscription")}
@@ -172,7 +172,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
         </div>
       )}
 
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-12">
+      <section className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 pb-12">
         {!catalog && !loadError && (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: sub }} /></div>
         )}

@@ -15,4 +15,14 @@ public interface ShopOrderHistoryApi {
 
     /** Every order the salon holds under {@code email} (matched case-insensitively), newest first. */
     List<CustomerOrder> findByCustomerEmail(UUID salonId, String email);
+
+    /**
+     * Erases a customer's personal details from every order the salon holds under {@code email}
+     * (matched case-insensitively): name, phone and shipping address are blanked, the email replaced,
+     * and the copies of the emails the customer received are dropped from the order timelines. The
+     * orders, lines and amounts stay for the salon's books.
+     *
+     * @return how many orders were rewritten
+     */
+    int anonymizeCustomer(UUID salonId, String email, String replacementEmail);
 }

@@ -985,7 +985,7 @@ function Modal({ title, icon, children, onClose, wide = false }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}>
       <div
-        className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full p-6 max-h-[90vh] overflow-y-auto ${wide ? "max-w-lg" : "max-w-md"}`}
+        className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full p-6 max-h-[90dvh] overflow-y-auto ${wide ? "max-w-lg" : "max-w-md"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">

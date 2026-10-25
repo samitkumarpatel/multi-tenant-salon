@@ -85,7 +85,7 @@ export default function PublicWebsitePage() {
           background: `radial-gradient(ellipse 110% 60% at 50% 0%, ${theme.accentColor}20 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 80% 110%, ${theme.accentColor}0c 0%, transparent 50%), ${theme.heroBg ?? "#EEF2F4"}`,
         }}
       >
-        <div className="w-full sm:max-w-[700px] lg:max-w-[1080px] h-[100dvh] sm:h-[calc(100dvh-48px)] sm:rounded-2xl sm:overflow-hidden sm:shadow-2xl">
+        <div className="w-full sm:max-w-3xl lg:max-w-5xl 2xl:max-w-7xl h-[100dvh] sm:h-[calc(100dvh-48px)] sm:rounded-2xl sm:overflow-hidden sm:shadow-2xl">
           <GenerativeUIWebsite
             salon={data.salon}
             staff={data.staff}
@@ -95,7 +95,7 @@ export default function PublicWebsitePage() {
             onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
           />
         </div>
-        <footer className="w-full px-5 py-4 sm:max-w-[700px] lg:max-w-[1080px] sm:mx-auto">
+        <footer className="w-full px-5 py-4 sm:max-w-3xl lg:max-w-5xl 2xl:max-w-7xl sm:mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[11px] text-slate-500">© {new Date().getFullYear()} {data.salon.name}</p>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">

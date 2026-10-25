@@ -2149,6 +2149,93 @@ const BOOKING_SECTION_META: Record<BookingSection, { label: string; description:
   },
 };
 
+interface SelfServicePolicy {
+  allowCancel: boolean;
+  cancelNoticeHours: number;
+  allowReschedule: boolean;
+  rescheduleNoticeHours: number;
+}
+
+/** What customers may do to their own appointments from their account, and how close to the start. Saved on its own. */
+function CustomerChangesCard({ salonId, onError }: { salonId: string; onError: (msg: string) => void }) {
+  const { t: translateUi } = useI18n();
+  const [policy, setPolicy] = useState<SelfServicePolicy | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<SelfServicePolicy>(`${ADMIN_API}/${salonId}/customer-self-service`)
+      .then((p) => alive && setPolicy(p))
+      .catch((e) => alive && onError(e instanceof Error ? e.message : "Failed to load settings"));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salonId]);
+
+  async function save() {
+    if (!policy) return;
+    setSaving(true);
+    try {
+      setPolicy(await apiFetch<SelfServicePolicy>(`${ADMIN_API}/${salonId}/customer-self-service`, { method: "PUT", body: JSON.stringify(policy) }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) { onError(e instanceof Error ? e.message : "Failed to save settings"); }
+    finally { setSaving(false); }
+  }
+
+  const row = (label: string, hint: string, enabled: boolean, hours: number, set: (enabled: boolean, hours: number) => void) => (
+    <div className="px-5 py-4 space-y-3">
+      <button type="button" onClick={() => set(!enabled, hours)} className="w-full flex items-center justify-between text-left cursor-pointer">
+        <div>
+          <p className={`text-sm font-semibold ${enabled ? "text-matcha-800" : "text-slate-700"}`}>{label}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{hint}</p>
+        </div>
+        <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${enabled ? "bg-matcha-600" : "bg-slate-200"}`}>
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${enabled ? "left-5" : "left-0.5"}`} />
+        </div>
+      </button>
+      {enabled && (
+        <label className="flex items-center gap-2 text-xs text-slate-600">
+          {translateUi("Allowed up to")}
+          <input type="number" min={0} max={720} value={hours}
+            onChange={(e) => set(enabled, Math.max(0, Math.min(720, Number(e.target.value) || 0)))}
+            className="w-20 px-2 py-1.5 border border-slate-200 rounded-md text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10" />
+          {translateUi("hours before the appointment")}
+        </label>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100">
+        <h3 className="text-sm font-semibold text-slate-800">{translateUi("Customer changes")}</h3>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {translateUi("Let customers cancel or move their own appointments from their account. Appointments paid online can only be cancelled by you, since refunds are handled manually.")}
+        </p>
+      </div>
+      {!policy ? (
+        <p className="px-5 py-6 text-xs text-slate-400">{translateUi("Loading…")}</p>
+      ) : (
+        <>
+          <div className="divide-y divide-slate-100">
+            {row(translateUi("Customers can cancel"), translateUi("They get a confirmation email and you are notified."), policy.allowCancel, policy.cancelNoticeHours,
+              (allowCancel, cancelNoticeHours) => setPolicy({ ...policy, allowCancel, cancelNoticeHours }))}
+            {row(translateUi("Customers can reschedule"), translateUi("They can only pick times your booking page would offer."), policy.allowReschedule, policy.rescheduleNoticeHours,
+              (allowReschedule, rescheduleNoticeHours) => setPolicy({ ...policy, allowReschedule, rescheduleNoticeHours }))}
+          </div>
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/60 flex justify-end">
+            <button onClick={save} disabled={saving}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
+              {saved ? <><Check className="w-3 h-3" /> {translateUi("Saved!")}</> : saving ? translateUi("Saving…") : translateUi("Save")}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BookingSettingsPanel({
   salon, onSaved, onError,
 }: {
@@ -2233,6 +2320,8 @@ function BookingSettingsPanel({
             <strong className="text-slate-600">{ADVANCE_OPTIONS.find((o) => o.days === days)?.label ?? `${days} days`}</strong> {translateUi("ahead. ")}</p>
         </div>
       </div>
+
+      <CustomerChangesCard salonId={String(salon.id)} onError={onError} />
 
       <div className="flex justify-end">
         <Link to={`/${salon.id}/payments`} className="mr-auto inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 no-underline hover:bg-slate-50">{translateUi("Payment setup")}</Link>

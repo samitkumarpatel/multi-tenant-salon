@@ -242,7 +242,7 @@ export default function SalonServices() {
 function Modal({ title, children, onClose, footer }: { title: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode }) {
   return (
     <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white border border-stone-200 rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
+      <div className="bg-white border border-stone-200 rounded-2xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 shrink-0">
           <h3 className="text-sm font-bold text-stone-900">{title}</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-800 cursor-pointer p-1"><X className="w-4 h-4" /></button>

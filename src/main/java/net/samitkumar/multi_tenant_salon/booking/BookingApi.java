@@ -1,5 +1,7 @@
 package net.samitkumar.multi_tenant_salon.booking;
 
+import java.time.Duration;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +37,38 @@ public interface BookingApi {
 
     /** Every booking the salon holds under {@code email} (matched case-insensitively), newest appointment first. */
     List<Booking> findByCustomerEmail(UUID salonId, String email);
+
+    /**
+     * Erases a customer's personal details from every booking the salon holds under {@code email}
+     * (matched case-insensitively): name and phone are blanked and the email replaced, so the
+     * appointments stay for the salon's records but no longer point at anyone.
+     *
+     * @return how many bookings were rewritten
+     */
+    int anonymizeCustomer(UUID salonId, String email, String replacementEmail);
+
+    /**
+     * A customer cancels their own appointment. Checked under a row lock: it must be this customer's
+     * (matched case-insensitively — anyone else's is "not found"), still {@code PENDING} or {@code CONFIRMED},
+     * start at least {@code minNotice} from now, and not be paid online (nothing here refunds a card
+     * payment, so those go through the salon). Cancelling an already cancelled booking is a no-op.
+     * Publishes the usual status-changed event, so the customer and salon are emailed.
+     *
+     * @throws org.springframework.web.server.ResponseStatusException 404 not theirs, 409 not allowed now
+     */
+    Booking cancelForCustomer(UUID salonId, Long bookingId, String customerEmail, Duration minNotice);
+
+    /**
+     * A customer moves their own appointment to another slot. Same ownership, status and notice rules as
+     * {@link #cancelForCustomer}, and the new time must be one the booking page would offer (salon hours,
+     * closures, staff schedule, no overlap) and still in the future. The status is kept. Publishes the
+     * usual rescheduled event.
+     *
+     * @param staffId the staff member of the chosen slot, or null to keep the current one
+     * @throws org.springframework.web.server.ResponseStatusException 404 not theirs, 409 not allowed / slot taken
+     */
+    Booking rescheduleForCustomer(UUID salonId, Long bookingId, String customerEmail,
+                                  LocalDate newDate, LocalTime newStartTime, Long staffId, Duration minNotice);
     List<StaffAvailabilityOverride> getOverrides(UUID salonId, Long staffId);
     StaffAvailabilityOverride addOverride(UUID salonId, Long staffId, StaffAvailabilityOverride override);
     void removeOverride(UUID salonId, Long staffId, Long overrideId);

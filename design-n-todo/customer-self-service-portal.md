@@ -133,11 +133,18 @@ cancel an hour before a two-hour appointment with no recourse.
 | Phase | Content | Why this order |
 |---|---|---|
 | **1** | Auth (sign-in, verify, session, `/me`) + **read-only** history across all three areas | Delivers most of the value — "where's my order", "when's my appointment" — at the lowest risk. Nothing is mutable, so nothing can be abused. |
-| **2** | Owner policy settings + booking cancel & reschedule | The highest-demand write action, gated behind the rules the owner sets in the same phase. |
+| **2** | Owner policy settings + booking cancel & reschedule *(built — see below)* | The highest-demand write action, gated behind the rules the owner sets in the same phase. |
 | **3** | Membership renew & cancel; contact details with re-verification | Renewal is largely a re-point of the existing token flow. |
 | **4** | Retire the standalone renewal token in favour of portal deep links; consider order-level actions (request return) | Cleanup once the portal is established. |
 
 Phase 1 is independently shippable and worth shipping alone.
+
+### Phase 2 as built
+
+- Owner policy per salon (`customer_self_service_policy`): cancel on/off + notice hours, reschedule on/off + notice hours; defaults on, 24 h.
+- `POST /account/bookings/{id}/cancel` and `/reschedule` (booking module does the checks under the row lock; reschedule only to a slot the public booking page would offer).
+- Open question 5 resolved conservatively: **a booking paid online can be rescheduled but not self-cancelled** — the customer is told to contact the salon, who refunds by hand. A refund policy (full / deposit forfeited / none) and `PaymentGateway.refundIfPaid` on cancel is still to be decided.
+- Not done: owner-facing note on the booking that the customer changed it (the emails are the only trace), a late-cancellation "flag instead of block" mode, a max-reschedules limit.
 
 ## Open questions
 

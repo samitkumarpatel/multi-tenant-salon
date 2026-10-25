@@ -191,7 +191,7 @@ export default function ShopOrders() {
 
       {/* ── Cards (below sm — a 7-column table has no room here and overflow-x-auto
              on a table isn't a discoverable mobile gesture) ─────────────────── */}
-      <div className="sm:hidden flex flex-col gap-2">
+      <div className="lg:hidden flex flex-col gap-2">
         {orders.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">{translateUi("No orders match your filters.")}</div>
         ) : (
@@ -223,7 +223,7 @@ export default function ShopOrders() {
       </div>
 
       {/* ── Table (sm and up) ────────────────────────────────────────────── */}
-      <div className="hidden sm:block bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
+      <div className="hidden lg:block bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
         {orders.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">{translateUi("No orders match your filters.")}</div>
         ) : (

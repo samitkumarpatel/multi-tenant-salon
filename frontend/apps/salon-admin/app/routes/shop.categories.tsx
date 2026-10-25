@@ -137,15 +137,15 @@ export default function ShopCategories() {
                 </div>
                 {c.description && <p className="text-xs text-slate-400 truncate max-w-md">{c.description}</p>}
               </div>
-              <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <div className="shrink-0 flex items-center gap-1.5 row-actions">
                 <button
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
                   onClick={() => openEdit(c)}
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
                 <button
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
                   onClick={() => openDel(c)}
                 >
                   <Trash2 className="w-3 h-3" />

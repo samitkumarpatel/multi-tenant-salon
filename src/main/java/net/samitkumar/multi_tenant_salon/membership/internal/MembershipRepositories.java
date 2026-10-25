@@ -4,6 +4,7 @@ import net.samitkumar.multi_tenant_salon.membership.MembershipActivity;
 import net.samitkumar.multi_tenant_salon.membership.MembershipPayment;
 import net.samitkumar.multi_tenant_salon.membership.MembershipPlan;
 import net.samitkumar.multi_tenant_salon.membership.MembershipSubscription;
+import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
@@ -26,6 +27,11 @@ interface MembershipSubscriptionRepository extends ListCrudRepository<Membership
 
     @Query("SELECT * FROM membership_subscription WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) AND status <> 'INCOMPLETE' ORDER BY created_at DESC")
     List<MembershipSubscription> findByCustomerEmail(UUID salonId, String email);
+
+    /** Includes {@code INCOMPLETE} rows: an abandoned checkout still holds the person's details. */
+    @Modifying
+    @Query("UPDATE membership_subscription SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL WHERE salon_id = :salonId AND lower(customer_email) = lower(:email)")
+    int anonymizeCustomer(UUID salonId, String email, String replacement);
 }
 
 interface MembershipPaymentRepository extends ListCrudRepository<MembershipPayment, Long> {

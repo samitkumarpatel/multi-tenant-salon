@@ -444,7 +444,7 @@ export default function Profile() {
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && !saving && setEditing(false)}
         >
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92dvh] overflow-y-auto animate-[pop_0.14s_ease]">
 
             {/* Header */}
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">

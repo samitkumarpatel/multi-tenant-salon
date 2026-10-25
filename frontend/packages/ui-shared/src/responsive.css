@@ -1,0 +1,28 @@
+/*
+ * Shared responsive helpers, imported by every app's app.css (plain CSS, so no Tailwind scan is needed).
+ *
+ * .row-actions — buttons that sit at the end of a list row inside a `.group`. Mouse users get them on
+ * hover or keyboard focus; on touch (no hover) they are always visible, so a tablet is never left with
+ * actions it cannot reach. Replaces `sm:opacity-0 sm:group-hover:opacity-100`, which hid them on every
+ * screen from 640px up, touch tablets included.
+ */
+.row-actions {
+  transition: opacity 0.15s;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row-actions {
+    opacity: 0;
+  }
+  .group:hover .row-actions,
+  .group:focus-within .row-actions,
+  .row-actions:focus-within {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-actions {
+    transition: none;
+  }
+}

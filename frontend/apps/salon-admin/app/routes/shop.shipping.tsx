@@ -252,17 +252,17 @@ export default function ShopShipping() {
               <span className="text-sm font-semibold text-slate-900 tabular-nums shrink-0 pt-1">
                 {m.price > 0 ? money(m.price, m.currency) : translateUi("Free")}
               </span>
-              <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <div className="shrink-0 flex items-center gap-1.5 row-actions">
                 <button
                   aria-label={translateUi("Edit")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
                   onClick={() => openEdit(m)}
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
                 <button
                   aria-label={translateUi("Delete")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 cursor-pointer"
                   onClick={() => openDel(m)}
                 >
                   <Trash2 className="w-3 h-3" />

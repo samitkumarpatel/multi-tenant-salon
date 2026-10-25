@@ -24,6 +24,15 @@ public interface MembershipApi {
      */
     List<MembershipSubscription> findByCustomerEmail(UUID salonId, String email);
 
+    /**
+     * Erases a customer's personal details from every membership the salon holds under {@code email}
+     * (matched case-insensitively): name and phone are blanked and the email replaced. Plans, periods
+     * and payments stay for the salon's books.
+     *
+     * @return how many memberships were rewritten
+     */
+    int anonymizeCustomer(UUID salonId, String email, String replacementEmail);
+
     /** The payments for one of the salon's memberships, newest first. */
     List<MembershipPayment> payments(UUID salonId, Long subscriptionId);
 

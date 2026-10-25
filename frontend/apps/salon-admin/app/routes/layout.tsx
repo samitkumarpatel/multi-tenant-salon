@@ -6,7 +6,7 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText } from "lucide-react";
+import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText, Contact } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -637,7 +637,7 @@ export default function Layout() {
 
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
         <aside id="admin-sidebar" className={`
-          absolute inset-y-0 left-0 z-50 w-52 bg-white border-r border-slate-200
+          absolute inset-y-0 left-0 z-50 w-52 lg:w-60 bg-white border-r border-slate-200
           flex flex-col shrink-0 overflow-y-auto [scrollbar-gutter:stable] transition-transform duration-200 ease-in-out motion-reduce:transition-none
           md:visible md:relative md:translate-x-0
           ${sidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"}
@@ -698,6 +698,11 @@ export default function Layout() {
                   </span>
                 )}
               </NavLink>
+            </Tooltip>
+
+            <Tooltip content="Everyone who has booked, ordered or joined — search, edit, add notes, or erase a customer.">
+              <NavLink to="customers" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <Contact className="w-4 h-4 shrink-0" /> {translateUi("Customers ")}</NavLink>
             </Tooltip>
 
             {salon.features?.includes("BOOKING") && (
@@ -841,7 +846,7 @@ export default function Layout() {
 
         {/* ── Main content ──────────────────────────────────────────────── */}
         <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+          <div className="max-w-4xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
             {salon.status === "DISABLED" ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-14 h-14 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mb-5">

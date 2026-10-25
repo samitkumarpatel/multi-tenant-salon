@@ -625,6 +625,20 @@ export interface CustomerBooking {
   paymentStatus: string | null;
   notes: string | null;
   createdAt: string;
+  /** What the salon's policy lets the customer do to this appointment right now. */
+  canCancel: boolean;
+  canReschedule: boolean;
+  /** Why an upcoming appointment can't be cancelled and/or moved online. */
+  blockedReason: "TOO_LATE" | "PAID" | "DISABLED" | null;
+  serviceId: number | null;
+  staffId: number | null;
+}
+
+export interface CustomerSelfServicePolicy {
+  allowCancel: boolean;
+  cancelNoticeHours: number;
+  allowReschedule: boolean;
+  rescheduleNoticeHours: number;
 }
 
 export interface CustomerOrder {
@@ -683,4 +697,5 @@ export interface CustomerAccount {
   bookings: CustomerBooking[];
   orders: CustomerOrder[];
   memberships: CustomerMembership[];
+  selfService: CustomerSelfServicePolicy;
 }

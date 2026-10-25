@@ -45,9 +45,12 @@ class CustomerAccountService {
     private final MembershipApi membershipApi;
     private final SalonServiceApi serviceApi;
     private final StaffApi staffApi;
+    private final SelfServicePolicies policies;
 
     CustomerAccountService(SalonApi salonApi, BookingApi bookingApi, ShopOrderHistoryApi orderApi,
-                           MembershipApi membershipApi, SalonServiceApi serviceApi, StaffApi staffApi) {
+                           MembershipApi membershipApi, SalonServiceApi serviceApi, StaffApi staffApi,
+                           SelfServicePolicies policies) {
+        this.policies = policies;
         this.salonApi = salonApi;
         this.bookingApi = bookingApi;
         this.orderApi = orderApi;
@@ -81,11 +84,20 @@ class CustomerAccountService {
         Map<Long, StaffMember> staff = bookings.isEmpty() ? Map.of()
                 : staffApi.findBySalonId(salonId).stream().collect(Collectors.toMap(StaffMember::id, Function.identity(), (a, b) -> a));
 
+        var policy = policies.get(salonId);
         return new Account(
                 profile(email, bookings, orders, memberships),
-                bookings.stream().map(b -> BookingView.of(b, services.get(b.serviceId()), staff.get(b.staffId()))).toList(),
+                bookings.stream().map(b -> BookingView.of(b, services.get(b.serviceId()), staff.get(b.staffId()), policy)).toList(),
                 orders.stream().map(OrderView::of).toList(),
-                memberships.stream().map(m -> MembershipView.of(m, membershipApi.payments(salonId, m.id()), qrCode(m))).toList());
+                memberships.stream().map(m -> MembershipView.of(m, membershipApi.payments(salonId, m.id()), qrCode(m))).toList(),
+                policy);
+    }
+
+    /** One booking as the customer sees it, after they changed it. */
+    BookingView bookingView(UUID salonId, Booking booking) {
+        var service = serviceApi.findByIdAndSalonId(booking.serviceId(), salonId).orElse(null);
+        var staffMember = staffApi.findByIdAndSalonId(booking.staffId(), salonId).orElse(null);
+        return BookingView.of(booking, service, staffMember, policies.get(salonId));
     }
 
     /** Name and phone as most recently given to the salon, from whichever area that was. */

@@ -112,7 +112,7 @@ function ScheduleEditor({
       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 pb-2 border-b border-slate-100 flex items-center gap-1.5">
         <Clock className="w-3.5 h-3.5" /> {translateUi("Calendar availability ")}</div>
       {hint && (
-        <p className="text-[11px] text-matcha-700 bg-matcha-50 border border-matcha-100 rounded-md px-2.5 py-1.5 mb-2.5">
+        <p className="text-[11px] text-matcha-700 bg-matcha-50 border border-matcha-100 rounded-md px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center mb-2.5">
           {hint}
         </p>
       )}
@@ -989,16 +989,16 @@ export default function Staff() {
                   )}
                 </div>
 
-                <div className="shrink-0 flex items-center gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <div className="shrink-0 flex items-center gap-1.5 row-actions">
                   <button
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-slate-200 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => openEdit(m)}
                   >
                     <Pencil className="w-3 h-3" /> <span className="hidden sm:inline">{translateUi("Edit")}</span>
                   </button>
                   {!m.isOwner && (
                     <button
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 pointer-coarse:min-h-10 pointer-coarse:min-w-10 pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:justify-center rounded-md border border-red-200 text-xs font-medium text-red-600 bg-white hover:bg-red-50 transition-colors cursor-pointer"
                       onClick={() => openDel(m)}
                     >
                       <Trash2 className="w-3 h-3" />
@@ -1024,7 +1024,7 @@ export default function Staff() {
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && closeModal("add")}
         >
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92dvh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
               <span className="text-base font-bold text-slate-900">{translateUi("Add Team Member")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("add")}>
@@ -1048,7 +1048,7 @@ export default function Staff() {
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && closeModal("edit")}
         >
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-[pop_0.14s_ease]">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl border border-slate-200 max-h-[92dvh] overflow-y-auto animate-[pop_0.14s_ease]">
             <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
               <span className="text-base font-bold text-slate-900">{translateUi("Edit Staff")}</span>
               <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => closeModal("edit")}>

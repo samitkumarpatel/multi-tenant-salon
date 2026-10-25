@@ -10,7 +10,8 @@ import { SiteFooter, SiteHeader } from "./SiteChrome";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
 import type {
-  CustomerAccount, CustomerBooking, CustomerMembership, CustomerOrder, CustomerSession, Salon, WebsiteTheme,
+  AvailableSlot, CustomerAccount, CustomerBooking, CustomerMembership, CustomerOrder, CustomerSelfServicePolicy, CustomerSession, Salon,
+  WebsiteTheme,
 } from "./types";
 
 /**
@@ -247,7 +248,8 @@ export function CustomerAccountPanel({ salon, theme, pageHref, onNavigate, renew
 
   return (
     <AccountDetails salon={salon} theme={theme} tone={tone} account={account} translateUi={translateUi}
-      onSignOut={signOut} links={{ pageHref, onNavigate, renewHref }} />
+      onSignOut={signOut} links={{ pageHref, onNavigate, renewHref }} token={session.sessionToken}
+      onBookingChanged={(b) => setAccount((a) => (a ? { ...a, bookings: a.bookings.map((x) => (x.id === b.id ? b : x)) } : a))} />
   );
 }
 
@@ -394,9 +396,9 @@ function SignIn({ salon, theme, tone, translateUi, notice, onSignedIn }: {
 
 type Tab = "bookings" | "orders" | "memberships";
 
-function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, links }: {
+function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, links, token, onBookingChanged }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; account: CustomerAccount; translateUi: Translate;
-  onSignOut: () => void; links: CustomerAccountLinks;
+  onSignOut: () => void; links: CustomerAccountLinks; token: string; onBookingChanged: (b: CustomerBooking) => void;
 }) {
   const features = salon.features ?? [];
   const tabs = [
@@ -442,7 +444,8 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
         </div>
       )}
 
-      {tab === "bookings" && <BookingsList salon={salon} theme={theme} tone={tone} bookings={account.bookings} translateUi={translateUi} links={links} />}
+      {tab === "bookings" && <BookingsList salon={salon} theme={theme} tone={tone} bookings={account.bookings} policy={account.selfService} token={token}
+        onChanged={onBookingChanged} translateUi={translateUi} links={links} />}
       {tab === "orders" && <OrdersList theme={theme} tone={tone} orders={account.orders} translateUi={translateUi} links={links} />}
       {tab === "memberships" && <MembershipsList salon={salon} theme={theme} tone={tone} memberships={account.memberships} translateUi={translateUi} links={links} />}
     </div>
@@ -487,8 +490,9 @@ function SectionTitle({ tone, children }: { tone: Tone; children: React.ReactNod
 
 // ── Bookings ───────────────────────────────────────────────────────────────────
 
-function BookingsList({ salon, theme, tone, bookings, translateUi, links }: {
-  salon: Salon; theme: WebsiteTheme; tone: Tone; bookings: CustomerBooking[]; translateUi: Translate; links: CustomerAccountLinks;
+function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, translateUi, links }: {
+  salon: Salon; theme: WebsiteTheme; tone: Tone; bookings: CustomerBooking[]; policy: CustomerSelfServicePolicy | undefined;
+  token: string; onChanged: (b: CustomerBooking) => void; translateUi: Translate; links: CustomerAccountLinks;
 }) {
   const { locale } = useI18n();
   const now = Date.now();
@@ -529,6 +533,9 @@ function BookingsList({ salon, theme, tone, bookings, translateUi, links }: {
               </p>
             )}
             {b.paymentStatus === "PAID" && <p className="text-[11px] mt-1 font-medium" style={{ color: CHIP_COLOR.good }}>{translateUi("Paid")}</p>}
+            {!faded && (b.canCancel || b.canReschedule || b.blockedReason) && (
+              <BookingActions salon={salon} theme={theme} tone={tone} booking={b} token={token} onChanged={onChanged} translateUi={translateUi} />
+            )}
           </div>
         </div>
       </Card>
@@ -547,6 +554,9 @@ function BookingsList({ salon, theme, tone, bookings, translateUi, links }: {
         <PageLink page="book" label={translateUi("Book again")} theme={theme} links={links} primary />
       </div>
       <p className="text-[11px]" style={{ color: tone.sub }}>
+        {policy && (policy.allowCancel || policy.allowReschedule) && (
+          <>{translateUi("You can change or cancel online up to {hours} hours before your appointment.", { hours: Math.min(...[policy.allowCancel ? policy.cancelNoticeHours : Infinity, policy.allowReschedule ? policy.rescheduleNoticeHours : Infinity]) })} </>
+        )}
         {translateUi("Need to change or cancel? Contact {salon} directly.", { salon: salon.name })}
         {salon.contact?.phone && <> · <a href={`tel:${salon.contact.phone}`} className="underline" style={{ color: tone.sub }}>{salon.contact.phone}</a></>}
       </p>
@@ -556,6 +566,141 @@ function BookingsList({ salon, theme, tone, bookings, translateUi, links }: {
           <div className="flex flex-col gap-2.5">{past.map((b) => row(b, true))}</div>
         </section>
       )}
+    </div>
+  );
+}
+
+/** Cancel / reschedule one upcoming appointment; the server re-checks every rule, this only mirrors them. */
+function BookingActions({ salon, theme, tone, booking: b, token, onChanged, translateUi }: {
+  salon: Salon; theme: WebsiteTheme; tone: Tone; booking: CustomerBooking; token: string;
+  onChanged: (b: CustomerBooking) => void; translateUi: Translate;
+}) {
+  const { locale } = useI18n();
+  const [mode, setMode] = useState<"cancel" | "reschedule" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [date, setDate] = useState("");
+  const [slots, setSlots] = useState<AvailableSlot[] | null>(null);
+  const [slot, setSlot] = useState<AvailableSlot | null>(null);
+  const accentText = contrastText(theme.accentColor);
+  const base = `${API_BASE}/api/salon/${salon.id}/account/bookings/${b.id}`;
+  const btn = "inline-flex items-center justify-center min-h-10 px-3.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-50";
+
+  function close() { setMode(null); setError(null); setDate(""); setSlots(null); setSlot(null); }
+
+  // Free times on the chosen day, from the same endpoint the booking page uses. Any staff member is
+  // offered; for a time several can do, the appointment's current staff member is preferred.
+  useEffect(() => {
+    if (mode !== "reschedule" || !date || b.serviceId == null) { setSlots(null); return; }
+    let alive = true;
+    setSlots(null); setSlot(null); setError(null);
+    const params = new URLSearchParams({ serviceId: String(b.serviceId), date });
+    apiFetch<AvailableSlot[]>(`${API_BASE}/api/salon/${salon.id}/booking/slots?${params}`)
+      .then((all) => {
+        if (!alive) return;
+        const now = new Date();
+        const byTime = new Map<string, AvailableSlot>();
+        for (const s of all) {
+          if (s.booked || new Date(`${date}T${s.startTime}`) <= now) continue;
+          const key = s.startTime.slice(0, 5);
+          const kept = byTime.get(key);
+          if (!kept || (s.staffId === b.staffId && kept.staffId !== b.staffId)) byTime.set(key, s);
+        }
+        setSlots([...byTime.values()].sort((x, y) => x.startTime.localeCompare(y.startTime)));
+      })
+      .catch((e) => { if (alive) { setSlots([]); setError(friendlyMessage(e)); } });
+    return () => { alive = false; };
+  }, [mode, date, b.serviceId, b.staffId, salon.id]);
+
+  async function submit(path: "cancel" | "reschedule") {
+    setBusy(true); setError(null);
+    try {
+      const updated = await apiFetch<CustomerBooking>(`${base}/${path}`, {
+        method: "POST", headers: jsonHeaders(token),
+        body: path === "reschedule" ? JSON.stringify({ appointmentDate: date, startTime: slot!.startTime, staffId: slot!.staffId }) : undefined,
+      });
+      onChanged(updated);
+      close();
+    } catch (e) {
+      setError(friendlyMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!mode) {
+    return (
+      <div className="mt-3">
+        <div className="flex flex-wrap gap-2">
+          {b.canReschedule && (
+            <button onClick={() => setMode("reschedule")} className={btn} style={{ border: `1px solid ${tone.border}`, color: tone.text }}>
+              {translateUi("Reschedule")}
+            </button>
+          )}
+          {b.canCancel && (
+            <button onClick={() => setMode("cancel")} className={btn} style={{ border: `1px solid ${tone.border}`, color: CHIP_COLOR.bad }}>
+              {translateUi("Cancel appointment")}
+            </button>
+          )}
+        </div>
+        {!b.canCancel && b.blockedReason && (
+          <p className="text-[11px] mt-2" style={{ color: tone.sub }}>
+            {b.blockedReason === "TOO_LATE" && translateUi("It's too close to your appointment to change it online. Please contact the salon.")}
+            {b.blockedReason === "PAID" && translateUi("Paid online — to cancel, please contact the salon.")}
+            {b.blockedReason === "DISABLED" && translateUi("Please contact the salon to change this appointment.")}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: tone.soft, border: `1px solid ${tone.border}` }}>
+      {mode === "cancel" ? (
+        <>
+          <p className="text-xs" style={{ color: tone.text }}>{translateUi("Cancel this appointment? You'll get a confirmation email.")}</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button onClick={close} disabled={busy} className={btn} style={{ border: `1px solid ${tone.border}`, color: tone.text }}>{translateUi("Keep it")}</button>
+            <button onClick={() => submit("cancel")} disabled={busy} className={btn} style={{ backgroundColor: CHIP_COLOR.bad, color: "#fff" }}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : translateUi("Yes, cancel")}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: tone.sub }} htmlFor={`resched-${b.id}`}>
+            {translateUi("Choose a new day")}
+          </label>
+          <input id={`resched-${b.id}`} type="date" value={date} min={new Date().toLocaleDateString("en-CA")}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full min-h-10 px-3 rounded-lg text-sm" style={{ border: `1px solid ${tone.border}`, color: tone.text, backgroundColor: "transparent" }} />
+          {date && slots === null && <Loader2 className="w-4 h-4 animate-spin mt-3" style={{ color: theme.accentColor }} />}
+          {date && slots !== null && slots.length === 0 && !error && (
+            <p className="text-xs mt-3" style={{ color: tone.sub }}>{translateUi("No free times that day. Try another day.")}</p>
+          )}
+          {slots && slots.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-3" role="listbox" aria-label={translateUi("Available times")}>
+              {slots.map((s) => {
+                const active = slot?.startTime === s.startTime;
+                return (
+                  <button key={s.startTime} role="option" aria-selected={active} onClick={() => setSlot(s)}
+                    className="min-h-10 rounded-lg text-xs font-semibold cursor-pointer tabular-nums"
+                    style={active ? { backgroundColor: theme.accentColor, color: accentText } : { border: `1px solid ${tone.border}`, color: tone.text }}>
+                    {timeOf(date, s.startTime, locale)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button onClick={close} disabled={busy} className={btn} style={{ border: `1px solid ${tone.border}`, color: tone.text }}>{translateUi("Back")}</button>
+            <button onClick={() => submit("reschedule")} disabled={busy || !slot} className={btn} style={{ backgroundColor: theme.accentColor, color: accentText }}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : translateUi("Confirm new time")}
+            </button>
+          </div>
+        </>
+      )}
+      {error && <p role="alert" className="text-xs mt-2" style={{ color: CHIP_COLOR.bad }}>{error}</p>}
     </div>
   );
 }

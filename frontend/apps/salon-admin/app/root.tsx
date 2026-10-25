@@ -40,9 +40,9 @@ export function HydrateFallback() {
         <link rel="icon" href={FAVICON} />
         <Links />
       </head>
-      <body className="bg-cream text-slate-900 min-h-screen font-sans antialiased">
+      <body className="bg-cream text-slate-900 min-h-dvh font-sans antialiased">
         {timedOut ? (
-          <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
+          <div className="flex flex-col items-center justify-center min-h-dvh gap-4 px-6 text-center">
             <div className="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center">
               <span className="text-xl">⚠️</span>
             </div>
@@ -58,7 +58,7 @@ export function HydrateFallback() {
               {translateUi("↻ Retry ")}</button>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-400">
+          <div className="flex flex-col items-center justify-center min-h-dvh gap-3 text-slate-400">
             <div className="w-6 h-6 border-2 border-slate-200 border-t-matcha-600 rounded-full animate-spin" />
             <p className="text-sm">{translateUi("Loading…")}</p>
           </div>
@@ -82,7 +82,7 @@ function AppDocument() {
         <Meta />
         <Links />
       </head>
-      <body className="bg-cream text-slate-900 min-h-screen font-sans antialiased">
+      <body className="bg-cream text-slate-900 min-h-dvh font-sans antialiased">
         <NavProgress loading={state !== "idle"} />
         <Outlet />
         <ScrollRestoration />

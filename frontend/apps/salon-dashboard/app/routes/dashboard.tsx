@@ -483,7 +483,7 @@ export default function DashboardPage() {
               <button type="button" onClick={() => setPaymentNotice(null)} aria-label={translateUi("Dismiss")} className="shrink-0 cursor-pointer p-1"><X className="h-4 w-4" /></button>
             </div>
           )}
-          <div className="order-2 flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white md:order-1 md:h-[calc(100vh-10rem)]">
+          <div className="order-2 flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white md:order-1 md:h-[calc(100dvh-10rem)]">
             <div className="border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-semibold text-slate-800">{translateUi("Appointments, services and products")}</h2>
               <p className="mt-0.5 text-xs text-slate-400">{translateUi("Today\u2019s unpaid appointments appear first, so a customer who booked online can pay on arrival.")}</p>
@@ -497,7 +497,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <div className="grid max-h-[38vh] gap-2 overflow-y-auto p-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 md:min-h-0 md:max-h-none md:flex-1 md:content-start">
+            <div className="grid max-h-[38dvh] gap-2 overflow-y-auto p-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 md:min-h-0 md:max-h-none md:flex-1 md:content-start">
               {visibleCashierItems.map((item) => (
                 <button key={`${item.sourceType}-${item.sourceId}`} type="button" onClick={() => addToCart(item)}
                   className="group flex min-h-[64px] items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-matcha-300 hover:bg-matcha-50 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1 cursor-pointer">
@@ -526,7 +526,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="order-1 sticky top-20 z-20 h-fit max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white md:order-2">
+          <div className="order-1 sticky top-20 z-20 h-fit max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white md:order-2">
             <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
               <Receipt className="h-4 w-4 text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-800">{translateUi("Current sale")}</h2>
@@ -1084,7 +1084,7 @@ function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restr
             </button>;
           })}
           {!slotPassed && <button type="button" disabled={!canBook} onClick={() => onNew(date, time)} aria-label={`Book at ${time}`} title={!canBook ? restriction || (!salonOpen ? "Outside salon opening hours" : !anyStaffWorking ? "No stylist is available at this time" : "This time has passed") : `Book at ${time}`} className={`flex min-h-9 w-36 shrink-0 items-center rounded-md px-3 text-left text-xs transition-colors disabled:cursor-not-allowed ${canBook ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus:bg-matcha-50 focus:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>
-            <span className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">{translateUi("+ Book at ")}{time}</span>
+            <span className="row-actions">{translateUi("+ Book at ")}{time}</span>
           </button>}
         </HorizontalScrollCue>
       </div>;
@@ -1165,7 +1165,7 @@ function AvailableServicePicker({ sid, date, time, staffId, services, staff, onC
       <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-xs font-semibold text-slate-700">{prettyDate(parseDate(date), { weekday: "long", day: "numeric", month: "long" })} {translateUi("at ")}{time}</p><p className="text-[11px] text-slate-400">{staffId ? `Services available with ${staff.find((member) => member.id === staffId)?.name ?? "this stylist"} are shown.` : translateUi("Only services available at this time are shown.")}</p></div>
       {timeHasPassed ? <p className="py-8 text-center text-sm text-slate-400">{translateUi("This time has already passed. Choose another time.")}</p>
         : loading ? <p className="py-8 text-center text-sm text-slate-400">{translateUi("Checking available services…")}</p>
-        : available.length ? <div className="max-h-[55vh] space-y-2 overflow-y-auto">{available.map(({ service, staffIds }) => {
+        : available.length ? <div className="max-h-[55dvh] space-y-2 overflow-y-auto">{available.map(({ service, staffIds }) => {
           const availableStaff = staff.filter((member) => staffIds.includes(member.id) && member.status === "ACTIVE");
           return <button key={service.id} type="button" onClick={() => onSelect(service.id)} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-matcha-400 hover:bg-matcha-50 focus:outline-none focus:ring-2 focus:ring-matcha-500">
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-800">{service.name}</p><p className="mt-0.5 text-xs text-slate-400">{service.durationMinutes} {translateUi("min · ")}{availableStaff.map((member) => member.name).join(", ") || `${staffIds.length} available ${staffIds.length === 1 ? "stylist" : "stylists"}`}</p></div>

@@ -1074,6 +1074,12 @@ class MembershipManager implements MembershipApi {
     }
 
     @Override
+    @Transactional
+    public int anonymizeCustomer(UUID salonId, String email, String replacementEmail) {
+        return subscriptions.anonymizeCustomer(salonId, email, replacementEmail);
+    }
+
+    @Override
     public List<MembershipPayment> payments(UUID salonId, Long subscriptionId) {
         return payments.findBySubscriptionIdOrderByCreatedAtDesc(subscriptionId).stream()
                 .filter(p -> salonId.equals(p.salonId()))

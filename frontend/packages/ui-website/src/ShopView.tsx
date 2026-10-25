@@ -302,7 +302,7 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
   const menuHover = heroLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.08)";
 
   return shell(
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+    <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-6">
       {/* Filter bar — stacked full-width fields on mobile, one inline segmented row on sm+.
           Uses an in-DOM custom dropdown (FilterSelect), not a native <select>: a native
           popup ignores a phone's / DevTools' viewport and anchors to the window origin. */}
@@ -1557,7 +1557,7 @@ function CheckoutForm({
       : null;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-10">
       {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={translateUi("Pay for your order")}
                                               customerEmail={f.customerEmail.trim() || null} />}
       <button type="button" onClick={onCancel} className="text-xs font-semibold mb-5 inline-flex items-center gap-1.5 cursor-pointer" style={{ color: sub }}>

@@ -63,7 +63,7 @@ role / not the salon's owner → `403`.
 
 Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`, `/shop/...`, `/membership/...`, `/account/...`
 
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`, `/shop/...`, `/membership/...`, `/payments/...`
+Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`, `/shop/...`, `/membership/...`, `/payments/...`, `/customers/...`, `/customer-self-service`
 
 ---
 
@@ -569,8 +569,8 @@ service price or the configured deposit percentage. If Checkout creation fails t
 
 A customer signs in to **one salon** with a one-time code emailed to them, then sees every booking,
 shop order and membership that salon holds under that email (matched case-insensitively). No
-password and no customer table: the existing rows are keyed by their `customer_email`.
-Read-only for now; changing or cancelling is still done by contacting the salon.
+password and no account table: the existing rows are keyed by their `customer_email`.
+Bookings can be cancelled or moved from here (below); orders and memberships are still read-only.
 
 The session token is sent as **`X-Customer-Session: <sessionToken>`** — not `Authorization`, which
 the API reserves for staff JWTs.
@@ -580,6 +580,8 @@ the API reserves for staff JWTs.
 | `POST /api/salon/{salonId}/account/sign-in` | `{ email }` → `202 { codeLength: 6, expiresInSeconds: 600 }`. **Always 202**, whether or not the salon knows the address, so it can't be used to list a salon's customers. The 6-digit code is emailed only when the address has a booking, order or membership in that salon. At most 5 codes per address per 15 min (extra requests are silently not sent) and 30 requests per client IP per hour (`429`). `400` for an invalid email |
 | `POST /api/salon/{salonId}/account/verify` | `{ email, code }` → `200 { sessionToken, email, expiresAt }`. The code is single-use, expires after 10 minutes, and only the latest one sent works; after 5 wrong guesses it stops working. Any failure is the same `401` |
 | `GET /api/salon/{salonId}/account` | Header `X-Customer-Session`. → `200 { profile, bookings, orders, memberships }` (below). `401` when the token is missing, expired, signed out, or belongs to another salon |
+| `POST /api/salon/{salonId}/account/bookings/{id}/cancel` | Header `X-Customer-Session`. Cancel one of **their own** appointments → the updated booking (`CANCELLED`); repeating it is a no-op. Needs `selfService.allowCancel`, status `PENDING`/`CONFIRMED`, a start at least `cancelNoticeHours` away, and not paid online (`paymentStatus` `PAID` — nothing here refunds a card payment, so the salon does it). `404` for anyone else's booking, `409` with the reason otherwise. Emails the customer and salon like an owner cancellation |
+| `POST /api/salon/{salonId}/account/bookings/{id}/reschedule` | `{ appointmentDate, startTime, staffId? }` → the moved booking, status kept. Same ownership/status rules with `allowReschedule` / `rescheduleNoticeHours` (paid appointments may be moved). The time must be a free slot from the public `GET /api/salon/{salonId}/booking/slots` (salon hours, closures, staff schedule, no overlap) and in the future; the overlap is re-checked under the staff/day lock. `409` if it was just taken |
 | `POST /api/salon/{salonId}/account/sign-out` | Header `X-Customer-Session`. → `204`. Revokes the session; idempotent. (POST, not DELETE: custom salon domains only get GET/POST through CORS) |
 
 Sessions last 30 days. Limits and lifetimes are `spring.application.customer.*` (`code-ttl`,
@@ -590,10 +592,12 @@ Sessions last 30 days. Limits and lifetimes are `spring.application.customer.*` 
 ```json
 {
   "profile": { "email": "ann@example.com", "name": "Ann Customer", "phone": "+4512345678" },
+  "selfService": { "allowCancel": true, "cancelNoticeHours": 24, "allowReschedule": true, "rescheduleNoticeHours": 24 },
   "bookings": [{
     "id": 12, "serviceName": "Haircut", "durationMinutes": 60, "price": 40.0, "currency": "EUR",
     "staffName": "Sam Stylist", "appointmentDate": "2026-11-02", "startTime": "10:00:00", "endTime": "11:00:00",
-    "status": "CONFIRMED", "paymentStatus": "NOT_REQUIRED", "notes": null, "createdAt": "2026-10-20T09:12:00Z"
+    "status": "CONFIRMED", "paymentStatus": "NOT_REQUIRED", "notes": null, "createdAt": "2026-10-20T09:12:00Z",
+    "canCancel": true, "canReschedule": true, "blockedReason": null, "serviceId": 4, "staffId": 2
   }],
   "orders": [{
     "id": 7, "orderNumber": "SO-1001", "createdAt": "…", "status": "SHIPPED", "paymentStatus": "PAID",
@@ -612,6 +616,14 @@ Sessions last 30 days. Limits and lifetimes are `spring.application.customer.*` 
   }]
 }
 ```
+
+`canCancel` / `canReschedule` are the salon's policy applied to that appointment right now, so the UI
+only offers what the server will accept; `blockedReason` (`TOO_LATE`, `PAID`, `DISABLED`) says why an
+upcoming appointment is missing one. The server re-checks everything on the POST.
+
+The owner sets the rules with `GET` / `PUT /api/salon-admin/{salonId}/customer-self-service`
+`{ allowCancel, cancelNoticeHours, allowReschedule, rescheduleNoticeHours }` (hours 0–720, owner-only).
+With no row yet the defaults are both allowed, 24 hours before.
 
 What is left out on purpose: shop checkouts whose payment failed or expired, staff-only order
 timeline entries (work notes), the full body of emails (a `CUSTOMER_NOTIFIED` entry's `message` is
@@ -2688,6 +2700,24 @@ Owner-only, under `/api/salon-admin/{salonId}/membership`.
 `currentPeriodEnd`) → `EXPIRED` (not renewed; renewing reactivates it) or `CANCELLED` (by the salon).
 An abandoned or failed first checkout becomes `INCOMPLETE`. Self-service cancellation by the member is
 not built yet.
+
+---
+
+## Customers (Admin)
+
+Owner-only (not in the desk-staff allowlist), under `/api/salon-admin/{salonId}/customers`. A customer is the
+salon's record for one email (`salon_customer`, unique per salon + case-insensitive email). It is added
+automatically when someone books, orders or joins (`BookingCreatedEvent`, `OrderPlacedEvent`,
+`MembershipActivatedEvent`), and existing history was backfilled. Bookings, orders and memberships stay keyed by
+their own `customerEmail`.
+
+| Method & path | Purpose |
+|---|---|
+| `GET ?q=&sort=&page=&size=` | A **page envelope** `{ content[], page, size, totalElements, totalPages }`. `q` matches name, email or phone (`%`/`_` literal). `sort=recent` (default, by `lastSeenAt`) or `name`. `size` defaults to 50, capped at 200 |
+| `POST` | `{ name, email, phone?, notes? }` → `201`. `400` for a missing name or invalid email, `409` if the email already exists in this salon |
+| `GET /{id}` | `{ customer, history, canDelete, deleteBlockedReason }` — `history` has the customer-account shape (`profile`, `bookings`, `orders`, `memberships`) |
+| `PUT /{id}` | `{ name, phone?, notes? }` → the customer. The email is the identity and is not editable. Names/phones already on bookings, orders and memberships are **not** rewritten. Owner edits are never overwritten by later bookings |
+| `DELETE /{id}` | Erase → `204`. Rewrites every booking, order and membership under the email to name "Deleted customer", no phone, a throwaway `deleted-…@anonymized.invalid` email (orders also lose their shipping address and the stored copy of emails sent), drops sign-in codes/sessions and the record, in one transaction. The records and amounts stay. `409` while they have an `ACTIVE`/`PENDING_PAYMENT` membership or an upcoming `PENDING`/`CONFIRMED` appointment. Payment-ledger rows (Stripe) keep their `customer_email`. |
 
 ---
 

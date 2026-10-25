@@ -168,6 +168,8 @@ spring:
         - classpath:db/V22__desk_shop_membership_hardening.sql
         - classpath:db/V23__shop_shipping_weight_currency.sql
         - classpath:db/V24__customer_accounts.sql
+        - classpath:db/V25__salon_customer.sql
+        - classpath:db/V26__customer_self_service_policy.sql
   modulith:
     events:
       jdbc:

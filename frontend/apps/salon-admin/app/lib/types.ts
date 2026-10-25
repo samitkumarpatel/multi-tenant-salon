@@ -24,3 +24,39 @@ export interface LayoutContext {
   pendingStaff: boolean;
   pendingWebsite: boolean;
 }
+
+// ── Customers ────────────────────────────────────────────────────────────────
+
+export interface SalonCustomer {
+  id: number;
+  salonId: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastSeenAt: string;
+}
+
+export interface SalonCustomerPage {
+  content: SalonCustomer[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+/** What the salon holds under a customer's email — the shape of the customer's own account. */
+export interface SalonCustomerHistory {
+  bookings: { id: number; serviceName: string | null; staffName: string | null; appointmentDate: string; startTime: string; status: string }[];
+  orders: { id: number; orderNumber: string; createdAt: string; status: string; currency: string; total: number }[];
+  memberships: { id: number; planName: string; status: string; currentPeriodEnd: string | null }[];
+}
+
+export interface SalonCustomerDetail {
+  customer: SalonCustomer;
+  history: SalonCustomerHistory;
+  canDelete: boolean;
+  deleteBlockedReason: string | null;
+}

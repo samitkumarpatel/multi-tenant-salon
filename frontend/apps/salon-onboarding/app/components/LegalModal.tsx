@@ -9,7 +9,7 @@ export function LegalModal({ title, text, onClose }: { title: string; text: stri
       onClick={onClose}
     >
       <div
-        className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col overflow-hidden"
+        className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[85dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">
