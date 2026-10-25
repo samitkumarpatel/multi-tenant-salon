@@ -93,6 +93,8 @@ export interface StaffMember {
   avatarUrl?: string;
   workMedia?: string[];
   bio?: string;
+  /** #RRGGBB the booking calendars draw this stylist's appointments in; absent = a palette colour. */
+  calendarColor?: string | null;
   /** Public review summary, when supplied by the salon API. */
   rating?: number;
   reviewCount?: number;
@@ -146,7 +148,7 @@ export interface Booking {
   status: BookingStatus;
   notes?: string;
   createdAt: string;
-  paymentStatus?: "NOT_REQUIRED" | "PENDING" | "PAID" | "FAILED";
+  paymentStatus?: "NOT_REQUIRED" | "PENDING" | "PAID" | "FAILED" | "REFUNDED";
   paymentReference?: string | null;
 }
 

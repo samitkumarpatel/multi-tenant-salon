@@ -6,7 +6,7 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import {
   CalendarCheck, Users, Plus, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Clock,
   CheckCircle, AlertCircle, RefreshCw, Check, Ban, Sparkles, Filter, List,
-  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Search,
+  Maximize2, Minimize2, CalendarDays, LayoutGrid, CalendarOff, Search, CreditCard,
 } from "lucide-react";
 import { ADMIN_API, CUSTOMER_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID } from "~/lib/api";
 import { DAYS, DAY_SHORT, CATEGORY_LABEL, STAFF_ROLE_LABEL, formatPrice } from "~/lib/constants";
@@ -16,7 +16,7 @@ import type {
 } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
 import { Tooltip } from "~/components/Tooltip";
-import { Toast, useToast } from "@salon/ui-shared";
+import { BookingPaymentLinkDialog, noShowFeeFor, Toast, useToast, type BookingFeePolicy } from "@salon/ui-shared";
 import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
 // The sidebar's sub-links only change `?section=…`; the page already holds its data,
@@ -139,10 +139,68 @@ function getDayOh(dateStr: string, operatingHours?: OperatingHours[]) {
   return operatingHours.find((h) => h.day === dow) ?? null;
 }
 
+/** Card money is held for this appointment and the salon can send it back. */
+function canRefund(b: Booking) {
+  return b.paymentStatus === "PAID" && (b.status === "CANCELLED" || b.status === "NO_SHOW");
+}
+
+function RefundDialog({ booking, defaultAmount, currency, onRefund, onClose }: {
+  booking: Booking; defaultAmount?: number; currency?: string;
+  onRefund: (body: { amount?: number; reason?: string }) => Promise<void>; onClose: () => void;
+}) {
+  const { t: translateUi } = useI18n();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const parsed = amount.trim() === "" ? undefined : Number(amount);
+    if (parsed !== undefined && (!Number.isFinite(parsed) || parsed <= 0)) { setError(translateUi("Enter an amount greater than zero.")); return; }
+    setBusy(true); setError(null);
+    try { await onRefund({ amount: parsed, reason: reason.trim() || undefined }); onClose(); }
+    catch (e) { setError(e instanceof Error ? e.message : translateUi("Could not refund this payment.")); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <h2 className="text-base font-bold text-slate-900">{translateUi("Refund payment")}</h2>
+        <p className="mt-1 text-xs text-slate-500">{translateUi("Send the card payment from {name}'s appointment back to them. Leave the amount empty to refund everything.", { name: booking.customerName })}</p>
+        <div className="mt-4 space-y-3">
+          <label className="block text-xs font-semibold text-slate-600">
+            {translateUi("Amount")}{currency ? ` (${currency})` : ""}
+            <input type="number" min="0" step="0.01" inputMode="decimal" value={amount} placeholder={defaultAmount != null ? String(defaultAmount) : ""}
+              onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900" />
+          </label>
+          <label className="block text-xs font-semibold text-slate-600">
+            {translateUi("Reason (optional)")}
+            <input value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-900" />
+          </label>
+          {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">{translateUi("Not now")}</button>
+            <button type="button" disabled={busy} onClick={() => void submit()} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+              {busy ? translateUi("Refunding…") : translateUi("Refund")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A visit that is over with money still owing — the salon can send the customer a payment link. */
+function canRequestPayment(b: Booking) {
+  return (b.status === "NO_SHOW" || b.status === "COMPLETED") && b.paymentStatus !== "PAID";
+}
+
 // ── Booking detail modal ──────────────────────────────────────────────────────
 
 function BookingDetailModal({
-  booking, staffMap, serviceMap, onClose, onAction, onReschedule, onDelete,
+  booking, staffMap, serviceMap, onClose, onAction, onReschedule, onDelete, onRequestPayment, onRefund,
 }: {
   booking: Booking;
   staffMap: Map<number, StaffMember>;
@@ -151,6 +209,8 @@ function BookingDetailModal({
   onAction: (id: number, action: string) => void;
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
+  onRequestPayment: (b: Booking) => void;
+  onRefund: (b: Booking) => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const member  = staffMap.get(booking.staffId);
@@ -235,6 +295,21 @@ function BookingDetailModal({
           </div>
         )}
 
+        {canRefund(booking) && (
+          <div className="pt-4 border-t border-slate-100 mb-4">
+            <button onClick={() => onRefund(booking)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer">
+              <CreditCard className="w-3 h-3" /> {translateUi("Refund payment")}</button>
+          </div>
+        )}
+        {canRequestPayment(booking) && (
+          <div className="pt-4 border-t border-slate-100 mb-4">
+            <button onClick={() => onRequestPayment(booking)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-900 text-white hover:bg-slate-700 cursor-pointer">
+              <CreditCard className="w-3 h-3" /> {translateUi(booking.status === "NO_SHOW" ? "Request payment (no-show)" : "Request payment")}</button>
+          </div>
+        )}
+
         <button onClick={() => onDelete(booking)}
           className="flex items-center gap-1 text-[0.65rem] font-medium text-slate-400 hover:text-red-500 cursor-pointer">
           <Trash2 className="w-3 h-3" /> {translateUi("Delete booking ")}</button>
@@ -246,7 +321,7 @@ function BookingDetailModal({
 // ── Booking row (compact list item) ──────────────────────────────────────────
 
 function BookingRow({
-  booking, staffMap, serviceMap, onAction, onReschedule, onDelete, showDate,
+  booking, staffMap, serviceMap, onAction, onReschedule, onDelete, onRequestPayment, showDate,
 }: {
   booking: Booking;
   staffMap: Map<number, StaffMember>;
@@ -254,6 +329,7 @@ function BookingRow({
   onAction: (id: number, action: string) => void;
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
+  onRequestPayment: (b: Booking) => void;
   showDate?: boolean;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -346,6 +422,14 @@ function BookingRow({
               </button>
             </Tooltip>
           </>
+        )}
+        {canRequestPayment(booking) && (
+          <Tooltip content="Send the customer a link to pay for this appointment" side="top">
+            <button onClick={() => onRequestPayment(booking)}
+              className="p-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+              <CreditCard className="w-3 h-3" />
+            </button>
+          </Tooltip>
         )}
         <Tooltip content="Permanently delete this booking record" side="top">
           <button onClick={() => onDelete(booking)}
@@ -959,7 +1043,7 @@ function MonthGrid({
 // ── Bookings panel (day / week / month / list views with stats + filters) ──────
 
 function BookingsPanel({
-  bookings: allBookings, staffMap, serviceMap, staff, operatingHours, onAction, onReschedule, onDelete, onRefresh, onCreate,
+  bookings: allBookings, staffMap, serviceMap, staff, operatingHours, onAction, onReschedule, onDelete, onRequestPayment, onRefund, onRefresh, onCreate,
 }: {
   bookings: Booking[];
   staffMap: Map<number, StaffMember>;
@@ -969,6 +1053,8 @@ function BookingsPanel({
   onAction: (id: number, action: string) => void;
   onReschedule: (b: Booking) => void;
   onDelete: (b: Booking) => void;
+  onRequestPayment: (b: Booking) => void;
+  onRefund: (b: Booking) => void;
   onRefresh: () => Promise<void>;
   onCreate: (date: string, time: string, staffId: number) => void;
 }) {
@@ -994,7 +1080,7 @@ function BookingsPanel({
   const isToday      = viewDate === todayStr;
   const activeStaff  = staff.filter((s) => s.status === "ACTIVE");
   const dayBookings  = allBookings.filter((b) => b.appointmentDate === viewDate);
-  const staffColorMap = new Map(activeStaff.map((s, i) => [s.id, STAFF_COLORS[i % STAFF_COLORS.length]]));
+  const staffColorMap = new Map(activeStaff.map((s, i) => [s.id, s.calendarColor ?? STAFF_COLORS[i % STAFF_COLORS.length]]));
 
   // Week dates (Mon–Sun) containing viewDate
   const weekDates = (() => {
@@ -1324,7 +1410,7 @@ function BookingsPanel({
             <div className="space-y-2">
               {searchResults.map((b) => (
                 <BookingRow key={b.id} booking={b} staffMap={staffMap} serviceMap={serviceMap} showDate
-                  onAction={onAction} onReschedule={onReschedule} onDelete={onDelete} />
+                  onAction={onAction} onReschedule={onReschedule} onDelete={onDelete} onRequestPayment={onRequestPayment} />
               ))}
             </div>
           )}
@@ -1451,7 +1537,7 @@ function BookingsPanel({
             <div className="space-y-2">
               {listBookings.map((b) => (
                 <BookingRow key={b.id} booking={b} staffMap={staffMap} serviceMap={serviceMap}
-                  onAction={onAction} onReschedule={onReschedule} onDelete={onDelete} />
+                  onAction={onAction} onReschedule={onReschedule} onDelete={onDelete} onRequestPayment={onRequestPayment} />
               ))}
             </div>
           )}
@@ -1481,6 +1567,8 @@ function BookingsPanel({
           onAction={(id, action) => { onAction(id, action); setSelected(null); }}
           onReschedule={(b) => { onReschedule(b); setSelected(null); }}
           onDelete={(b) => { onDelete(b); setSelected(null); }}
+          onRequestPayment={(b) => { onRequestPayment(b); setSelected(null); }}
+          onRefund={(b) => { onRefund(b); setSelected(null); }}
         />
       )}
     </div>
@@ -2236,6 +2324,73 @@ function CustomerChangesCard({ salonId, onError }: { salonId: string; onError: (
   );
 }
 
+/** What a customer who does not show up is charged; collected with a payment link on the no-show. Saved on its own. */
+function NoShowFeeCard({ salonId, onError }: { salonId: string; onError: (msg: string) => void }) {
+  const { t: translateUi } = useI18n();
+  const [policy, setPolicy] = useState<BookingFeePolicy | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<BookingFeePolicy>(`${ADMIN_API}/${salonId}/booking-fee-policy`)
+      .then((p) => alive && setPolicy(p))
+      .catch((e) => alive && onError(e instanceof Error ? e.message : "Failed to load settings"));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salonId]);
+
+  async function save() {
+    if (!policy) return;
+    setSaving(true);
+    try {
+      setPolicy(await apiFetch<BookingFeePolicy>(`${ADMIN_API}/${salonId}/booking-fee-policy`, { method: "PUT", body: JSON.stringify(policy) }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) { onError(e instanceof Error ? e.message : "Failed to save settings"); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100">
+        <h3 className="text-sm font-semibold text-slate-800">{translateUi("No-show fee")}</h3>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {translateUi("What to charge a customer who does not show up. After you mark a no-show you can send them a payment link for this amount. Appointments already paid online keep their payment.")}
+        </p>
+      </div>
+      {!policy ? (
+        <p className="px-5 py-6 text-xs text-slate-400">{translateUi("Loading…")}</p>
+      ) : (
+        <>
+          <div className="px-5 py-4 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+            <select value={policy.noShowFeeType} onChange={(e) => setPolicy({ ...policy, noShowFeeType: e.target.value as BookingFeePolicy["noShowFeeType"] })}
+              className="px-2 py-1.5 border border-slate-200 rounded-md text-sm outline-none focus:border-matcha-500">
+              <option value="NONE">{translateUi("No fee")}</option>
+              <option value="PERCENT">{translateUi("Percentage of the service price")}</option>
+              <option value="FIXED">{translateUi("Fixed amount")}</option>
+            </select>
+            {policy.noShowFeeType !== "NONE" && (
+              <label className="flex items-center gap-2">
+                <input type="number" min={0} max={policy.noShowFeeType === "PERCENT" ? 100 : undefined} step="0.01" value={policy.noShowFeeValue}
+                  onChange={(e) => setPolicy({ ...policy, noShowFeeValue: Number(e.target.value) || 0 })}
+                  className="w-24 px-2 py-1.5 border border-slate-200 rounded-md text-sm outline-none focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10" />
+                {policy.noShowFeeType === "PERCENT" ? "%" : translateUi("per no-show")}
+              </label>
+            )}
+          </div>
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/60 flex justify-end">
+            <button onClick={save} disabled={saving}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-xs font-medium hover:bg-matcha-700 transition-colors cursor-pointer disabled:opacity-50">
+              {saved ? <><Check className="w-3 h-3" /> {translateUi("Saved!")}</> : saving ? translateUi("Saving…") : translateUi("Save")}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BookingSettingsPanel({
   salon, onSaved, onError,
 }: {
@@ -2322,6 +2477,7 @@ function BookingSettingsPanel({
       </div>
 
       <CustomerChangesCard salonId={String(salon.id)} onError={onError} />
+      <NoShowFeeCard salonId={String(salon.id)} onError={onError} />
 
       <div className="flex justify-end">
         <Link to={`/${salon.id}/payments`} className="mr-auto inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 no-underline hover:bg-slate-50">{translateUi("Payment setup")}</Link>
@@ -2357,6 +2513,9 @@ export default function BookingPage() {
   const [rsSelectedSlot, setRsSelectedSlot] = useState<AvailableSlot | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null);
+  const [paymentLinkTarget, setPaymentLinkTarget] = useState<Booking | null>(null);
+  const [refundTarget, setRefundTarget] = useState<Booking | null>(null);
+  const [paymentLinkFee, setPaymentLinkFee] = useState(0);
 
   const sid = salon.id;
   const staffMap = new Map(staff.map((s) => [s.id, s]));
@@ -2377,12 +2536,39 @@ export default function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rescheduleTarget?.id, rsForm.appointmentDate]);
 
+  /** A no-show is billed the salon's no-show fee, so look it up before the dialog opens with its default amount. */
+  async function openPaymentLink(booking: Booking) {
+    let fee = 0;
+    if (booking.status === "NO_SHOW") {
+      const policy = await apiFetch<BookingFeePolicy>(`${CUSTOMER_API}/${sid}/booking-fee-policy`).catch(() => null);
+      fee = noShowFeeFor(policy, serviceMap.get(booking.serviceId)?.price);
+    }
+    setPaymentLinkFee(fee);
+    setPaymentLinkTarget(booking);
+  }
+
+  async function createPaymentLink(booking: Booking, body: { amount?: number; sendEmail: boolean }) {
+    const result = await apiFetch<{ booking: Booking; paymentUrl: string; amount: number; currency: string; emailed: boolean }>(
+      `${ADMIN_API}/${sid}/booking/${booking.id}/payment-link`, { method: "POST", body: JSON.stringify(body) });
+    setBookings((p) => p.map((b) => b.id === booking.id ? result.booking : b));
+    return result;
+  }
+
+  async function refundBooking(booking: Booking, body: { amount?: number; reason?: string }) {
+    const result = await apiFetch<{ booking: Booking; refunded: number; currency: string }>(
+      `${ADMIN_API}/${sid}/booking/${booking.id}/refund`, { method: "POST", body: JSON.stringify(body) });
+    setBookings((p) => p.map((b) => b.id === booking.id ? result.booking : b));
+    notify(`Refunded ${formatPrice(result.refunded, result.currency, "en")}.`);
+  }
+
   async function handleAction(id: number, action: string) {
     setBusy(true);
     try {
       const updated = await apiFetch<Booking>(`${ADMIN_API}/${sid}/booking/${id}/${action}`, { method: "POST" });
       setBookings((p) => p.map((b) => b.id === updated.id ? updated : b));
       notify(`Booking ${action}ed.`);
+      // Cancelling or no-showing something paid online: offer to send the money back right away.
+      if ((action === "cancel" || action === "no-show") && canRefund(updated)) setRefundTarget(updated);
     } catch (e) { notify(e instanceof Error ? e.message : "Error", "error"); }
     finally { setBusy(false); }
   }
@@ -2460,7 +2646,7 @@ export default function BookingPage() {
         <BookingsPanel
           bookings={bookings} staffMap={staffMap} serviceMap={serviceMap}
           staff={staff} operatingHours={salon.operatingHours}
-          onAction={handleAction} onReschedule={openReschedule} onDelete={setDeleteTarget}
+          onAction={handleAction} onReschedule={openReschedule} onDelete={setDeleteTarget} onRequestPayment={openPaymentLink} onRefund={setRefundTarget}
           onRefresh={handleRefresh}
           onCreate={(date, time, staffId) => setCreateDraft({ date, time, staffId })}
         />
@@ -2620,6 +2806,22 @@ export default function BookingPage() {
       )}
 
       {/* Delete modal */}
+      {refundTarget && (() => {
+        const service = serviceMap.get(refundTarget.serviceId);
+        return <RefundDialog booking={refundTarget} defaultAmount={service?.price} currency={service?.currency}
+          onRefund={(body) => refundBooking(refundTarget, body)} onClose={() => setRefundTarget(null)} />;
+      })()}
+
+      {paymentLinkTarget && (() => {
+        const service = serviceMap.get(paymentLinkTarget.serviceId);
+        return (
+          <BookingPaymentLinkDialog customerName={paymentLinkTarget.customerName} customerEmail={paymentLinkTarget.customerEmail}
+            defaultAmount={paymentLinkFee > 0 ? paymentLinkFee : service?.price} currency={service?.currency}
+            amountHint={paymentLinkFee > 0 ? translateUi("Your no-show fee for this service.") : undefined}
+            onCreate={(body) => createPaymentLink(paymentLinkTarget, body)} onClose={() => setPaymentLinkTarget(null)} />
+        );
+      })()}
+
       {deleteTarget && (
         <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}>

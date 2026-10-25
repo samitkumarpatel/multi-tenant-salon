@@ -71,6 +71,17 @@ class StaffController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    record CalendarColorRequest(String color) {}
+
+    /** Just the calendar colour, so the desk can set it without being able to edit the rest of the profile. */
+    @PutMapping("/api/salon-admin/{salonId}/staff/{staffId}/calendar-color")
+    ResponseEntity<StaffMember> calendarColor(@PathVariable String salonId, @PathVariable Long staffId,
+                                              @RequestBody CalendarColorRequest request) {
+        return service.setCalendarColor(salonApi.resolveId(salonId), staffId, request.color())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/api/salon-admin/{salonId}/staff/{staffId}")
     ResponseEntity<Void> remove(@PathVariable String salonId, @PathVariable Long staffId) {
         service.remove(salonApi.resolveId(salonId), staffId);

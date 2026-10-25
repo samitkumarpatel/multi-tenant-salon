@@ -26,15 +26,18 @@ class BookingController {
     private final SalonApi salonApi;
     private final PaymentGateway stripe;
     private final SalonServiceApi services;
+    private final BookingFeePolicies feePolicies;
 
     /** {@code checkoutUrl} for a redirect checkout; {@code checkout} also covers the in-page payment form. */
     record BookingCheckout(Booking booking, String checkoutUrl, PaymentGateway.Checkout checkout) {}
 
-    BookingController(BookingService service, SalonApi salonApi, PaymentGateway stripe, SalonServiceApi services) {
+    BookingController(BookingService service, SalonApi salonApi, PaymentGateway stripe, SalonServiceApi services,
+                      BookingFeePolicies feePolicies) {
         this.service = service;
         this.salonApi = salonApi;
         this.stripe = stripe;
         this.services = services;
+        this.feePolicies = feePolicies;
     }
 
     record CreateBookingRequest(Long serviceId, Long staffId, String customerName,
@@ -170,6 +173,86 @@ class BookingController {
         return service.updateStatus(salonApi.resolveId(salonId), bookingId, BookingStatus.COMPLETED)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** {@code amount} defaults to the service price; {@code sendEmail} mails the link to the customer as well. */
+    record PaymentLinkRequest(java.math.BigDecimal amount, Boolean sendEmail, String returnUrl) {}
+
+    record PaymentLinkResponse(Booking booking, String paymentUrl, java.math.BigDecimal amount, String currency, boolean emailed) {}
+
+    /**
+     * A one-time Stripe Checkout link for an unpaid appointment — the salon's way to collect from a customer who
+     * did not show up. Always a redirect checkout, since the link is opened from an email or a message. The
+     * appointment keeps its status; paying only settles the money.
+     */
+    @PostMapping("/api/salon-admin/{salonId}/booking/{bookingId}/payment-link")
+    PaymentLinkResponse paymentLink(@PathVariable String salonId, @PathVariable Long bookingId,
+                                    @RequestBody(required = false) PaymentLinkRequest request) {
+        var id = salonApi.resolveId(salonId);
+        var booking = service.findById(id, bookingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
+        stripe.requireEnabled(id, "BOOKING");
+        var serviceItem = services.findByIdAndSalonId(booking.serviceId(), id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
+        // No amount given: a no-show is charged the salon's no-show fee (the whole price when it has none), anything else the price.
+        var fee = booking.status() == BookingStatus.NO_SHOW ? feePolicies.get(id).noShowFee(serviceItem.price()) : java.math.BigDecimal.ZERO;
+        var amount = request != null && request.amount() != null ? request.amount()
+                : fee.signum() > 0 ? fee : serviceItem.price();
+        if (amount == null || amount.signum() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A positive amount is required");
+        }
+        var emailRequested = request != null && Boolean.TRUE.equals(request.sendEmail());
+        var hasEmail = booking.customerEmail() != null && !booking.customerEmail().isBlank();
+        if (emailRequested && !hasEmail) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This customer has no email address — copy the link instead");
+        }
+        var previous = service.beginPaymentLink(id, bookingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "This appointment is cancelled or already paid"));
+        String url;
+        var currency = serviceItem.currency() == null ? "USD" : serviceItem.currency();
+        try {
+            url = stripe.createCheckout(id, new PaymentGateway.CheckoutRequest("BOOKING", String.valueOf(bookingId), amount, currency,
+                    "Appointment payment — " + serviceItem.name(), request == null ? null : request.returnUrl(),
+                    booking.customerEmail(), false)).url();
+        } catch (RuntimeException error) {
+            service.abandonPaymentLink(id, bookingId, previous);
+            throw error;
+        }
+        if (emailRequested) service.sendPaymentLink(booking, serviceItem.name(), amount, currency, url);
+        return new PaymentLinkResponse(service.findById(id, bookingId).orElse(booking), url, amount, currency, emailRequested);
+    }
+
+    /** {@code amount} null refunds everything not yet refunded. */
+    record RefundRequest(java.math.BigDecimal amount, String reason) {}
+
+    record RefundResponse(Booking booking, java.math.BigDecimal refunded, String currency) {}
+
+    /**
+     * Sends back the card payment taken for an appointment — typically after cancelling a paid or deposit booking.
+     * Owner only (not on the desk allowlist). The appointment's own status is left alone; a full refund moves
+     * {@code paymentStatus} to {@code REFUNDED}.
+     */
+    @PostMapping("/api/salon-admin/{salonId}/booking/{bookingId}/refund")
+    RefundResponse refund(@PathVariable String salonId, @PathVariable Long bookingId,
+                          @RequestBody(required = false) RefundRequest request,
+                          java.security.Principal principal) {
+        var id = salonApi.resolveId(salonId);
+        var booking = service.findById(id, bookingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
+        if (!"PAID".equals(booking.paymentStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This appointment has no payment to refund");
+        }
+        var amount = request == null ? null : request.amount();
+        if (amount != null && amount.signum() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A refund amount must be greater than zero");
+        }
+        var reason = request == null || request.reason() == null || request.reason().isBlank() ? null : request.reason().strip();
+        var refund = stripe.refundIfPaid(id, "BOOKING", String.valueOf(bookingId), amount, reason,
+                principal == null ? "admin" : principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "No card payment was found for this appointment — it was paid in cash or at the desk, so refund it there."));
+        if (amount == null) service.markRefunded(id, bookingId);
+        return new RefundResponse(service.findById(id, bookingId).orElse(booking), refund.amount(), refund.currency());
     }
 
     @PostMapping("/api/salon-admin/{salonId}/booking/{bookingId}/no-show")

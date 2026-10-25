@@ -7,11 +7,16 @@ import {
   Maximize2, Minimize2, Minus, Pencil, Plus, Receipt, ShoppingCart, Trash2, TriangleAlert, UserRound, X, XCircle,
   Search,
 } from "lucide-react";
-import { Toast, useToast } from "@salon/ui-shared";
+import { BookingPaymentLinkDialog, noShowFeeFor, Toast, useToast, type BookingFeePolicy } from "@salon/ui-shared";
 import { ADMIN_API, CUSTOMER_API, apiFetch } from "~/lib/api";
 import { getDashboardSession } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
 import { DaySheet } from "~/components/DaySheet";
+import { StaffCalendar } from "~/components/StaffCalendar";
+import {
+  JS_DAYS, addDays, hasBookableServiceAtTime, isSalonOpenAt, isTimeInPast, localDateKey, nextDateKey, parseDate, prettyDate,
+  restrictionFor, staffColorMap, type StaffScheduleData,
+} from "~/lib/calendar";
 import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
 import { TerminalPaymentDialog, loadTerminals, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import type {
@@ -215,6 +220,50 @@ export default function DashboardPage() {
   const [servicePickerTime, setServicePickerTime] = useState<{ date: string; time: string; staffId?: number } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editTarget, setEditTarget] = useState<Booking | null>(null);
+  const [paymentLinkTarget, setPaymentLinkTarget] = useState<Booking | null>(null);
+  const [paymentLinkFee, setPaymentLinkFee] = useState(0);
+
+  /** A no-show is billed the salon's no-show fee, so look it up before the dialog opens with its default amount. */
+  async function openPaymentLink(booking: Booking) {
+    let fee = 0;
+    if (booking.status === "NO_SHOW") {
+      const policy = await apiFetch<BookingFeePolicy>(`${CUSTOMER_API}/${initial.sid}/booking-fee-policy`).catch(() => null);
+      fee = noShowFeeFor(policy, initial.services.find((item) => item.id === booking.serviceId)?.price);
+    }
+    setPaymentLinkFee(fee);
+    setPaymentLinkTarget(booking);
+  }
+
+  async function createPaymentLink(booking: Booking, body: { amount?: number; sendEmail: boolean }) {
+    const result = await apiFetch<{ booking: Booking; paymentUrl: string; amount: number; currency: string; emailed: boolean }>(
+      `${ADMIN_API}/${initial.sid}/booking/${booking.id}/payment-link`, { method: "POST", body: JSON.stringify(body) });
+    setBookings((current) => current.map((item) => item.id === booking.id ? result.booking : item));
+    setSelectedBooking((current) => current?.id === booking.id ? result.booking : current);
+    return result;
+  }
+
+  const [staffColors, setStaffColors] = useState<Record<number, string | null>>({});
+
+  /** Drag-and-drop on the calendar: the same reschedule the edit dialog makes, so the server re-checks the slot. */
+  async function moveBooking(booking: Booking, target: { date: string; startTime: string; staffId: number }) {
+    const updated = await apiFetch<Booking>(`${ADMIN_API}/${initial.sid}/booking/${booking.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ appointmentDate: target.date, startTime: target.startTime, staffId: target.staffId, notes: booking.notes ?? null }),
+    });
+    setBookings((current) => current.map((item) => item.id === booking.id ? updated : item));
+    notify("Appointment moved.");
+  }
+
+  async function changeStaffColor(staffId: number, color: string | null) {
+    const previous = staffColors[staffId];
+    setStaffColors((current) => ({ ...current, [staffId]: color }));
+    try {
+      await apiFetch<StaffMember>(`${ADMIN_API}/${initial.sid}/staff/${staffId}/calendar-color`, { method: "PUT", body: JSON.stringify({ color }) });
+    } catch (error) {
+      setStaffColors((current) => ({ ...current, [staffId]: previous }));
+      notify(error instanceof Error ? error.message : "Could not change the colour", "error");
+    }
+  }
 
   async function updateBooking(id: number, action: "confirm" | "cancel" | "complete" | "no-show") {
     try {
@@ -415,19 +464,21 @@ export default function DashboardPage() {
       )}
 
       {view === "appointments" && appointmentsView !== "new" && settings.bookingManagementEnabled && (
-        <TodayAppointmentsReadOnly bookings={bookings} staff={initial.staff} services={initial.services} operatingHours={salon.operatingHours}
+        <TodayAppointmentsReadOnly colors={staffColorMap(initial.staff, staffColors)} bookings={bookings} staff={initial.staff} services={initial.services} operatingHours={salon.operatingHours}
           date={params.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(params.get("date")!) ? params.get("date")! : localDateKey()} mode={todayView}
           onDateChange={(date) => { const next = new URLSearchParams(params); next.set("date", date); setParams(next); }}
           onModeChange={(mode) => { const next = new URLSearchParams(params); next.set("todayView", mode); setParams(next); }} />
       )}
 
       {view === "appointments" && appointmentsView === "new" && settings.bookingManagementEnabled && (
-        <AppointmentsCalendar bookings={bookings} staff={initial.staff} services={initial.services}
+        <StaffCalendar bookings={bookings} staff={initial.staff} services={initial.services}
           operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays}
           schedules={initial.schedules}
           bookingAdvanceDays={salon.bookingAdvanceDays}
+          colorOverrides={staffColors}
           searchParams={params} setSearchParams={setParams}
-          onNew={(date, time, staffId) => setServicePickerTime({ date, time: time ?? "09:00", staffId })} onSelect={setSelectedBooking} />
+          onNew={(date, time, staffId) => setServicePickerTime({ date, time: time ?? "09:00", staffId })} onSelect={setSelectedBooking}
+          onMove={moveBooking} onColorChange={changeStaffColor} />
       )}
 
       {view === "cashier" && cashierView === "report" && settings.cashierEnabled && <DaySheet sid={initial.sid} />}
@@ -656,7 +707,15 @@ export default function DashboardPage() {
       {selectedBooking && <BookingActions booking={selectedBooking} staff={initial.staff} services={initial.services}
         onClose={() => setSelectedBooking(null)}
         onEdit={() => { setEditTarget(selectedBooking); setSelectedBooking(null); }}
+        onRequestPayment={() => { void openPaymentLink(selectedBooking); setSelectedBooking(null); }}
         onAction={updateBooking} />}
+      {paymentLinkTarget && (() => {
+        const service = initial.services.find((item) => item.id === paymentLinkTarget.serviceId);
+        return <BookingPaymentLinkDialog customerName={paymentLinkTarget.customerName} customerEmail={paymentLinkTarget.customerEmail}
+          defaultAmount={paymentLinkFee > 0 ? paymentLinkFee : service?.price} currency={service?.currency}
+          amountHint={paymentLinkFee > 0 ? translateUi("Your no-show fee for this service.") : undefined}
+          onCreate={(body) => createPaymentLink(paymentLinkTarget, body)} onClose={() => setPaymentLinkTarget(null)} />;
+      })()}
       {editTarget && <AppointmentEditor sid={initial.sid} staff={initial.staff} services={initial.services} countries={initial.countries} defaultCountry={salon.location?.country} booking={editTarget}
         operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays} schedules={initial.schedules}
         bookingAdvanceDays={salon.bookingAdvanceDays}
@@ -666,7 +725,6 @@ export default function DashboardPage() {
   );
 }
 
-const JS_DAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 const STATUS_STYLE: Record<Booking["status"], string> = {
   PENDING: "border-amber-200 bg-amber-50 text-amber-800",
   CONFIRMED: "border-blue-200 bg-blue-50 text-blue-800",
@@ -675,142 +733,8 @@ const STATUS_STYLE: Record<Booking["status"], string> = {
   NO_SHOW: "border-red-200 bg-red-50 text-red-700",
 };
 
-function localDateKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function nextDateKey(dateKey: string) {
-  const date = new Date(`${dateKey}T00:00:00`);
-  date.setDate(date.getDate() + 1);
-  return localDateKey(date);
-}
-function parseDate(value: string) { return new Date(`${value}T12:00:00`); }
-function addDays(date: Date, amount: number) { const next = new Date(date); next.setDate(next.getDate() + amount); return next; }
-function prettyDate(date: Date, options: Intl.DateTimeFormatOptions) { return new Intl.DateTimeFormat(undefined, options).format(date); }
-function isTimeInPast(date: string, time: string, now = new Date()) {
-  if (date < localDateKey(now)) return true;
-  if (date > localDateKey(now)) return false;
-  return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) < now.getHours() * 60 + now.getMinutes();
-}
-
-function holidayApplies(date: Date, holiday: SalonHoliday) {
-  const year = date.getFullYear();
-  if (holiday.year != null && holiday.year !== year) return false;
-  const md = (date.getMonth() + 1) * 100 + date.getDate();
-  const start = holiday.month * 100 + holiday.day;
-  const end = (holiday.endMonth ?? holiday.month) * 100 + (holiday.endDay ?? holiday.day);
-  return end >= start ? md >= start && md <= end : md >= start || md <= end;
-}
-
-function restrictionFor(dateKey: string, hours: OperatingHours[] | undefined, closures: SalonClosure[], holidays: SalonHoliday[], bookingAdvanceDays?: number) {
-  const date = parseDate(dateKey);
-  if (dateKey < localDateKey()) return "Past date";
-  if (bookingAdvanceDays && dateKey > localDateKey(addDays(new Date(), bookingAdvanceDays))) return "Outside booking window";
-  const holiday = holidays.find((item) => holidayApplies(date, item));
-  if (holiday) return holiday.name;
-  const closure = closures.find((item) => dateKey >= item.startDate && dateKey <= item.endDate);
-  if (closure) return closure.reason || "Salon closure";
-  const dayHours = hours?.find((item) => item.day === JS_DAYS[date.getDay()]);
-  if (hours?.length && (!dayHours || dayHours.closed)) return "Closed";
-  return null;
-}
-
-type StaffScheduleData = { staffId: number; availability: StaffAvailability[]; overrides: StaffAvailabilityOverride[] };
-
-function isSalonOpenAt(dateKey: string, time: string, hours?: OperatingHours[]) {
-  if (!hours?.length) return true;
-  const dayHours = hours.find((item) => item.day === JS_DAYS[parseDate(dateKey).getDay()]);
-  if (!dayHours || dayHours.closed) return false;
-  const minutes = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-  const opening = Number(dayHours.openTime.slice(0, 2)) * 60 + Number(dayHours.openTime.slice(3, 5));
-  const closing = Number(dayHours.closeTime.slice(0, 2)) * 60 + Number(dayHours.closeTime.slice(3, 5));
-  return minutes >= opening && minutes < closing;
-}
-
-function staffWindowAt(member: StaffMember, dateKey: string, time: string, schedules: StaffScheduleData[]) {
-  if (member.status !== "ACTIVE" || member.availableForBooking === false) return null;
-  const schedule = schedules.find((item) => item.staffId === member.id);
-  if (!schedule) return null;
-  const toMinutes = (value?: string) => value ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)) : null;
-  const minutes = toMinutes(time)!;
-  const override = schedule.overrides.find((item) => item.overrideDate === dateKey);
-  if (override) {
-    const start = toMinutes(override.startTime);
-    const end = toMinutes(override.endTime);
-    return override.available && start !== null && end !== null && minutes >= start && minutes < end ? { start, end } : null;
-  }
-  const weekday = JS_DAYS[parseDate(dateKey).getDay()];
-  const workingWindows = schedule.availability.filter((item) => item.dayOfWeek === weekday && item.available);
-  for (const window of workingWindows) {
-    const start = toMinutes(window.startTime);
-    const end = toMinutes(window.endTime);
-    if (start !== null && end !== null && minutes >= start && minutes < end) return { start, end };
-  }
-  return null;
-}
-
-function hasBookableServiceAtTime(member: StaffMember, date: string, time: string, schedules: StaffScheduleData[], services: ServiceItem[], bookings: Booking[], hours?: OperatingHours[]) {
-  const window = staffWindowAt(member, date, time, schedules);
-  if (!window) return false;
-  const start = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-  const dayHours = hours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
-  const salonClose = dayHours && !dayHours.closed
-    ? Number(dayHours.closeTime.slice(0, 2)) * 60 + Number(dayHours.closeTime.slice(3, 5))
-    : Number.POSITIVE_INFINITY;
-  return services.some((service) => {
-    const assignedIds = (service.assignedStaffIds ?? []).map(Number);
-    const end = start + service.durationMinutes;
-    if (!service.active || (assignedIds.length > 0 && !assignedIds.includes(member.id)) || end > window.end || end > salonClose) return false;
-    return !bookings.some((booking) => booking.staffId === member.id && booking.status !== "CANCELLED"
-      && start < Number(booking.endTime.slice(0, 2)) * 60 + Number(booking.endTime.slice(3, 5))
-      && end > Number(booking.startTime.slice(0, 2)) * 60 + Number(booking.startTime.slice(3, 5)));
-  });
-}
-
-function AppointmentsCalendar({ bookings, staff, services, operatingHours, closures, holidays, schedules, bookingAdvanceDays, searchParams, setSearchParams, onNew, onSelect }: {
-  bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
-  closures: SalonClosure[]; holidays: SalonHoliday[]; schedules: StaffScheduleData[]; bookingAdvanceDays?: number; searchParams: URLSearchParams;
-  setSearchParams: (next: URLSearchParams) => void; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void;
-}) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const [expanded, setExpanded] = useState(false);
-  const [mode, setMode] = useState<"overall" | "stylist">("overall");
-  const requestedDate = searchParams.get("date");
-  const selectedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : localDateKey();
-  const selectedDay = parseDate(selectedDate);
-  const staffMap = useMemo(() => new Map(staff.map((member) => [member.id, member])), [staff]);
-  const serviceMap = useMemo(() => new Map(services.map((service) => [service.id, service.name])), [services]);
-  const dayBookings = useMemo(() => bookings.filter((booking) => booking.appointmentDate === selectedDate)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime)), [bookings, selectedDate]);
-  const restriction = restrictionFor(selectedDate, operatingHours, closures, holidays, bookingAdvanceDays);
-
-  function chooseDate(date: string) {
-    const params = new URLSearchParams(searchParams);
-    params.set("view", "appointments");
-    params.set("date", date);
-    params.delete("range");
-    setSearchParams(params);
-  }
-
-  return <div className={expanded ? "fixed inset-3 z-50 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
-        <div className="flex items-center gap-1"><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, -1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label={translateUi("Previous day")}><ChevronLeft className="h-4 w-4" /></button><button onClick={() => chooseDate(localDateKey())} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">{translateUi("Today")}</button><button onClick={() => chooseDate(localDateKey(addDays(selectedDay, 1)))} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label={translateUi("Next day")}><ChevronRight className="h-4 w-4" /></button></div>
-        <div className="min-w-[190px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDay, { weekday: "long", day: "numeric", month: "long" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? translateUi("appointment") : translateUi("appointments")}</p></div>
-        <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Booking calendar layout")}>
-          <button type="button" onClick={() => setMode("overall")} aria-pressed={mode === "overall"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "overall" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("Overall")}</button>
-          <button type="button" onClick={() => setMode("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("By Stylist")}</button>
-        </div>
-        <input type="date" value={selectedDate} onChange={(event) => chooseDate(event.target.value)} aria-label={translateUi("Choose date")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />
-        <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} title={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
-      </div>
-      <div className={expanded ? "min-h-0 flex-1 overflow-y-auto" : ""}>{mode === "stylist"
-        ? <BookByStylistCalendar date={selectedDate} bookings={dayBookings} staff={staff} schedules={schedules} operatingHours={operatingHours} restriction={restriction} services={services} serviceMap={serviceMap} onNew={onNew} onSelect={onSelect} />
-        : <TodayCalendar date={selectedDate} bookings={dayBookings} staff={staff} schedules={schedules} operatingHours={operatingHours} restriction={restriction} services={services} serviceMap={serviceMap} staffMap={staffMap} onNew={onNew} onSelect={onSelect} />}</div>
-  </div>;
-}
-
-function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, date, mode, onDateChange, onModeChange }: {
-  bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
+function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, colors, date, mode, onDateChange, onModeChange }: {
+  colors: Map<number, string>; bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
   date: string; mode: "stylist" | "day"; onDateChange: (date: string) => void; onModeChange: (mode: "stylist" | "day") => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -838,8 +762,8 @@ function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, 
         <button type="button" onClick={() => onModeChange("day")} aria-pressed={mode === "day"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "day" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("Overall view")}</button>
       </div>
     </div>
-    {mode === "stylist" ? <StylistSchedule date={date} groups={grouped} operatingHours={operatingHours} services={serviceMap} />
-      : dayBookings.length ? <ReadOnlyDayTimeline date={date} bookings={dayBookings} services={serviceMap} staff={staffMap} operatingHours={operatingHours} closed={!!dayHours?.closed} />
+    {mode === "stylist" ? <StylistSchedule date={date} groups={grouped} operatingHours={operatingHours} services={serviceMap} colors={colors} />
+      : dayBookings.length ? <ReadOnlyDayTimeline date={date} bookings={dayBookings} services={serviceMap} staff={staffMap} colors={colors} operatingHours={operatingHours} closed={!!dayHours?.closed} />
         : <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No appointments scheduled for this date.")}</p>}
   </section>;
 }
@@ -883,8 +807,8 @@ function useFloatingScrollPosition(anchorRef: React.RefObject<HTMLElement | null
   return position;
 }
 
-function ReadOnlyDayTimeline({ date, bookings, services, staff, operatingHours, closed }: {
-  date: string; bookings: Booking[]; services: Map<number, string>; staff: Map<number, StaffMember>;
+function ReadOnlyDayTimeline({ date, bookings, services, staff, colors, operatingHours, closed }: {
+  colors: Map<number, string>; date: string; bookings: Booking[]; services: Map<number, string>; staff: Map<number, StaffMember>;
   operatingHours?: OperatingHours[]; closed: boolean;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -903,12 +827,12 @@ function ReadOnlyDayTimeline({ date, bookings, services, staff, operatingHours, 
   const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
   return <div className="divide-y divide-slate-100">
     {closed && <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">{translateUi("Salon is marked closed today. Existing appointments are shown below.")}</p>}
-    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} className={`flex items-center gap-2 rounded-md border px-3 py-2 ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><StaffAvatar member={member} /></div>; })}</div></div>)}
+    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={{ borderLeft: `4px solid ${colors.get(booking.staffId) ?? "#94a3b8"}` }} className={`flex items-center gap-2 rounded-md border px-3 py-2 ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><StaffAvatar member={member} /></div>; })}</div></div>)}
   </div>;
 }
 
-function StylistSchedule({ date, groups, operatingHours, services }: {
-  date: string; groups: { member: StaffMember; appointments: Booking[] }[];
+function StylistSchedule({ date, groups, operatingHours, services, colors }: {
+  colors: Map<number, string>; date: string; groups: { member: StaffMember; appointments: Booking[] }[];
   operatingHours?: OperatingHours[]; services: Map<number, string>;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -954,11 +878,11 @@ function StylistSchedule({ date, groups, operatingHours, services }: {
       <div ref={columnsRef} className="min-w-0 overflow-x-auto">
         <div className="grid auto-cols-[240px] grid-flow-col gap-3">
           {groups.map(({ member, appointments }) => <section key={member.id} className="overflow-hidden rounded-lg border border-slate-200">
-            <h3 className="flex h-11 items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 text-xs font-bold text-slate-700"><span className="flex min-w-0 items-center gap-2"><StaffAvatar member={member} /><span className="truncate">{member.name}</span></span><span className="shrink-0 font-normal text-slate-400">{appointments.length}</span></h3>
+            <h3 className="flex h-11 items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 text-xs font-bold text-slate-700"><span className="flex min-w-0 items-center gap-2"><span className="h-6 w-1 shrink-0 rounded-full" style={{ background: colors.get(member.id) ?? "#94a3b8" }} /><StaffAvatar member={member} /><span className="truncate">{member.name}</span></span><span className="shrink-0 font-normal text-slate-400">{appointments.length}</span></h3>
             {times.map((minutes) => {
               const rowBookings = appointments.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
               return <div key={minutes} className="h-16 overflow-hidden border-b border-slate-100 px-1 py-1">
-                {rowBookings.map((booking) => { const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} className={`truncate rounded border px-2 py-1 text-[10px] ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"}`}>
+                {rowBookings.map((booking) => { const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={{ borderLeft: `4px solid ${colors.get(member.id) ?? "#94a3b8"}` }} className={`truncate rounded border px-2 py-1 text-[10px] ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"}`}>
                   <p className="truncate font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate opacity-75">{services.get(booking.serviceId) ?? "Service"}</p>
                 </div>; })}
               </div>;
@@ -981,152 +905,13 @@ function ReadOnlyAppointment({ booking, serviceName, staffName, compact = false 
   </div>;
 }
 
-function BookByStylistCalendar({ date, bookings, staff, schedules, operatingHours, restriction, services, serviceMap, onNew, onSelect }: {
-  date: string; bookings: Booking[]; staff: StaffMember[]; schedules: StaffScheduleData[]; operatingHours?: OperatingHours[]; restriction: string | null;
-  services: ServiceItem[]; serviceMap: Map<number, string>; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void;
-}) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const columnsRef = useRef<HTMLDivElement>(null);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const floatingPosition = useFloatingScrollPosition(anchorRef, canScrollLeft || canScrollRight);
-  const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
-  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-  const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-  const opening = dayHours && !dayHours.closed ? toMinutes(dayHours.openTime) : 8 * 60;
-  const closing = dayHours && !dayHours.closed ? toMinutes(dayHours.closeTime) : 20 * 60;
-  const scheduled = bookings.map((booking) => toMinutes(booking.startTime));
-  const start = Math.min(Math.floor(opening / 30) * 30, ...scheduled.map((value) => Math.floor(value / 30) * 30));
-  const end = Math.max(Math.ceil(closing / 30) * 30, ...scheduled.map((value) => Math.floor(value / 30) * 30 + 30));
-  const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
-  const activeStaff = staff.filter((member) => member.status === "ACTIVE");
-
-  useEffect(() => {
-    const columns = columnsRef.current;
-    if (!columns) return;
-    const update = () => {
-      setCanScrollLeft(columns.scrollLeft > 1);
-      setCanScrollRight(columns.scrollLeft + columns.clientWidth < columns.scrollWidth - 1);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(columns);
-    columns.addEventListener("scroll", update, { passive: true });
-    return () => { observer.disconnect(); columns.removeEventListener("scroll", update); };
-  }, [activeStaff.length]);
-
-  return <div ref={anchorRef}>
-    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">{translateUi("Existing appointments are shown; new appointments cannot be added for this date.")}</p></div></div>}
-    {!activeStaff.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No active stylists are available.")}</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
-      <div className="sticky left-0 z-20 w-20 shrink-0 border-r border-slate-200 bg-white">
-        <div className="flex h-12 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">{translateUi("Time")}</div>
-        {slots.map((minutes) => <div key={minutes} className="h-14 border-b border-slate-100 pr-2 pt-1 text-right text-[10px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? formatTime(minutes) : ""}</div>)}
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div ref={columnsRef} className="overflow-x-auto">
-          <div className="grid auto-cols-[220px] grid-flow-col gap-2">
-            {activeStaff.map((member) => <section key={member.id} className="overflow-hidden rounded-lg border border-slate-200">
-              <h3 className="flex h-12 items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700"><StaffAvatar member={member} size="md" /><span className="truncate">{member.name}</span></h3>
-              {slots.map((minutes) => {
-                const time = formatTime(minutes);
-                const slotBookings = bookings.filter((booking) => booking.staffId === member.id && Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
-                const passed = isTimeInPast(date, time);
-                const staffWorking = hasBookableServiceAtTime(member, date, time, schedules, services, bookings, operatingHours);
-                const salonOpen = isSalonOpenAt(date, time, operatingHours);
-                const bookable = !restriction && !passed && salonOpen && staffWorking;
-                return <div key={minutes} className="flex h-14 flex-col justify-center gap-0.5 overflow-hidden border-b border-slate-100 px-1 py-1">
-                  {slotBookings.map((booking) => {
-                    const bookingPassed = isTimeInPast(date, booking.startTime);
-                    return <button key={booking.id} type="button" disabled={bookingPassed} onClick={() => onSelect(booking)} className={`truncate rounded border px-2 py-1 text-left text-[10px] disabled:cursor-not-allowed ${bookingPassed ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><span className="font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</span><span className="ml-1 opacity-75">{serviceMap.get(booking.serviceId)}</span></button>;
-                  })}
-                  {!slotBookings.length && <button type="button" disabled={!bookable} onClick={() => onNew(date, time, member.id)} aria-label={`Book ${member.name} at ${time}`} title={!bookable ? restriction || (passed ? "This time has passed" : !salonOpen ? "Outside salon opening hours" : "Stylist is unavailable") : `Book ${member.name} at ${time}`} className={`h-full w-full rounded px-2 text-left text-[10px] font-medium transition-colors disabled:cursor-not-allowed ${bookable ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus-visible:bg-matcha-50 focus-visible:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>{bookable ? translateUi("+ Book") : translateUi("Unavailable")}</button>}
-                </div>;
-              })}
-            </section>)}
-          </div>
-        </div>
-        {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to previous stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
-        {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to more stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
-      </div>
-    </div>}
-  </div>;
-}
-
-function TodayCalendar({ date, bookings, staff, schedules, operatingHours, restriction, services, serviceMap, staffMap, onNew, onSelect }: { date: string; bookings: Booking[]; staff: StaffMember[]; schedules: StaffScheduleData[]; operatingHours?: OperatingHours[]; restriction: string | null; services: ServiceItem[]; serviceMap: Map<number, string>; staffMap: Map<number, StaffMember>; onNew: (date: string, time?: string, staffId?: number) => void; onSelect: (booking: Booking) => void }) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
-  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-  const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-  const openingMinutes = dayHours && !dayHours.closed ? toMinutes(dayHours.openTime) : 8 * 60;
-  const closingMinutes = dayHours && !dayHours.closed ? toMinutes(dayHours.closeTime) : 20 * 60;
-  const scheduledMinutes = bookings.map((booking) => toMinutes(booking.startTime));
-  const start = Math.min(Math.floor(openingMinutes / 30) * 30, ...scheduledMinutes.map((minutes) => Math.floor(minutes / 30) * 30));
-  const end = Math.max(Math.ceil(closingMinutes / 30) * 30, ...scheduledMinutes.map((minutes) => Math.floor(minutes / 30) * 30 + 30));
-  const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
-  return <div>
-    {restriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{restriction}</p><p className="text-[11px] text-amber-600">{translateUi("Existing appointments remain available, but new appointments cannot be added.")}</p></div></div>}
-    <div className="divide-y divide-slate-100">{slots.map((minutes) => {
-      const time = formatTime(minutes);
-      const inSlot = bookings.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
-      const slotPassed = isTimeInPast(date, time);
-      const salonOpen = isSalonOpenAt(date, time, operatingHours);
-      const anyStaffWorking = staff.some((member) => hasBookableServiceAtTime(member, date, time, schedules, services, bookings, operatingHours));
-      const canBook = !restriction && !slotPassed && salonOpen && anyStaffWorking;
-      return <div key={minutes} className={`group flex min-h-12 ${!canBook && !inSlot.length ? "bg-slate-50" : ""}`}>
-        <span className={`sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums ${slotPassed ? "text-slate-300" : "text-slate-400"}`}>{minutes % 60 === 0 ? time : ""}</span>
-        <HorizontalScrollCue label={translateUi("More appointments in this time slot")}>
-          {inSlot.map((booking) => {
-            const bookingPassed = isTimeInPast(date, booking.startTime);
-            return <button key={booking.id} type="button" disabled={bookingPassed} onClick={() => onSelect(booking)} className={`min-h-10 w-56 shrink-0 rounded-md border px-3 py-2 text-left disabled:cursor-not-allowed ${bookingPassed ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}>
-            <span className="block truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] opacity-75"><StaffAvatar member={staffMap.get(booking.staffId)} /><span className="truncate">{serviceMap.get(booking.serviceId)} · {staffMap.get(booking.staffId)?.name ?? "Stylist"}</span></span>
-            </button>;
-          })}
-          {!slotPassed && <button type="button" disabled={!canBook} onClick={() => onNew(date, time)} aria-label={`Book at ${time}`} title={!canBook ? restriction || (!salonOpen ? "Outside salon opening hours" : !anyStaffWorking ? "No stylist is available at this time" : "This time has passed") : `Book at ${time}`} className={`flex min-h-9 w-36 shrink-0 items-center rounded-md px-3 text-left text-xs transition-colors disabled:cursor-not-allowed ${canBook ? "text-slate-400 hover:bg-matcha-50 hover:text-matcha-700 focus:bg-matcha-50 focus:text-matcha-700" : "bg-slate-50 text-slate-300"}`}>
-            <span className="row-actions">{translateUi("+ Book at ")}{time}</span>
-          </button>}
-        </HorizontalScrollCue>
-      </div>;
-    })}</div>
-  </div>;
-}
-
-function HorizontalScrollCue({ children, label }: { children: React.ReactNode; label: string }) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  useEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    const update = () => {
-      setCanScrollLeft(element.scrollLeft > 1);
-      setCanScrollRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 1);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    if (element.firstElementChild) observer.observe(element.firstElementChild);
-    element.addEventListener("scroll", update, { passive: true });
-    return () => { observer.disconnect(); element.removeEventListener("scroll", update); };
-  }, [children]);
-  return <div className="relative min-w-0 flex-1">
-    <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden">
-      <div className="flex w-max min-w-full items-start gap-2 px-2 py-1">{children}</div>
-    </div>
-    {canScrollLeft && <button type="button" title={translateUi(label)} aria-label={translateUi("Scroll to previous appointments")} onClick={() => scrollRef.current?.scrollBy({ left: -Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-5 w-5" /></button>}
-    {canScrollRight && <button type="button" title={translateUi(label)} aria-label={translateUi("Scroll to more appointments")} onClick={() => scrollRef.current?.scrollBy({ left: Math.max(224, scrollRef.current.clientWidth * 0.75), behavior: "smooth" })} className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-5 w-5" /></button>}
-  </div>;
-}
-
-function BookingActions({ booking, staff, services, onClose, onEdit, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; onClose: () => void; onEdit: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
+function BookingActions({ booking, staff, services, onClose, onEdit, onRequestPayment, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; onClose: () => void; onEdit: () => void; onRequestPayment: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const service = services.find((item) => item.id === booking.serviceId); const member = staff.find((item) => item.id === booking.staffId); const active = booking.status === "PENDING" || booking.status === "CONFIRMED";
   const confirmAction = (action: "cancel" | "no-show", message: string) => {
     if (window.confirm(message)) void onAction(booking.id, action);
   };
-  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div></div></Dialog>;
+  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{(booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID" && <button onClick={onRequestPayment} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"><CreditCard className="h-3.5 w-3.5" />{translateUi(booking.status === "NO_SHOW" ? "Request payment (no-show)" : "Request payment")}</button>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div></div></Dialog>;
 }
 
 function AvailableServicePicker({ sid, date, time, staffId, services, staff, onClose, onSelect }: {

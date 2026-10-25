@@ -69,6 +69,28 @@ class StaffModuleTests {
     }
 
     @Test
+    void calendarColourIsSetNormalisedClearedAndSurvivesAProfileUpdate() {
+        var id = jdbcTemplate.queryForObject("INSERT INTO staff_member (salon_id, name, role, status, created_at)"
+                + " VALUES (?, 'Dana', 'STYLIST', 'ACTIVE', now()) RETURNING id", Long.class, salonId);
+        var uri = "/api/salon-admin/{salon}/staff/{id}/calendar-color";
+
+        client.put().uri(uri, salonId, id).contentType(MediaType.APPLICATION_JSON).body("{\"color\":\"#AA33CC\"}")
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.calendarColor").isEqualTo("#aa33cc");
+
+        // A profile edit made elsewhere must not wipe the chosen colour.
+        client.put().uri("/api/salon-admin/{salon}/staff/{id}", salonId, id).contentType(MediaType.APPLICATION_JSON)
+                .body("{\"name\":\"Dana B\",\"role\":\"STYLIST\",\"status\":\"ACTIVE\"}")
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.calendarColor").isEqualTo("#aa33cc");
+
+        client.put().uri(uri, salonId, id).contentType(MediaType.APPLICATION_JSON).body("{\"color\":\"red\"}")
+                .exchange().expectStatus().isBadRequest();
+        client.put().uri(uri, salonId, 999999L).contentType(MediaType.APPLICATION_JSON).body("{\"color\":\"#112233\"}")
+                .exchange().expectStatus().isNotFound();
+        client.put().uri(uri, salonId, id).contentType(MediaType.APPLICATION_JSON).body("{\"color\":null}")
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.calendarColor").isEmpty();
+    }
+
+    @Test
     void onboardAndUpdatePreservesBioAndWorkMedia() {
         var created = client.post()
                 .uri("/api/salon-admin/{id}/staff", salonId)

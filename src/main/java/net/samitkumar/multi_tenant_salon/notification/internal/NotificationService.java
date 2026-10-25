@@ -2,6 +2,7 @@ package net.samitkumar.multi_tenant_salon.notification.internal;
 
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.booking.BookingCreatedEvent;
+import net.samitkumar.multi_tenant_salon.booking.BookingPaymentLinkEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingRescheduledEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatusChangedEvent;
@@ -245,6 +246,36 @@ class NotificationService {
         var sms = "Hi " + event.customerName() + ": we received your booking request (#" + event.bookingId() + ") for "
                 + formattedDateTime(event) + " at " + event.startTime().format(TIME_FMT) + ". " + statusLine + " — " + event.salonName();
         sendBookingCustomerMessage(event.customerEmail(), event.customerPhone(), event.customerName(), subject, text, html, sms);
+    }
+
+    void notifyBookingPaymentLink(BookingPaymentLinkEvent event) {
+        var when = event.appointmentDate().format(DATE_FMT) + " at " + event.startTime().format(TIME_FMT);
+        var price = formatMoney(event.amount(), event.currency());
+        var subject = salonSubject(event.salonName(), "Payment due for your appointment on " + event.appointmentDate().format(DATE_FMT));
+        var text = """
+                Hi %s,
+
+                Our records show a payment is still due for your %s appointment (#%d) on %s.
+
+                Pay %s securely online: %s
+                The link stays open for 24 hours — contact us if you need a new one.
+                %s
+                %s
+                """.formatted(event.customerName(), event.serviceName(), event.bookingId(), when, price, event.paymentUrl(),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi %s,</p>
+                <p>Our records show a payment is still due for your <strong>%s</strong> appointment (#%d) on %s.</p>
+                <p><a href="%s" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:600">Pay %s</a></p>
+                <p><small>The link stays open for 24 hours — contact us if you need a new one. Or open: %s</small></p>
+                %s
+                %s
+                """.formatted(HtmlUtils.htmlEscape(event.customerName()), HtmlUtils.htmlEscape(event.serviceName()), event.bookingId(),
+                HtmlUtils.htmlEscape(when), HtmlUtils.htmlEscape(event.paymentUrl()), price, HtmlUtils.htmlEscape(event.paymentUrl()),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
+                teamSignatureHtml(event.salonName()));
+        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
     }
 
     void notifyBookingStatusChanged(BookingStatusChangedEvent event) {

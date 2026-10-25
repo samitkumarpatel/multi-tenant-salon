@@ -73,7 +73,7 @@ public class StaffService implements StaffApi {
             var updated = new StaffMember(
                     existing.id(), existing.salonId(), name, existing.email(), phone,
                     existing.role(), existing.status(), existing.isOwner(),
-                    bookable, avatar, about, specs, media, existing.createdAt());
+                    bookable, avatar, about, specs, media, existing.calendarColor(), existing.createdAt());
             return repository.save(updated);
         });
     }
@@ -94,7 +94,7 @@ public class StaffService implements StaffApi {
                 ? specializations.stream().map(StaffMember.Specialization::new).toList()
                 : List.<StaffMember.Specialization>of();
         var member = new StaffMember(null, salonId, name, email, phone, role, StaffStatus.ACTIVE,
-                isOwner, true, null, bio, specs, toWorkMedia(workMedia), Instant.now());
+                isOwner, true, null, bio, specs, toWorkMedia(workMedia), null, Instant.now());
         var saved = repository.save(member);
         log.info("[StaffService] Staff onboarded id={} salon={}", saved.id(), salonId);
         var effectiveSchedule = (schedule != null && !schedule.isEmpty())
@@ -138,9 +138,21 @@ public class StaffService implements StaffApi {
                     var media = workMedia != null ? toWorkMedia(workMedia) : existing.workMedia();
                     var updated = new StaffMember(existing.id(), existing.salonId(), name, email, phone,
                             role, status, existing.isOwner(), availableForBooking, avatar, bio, specs, media,
-                            existing.createdAt());
+                            existing.calendarColor(), existing.createdAt());
                     return repository.save(updated);
                 });
+    }
+
+    /** Sets (or with null clears) the calendar colour of a staff member of this salon; empty when there is no such member. */
+    @Transactional
+    Optional<StaffMember> setCalendarColor(UUID salonId, Long staffId, String color) {
+        if (color != null && !color.matches("#[0-9a-fA-F]{6}")) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Colour must look like #1a2b3c");
+        }
+        var normalized = color == null ? null : color.toLowerCase(java.util.Locale.ROOT);
+        if (repository.updateCalendarColor(staffId, salonId, normalized) == 0) return Optional.empty();
+        return repository.findById(staffId);
     }
 
     void remove(UUID salonId, Long staffId) {

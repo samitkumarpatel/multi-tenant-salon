@@ -1243,7 +1243,7 @@ Authorization: Bearer eyJhbGciOi...
 
 Used by the salon desk (dashboard app) login. Like `my-salons`, but it also returns salons where the caller is **active staff** (any staff role), read live from the database. Same `email` mock-mode fallback, ignored when a token is present. `200` with the salons, `404` when there are none. The desk picks a salon with the DASHBOARD feature or explains that the desk isn't on.
 
-**Staff on the desk.** Under `/api/salon-admin/{salonId}/**`, a staff token is accepted only for the endpoints the desk uses — salon read, `dashboard/settings` (read), Till / POS (`cashier/items`, `cashier/bookings`, `sales`, `sales/card-checkout`), `payments/stripe` (read), bookings (list, slots, read, create, edit, confirm / cancel / complete / no-show), `availability`, closures, holidays, services, staff and their availability, and membership (`plans`, `verify`, member detail and `qr.png`, `send-renewal-link`, `desk-sales`). Each request requires that the token names that salon as staff, that the database still has them as active staff there (so removing or deactivating someone locks them out at once), and that the salon has DASHBOARD. Everything else stays owner-only and returns `403`.
+**Staff on the desk.** Under `/api/salon-admin/{salonId}/**`, a staff token is accepted only for the endpoints the desk uses — salon read, `dashboard/settings` (read), Till / POS (`cashier/items`, `cashier/bookings`, `sales`, `sales/card-checkout`), `payments/stripe` (read), bookings (list, slots, read, create, edit, confirm / cancel / complete / no-show / payment-link; stylist `calendar-color`), `availability`, closures, holidays, services, staff and their availability, and membership (`plans`, `verify`, member detail and `qr.png`, `send-renewal-link`, `desk-sales`). Each request requires that the token names that salon as staff, that the database still has them as active staff there (so removing or deactivating someone locks them out at once), and that the salon has DASHBOARD. Everything else stays owner-only and returns `403`.
 
 **The desk's own capability switches are enforced, not cosmetic.** `dashboard/settings` carries `bookingManagementEnabled` and `cashierEnabled`, and both gate the API for a *staff* token (the owner is never subject to them):
 
@@ -2290,6 +2290,66 @@ Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 **Response** `200 OK` — updated booking object
 
 **Response** `404 Not Found`
+
+---
+
+### Set a stylist's calendar colour
+
+`PUT /api/salon-admin/{salonId}/staff/{staffId}/calendar-color` — owner or desk staff (while "Appointment management" is on).
+
+```json
+{ "color": "#6366f1" }
+```
+
+`color` is `#RRGGBB` (stored lower-case) or `null` to reset to the palette colour. Only this field changes. The staff object returned by every staff endpoint carries it as `calendarColor`. `400` for any other format, `404` if the stylist isn't in this salon.
+
+---
+
+### Send a payment link for an unpaid appointment
+
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/payment-link`
+
+For a customer who did not show up (any non-cancelled, unpaid appointment). Creates a one-time Stripe Checkout redirect page and sets `paymentStatus` to `PENDING`. Stripe keeps it open 24 hours; call again for a fresh link (also after `FAILED`). Paying sets `paymentStatus` to `PAID` and **leaves `status` alone** — a `NO_SHOW` stays a no-show, and a failed payment never cancels it. Desk staff may call it while "Appointment management" is on.
+
+**Request body** (optional)
+
+```json
+{ "amount": 25.00, "sendEmail": true, "returnUrl": "https://..." }
+```
+
+`amount` defaults to the service price; `sendEmail` also emails the link (**BookingPaymentLinkEvent**) and needs an email on the booking.
+
+**Response** `200 OK`
+
+```json
+{ "booking": { ... }, "paymentUrl": "https://checkout.stripe.com/...", "amount": 40.00, "currency": "EUR", "emailed": true }
+```
+
+**Response** `400` bad amount / no email to send to · `404` not found · `409` cancelled, already paid, or booking payments not enabled
+
+---
+
+### No-show fee
+
+`GET /api/salon/{salonId}/booking-fee-policy` (public; also at `/api/salon-admin/{salonId}/booking-fee-policy`) · `PUT /api/salon-admin/{salonId}/booking-fee-policy` (owner only)
+
+```json
+{ "noShowFeeType": "PERCENT", "noShowFeeValue": 50 }
+```
+
+`noShowFeeType` is `NONE`, `PERCENT` (0–100 % of the service price) or `FIXED` (an amount, never more than the service price). No row means `NONE`. The fee is the default amount of the payment link for a `NO_SHOW` booking; appointments already paid online (e.g. a deposit) keep their payment and cannot be billed again. `400` for a percentage over 100 or a non-positive fee.
+
+---
+
+### Refund an appointment's card payment
+
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/refund` — **owner only** (not on the desk allowlist).
+
+Sends back the Stripe card payment (full payment or deposit), typically right after cancelling. The appointment's `status` is unchanged. Body is optional: `{ "amount": 10.00, "reason": "..." }`; omit `amount` to refund everything not yet refunded. A full refund sets `paymentStatus` to `REFUNDED`; a partial one leaves it `PAID`.
+
+**Response** `200 OK` — `{ "booking": { ... }, "refunded": 40.00, "currency": "EUR" }`
+
+**Response** `400` bad amount · `404` not found · `409` not paid, or paid in cash / at the desk (no card payment to refund)
 
 ---
 

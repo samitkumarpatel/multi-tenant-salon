@@ -24,6 +24,7 @@ import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type Che
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { CATEGORY_LABEL, STAFF_ROLE_LABEL, isVideoUrl, formatPrice } from "./constants";
+import { noShowFeeFor, type BookingFeePolicy } from "./bookingFee";
 import { CategoryIcon } from "./CategoryIcon";
 import { fontStack, loadGoogleFont, contrastText } from "./theme";
 import { CustomerDetailsFields, type ContactMethod } from "./CustomerDetailsFields";
@@ -1500,13 +1501,15 @@ function StepSlots({
 // ── Step 4: Customer details ──────────────────────────────────────────────────
 
 function StepDetails({
-  form, setForm, countries, salonCountry, accent, onBack, onSubmit, busy,
+  form, setForm, countries, salonCountry, accent, noShowFee, onBack, onSubmit, busy,
 }: {
   form: { name: string; email: string; phone: string; notes: string };
   setForm: (f: { name: string; email: string; phone: string; notes: string }) => void;
   countries: Country[];
   salonCountry?: string;
   accent: Accent;
+  /** The salon's fee for a missed appointment, ready to show; absent when it charges none. */
+  noShowFee?: string;
   onBack: () => void;
   onSubmit: () => void;
   busy: boolean;
@@ -1528,6 +1531,12 @@ function StepDetails({
         <CustomerDetailsFields form={form} onChange={setForm} contactMethod={contactTab} onContactMethodChange={setContactTab}
           countries={countries} defaultCountry={salonCountry} accentColor={accent.color} />
       </div>
+
+      {noShowFee && (
+        <p className="mb-6 rounded-lg border px-3 py-2.5 text-xs text-slate-600" style={{ borderColor: accent.border, background: accent.tint }}>
+          {translateUi("If you miss this appointment without cancelling, the salon may charge a no-show fee of {fee}.", { fee: noShowFee })}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <button onClick={onBack} className={backBtnCls}>
@@ -1670,6 +1679,7 @@ export function BookingWizard({
   const [error, setError] = useState<string | null>(null);
   const [inlineCheckout, setInlineCheckout] = useState<CheckoutInstructions | null>(null);
   const [paymentReturned, setPaymentReturned] = useState(false);
+  const [feePolicy, setFeePolicy] = useState<BookingFeePolicy | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1696,6 +1706,9 @@ export function BookingWizard({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    apiFetch<BookingFeePolicy>(`${CUSTOMER_API}/${salon.id}/booking-fee-policy`)
+      .then(setFeePolicy)
+      .catch(() => {});
     apiFetch<ClosureRange[]>(`${CUSTOMER_API}/${salon.id}/closures`)
       .then(setClosedDateRanges)
       .catch(() => {});
@@ -1705,6 +1718,8 @@ export function BookingWizard({
   }, [salon.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fontStackCss = fontStack(theme.fontFamily);
+  const noShowFeeAmount = noShowFeeFor(feePolicy, service?.price);
+  const noShowFeeLabel = noShowFeeAmount > 0 && service ? formatPrice(noShowFeeAmount, service.currency, uiLocale) : undefined;
   const accent: Accent = {
     color:  theme.accentColor,
     text:   contrastText(theme.accentColor),
@@ -1904,6 +1919,7 @@ export function BookingWizard({
               countries={countries}
               salonCountry={salon.location?.country}
               accent={accent}
+              noShowFee={noShowFeeLabel}
               onBack={goBack}
               onSubmit={submitBooking}
               busy={busy}

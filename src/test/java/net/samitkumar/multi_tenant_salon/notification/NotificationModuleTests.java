@@ -85,6 +85,16 @@ class NotificationModuleTests {
     // ── Booking lifecycle events ───────────────────────────────────────────────
 
     @Test
+    void handlesBookingPaymentLinkEventWithoutError() {
+        var event = new net.samitkumar.multi_tenant_salon.booking.BookingPaymentLinkEvent(
+                1L, UUID.randomUUID(), "John Doe", "john@doe.com",
+                LocalDate.of(2027, 1, 4), LocalTime.of(10, 0), "Cut", new java.math.BigDecimal("40.00"), "EUR",
+                "https://checkout.stripe.com/c/pay/cs_1", "Test Salon", "+1112223333", "salon@test.com");
+
+        publishAndAwaitDelivery(event);
+    }
+
+    @Test
     void handlesBookingCreatedEventWithoutError() {
         var event = new BookingCreatedEvent(
                 1L, UUID.randomUUID(), 1L, 1L,

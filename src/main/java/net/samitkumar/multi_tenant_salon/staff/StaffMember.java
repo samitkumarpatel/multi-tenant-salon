@@ -28,6 +28,8 @@ public record StaffMember(
         // JSON: "workMedia" — the staff member's portfolio images/videos. DB table keeps its
         // original name (staff_member_photo), mapped on WorkMedia below.
         @MappedCollection(idColumn = "staff_member_id") List<WorkMedia> workMedia,
+        // #RRGGBB the booking calendars draw this person's appointments in; null = the app picks a palette colour.
+        String calendarColor,
         Instant createdAt
 ) {
     public StaffMember {

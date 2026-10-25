@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.booking.internal;
 import net.samitkumar.multi_tenant_salon.booking.AvailableSlot;
 import net.samitkumar.multi_tenant_salon.booking.Booking;
 import net.samitkumar.multi_tenant_salon.booking.BookingApi;
+import net.samitkumar.multi_tenant_salon.booking.BookingPaymentLinkEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingCreatedEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingRescheduledEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
@@ -771,18 +772,63 @@ class BookingService implements BookingApi {
     void recordStripePayment(UUID salonId, Long bookingId, String sessionId, boolean succeeded) {
         var booking = bookingRepo.findBySalonIdAndId(salonId, bookingId).orElse(null);
         if (booking == null || !"PENDING".equals(booking.paymentStatus())) return;
-        var nextStatus = succeeded
+        // A payment link sent after the visit (no-show, completed) settles the money only; the outcome of the visit stays.
+        boolean visitOver = booking.status() == BookingStatus.NO_SHOW || booking.status() == BookingStatus.COMPLETED;
+        var nextStatus = visitOver ? booking.status()
+                : succeeded
                 ? (salonApi.bookingRequiresConfirmation(salonId) ? BookingStatus.PENDING : BookingStatus.CONFIRMED)
                 : BookingStatus.CANCELLED;
         int updated = jdbcClient.sql("UPDATE booking SET payment_status = :payment, payment_reference = :reference, status = :status WHERE id = :id AND salon_id = :salon AND payment_status = 'PENDING'")
                 .param("payment", succeeded ? "PAID" : "FAILED").param("reference", sessionId)
                 .param("status", nextStatus.name()).param("id", bookingId).param("salon", salonId).update();
-        if (updated == 1 && !succeeded) {
+        if (updated == 1 && !succeeded && !visitOver) {
             var salon = salonContact(salonId);
             eventPublisher.publishEvent(new BookingStatusChangedEvent(booking.id(), salonId, BookingStatus.CANCELLED,
                     booking.customerName(), booking.customerEmail(), booking.customerPhone(), booking.appointmentDate(),
                     booking.startTime(), booking.endTime(), salon.name(), salon.phone(), salon.email()));
         }
+    }
+
+    /**
+     * Puts an unpaid appointment into {@code PENDING} payment so the Stripe outcome can settle it. Allowed for
+     * anything not cancelled and not already paid — including {@code PENDING} itself, so a link that went
+     * unpaid or expired can be sent again.
+     *
+     * @return the payment status it had before, or empty when it is cancelled, already paid, or not found
+     */
+    @Transactional
+    Optional<String> beginPaymentLink(UUID salonId, Long bookingId) {
+        var booking = bookingRepo.findBySalonIdAndId(salonId, bookingId).orElse(null);
+        if (booking == null || booking.status() == BookingStatus.CANCELLED || "PAID".equals(booking.paymentStatus())) {
+            return Optional.empty();
+        }
+        int updated = jdbcClient.sql("UPDATE booking SET payment_status = 'PENDING' WHERE id = :id AND salon_id = :salon AND status <> 'CANCELLED' AND payment_status <> 'PAID'")
+                .param("id", bookingId).param("salon", salonId).update();
+        return updated == 1 ? Optional.of(booking.paymentStatus()) : Optional.empty();
+    }
+
+    /** Undoes {@link #beginPaymentLink} when no checkout could be created; a payment that landed meanwhile is left alone. */
+    @Transactional
+    void abandonPaymentLink(UUID salonId, Long bookingId, String previousPaymentStatus) {
+        if ("PENDING".equals(previousPaymentStatus)) return;
+        jdbcClient.sql("UPDATE booking SET payment_status = :previous WHERE id = :id AND salon_id = :salon AND payment_status = 'PENDING'")
+                .param("previous", previousPaymentStatus).param("id", bookingId).param("salon", salonId).update();
+    }
+
+    /** After a full card refund the appointment reads {@code REFUNDED}; a partial one leaves it {@code PAID}. */
+    @Transactional
+    void markRefunded(UUID salonId, Long bookingId) {
+        jdbcClient.sql("UPDATE booking SET payment_status = 'REFUNDED' WHERE id = :id AND salon_id = :salon AND payment_status = 'PAID'")
+                .param("id", bookingId).param("salon", salonId).update();
+    }
+
+    /** Emails the customer the payment link. Publishes inside a transaction so the delivery is tracked and retried. */
+    @Transactional
+    void sendPaymentLink(Booking booking, String serviceName, java.math.BigDecimal amount, String currency, String paymentUrl) {
+        var salon = salonContact(booking.salonId());
+        eventPublisher.publishEvent(new BookingPaymentLinkEvent(booking.id(), booking.salonId(), booking.customerName(),
+                booking.customerEmail(), booking.appointmentDate(), booking.startTime(), serviceName, amount, currency,
+                paymentUrl, salon.name(), salon.phone(), salon.email()));
     }
 
     @Transactional

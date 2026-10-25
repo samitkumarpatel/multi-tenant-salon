@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.notification.internal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.booking.BookingCreatedEvent;
+import net.samitkumar.multi_tenant_salon.booking.BookingPaymentLinkEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingRescheduledEvent;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverrideAddedEvent;
@@ -26,6 +27,13 @@ class BookingNotificationListener {
         log.info("[NOTIFICATION → CUSTOMER] Booking #{} received — channel={} customer={}",
                 event.bookingId(), channel, event.customerName());
         notificationService.notifyBookingCreated(event);
+    }
+
+    @ApplicationModuleListener
+    void onBookingPaymentLink(BookingPaymentLinkEvent event) {
+        log.info("[NOTIFICATION → CUSTOMER] Booking #{} payment link — notifying {} <{}>",
+                event.bookingId(), event.customerName(), event.customerEmail());
+        notificationService.notifyBookingPaymentLink(event);
     }
 
     @ApplicationModuleListener

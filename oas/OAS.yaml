@@ -1935,6 +1935,191 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/salon-admin/{salonId}/booking/{bookingId}/payment-link:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/BookingId"
+
+    post:
+      tags: [AdminBooking]
+      summary: Create a payment link for an unpaid appointment (admin / desk)
+      description: |
+        Collects from a customer who did not show up (or any unpaid, non-cancelled appointment). Creates a
+        one-time Stripe Checkout (always a redirect page) on the salon's connected account for the `BOOKING`
+        area and puts the appointment's `paymentStatus` into `PENDING`. Stripe keeps the page open for 24 hours;
+        call again for a fresh link (also allowed after `FAILED`). When `amount` is omitted, a `NO_SHOW` booking is charged the salon's no-show fee (the full price if it has none); anything else the service price. When paid, `paymentStatus` becomes `PAID` and
+        the appointment's `status` is **left as it is** (a `NO_SHOW` stays a no-show; a failed payment does not cancel it).
+        With `sendEmail: true` the customer is also emailed the link (**BookingPaymentLinkEvent**).
+        Open to desk staff while "Appointment management" is on.
+      operationId: createBookingPaymentLink
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  description: Amount to charge; defaults to the service price.
+                sendEmail:
+                  type: boolean
+                  description: Also email the link to the customer (needs an email on the booking).
+                returnUrl:
+                  type: string
+      responses:
+        "200":
+          description: The payment link
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking:
+                    $ref: "#/components/schemas/Booking"
+                  paymentUrl:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+                  emailed:
+                    type: boolean
+        "400":
+          description: Non-positive amount, or `sendEmail` without a customer email
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Appointment is cancelled or already paid, or online payments for bookings are not enabled
+
+  /api/salon-admin/{salonId}/booking/{bookingId}/refund:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/BookingId"
+
+    post:
+      tags: [AdminBooking]
+      summary: Refund the card payment of an appointment (owner only)
+      description: |
+        Sends back the Stripe card payment taken for the appointment (full payment or deposit), typically after
+        cancelling it. Owner only — not available to desk staff. The appointment's `status` is unchanged; a
+        full refund sets `paymentStatus` to `REFUNDED`, a partial one leaves it `PAID`.
+      operationId: refundBooking
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  description: Omit to refund everything not yet refunded.
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Refund issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking:
+                    $ref: "#/components/schemas/Booking"
+                  refunded:
+                    type: number
+                  currency:
+                    type: string
+        "400":
+          description: Non-positive amount
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not paid, or no card payment found (paid in cash / at the desk)
+
+  /api/salon/{salonId}/booking-fee-policy:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminBooking]
+      summary: The salon's no-show fee (public read; also on the admin prefix)
+      description: |
+        No row means type `NONE` and value 0. Also served at `/api/salon-admin/{salonId}/booking-fee-policy`.
+      operationId: getBookingFeePolicy
+      responses:
+        "200":
+          description: The policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingFeePolicy"
+
+  /api/salon-admin/{salonId}/booking-fee-policy:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    put:
+      tags: [AdminBooking]
+      summary: Set the no-show fee (owner only)
+      description: |
+        `PERCENT` is a share (0–100) of the service price, `FIXED` an amount capped at the service price. It is
+        the default amount of the payment link for a no-show (`POST …/booking/{bookingId}/payment-link`).
+        Appointments already paid online (e.g. a deposit) keep their payment and cannot be billed again.
+      operationId: putBookingFeePolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingFeePolicy"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingFeePolicy"
+        "400":
+          description: Percentage outside 0–100, or a non-positive fee for `PERCENT` / `FIXED`
+
+  /api/salon-admin/{salonId}/staff/{staffId}/calendar-color:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - name: staffId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+
+    put:
+      tags: [AdminStaff]
+      summary: Set a stylist's calendar colour (owner or desk staff)
+      description: |
+        The colour the booking calendars draw this stylist's appointments in. `color` is `#RRGGBB` (stored
+        lower-case) or `null` to go back to the app's palette colour. Only this one field is touched, so desk
+        staff may call it (while "Appointment management" is on) without being able to edit the profile.
+        The staff object carries it as `calendarColor`.
+      operationId: setStaffCalendarColor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                color:
+                  type: string
+                  nullable: true
+                  example: "#6366f1"
+      responses:
+        "200":
+          description: The updated staff member
+        "400":
+          description: Not a `#RRGGBB` colour
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Customer — Holidays (read-only) ─────────────────────────────────────────
 
   /api/salon/{salonId}/holidays:
@@ -4920,6 +5105,15 @@ components:
             $ref: "#/components/schemas/ProblemDetail"
 
   schemas:
+    BookingFeePolicy:
+      type: object
+      required: [noShowFeeType, noShowFeeValue]
+      properties:
+        noShowFeeType:
+          type: string
+          enum: [NONE, PERCENT, FIXED]
+        noShowFeeValue:
+          type: number
     StripeConnectStatus:
       type: object
       properties:

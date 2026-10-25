@@ -170,6 +170,7 @@ spring:
         - classpath:db/V24__customer_accounts.sql
         - classpath:db/V25__salon_customer.sql
         - classpath:db/V26__customer_self_service_policy.sql
+        - classpath:db/V27__booking_fee_policy_and_staff_calendar_color.sql
   modulith:
     events:
       jdbc:

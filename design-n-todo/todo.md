@@ -43,3 +43,10 @@ bookings have **no** customer-facing mutation endpoints at all (only `/api/salon
 shop checkout returns a `Location` header pointing at a customer order route that does not exist.
 Blocking question for Phase 2: cancelling a *paid* booking has no refund path, unlike the shop and
 membership.
+
+## No-show protection — deposits and card on file — planned, not started (2026-10-25)
+
+Plan in [no-show-protection.md](no-show-protection.md). Built so far: owner refund of a booking payment,
+per-salon no-show fee, payment link for a no-show, fee shown on the booking page. Next: deposit lifecycle
+and late-cancel rule (Phase 1), then a saved card for automatic charging (Phase 2). Four decisions are
+listed at the top of the page and need an answer before building.

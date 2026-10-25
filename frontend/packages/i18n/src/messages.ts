@@ -1331,6 +1331,45 @@ By placing your order you agree to the salon's refund and sales policies.|Ved at
 By placing your order you agree to the salon's {policies}.|Ved at afgive din ordre accepterer du salonens {policies}.|Genom att lägga din beställning godkänner du salongens {policies}.|Ved å legge inn bestillingen godtar du salongens {policies}.|En passant commande, vous acceptez les {policies} du salon.|Mit Ihrer Bestellung akzeptieren Sie die {policies} des Salons.
 and|og|och|og|et|und
 Shipping methods|Forsendelsesmetoder|Fraktsätt|Fraktmetoder|Modes de livraison|Versandarten
+Request payment|Anmod om betaling|Begär betalning|Be om betaling|Demander un paiement|Zahlung anfordern
+Send {name} a secure link to pay for this appointment.|Send {name} et sikkert link til at betale for denne aftale.|Skicka {name} en säker länk för att betala för den här bokningen.|Send {name} en sikker lenke for å betale for denne avtalen.|Envoyez à {name} un lien sécurisé pour payer ce rendez-vous.|Senden Sie {name} einen sicheren Link zur Bezahlung dieses Termins.
+Email the link to {email}|Send linket til {email}|Skicka länken till {email}|Send lenken til {email}|Envoyer le lien à {email}|Link an {email} senden
+No email on this booking — copy the link and send it yourself.|Ingen e-mail på denne booking — kopiér linket og send det selv.|Ingen e-post på den här bokningen — kopiera länken och skicka den själv.|Ingen e-post på denne bestillingen — kopier lenken og send den selv.|Aucun e-mail sur cette réservation — copiez le lien et envoyez-le vous-même.|Keine E-Mail bei dieser Buchung — kopieren Sie den Link und senden Sie ihn selbst.
+Create payment link|Opret betalingslink|Skapa betalningslänk|Opprett betalingslenke|Créer un lien de paiement|Zahlungslink erstellen
+Creating…|Opretter…|Skapar…|Oppretter…|Création…|Wird erstellt…
+Payment link created.|Betalingslink oprettet.|Betalningslänk skapad.|Betalingslenke opprettet.|Lien de paiement créé.|Zahlungslink erstellt.
+Payment link emailed to {email}.|Betalingslink sendt til {email}.|Betalningslänk skickad till {email}.|Betalingslenke sendt til {email}.|Lien de paiement envoyé à {email}.|Zahlungslink an {email} gesendet.
+The link stays open for 24 hours. Create a new one any time.|Linket er åbent i 24 timer. Opret et nyt når som helst.|Länken är öppen i 24 timmar. Skapa en ny när som helst.|Lenken er åpen i 24 timer. Opprett en ny når som helst.|Le lien reste ouvert 24 heures. Vous pouvez en créer un nouveau à tout moment.|Der Link ist 24 Stunden gültig. Sie können jederzeit einen neuen erstellen.
+Enter an amount greater than zero.|Angiv et beløb større end nul.|Ange ett belopp större än noll.|Angi et beløp større enn null.|Saisissez un montant supérieur à zéro.|Geben Sie einen Betrag größer als null ein.
+Could not create the payment link.|Betalingslinket kunne ikke oprettes.|Det gick inte att skapa betalningslänken.|Kunne ikke opprette betalingslenken.|Impossible de créer le lien de paiement.|Der Zahlungslink konnte nicht erstellt werden.
+Could not copy — select the link and copy it by hand.|Kunne ikke kopiere — markér linket og kopiér det manuelt.|Det gick inte att kopiera — markera länken och kopiera den manuellt.|Kunne ikke kopiere — marker lenken og kopier den manuelt.|Copie impossible — sélectionnez le lien et copiez-le manuellement.|Kopieren nicht möglich — markieren Sie den Link und kopieren Sie ihn manuell.
+Request payment (no-show)|Anmod om betaling (udeblevet)|Begär betalning (utebliven)|Be om betaling (ikke møtt)|Demander un paiement (absent)|Zahlung anfordern (nicht erschienen)
+Refund payment|Refunder betaling|Återbetala betalning|Refunder betaling|Rembourser le paiement|Zahlung erstatten
+Send the card payment from {name}'s appointment back to them. Leave the amount empty to refund everything.|Send kortbetalingen fra {name}s aftale tilbage. Lad beløbet stå tomt for at refundere det hele.|Skicka tillbaka kortbetalningen från {name}s bokning. Lämna beloppet tomt för att återbetala allt.|Send kortbetalingen fra {name}s avtale tilbake. La beløpet stå tomt for å refundere alt.|Renvoyez le paiement par carte du rendez-vous de {name}. Laissez le montant vide pour tout rembourser.|Erstatten Sie die Kartenzahlung für den Termin von {name}. Lassen Sie den Betrag leer, um alles zu erstatten.
+Not now|Ikke nu|Inte nu|Ikke nå|Pas maintenant|Nicht jetzt
+Refunding…|Refunderer…|Återbetalar…|Refunderer…|Remboursement…|Wird erstattet…
+Could not refund this payment.|Betalingen kunne ikke refunderes.|Det gick inte att återbetala betalningen.|Betalingen kunne ikke refunderes.|Impossible de rembourser ce paiement.|Die Zahlung konnte nicht erstattet werden.
+No-show fee|Gebyr ved udeblivelse|Avgift vid uteblivande|Gebyr ved uteblivelse|Frais d'absence|Gebühr bei Nichterscheinen
+What to charge a customer who does not show up. After you mark a no-show you can send them a payment link for this amount. Appointments already paid online keep their payment.|Hvad en kunde, der ikke møder op, skal betale. Når du har markeret en udeblivelse, kan du sende et betalingslink på beløbet. Aftaler, der allerede er betalt online, beholder betalingen.|Vad en kund som inte dyker upp ska betala. När du markerat ett uteblivande kan du skicka en betalningslänk på beloppet. Bokningar som redan betalats online behåller betalningen.|Hva en kunde som ikke møter opp skal betale. Når du har markert en uteblivelse, kan du sende en betalingslenke på beløpet. Avtaler som allerede er betalt på nett beholder betalingen.|Ce que paie un client qui ne se présente pas. Après avoir marqué une absence, vous pouvez lui envoyer un lien de paiement pour ce montant. Les rendez-vous déjà payés en ligne conservent leur paiement.|Was ein nicht erschienener Kunde zahlt. Nach dem Markieren können Sie einen Zahlungslink über diesen Betrag senden. Online bereits bezahlte Termine behalten ihre Zahlung.
+No fee|Intet gebyr|Ingen avgift|Ingen gebyr|Aucuns frais|Keine Gebühr
+Percentage of the service price|Procent af servicens pris|Procent av tjänstens pris|Prosent av tjenestens pris|Pourcentage du prix du service|Prozent des Leistungspreises
+Fixed amount|Fast beløb|Fast belopp|Fast beløp|Montant fixe|Fester Betrag
+per no-show|pr. udeblivelse|per uteblivande|per uteblivelse|par absence|pro Nichterscheinen
+Your no-show fee for this service.|Dit gebyr ved udeblivelse for denne service.|Din avgift vid uteblivande för den här tjänsten.|Ditt gebyr ved uteblivelse for denne tjenesten.|Vos frais d'absence pour ce service.|Ihre Gebühr bei Nichterscheinen für diese Leistung.
+If you miss this appointment without cancelling, the salon may charge a no-show fee of {fee}.|Hvis du ikke møder op til denne aftale uden at aflyse, kan salonen opkræve et gebyr på {fee}.|Om du inte dyker upp till den här bokningen utan att avboka kan salongen ta ut en avgift på {fee}.|Hvis du ikke møter opp til denne avtalen uten å avbestille, kan salongen kreve et gebyr på {fee}.|Si vous manquez ce rendez-vous sans l'annuler, le salon peut facturer des frais d'absence de {fee}.|Wenn Sie diesen Termin ohne Absage versäumen, kann der Salon eine Gebühr von {fee} berechnen.
+All stylists|Alle stylister|Alla stylister|Alle stylister|Tous les stylistes|Alle Stylisten
+Calendar view|Kalendervisning|Kalendervy|Kalendervisning|Vue du calendrier|Kalenderansicht
+Change colour|Skift farve|Byt färg|Bytt farge|Changer la couleur|Farbe ändern
+Pick a colour|Vælg en farve|Välj en färg|Velg en farge|Choisir une couleur|Farbe wählen
+Show {name}|Vis {name}|Visa {name}|Vis {name}|Afficher {name}|{name} anzeigen
+Hide {name}|Skjul {name}|Dölj {name}|Skjul {name}|Masquer {name}|{name} ausblenden
+Show cancelled|Vis aflyste|Visa avbokade|Vis avlyste|Afficher les annulés|Stornierte anzeigen
+Not working|Arbejder ikke|Arbetar inte|Jobber ikke|Ne travaille pas|Arbeitet nicht
+Drag to move|Træk for at flytte|Dra för att flytta|Dra for å flytte|Glisser pour déplacer|Zum Verschieben ziehen
+Move {name} to {where}?|Flyt {name} til {where}?|Flytta {name} till {where}?|Flytt {name} til {where}?|Déplacer {name} vers {where} ?|{name} nach {where} verschieben?
+Could not move the appointment.|Aftalen kunne ikke flyttes.|Det gick inte att flytta bokningen.|Avtalen kunne ikke flyttes.|Impossible de déplacer le rendez-vous.|Der Termin konnte nicht verschoben werden.
++{n} more|+{n} flere|+{n} till|+{n} til|+{n} de plus|+{n} weitere
+Appointment moved.|Aftalen er flyttet.|Bokningen har flyttats.|Avtalen er flyttet.|Rendez-vous déplacé.|Termin verschoben.
 `.trim().split("\n").map((row) => row.split("|"));
 
 export const messages: Record<string, Record<Exclude<Language, "en">, string>> = Object.fromEntries(

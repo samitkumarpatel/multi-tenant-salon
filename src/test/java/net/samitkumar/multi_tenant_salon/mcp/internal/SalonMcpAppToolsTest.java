@@ -373,7 +373,7 @@ class SalonMcpAppToolsTest {
 
     private StaffMember member(Long id, String name, boolean bookable, String... specializations) {
         return new StaffMember(id, salonId, name, null, null, StaffRole.STYLIST, StaffStatus.ACTIVE, false, bookable,
-                null, null, Arrays.stream(specializations).map(StaffMember.Specialization::new).toList(), List.of(), null);
+                null, null, Arrays.stream(specializations).map(StaffMember.Specialization::new).toList(), List.of(), null, null);
     }
 
     private SalonAvailability availability(List<SalonAvailability.DayAvailability> days) {

@@ -63,12 +63,16 @@ public class SalonDeskAccess {
             bookingRule(HttpMethod.POST, "/booking"),
             bookingRule(HttpMethod.PUT, "/booking/{bookingId}"),
             bookingRule(HttpMethod.POST, "/booking/{bookingId}/{action:confirm|cancel|complete|no-show}"),
+            // collecting from a customer who did not show up
+            bookingRule(HttpMethod.POST, "/booking/{bookingId}/payment-link"),
             bookingRule(HttpMethod.GET, "/availability"),
             bookingRule(HttpMethod.GET, "/closures"),
             bookingRule(HttpMethod.GET, "/holidays"),
             // services and staff also feed the till catalogue, so they stay available either way
             rule(HttpMethod.GET, "/services"),
             rule(HttpMethod.GET, "/staff"),
+            // the calendar's stylist colours — anyone at the desk may recolour, nothing else about the profile
+            bookingRule(HttpMethod.PUT, "/staff/{staffId}/calendar-color"),
             bookingRule(HttpMethod.GET, "/staff/{staffId}/availability"),
             bookingRule(HttpMethod.GET, "/staff/{staffId}/availability/overrides"),
             // member check-in and selling memberships
