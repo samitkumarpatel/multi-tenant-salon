@@ -58,6 +58,11 @@ spec:
             # it. Provides ANTHROPIC_API_KEY for the Gen UI chat assistant.
             - secretRef:
                 name: anthropic-secret
+            # client-management-secret (created by create-secrets.sh, shared with the auth
+            # service) provides CLIENT_MANAGEMENT_API_KEY for salon owners' API clients.
+            - secretRef:
+                name: client-management-secret
+                optional: true
             {{- if .Values.secret }}
             - secretRef:
                 name: {{ include "api.fullname" . }}-secret

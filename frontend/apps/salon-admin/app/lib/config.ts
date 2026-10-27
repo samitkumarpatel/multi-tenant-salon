@@ -54,3 +54,11 @@ const HELP_BASE_URL: string =
 export function helpUrl(path = "", lang?: string): string {
   return `${HELP_BASE_URL}/${normalizeLanguage(lang) ?? "en"}/docs${path ? `/${path}` : ""}`;
 }
+
+/** The public API an integration calls with its access token. */
+export const API_URL: string = (import.meta.env.VITE_API_BASE_URL || `https://api.${SALON_DOMAIN}`).replace(/\/$/, "");
+
+/** The API reference for developers on the Help Center. */
+export function developerDocsUrl(lang?: string): string {
+  return `${HELP_BASE_URL}/${normalizeLanguage(lang) ?? "en"}/developer`;
+}

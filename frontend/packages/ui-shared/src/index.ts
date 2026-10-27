@@ -24,3 +24,7 @@ export { BookingPaymentLinkDialog } from "./BookingPaymentLinkDialog";
 export { noShowFeeFor } from "@salon/ui-website";
 export type { BookingFeePolicy } from "@salon/ui-website";
 export type { BookingPaymentLinkDialogProps, BookingPaymentLinkResult } from "./BookingPaymentLinkDialog";
+export { PaymentLinkStatusChip, BookingPaymentLinkHistory, PaymentFollowUps, latestLinkByBooking } from "./BookingPaymentLinks";
+export type {
+  BookingPaymentLink, PaymentFollowUp, PaymentLinkStatus, BookingPaymentLinkHistoryProps, PaymentFollowUpsProps,
+} from "./BookingPaymentLinks";

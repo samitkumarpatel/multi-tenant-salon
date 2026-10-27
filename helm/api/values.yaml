@@ -74,6 +74,9 @@ env:
   # password in plain text in git, and a value in `env` also silently
   # overrides anything supplied via envFrom.
   OAUTH2_ISSUER_URI: "https://auth.salonsaas.org"
+  # The api manages owners' API clients through the auth service inside the cluster; the public
+  # address is refused for /internal/**.
+  AUTHZ_INTERNAL_URL: "http://auth.salon.svc.cluster.local:9000"
 
 # Secret (created out-of-band by helm/pre-req-manifest/create-secrets.sh) holding
 # POSTGRES_PASSWORD for the datasource. azure-postgres-secret → managed Flexible

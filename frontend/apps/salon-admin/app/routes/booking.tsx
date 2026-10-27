@@ -1,6 +1,6 @@
 import { useI18n } from "@salon/i18n";
 import { GuideLink } from "~/components/GuideLink";
-import { useState, useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, useEffect, useRef } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
@@ -16,7 +16,10 @@ import type {
 } from "~/lib/types";
 import InfoBar from "~/components/InfoBar";
 import { Tooltip } from "~/components/Tooltip";
-import { BookingPaymentLinkDialog, noShowFeeFor, Toast, useToast, type BookingFeePolicy } from "@salon/ui-shared";
+import {
+  BookingPaymentLinkDialog, BookingPaymentLinkHistory, PaymentFollowUps, PaymentLinkStatusChip, latestLinkByBooking,
+  noShowFeeFor, Toast, useToast, type BookingFeePolicy, type BookingPaymentLink, type PaymentFollowUp,
+} from "@salon/ui-shared";
 import { CustomerDetailsFields, type ContactMethod } from "@salon/ui-website";
 
 // The sidebar's sub-links only change `?section=…`; the page already holds its data,
@@ -197,6 +200,32 @@ function canRequestPayment(b: Booking) {
   return (b.status === "NO_SHOW" || b.status === "COMPLETED") && b.paymentStatus !== "PAID";
 }
 
+// ── Payment links (what was sent, what is still owed) ─────────────────────────
+
+/** The page's payment-link data, so rows and the detail modal can show it without threading props through every grid. */
+const PaymentLinksContext = createContext<{
+  latest: Map<number, BookingPaymentLink>;
+  loadHistory: (bookingId: number) => Promise<BookingPaymentLink[]>;
+  resend: (bookingId: number, linkId: number) => Promise<unknown>;
+}>({ latest: new Map(), loadHistory: async () => [], resend: async () => null });
+
+/** One appointment's links, refetched whenever the page learns its latest link changed (new, emailed again, paid, expired). */
+function BookingLinkHistorySection({ booking, onNew }: { booking: Booking; onNew?: () => void }) {
+  const { latest, loadHistory, resend } = useContext(PaymentLinksContext);
+  const [links, setLinks] = useState<BookingPaymentLink[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const current = latest.get(booking.id);
+  useEffect(() => {
+    let alive = true;
+    loadHistory(booking.id)
+      .then((l) => { if (alive) { setLinks(l); setError(null); } })
+      .catch((e) => { if (alive) { setLinks([]); setError(e instanceof Error ? e.message : "Could not load payment links."); } });
+    return () => { alive = false; };
+  }, [booking.id, loadHistory, current?.id, current?.status, current?.emailCount]);
+  return <BookingPaymentLinkHistory links={links} customerEmail={booking.customerEmail} error={error} onNew={onNew}
+    onResend={(link) => resend(booking.id, link.id)} />;
+}
+
 // ── Booking detail modal ──────────────────────────────────────────────────────
 
 function BookingDetailModal({
@@ -213,6 +242,7 @@ function BookingDetailModal({
   onRefund: (b: Booking) => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
+  const paymentLinks = useContext(PaymentLinksContext);
   const member  = staffMap.get(booking.staffId);
   const service = serviceMap.get(booking.serviceId);
   const isPast  = new Date(booking.appointmentDate) < new Date(new Date().toDateString());
@@ -309,6 +339,11 @@ function BookingDetailModal({
               <CreditCard className="w-3 h-3" /> {translateUi(booking.status === "NO_SHOW" ? "Request payment (no-show)" : "Request payment")}</button>
           </div>
         )}
+        {(canRequestPayment(booking) || paymentLinks.latest.has(booking.id)) && (
+          <div className="pt-4 border-t border-slate-100 mb-4">
+            <BookingLinkHistorySection booking={booking} onNew={canRequestPayment(booking) ? () => onRequestPayment(booking) : undefined} />
+          </div>
+        )}
 
         <button onClick={() => onDelete(booking)}
           className="flex items-center gap-1 text-[0.65rem] font-medium text-slate-400 hover:text-red-500 cursor-pointer">
@@ -333,6 +368,7 @@ function BookingRow({
   showDate?: boolean;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
+  const paymentLink = useContext(PaymentLinksContext).latest.get(booking.id);
   const member  = staffMap.get(booking.staffId);
   const service = serviceMap.get(booking.serviceId);
   const isPast  = new Date(booking.appointmentDate) < new Date(new Date().toDateString());
@@ -358,6 +394,7 @@ function BookingRow({
         <p className="text-[11px] text-slate-400 truncate">
           {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}
         </p>
+        {paymentLink && <div className="mt-1"><PaymentLinkStatusChip link={paymentLink} /></div>}
       </div>
       {service && (
         <div className="hidden sm:block min-w-0 w-36 shrink-0">
@@ -2131,7 +2168,7 @@ const ADVANCE_OPTIONS = [
   { days: 180, label: "6 months", desc: "Long-term advance" },
 ] as const;
 
-type BookingSection = "appointments" | "availability" | "blocked-dates" | "settings";
+type BookingSection = "appointments" | "payment-links" | "availability" | "blocked-dates" | "settings";
 
 type CreateBookingDraft = { date: string; time: string; staffId: number };
 
@@ -2222,6 +2259,10 @@ const BOOKING_SECTION_META: Record<BookingSection, { label: string; description:
   appointments: {
     label: "Appointments",
     description: "View, confirm, reschedule, cancel, or complete customer appointments.",
+  },
+  "payment-links": {
+    label: "Payment follow-ups",
+    description: "Payment links you have sent: see what is still unpaid, resend or copy a link, or send a new one.",
   },
   availability: {
     label: "Staff availability",
@@ -2501,7 +2542,7 @@ export default function BookingPage() {
   const { toast, notify } = useToast();
 
   const sectionParam = searchParams.get("section");
-  const section: BookingSection = sectionParam === "availability" || sectionParam === "blocked-dates" || sectionParam === "settings"
+  const section: BookingSection = sectionParam === "availability" || sectionParam === "blocked-dates" || sectionParam === "settings" || sectionParam === "payment-links"
     ? sectionParam
     : "appointments";
   const sectionMeta = BOOKING_SECTION_META[section];
@@ -2518,6 +2559,28 @@ export default function BookingPage() {
   const [paymentLinkFee, setPaymentLinkFee] = useState(0);
 
   const sid = salon.id;
+  // The latest payment link of every appointment that has one: drives the status chips and the follow-up list.
+  const [followUps, setFollowUps] = useState<PaymentFollowUp[] | null>(null);
+  const [followUpsError, setFollowUpsError] = useState<string | null>(null);
+  const loadFollowUps = useCallback(async () => {
+    try {
+      setFollowUps(await apiFetch<PaymentFollowUp[]>(`${ADMIN_API}/${sid}/booking/payment-links?status=ALL&limit=200`) ?? []);
+      setFollowUpsError(null);
+    } catch (e) {
+      setFollowUps((current) => current ?? []);
+      setFollowUpsError(e instanceof Error ? e.message : "Could not load payment links.");
+    }
+  }, [sid]);
+  useEffect(() => { void loadFollowUps(); }, [loadFollowUps]);
+  const paymentLinksValue = useMemo(() => ({
+    latest: latestLinkByBooking(followUps),
+    loadHistory: async (bookingId: number) => (await apiFetch<BookingPaymentLink[]>(`${ADMIN_API}/${sid}/booking/${bookingId}/payment-links`)) ?? [],
+    resend: async (bookingId: number, linkId: number) => {
+      const sent = await apiFetch<BookingPaymentLink>(`${ADMIN_API}/${sid}/booking/${bookingId}/payment-links/${linkId}/resend`, { method: "POST" });
+      void loadFollowUps();
+      return sent;
+    },
+  }), [followUps, sid, loadFollowUps]);
   const staffMap = new Map(staff.map((s) => [s.id, s]));
   const serviceMap = new Map(services.map((s) => [s.id, s]));
 
@@ -2551,7 +2614,17 @@ export default function BookingPage() {
     const result = await apiFetch<{ booking: Booking; paymentUrl: string; amount: number; currency: string; emailed: boolean }>(
       `${ADMIN_API}/${sid}/booking/${booking.id}/payment-link`, { method: "POST", body: JSON.stringify(body) });
     setBookings((p) => p.map((b) => b.id === booking.id ? result.booking : b));
+    void loadFollowUps();
     return result;
+  }
+
+  /** "New payment link" from the follow-up list: the appointment may not be in the loaded calendar range, so fetch it if needed. */
+  async function newLinkFor(item: PaymentFollowUp) {
+    try {
+      const booking = bookings.find((b) => b.id === item.link.bookingId)
+        ?? await apiFetch<Booking>(`${ADMIN_API}/${sid}/booking/${item.link.bookingId}`);
+      await openPaymentLink(booking);
+    } catch (e) { notify(e instanceof Error ? e.message : "Could not open the appointment", "error"); }
   }
 
   async function refundBooking(booking: Booking, body: { amount?: number; reason?: string }) {
@@ -2633,7 +2706,7 @@ export default function BookingPage() {
   }
 
   return (
-    <>
+    <PaymentLinksContext.Provider value={paymentLinksValue}>
       <div className="mb-6 space-y-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-xl font-bold text-slate-900">{translateUi("Bookings")}</h1><GuideLink path="bookings/managing-bookings" /></div>
         <p className="text-sm text-slate-500">{sectionMeta.label}</p>
@@ -2650,6 +2723,11 @@ export default function BookingPage() {
           onRefresh={handleRefresh}
           onCreate={(date, time, staffId) => setCreateDraft({ date, time, staffId })}
         />
+      )}
+
+      {section === "payment-links" && (
+        <PaymentFollowUps items={followUps} error={followUpsError} onRefresh={() => void loadFollowUps()}
+          onResend={(item) => paymentLinksValue.resend(item.link.bookingId, item.link.id)} onNew={(item) => void newLinkFor(item)} />
       )}
 
       {section === "availability" && (
@@ -2846,6 +2924,6 @@ export default function BookingPage() {
       )}
 
       <Toast toast={toast} />
-    </>
+    </PaymentLinksContext.Provider>
   );
 }

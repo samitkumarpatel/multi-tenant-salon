@@ -1,11 +1,14 @@
 import { useI18n } from "@salon/i18n";
 import { useState } from "react";
+import type { BookingPaymentLink } from "./BookingPaymentLinks";
 
 export interface BookingPaymentLinkResult {
   paymentUrl: string;
   amount: number;
   currency: string;
   emailed: boolean;
+  /** The recorded link (status, expiry, who sent it) — present when the server tracks payment links. */
+  link?: BookingPaymentLink | null;
 }
 
 export interface BookingPaymentLinkDialogProps {

@@ -27,12 +27,14 @@ class BookingController {
     private final PaymentGateway stripe;
     private final SalonServiceApi services;
     private final BookingFeePolicies feePolicies;
+    private final BookingPaymentLinks paymentLinks;
 
     /** {@code checkoutUrl} for a redirect checkout; {@code checkout} also covers the in-page payment form. */
     record BookingCheckout(Booking booking, String checkoutUrl, PaymentGateway.Checkout checkout) {}
 
     BookingController(BookingService service, SalonApi salonApi, PaymentGateway stripe, SalonServiceApi services,
-                      BookingFeePolicies feePolicies) {
+                      BookingFeePolicies feePolicies, BookingPaymentLinks paymentLinks) {
+        this.paymentLinks = paymentLinks;
         this.service = service;
         this.salonApi = salonApi;
         this.stripe = stripe;
@@ -178,7 +180,8 @@ class BookingController {
     /** {@code amount} defaults to the service price; {@code sendEmail} mails the link to the customer as well. */
     record PaymentLinkRequest(java.math.BigDecimal amount, Boolean sendEmail, String returnUrl) {}
 
-    record PaymentLinkResponse(Booking booking, String paymentUrl, java.math.BigDecimal amount, String currency, boolean emailed) {}
+    record PaymentLinkResponse(Booking booking, String paymentUrl, java.math.BigDecimal amount, String currency, boolean emailed,
+                               BookingPaymentLinks.Link link) {}
 
     /**
      * A one-time Stripe Checkout link for an unpaid appointment — the salon's way to collect from a customer who
@@ -187,11 +190,13 @@ class BookingController {
      */
     @PostMapping("/api/salon-admin/{salonId}/booking/{bookingId}/payment-link")
     PaymentLinkResponse paymentLink(@PathVariable String salonId, @PathVariable Long bookingId,
-                                    @RequestBody(required = false) PaymentLinkRequest request) {
+                                    @RequestBody(required = false) PaymentLinkRequest request,
+                                    @org.springframework.security.core.annotation.AuthenticationPrincipal(errorOnInvalidType = false) org.springframework.security.oauth2.jwt.Jwt jwt) {
         var id = salonApi.resolveId(salonId);
         var booking = service.findById(id, bookingId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
-        stripe.requireEnabled(id, "BOOKING");
+        // Deliberately no check of the Payments tab's "Online bookings" switch: that decides whether customers pay when
+        // they book. Chasing a no-show is the salon's own call and only needs a Stripe account that can take charges.
         var serviceItem = services.findByIdAndSalonId(booking.serviceId(), id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found"));
         // No amount given: a no-show is charged the salon's no-show fee (the whole price when it has none), anything else the price.
@@ -208,18 +213,29 @@ class BookingController {
         }
         var previous = service.beginPaymentLink(id, bookingId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "This appointment is cancelled or already paid"));
-        String url;
+        PaymentGateway.PaymentLink created;
         var currency = serviceItem.currency() == null ? "USD" : serviceItem.currency();
         try {
-            url = stripe.createCheckout(id, new PaymentGateway.CheckoutRequest("BOOKING", String.valueOf(bookingId), amount, currency,
+            created = stripe.createPaymentLink(id, new PaymentGateway.CheckoutRequest("BOOKING", String.valueOf(bookingId), amount, currency,
                     "Appointment payment — " + serviceItem.name(), request == null ? null : request.returnUrl(),
-                    booking.customerEmail(), false)).url();
+                    booking.customerEmail(), false));
         } catch (RuntimeException error) {
             service.abandonPaymentLink(id, bookingId, previous);
             throw error;
         }
-        if (emailRequested) service.sendPaymentLink(booking, serviceItem.name(), amount, currency, url);
-        return new PaymentLinkResponse(service.findById(id, bookingId).orElse(booking), url, amount, currency, emailRequested);
+        var url = created.url();
+        // Keep the link so the salon can follow up on it; any earlier open link for this appointment is retired, and
+        // closed at Stripe so the customer can't pay twice.
+        var actor = jwt == null || jwt.getSubject() == null ? "salon" : jwt.getSubject();
+        var replaced = paymentLinks.record(id, bookingId, created.sessionId(), url, amount, currency, actor);
+        replaced.forEach(session -> stripe.expireCheckout(id, session));
+        var recorded = paymentLinks.bySession(id, created.sessionId()).orElseThrow();
+        if (emailRequested) {
+            service.sendPaymentLink(booking, serviceItem.name(), amount, currency, url);
+            paymentLinks.markEmailed(id, recorded.id(), booking.customerEmail());
+            recorded = paymentLinks.find(id, bookingId, recorded.id()).orElse(recorded);
+        }
+        return new PaymentLinkResponse(service.findById(id, bookingId).orElse(booking), url, amount, currency, emailRequested, recorded);
     }
 
     /** {@code amount} null refunds everything not yet refunded. */

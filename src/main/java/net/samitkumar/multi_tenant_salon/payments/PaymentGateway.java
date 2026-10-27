@@ -30,6 +30,9 @@ public interface PaymentGateway {
     /** The salon's look, taken from its website theme, for styling the payment form. */
     record Branding(String displayName, String primaryColor, String backgroundColor, String fontFamily) {}
 
+    /** A payment link: the page to send the customer, and the Stripe session the salon tracks it by. */
+    record PaymentLink(String sessionId, String url) {}
+
     /** A card payment running on a Stripe Terminal reader at the salon. */
     record TerminalPayment(Long paymentId, String status, Long terminalId, String terminalLabel,
                            BigDecimal amount, String currency, String failureMessage) {}
@@ -41,6 +44,24 @@ public interface PaymentGateway {
 
     /** Starts a one-time Checkout Session on the salon's connected account, recorded in the payment ledger. */
     Checkout createCheckout(UUID salonId, CheckoutRequest request);
+
+    /**
+     * A one-time link the salon sends to collect money it is owed, such as a no-show fee. Unlike
+     * {@link #createCheckout} it does not depend on the area's online-checkout switch: that switch decides whether
+     * customers are asked to pay when they book or buy, and has nothing to say about the salon chasing a payment
+     * afterwards. It needs only a connected Stripe account that can take charges. Always a redirect checkout (the
+     * link is opened from an email or message), whatever {@code request.inlineCheckout()} says. The outcome arrives
+     * as a {@link StripePaymentEvent} for the request's area and reference, exactly like a checkout.
+     *
+     * @throws org.springframework.web.server.ResponseStatusException 409 when the salon has no ready Stripe account
+     */
+    PaymentLink createPaymentLink(UUID salonId, CheckoutRequest request);
+
+    /**
+     * Closes a checkout the customer has not paid, so its link stops working (used when a newer link replaces it).
+     * Best effort: if Stripe can't be reached or the session is already finished, nothing happens and nothing is thrown.
+     */
+    void expireCheckout(UUID salonId, String checkoutSessionId);
 
     /**
      * Sends a payment to one of the salon's card readers. The outcome arrives later as a

@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Service
+@lombok.extern.slf4j.Slf4j
 public class StripeConnectService implements PaymentGateway {
     /**
      * {@code inlineCheckoutAvailable}: the server has a publishable key, so areas can use the embedded or
@@ -333,14 +334,45 @@ public class StripeConnectService implements PaymentGateway {
     // ── Checkout ────────────────────────────────────────────────────────────
 
     @Override public Checkout createCheckout(UUID salonId, CheckoutRequest request) {
+        requireEnabled(salonId, request.area());
+        return startCheckout(salonId, request, request.inlineCheckout(), null).checkout();
+    }
+
+    @Override public PaymentLink createPaymentLink(UUID salonId, CheckoutRequest request) {
+        if (!SalonPaymentSettings.AREAS.contains(request.area())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Unknown payment area");
+        }
+        // One live check of the account instead of requireEnabled's several: the area switch is deliberately not consulted.
+        if (!isReady(salonId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Connect your Stripe account and finish its setup (Payments) to send payment links");
+        }
+        // Unique per link, so asking again always makes a fresh session instead of replaying an old (maybe expired) one.
+        var started = startCheckout(salonId, request, false, UUID.randomUUID().toString());
+        return new PaymentLink(started.sessionId(), started.checkout().url());
+    }
+
+    @Override public void expireCheckout(UUID salonId, String checkoutSessionId) {
+        try {
+            var account = accounts.findById(salonId).orElse(null);
+            if (account == null || checkoutSessionId == null || checkoutSessionId.isBlank()) return;
+            stripe.post("/v1/checkout/sessions/" + checkoutSessionId + "/expire", new LinkedMultiValueMap<>(),
+                    "expire-" + checkoutSessionId, account.stripeAccountId());
+        } catch (RuntimeException e) {
+            log.warn("[StripeConnectService] Could not expire checkout {} for salon {}: {}", checkoutSessionId, salonId, e.toString());
+        }
+    }
+
+    private record Started(Checkout checkout, String sessionId) {}
+
+    private Started startCheckout(UUID salonId, CheckoutRequest request, boolean inlineCheckout, String linkToken) {
         var area = request.area();
-        requireEnabled(salonId, area);
         if (request.amount() == null || request.amount().signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A positive price is required to accept online payment");
         }
         var account = accounts.findById(salonId).orElseThrow();
         var salon = requireSalon(salonId);
-        var ui = checkoutUi(salonId, area, request.inlineCheckout());
+        var ui = checkoutUi(salonId, area, inlineCheckout);
         var reference = request.reference();
         var returnPage = returnPage(salon, area, request.returnUrl());
         var successUrl = paymentReturn(returnPage, "success", reference);
@@ -365,6 +397,7 @@ public class StripeConnectService implements PaymentGateway {
         form.add("metadata[salon_id]", salonId.toString());
         form.add("metadata[payment_area]", area);
         form.add("metadata[payment_reference]", reference);
+        if (linkToken != null) form.add("metadata[payment_link]", linkToken);
         // Copied onto the PaymentIntent so refunds and Stripe's own lists trace back to the salon's record.
         form.add("payment_intent_data[metadata][salon_id]", salonId.toString());
         form.add("payment_intent_data[metadata][payment_area]", area);
@@ -385,11 +418,11 @@ public class StripeConnectService implements PaymentGateway {
         ledger.recordCheckout(salonId, area, reference, ui, request.amount(), request.currency(), request.itemName(),
                 request.customerEmail(), sessionId);
         if (ui == CheckoutUi.REDIRECT) {
-            return new Checkout(ui, (String) session.get("url"), null, null, null, null, null, branding);
+            return new Started(new Checkout(ui, (String) session.get("url"), null, null, null, null, null, branding), sessionId);
         }
-        return new Checkout(ui, null, (String) session.get("client_secret"), stripe.publishableKey(), account.stripeAccountId(),
+        return new Started(new Checkout(ui, null, (String) session.get("client_secret"), stripe.publishableKey(), account.stripeAccountId(),
                 successUrl.replace("{CHECKOUT_SESSION_ID}", sessionId), cancelUrl.replace("{CHECKOUT_SESSION_ID}", sessionId),
-                branding);
+                branding), sessionId);
     }
 
     /** The salon's choice for the area, when the client can show an in-page form and the server can serve one. */

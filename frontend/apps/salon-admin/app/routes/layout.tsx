@@ -6,7 +6,7 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText, Contact, Star } from "lucide-react";
+import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText, Contact, Star, Terminal } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -115,6 +115,7 @@ type SidebarGroup = "booking" | "website";
 
 const BOOKING_SECTIONS = [
   { key: "appointments", label: "Appointments" },
+  { key: "payment-links", label: "Payment follow-ups" },
   { key: "availability", label: "Staff availability" },
   { key: "blocked-dates", label: "Closures" },
   { key: "settings", label: "Settings" },
@@ -480,7 +481,7 @@ export default function Layout() {
   );
 
   const bookingSectionParam = new URLSearchParams(location.search).get("section");
-  const bookingSection = bookingSectionParam === "availability" || bookingSectionParam === "blocked-dates" || bookingSectionParam === "settings"
+  const bookingSection = bookingSectionParam === "availability" || bookingSectionParam === "blocked-dates" || bookingSectionParam === "settings" || bookingSectionParam === "payment-links"
     ? bookingSectionParam
     : "appointments";
 
@@ -831,6 +832,10 @@ export default function Layout() {
           </nav>
 
           <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-0.5">
+            <Tooltip content="Create API clients so your own software can read this salon's data securely.">
+              <NavLink to="developer" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <Terminal className="w-4 h-4 shrink-0" /> {translateUi("Developer")}</NavLink>
+            </Tooltip>
             <Tooltip content="Step-by-step guides for every part of the platform. Opens in a new tab.">
               <a href={helpUrl("", uiLocale)} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors no-underline" onClick={() => setSidebarOpen(false)}>
                 <BookOpen className="w-4 h-4 shrink-0" /> {translateUi("Help Center")}</a>

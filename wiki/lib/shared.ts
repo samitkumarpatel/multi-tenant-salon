@@ -2,6 +2,7 @@ import { createGetUrl } from 'fumadocs-core/source';
 
 export const appName = 'Salon SaaS Help Center';
 export const docsRoute = '/docs';
+export const developerRoute = '/developer';
 export const docsImageRoute = '/og/docs';
 export const docsContentRoute = '/llms.mdx/docs';
 

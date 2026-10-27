@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
+import net.samitkumar.multi_tenant_salon.developer.ApiClientAccess;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
@@ -123,7 +124,11 @@ public class MultiTenantSalonApplication {
 								// got them past this gate.
 								.requestMatchers("/api/salon-staff", "/api/salon-staff/**").hasAnyRole("STAFF", "OWNER")
 								// Not scoped to a single salonId — just needs a valid caller identity.
-								.requestMatchers("/api/salon-admin/my-salons", "/api/salon-admin/my-desk-salons").authenticated()
+								// "Any signed-in user" means a person: a salon's API client token (client_credentials) is not one.
+								.requestMatchers("/api/salon-admin/my-salons", "/api/salon-admin/my-desk-salons").access((authentication, context) ->
+										new AuthorizationDecision(authentication.get() != null && authentication.get().isAuthenticated()
+												&& !(authentication.get() instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)
+												&& !ApiClientAccess.isApiClient(authentication.get())))
 								// Only the {salonId}-templated patterns — NOT a bare "/api/salon-admin/**" catch-all.
 								// RequestMatcherDelegatingAuthorizationManager evaluates matchers in declaration
 								// order and uses the first match's path variables; a wildcard listed ahead of
@@ -141,6 +146,11 @@ public class MultiTenantSalonApplication {
                                     try { target = java.util.UUID.fromString(salonIdParam); }
                                     catch (Exception e) { return new AuthorizationDecision(false); }
                                     var jwt = jwtAuth.getToken();
+                                    // A salon's API client gets its own narrow allowlist and nothing else: it never reaches the
+                                    // owner, desk or super-admin checks below, whatever the request.
+                                    if (ApiClientAccess.isApiClient(jwt)) {
+                                        return new AuthorizationDecision(ApiClientAccess.allows(jwtAuth, salonIdParam, context.getRequest()));
+                                    }
                                     boolean isSuperAdmin = auth.getAuthorities().stream()
                                             .anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()))
                                             && accessPolicy.hasRole(jwt.getSubject(), null, "SUPER_ADMIN");
@@ -152,7 +162,9 @@ public class MultiTenantSalonApplication {
                                     boolean tenantPeopleWrite = !java.util.Set.of("GET", "HEAD", "OPTIONS")
                                             .contains(context.getRequest().getMethod())
                                             && (tenantPath.equals("/staff") || tenantPath.startsWith("/staff/")
-                                            || tenantPath.equals("/customers") || tenantPath.startsWith("/customers/"));
+                                            || tenantPath.equals("/customers") || tenantPath.startsWith("/customers/")
+                                            // API clients are the salon's own credentials: only its owner creates or revokes them.
+                                            || tenantPath.equals("/developer") || tenantPath.startsWith("/developer/"));
                                     // Platform oversight grants read access to people. Only this salon's
                                     // current owner may change customer records or staff identities/access.
                                     boolean allowed = accessPolicy.hasRole(jwt.getSubject(), target, "OWNER")

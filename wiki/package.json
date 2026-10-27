@@ -3,6 +3,9 @@
   "version": "0.0.50",
   "private": true,
   "scripts": {
+    "openapi": "node scripts/prepare-openapi.mjs",
+    "prebuild": "npm run openapi",
+    "predev": "npm run openapi",
     "build": "next build",
     "dev": "next dev",
     "start": "next start",

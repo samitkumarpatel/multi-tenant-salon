@@ -597,6 +597,10 @@ the API reserves for staff JWTs.
 | `POST /api/salon-admin/{salonId}/loyalty/adjustments` | Owner. `{ email, points, note }` — a reason is required, the balance can't go below zero |
 | `GET …/loyalty/redemptions?status=`, `GET …/redemptions/by-code/{code}`, `POST …/redemptions/{id}/use` | Codes. Desk staff may list, look up and hand over (`use` is conditional on `ISSUED`, so a code works once) |
 | `POST …/loyalty/redemptions/{id}/cancel` | Owner. Voids an unused code and refunds the points once |
+| `GET /api/salon-admin/{salonId}/developer/scopes` and `GET …/developer/clients` | Owner (platform admins may read). The scopes an API client can have, and this salon's clients (never secrets) |
+| `POST …/developer/clients` | Owner only. `{ name, scopes }` → `201 { client, clientSecret }` — the secret is returned **once** (`Cache-Control: no-store`). The salon is the URL's, never the body's. Max 5 per salon (`409`) |
+| `POST …/developer/clients/{clientId}/rotate`, `DELETE …/developer/clients/{clientId}` | Owner only. New secret (old one stops at once) / revoke (no new tokens; an issued token lasts ≤15 min) |
+| **API client tokens** (`client_credentials`) | Exchange the client id/secret at `https://auth.salonsaas.org/oauth2/token` (`grant_type=client_credentials&scope=…`) for a 15-minute JWT carrying `client_type=salon-api` and `salon_id`. Read-only and one salon only: GETs under `/api/salon-admin/{ownSalonId}/` allowed per scope (`bookings:read` → `/booking`, `services:read` → `/services`, `staff:read` → `/staff…`, `ratings:read` → `/ratings`, `orders:read` → `/shop/orders|products|inventory`, `customers:read` → `/customers`, `loyalty:read` → `/loyalty`, `/loyalty/rewards|members|member`). Any other salon, endpoint or write is `403`; such a token can never be used on staff, desk, super-admin or `my-salons` routes |
 | `POST /api/salon/{salonId}/account/sign-out` | Header `X-Customer-Session`. → `204`. Revokes the session; idempotent. (POST, not DELETE: custom salon domains only get GET/POST through CORS) |
 
 Sessions last 30 days. Limits and lifetimes are `spring.application.customer.*` (`code-ttl`,
@@ -2324,7 +2328,7 @@ Records that the customer did not attend. Emits **BookingStatusChangedEvent**.
 
 `POST /api/salon-admin/{salonId}/booking/{bookingId}/payment-link`
 
-For a customer who did not show up (any non-cancelled, unpaid appointment). Creates a one-time Stripe Checkout redirect page and sets `paymentStatus` to `PENDING`. Stripe keeps it open 24 hours; call again for a fresh link (also after `FAILED`). Paying sets `paymentStatus` to `PAID` and **leaves `status` alone** — a `NO_SHOW` stays a no-show, and a failed payment never cancels it. Desk staff may call it while "Appointment management" is on.
+For a customer who did not show up (any non-cancelled, unpaid appointment). Needs only a connected Stripe account that can take charges (`409` otherwise) — **not** the Payments tab's "Online bookings" (`BOOKING`) switch, which only governs whether customers pay when they book. Creates a one-time Stripe Checkout redirect page and sets `paymentStatus` to `PENDING`. Stripe keeps it open 24 hours; call again for a fresh link (also after `FAILED`). Paying sets `paymentStatus` to `PAID` and **leaves `status` alone** — a `NO_SHOW` stays a no-show, and a failed payment never cancels it. Desk staff may call it while "Appointment management" is on.
 
 **Request body** (optional)
 
@@ -2337,8 +2341,21 @@ For a customer who did not show up (any non-cancelled, unpaid appointment). Crea
 **Response** `200 OK`
 
 ```json
-{ "booking": { ... }, "paymentUrl": "https://checkout.stripe.com/...", "amount": 40.00, "currency": "EUR", "emailed": true }
+{ "booking": { ... }, "paymentUrl": "https://checkout.stripe.com/...", "amount": 40.00, "currency": "EUR", "emailed": true,
+  "link": { "id": 12, "bookingId": 7, "status": "OPEN", "amount": 40.00, "currency": "EUR", "url": "https://checkout.stripe.com/...",
+            "createdBy": "owner@salon.com", "createdAt": "…", "expiresAt": "…", "paidAt": null,
+            "emailedTo": "jane@example.com", "lastEmailedAt": "…", "emailCount": 1 } }
 ```
+
+Every link is **kept** so the salon and the desk can follow up. Creating a new link replaces the appointment's earlier open one (it becomes `SUPERSEDED` and is closed at Stripe, so the customer can't pay twice).
+
+`GET /api/salon-admin/{salonId}/booking/payment-links?status=OPEN|EXPIRED|PAID|ALL&limit=200` — the latest link of each appointment, newest first: `[{ link, customerName, customerEmail, serviceName, appointmentDate, bookingStatus }]`. `EXPIRED` includes open links past their 24 hours and ones Stripe reported expired or failed.
+
+`GET /api/salon-admin/{salonId}/booking/{bookingId}/payment-links` — every link for one appointment, newest first.
+
+`POST /api/salon-admin/{salonId}/booking/{bookingId}/payment-links/{linkId}/resend` — emails the same link again (only while open). `409` if just emailed (under a minute), expired or paid; `400` without a customer email.
+
+All three are open to the owner and to desk staff while "Appointment management" is on.
 
 **Response** `400` bad amount / no email to send to · `404` not found · `409` cancelled, already paid, or booking payments not enabled
 

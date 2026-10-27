@@ -1,6 +1,11 @@
 spring:
   application:
     name: @project.artifactId@
+    # Salon owners' API clients (OAuth2 client_credentials) are created on the authorization server through its
+    # /internal/clients API, which needs this shared key. Unset: the Developer page reports it is not set up.
+    authz:
+      url: ${AUTHZ_INTERNAL_URL:${OAUTH2_ISSUER_URI:http://localhost:9000}}
+      client-management-key: ${CLIENT_MANAGEMENT_API_KEY:}
     utility:
       static-geo-data: classpath:data/countries.json
       static-currency-data: classpath:data/currencies.json
@@ -175,6 +180,7 @@ spring:
         - classpath:db/V29__login_audit.sql
         - classpath:db/V30__rating_feedback_reply.sql
         - classpath:db/V31__loyalty.sql
+        - classpath:db/V32__booking_payment_links.sql
   modulith:
     events:
       jdbc:

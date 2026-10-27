@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "wiki/**"
+      - "oas/OAS.yaml" # the /developer page publishes (a filtered copy of) the API spec
       - ".github/workflows/deploy-help.yml"
   workflow_dispatch:
 

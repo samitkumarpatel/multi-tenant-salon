@@ -59,6 +59,8 @@ servers:
     description: Local development server
 
 tags:
+  - name: Developer
+    description: Owner-managed API clients (OAuth2 client_credentials) that let a salon's own software read that salon's data. Owner only.
   - name: Loyalty
     description: Points earned on completed appointments and paid shop orders, redeemed for owner-defined rewards. Needs the `LOYALTY_PROGRAM` feature.
   - name: Ratings
@@ -1954,6 +1956,9 @@ paths:
         call again for a fresh link (also allowed after `FAILED`). When `amount` is omitted, a `NO_SHOW` booking is charged the salon's no-show fee (the full price if it has none); anything else the service price. When paid, `paymentStatus` becomes `PAID` and
         the appointment's `status` is **left as it is** (a `NO_SHOW` stays a no-show; a failed payment does not cancel it).
         With `sendEmail: true` the customer is also emailed the link (**BookingPaymentLinkEvent**).
+        Needs only a connected Stripe account that can take charges (`409` "Connect your Stripe account…" otherwise).
+        It does **not** depend on the Payments tab's `BOOKING` ("Online bookings") switch, which only governs whether
+        customers pay when they book.
         Open to desk staff while "Appointment management" is on.
       operationId: createBookingPaymentLink
       requestBody:
@@ -1989,12 +1994,81 @@ paths:
                     type: string
                   emailed:
                     type: boolean
+                  link:
+                    $ref: "#/components/schemas/BookingPaymentLink"
         "400":
           description: Non-positive amount, or `sendEmail` without a customer email
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Appointment is cancelled or already paid, or online payments for bookings are not enabled
+          description: Appointment is cancelled or already paid, or the salon has no Stripe account that can take charges
+
+  /api/salon-admin/{salonId}/booking/payment-links:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminBooking]
+      summary: Payment links to follow up on (admin / desk)
+      description: |
+        The latest payment link of each appointment, newest first, with the customer and appointment it is for.
+        `status` is `OPEN` (waiting for the customer), `EXPIRED` (open links past their 24 hours, plus links Stripe
+        reported expired or failed), `PAID` or `ALL` (default). Open to desk staff while "Appointment management" is on.
+      operationId: listBookingPaymentLinks
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [OPEN, EXPIRED, PAID, ALL], default: ALL } }
+        - { in: query, name: limit, schema: { type: integer, default: 200, maximum: 500 } }
+      responses:
+        "200":
+          description: "`[{ link, customerName, customerEmail, serviceName, appointmentDate, bookingStatus }]`"
+        "400":
+          description: Unknown status
+
+  /api/salon-admin/{salonId}/booking/{bookingId}/payment-links:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/BookingId"
+    get:
+      tags: [AdminBooking]
+      summary: Every payment link sent for one appointment
+      description: Newest first, including replaced (`SUPERSEDED`) and expired ones. Open to desk staff.
+      operationId: listAppointmentPaymentLinks
+      responses:
+        "200":
+          description: The links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BookingPaymentLink"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/salon-admin/{salonId}/booking/{bookingId}/payment-links/{linkId}/resend:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/BookingId"
+      - { in: path, name: linkId, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [AdminBooking]
+      summary: Email the same payment link to the customer again
+      description: |
+        Only while the link is open. `409` if it was emailed less than a minute ago, has expired, or is paid (send a new
+        link instead); `400` if the customer has no email. Open to desk staff.
+      operationId: resendBookingPaymentLink
+      responses:
+        "200":
+          description: The link, with `emailCount` and `lastEmailedAt` updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingPaymentLink"
+        "400":
+          description: No customer email
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Just emailed, expired, or already paid
 
   /api/salon-admin/{salonId}/booking/{bookingId}/refund:
     parameters:
@@ -4390,6 +4464,79 @@ paths:
         "409":
           description: Not enough points, or the programme is not running
 
+  /api/salon-admin/{salonId}/developer/scopes:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Developer]
+      summary: The scopes an API client can be given
+      description: "`[{ scope, description, personalData }]` — the checkbox list on the Developer page."
+      operationId: developerScopes
+      responses:
+        "200":
+          description: Scopes
+
+  /api/salon-admin/{salonId}/developer/clients:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Developer]
+      summary: This salon's API clients
+      description: Never includes secrets (only a hash is stored). Platform admins may read; only the owner changes.
+      operationId: developerListClients
+      responses:
+        "200":
+          description: "`[{ clientId, name, salonId, scopes, createdBy, createdAt, secretRotatedAt }]`"
+        "502":
+          description: The authorization server is unavailable
+        "503":
+          description: API clients are not set up on this server
+    post:
+      tags: [Developer]
+      summary: Create an API client (owner only)
+      description: >
+        `{ name (max 80), scopes: [...] }`. The salon is the one in the URL, never taken from the body. Returns
+        `{ client, clientSecret }` — **the secret is shown only in this response** (`Cache-Control: no-store`).
+        Max 5 active clients per salon (`409`).
+      operationId: developerCreateClient
+      responses:
+        "201":
+          description: Created, with the one-time secret
+        "400":
+          description: Missing name, no scopes, or an unknown scope
+        "409":
+          description: The salon already has the maximum number of clients
+
+  /api/salon-admin/{salonId}/developer/clients/{clientId}/rotate:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: clientId, required: true, schema: { type: string } }
+    post:
+      tags: [Developer]
+      summary: Issue a new secret (owner only)
+      description: The old secret stops working at once. The new one is returned once.
+      operationId: developerRotateClient
+      responses:
+        "200":
+          description: "`{ client, clientSecret }`"
+        "404":
+          description: No such client in this salon
+
+  /api/salon-admin/{salonId}/developer/clients/{clientId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: clientId, required: true, schema: { type: string } }
+    delete:
+      tags: [Developer]
+      summary: Revoke an API client (owner only)
+      description: No new tokens can be issued; a token already issued works until it expires (15 minutes).
+      operationId: developerRevokeClient
+      responses:
+        "204":
+          description: Revoked
+        "404":
+          description: No such client in this salon
+
   /api/salon-admin/{salonId}/loyalty:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -5318,6 +5465,27 @@ paths:
 components:
 
   securitySchemes:
+    ClientCredentials:
+      type: oauth2
+      description: |
+        For a salon's own software (no person involved). Create a client under Developer in the salon admin app, then
+        exchange its client id and secret at the token URL for a 15-minute access token, and send it as a Bearer token.
+        A client belongs to ONE salon and is read-only: it can call only the GET endpoints listed per scope below,
+        and only under `/api/salon-admin/{its own salonId}/`. Everything else, including every write, answers 403.
+        Scope to endpoints: `bookings:read` `/booking`; `services:read` `/services`; `staff:read` `/staff`
+        (and availability); `ratings:read` `/ratings`; `orders:read` `/shop/orders`, `/shop/products`, `/shop/inventory`;
+        `customers:read` `/customers`; `loyalty:read` `/loyalty`, `/loyalty/rewards`, `/loyalty/members`, `/loyalty/member`.
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.salonsaas.org/oauth2/token
+          scopes:
+            bookings:read: Appointments
+            services:read: The service catalogue
+            staff:read: The team roster and availability
+            ratings:read: Customer ratings and feedback
+            orders:read: Shop orders, products and stock (personal data)
+            customers:read: The customer list with contact details (personal data)
+            loyalty:read: Loyalty programme, rewards and members' balances (personal data)
     BearerAuth:
       type: http
       scheme: bearer
@@ -6710,6 +6878,26 @@ components:
         xVisible:
           type: boolean
           description: Show the X icon in the website footer. When true with no URL set, the icon renders disabled.
+
+    BookingPaymentLink:
+      type: object
+      description: >
+        A payment link the salon sent for an appointment. A new link replaces the earlier open one (`SUPERSEDED`, and
+        closed at Stripe). An `OPEN` link reads as `EXPIRED` once `expiresAt` has passed.
+      properties:
+        id: { type: integer, format: int64 }
+        bookingId: { type: integer, format: int64 }
+        status: { type: string, enum: [OPEN, PAID, EXPIRED, SUPERSEDED] }
+        amount: { type: number }
+        currency: { type: string }
+        url: { type: string, description: The Stripe Checkout page to send the customer. }
+        createdBy: { type: string, description: Who sent it (their sign-in email). }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time, nullable: true }
+        emailedTo: { type: string, nullable: true }
+        lastEmailedAt: { type: string, format: date-time, nullable: true }
+        emailCount: { type: integer }
 
     OperatingHours:
       type: object

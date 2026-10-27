@@ -222,8 +222,9 @@ function StepService({
               {translateUi("No services match “{query}”.", { query })}
             </p>
           ) : (
-            <div className="relative">
-              <div className="space-y-2 overflow-y-auto pr-1 max-h-[45dvh] sm:max-h-[400px]">
+            <div>
+              {/* No inner scroller: the page scrolls, so every service stays easy to reach and tap. */}
+              <div className="space-y-2">
                 {filtered.map((s) => {
                   const isSel = selected?.id === s.id;
                   return (
@@ -263,17 +264,13 @@ function StepService({
                   );
                 })}
               </div>
-              {/* Scroll-hint gradient — visible when list overflows */}
-              {services.length > 4 && (
-                <div className="pointer-events-none absolute bottom-0 left-0 right-1 h-10 bg-gradient-to-t from-white to-transparent" />
-              )}
             </div>
           )}
         </>
       )}
 
-      {/* Sticky Next button — sticks to bottom of the main scroll area */}
-      <div className="sticky bottom-0 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 mt-4 bg-white border-t border-slate-100 rounded-b-2xl px-5 sm:px-6 pb-5 sm:pb-6 pt-3">
+      {/* Sticky Next button — stays at the bottom of the screen while the list scrolls, then rests at the end of the card */}
+      <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 mt-4 bg-white border-t border-slate-100 rounded-b-2xl px-5 sm:px-6 pb-5 sm:pb-6 pt-3">
         <button
           onClick={onNext}
           disabled={!selected}
@@ -1798,8 +1795,11 @@ export function BookingWizard({
     }
   }
 
+  // The page scrolls as one document (sticky header on top, the site footer after the content). A fixed-height shell with
+  // its own scroller squeezed every step into the small band between header and footer, and the service list then added a
+  // second, capped scroller inside it.
   return (
-    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden" style={{ fontFamily: fontStackCss }}>
+    <div className="min-h-[100dvh] bg-slate-50 flex flex-col" style={{ fontFamily: fontStackCss }}>
       {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={service ? service.name : undefined}
                                               customerEmail={form.email || null} />}
       {/* Accent ribbon */}
@@ -1811,7 +1811,7 @@ export function BookingWizard({
 
       {/* Body */}
       <main
-        className="flex-1 flex items-start justify-center px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto"
+        className="flex-1 flex items-start justify-center px-4 sm:px-6 py-4 sm:py-6"
         style={{ background: `radial-gradient(80% 50% at 50% 0%, ${accent.color}0a, transparent 70%)` }}
       >
         {/* Step 2 hosts the calendar grids — stretch to align with header/footer */}

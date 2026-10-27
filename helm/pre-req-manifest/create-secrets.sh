@@ -94,6 +94,24 @@ kubectl create secret generic mailjet-secret \
 
 echo "mailjet-secret created/updated"
 
+# ── client-management-secret ──────────────────────────────────────────────────
+# The shared key between the api and the auth service (multi-tenant-salon-authz) for
+# salon owners' API clients: the api sends it as X-Internal-Api-Key to authz's
+# /internal/clients. Both charts mount it via envFrom (optional, so a cluster without
+# it still starts; the Developer page then reports API clients as not set up).
+# Created once and then left alone: re-running must not silently rotate it, because
+# the two pods only read it at start-up. To rotate, delete the secret and re-run, then
+# restart both deployments. Supply CLIENT_MANAGEMENT_API_KEY, or one is generated.
+
+if kubectl get secret client-management-secret --namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "client-management-secret already exists, leaving it as is"
+else
+  kubectl create secret generic client-management-secret \
+    --namespace "$NAMESPACE" \
+    --from-literal=CLIENT_MANAGEMENT_API_KEY="${CLIENT_MANAGEMENT_API_KEY:-$(openssl rand -base64 48 | tr -d '\n')}"
+  echo "client-management-secret created"
+fi
+
 # ── anthropic-secret ──────────────────────────────────────────────────────────
 # Used by the api pod for the Gen UI chat assistant (Spring AI's Anthropic
 # starter reads ANTHROPIC_API_KEY directly) — mounted via envFrom.

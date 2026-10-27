@@ -65,6 +65,10 @@ public class SalonDeskAccess {
             bookingRule(HttpMethod.POST, "/booking/{bookingId}/{action:confirm|cancel|complete|no-show}"),
             // collecting from a customer who did not show up
             bookingRule(HttpMethod.POST, "/booking/{bookingId}/payment-link"),
+            // following up on the links already sent: what is outstanding, an appointment's history, sending one again
+            bookingRule(HttpMethod.GET, "/booking/payment-links"),
+            bookingRule(HttpMethod.GET, "/booking/{bookingId}/payment-links"),
+            bookingRule(HttpMethod.POST, "/booking/{bookingId}/payment-links/{linkId}/resend"),
             bookingRule(HttpMethod.GET, "/availability"),
             bookingRule(HttpMethod.GET, "/closures"),
             bookingRule(HttpMethod.GET, "/holidays"),
