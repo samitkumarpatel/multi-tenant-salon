@@ -2,6 +2,7 @@ import { useI18n } from "@salon/i18n";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Shield, Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { AdminHeader } from "~/components/AdminHeader";
 import { AppLogo } from "@salon/ui-shared";
 import { SUPER_ADMIN_EMAIL, DUMMY_OTP, SALON_DOMAIN } from "~/lib/types";
 import {
@@ -85,11 +86,7 @@ function MockLogin() {
 
   return (
     <div className="h-[100dvh] bg-stone-50 flex flex-col overflow-y-auto">
-      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-6 shrink-0">
-        <AppLogo size={24} textColor="#e2e8f0" />
-        <span className="ml-3 text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded">
-          {translateUi("Super Admin ")}</span>
-      </header>
+      <AdminHeader />
 
       <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
         <div className="w-full max-w-[360px]">
@@ -259,11 +256,7 @@ function OAuth2Login() {
 
   return (
     <div className="h-[100dvh] bg-stone-50 flex flex-col overflow-y-auto">
-      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-6 shrink-0">
-        <AppLogo size={24} textColor="#e2e8f0" />
-        <span className="ml-3 text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded">
-          {translateUi("Super Admin ")}</span>
-      </header>
+      <AdminHeader />
 
       <div className="flex flex-1 items-start justify-center px-4 pt-14 pb-10">
         <div className="w-full max-w-[360px]">

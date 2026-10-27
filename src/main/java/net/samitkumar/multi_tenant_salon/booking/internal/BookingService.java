@@ -653,8 +653,10 @@ class BookingService implements BookingApi {
 
         Long staffId;
         if (requestedStaffId != null) {
-            staffApi.findByIdAndSalonId(requestedStaffId, salonId)
+            var requestedStaff = staffApi.findByIdAndSalonId(requestedStaffId, salonId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Staff member not found"));
+            if (requestedStaff.status() == net.samitkumar.multi_tenant_salon.staff.StaffStatus.INACTIVE && requestedStaff.email() == null)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This staff member is no longer available.");
             staffId = requestedStaffId;
         } else {
             var slots = findAvailableSlots(salonId, serviceId, appointmentDate, null);

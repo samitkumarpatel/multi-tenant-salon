@@ -542,21 +542,23 @@ export function SalonErrorPage({ is404 }: { is404: boolean }) {
       `}</style>
       <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.035, backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "28px 28px" }} />
       <div className="scissors-float mb-8"><div className="scissors-snip text-6xl leading-none">✂️</div></div>
-      <p className="font-black leading-none mb-3 pointer-events-none" style={{ fontSize: "clamp(88px,22vw,172px)", color: "transparent", WebkitTextStroke: "2px #1E293B", letterSpacing: "-6px" }}>
-        {is404 ? "404" : "500"}
-      </p>
-      <h1 className="text-xl sm:text-2xl font-bold text-white mb-3 leading-snug">{is404 ? translateUi("This chair's vacant.") : translateUi("Something snapped.")}</h1>
+      {!is404 && (
+        <p className="font-black leading-none mb-3 pointer-events-none" style={{ fontSize: "clamp(88px,22vw,172px)", color: "transparent", WebkitTextStroke: "2px #1E293B", letterSpacing: "-6px" }}>
+          500
+        </p>
+      )}
+      <h1 className="text-xl sm:text-2xl font-bold text-white mb-3 leading-snug">{is404 ? translateUi("Salon not found") : translateUi("Something snapped.")}</h1>
       <p className="text-sm text-slate-400 leading-relaxed max-w-xs mb-10">
         {is404 ? translateUi("We couldn't find the salon you're looking for. The link might be wrong, or the salon may have moved.")
           : translateUi("An unexpected error occurred while loading this page. Refresh or try again in a moment.")}
       </p>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <a href="/" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white text-slate-900 text-sm font-semibold no-underline hover:opacity-90 transition-opacity">{translateUi("← Go home")}</a>
-        {!is404 && (
+      {!is404 && (
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <a href="/" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white text-slate-900 text-sm font-semibold no-underline hover:opacity-90 transition-opacity">{translateUi("← Go home")}</a>
           <button onClick={() => window.location.reload()} className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-slate-700 text-slate-300 text-sm font-semibold hover:bg-slate-800/60 transition-colors cursor-pointer">
             {translateUi("↻ Try again ")}</button>
-        )}
-      </div>
+        </div>
+      )}
       <p className="absolute bottom-7 text-[11px] font-medium tracking-widest uppercase text-slate-700">{SALON_DOMAIN}</p>
     </div>
   );
@@ -1203,7 +1205,13 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                             </div>
                             <p className="text-xs font-bold text-slate-900 leading-tight truncate w-full">{m.name}</p>
                             <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{translateUi(STAFF_ROLE_LABEL[m.role] ?? m.role)}</p>
-                            {typeof m.rating === "number" && (m.reviewCount ?? 0) > 0 && <span className="text-[10px] font-semibold text-slate-600" aria-label={`${m.rating.toFixed(1)} out of 5 from ${m.reviewCount} ratings`}><span className="text-amber-400" aria-hidden="true">★</span> {m.rating.toFixed(1)} <span className="font-normal text-slate-400">({m.reviewCount})</span></span>}
+                            <div className="flex min-h-4 items-center justify-center text-[10px] leading-4">
+                              {typeof m.rating === "number" && (m.reviewCount ?? 0) > 0 ? (
+                                <span className="font-semibold text-slate-600" aria-label={`${m.rating.toFixed(1)} out of 5 from ${m.reviewCount} ratings`}><span className="text-amber-400" aria-hidden="true">★</span> {m.rating.toFixed(1)} <span className="font-normal text-slate-400">({m.reviewCount})</span></span>
+                              ) : (
+                                <span className="text-slate-400">{translateUi("No reviews yet")}</span>
+                              )}
+                            </div>
                             {photos + videos > 0 ? (
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
                                 {photos > 0 && <span className="inline-flex items-center gap-0.5"><Images className="w-2.5 h-2.5" />{photos}</span>}
@@ -1215,10 +1223,12 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                               <span className="text-[10px] font-medium text-slate-300" aria-hidden="true">-</span>
                             )}
                             {hasBooking && (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); bookWithStaff(m); }}
-                                className="mt-1 w-full inline-flex items-center justify-center text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer"
-                                style={{ backgroundColor: theme.accentColor, color: accentText }}>
-                                {translateUi("Book ")}</button>
+                              <div className="mt-auto w-full pt-1">
+                                <button type="button" onClick={(e) => { e.stopPropagation(); bookWithStaff(m); }}
+                                  className="w-full inline-flex items-center justify-center text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer"
+                                  style={{ backgroundColor: theme.accentColor, color: accentText }}>
+                                  {translateUi("Book ")}</button>
+                              </div>
                             )}
                           </div>
                         );
@@ -1285,7 +1295,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                               <div className="min-w-0">
                                 <p className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[150px] sm:max-w-[190px]">{m.name}</p>
                                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{translateUi(STAFF_ROLE_LABEL[m.role] ?? m.role)}</p>
-                                {typeof m.rating === "number" && (m.reviewCount ?? 0) > 0 && <p className="mt-0.5 text-[10px] font-semibold text-slate-600" aria-label={`${m.rating.toFixed(1)} out of 5 from ${m.reviewCount} ratings`}><span className="text-amber-400" aria-hidden="true">★</span> {m.rating.toFixed(1)} <span className="font-normal text-slate-400">({m.reviewCount})</span></p>}
+                                {typeof m.rating === "number" && (m.reviewCount ?? 0) > 0 ? (
+                                  <p className="mt-0.5 text-[10px] font-semibold text-slate-600" aria-label={`${m.rating.toFixed(1)} out of 5 from ${m.reviewCount} ratings`}><span className="text-amber-400" aria-hidden="true">★</span> {m.rating.toFixed(1)} <span className="font-normal text-slate-400">({m.reviewCount})</span></p>
+                                ) : (
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{translateUi("No reviews yet")}</p>
+                                )}
                                 {hint && (
                                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
                                     {workMedia.length > 0

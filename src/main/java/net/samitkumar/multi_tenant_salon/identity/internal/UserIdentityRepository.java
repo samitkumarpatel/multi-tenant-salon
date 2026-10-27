@@ -25,7 +25,7 @@ class UserIdentityRepository implements UserIdentityApi {
     public Optional<UserIdentity> findByEmail(String email) {
         log.info("Finding user identity for email: {}", email);
         List<SalonAccess> salons = jdbcClient
-                .sql("SELECT salon_id, role, active FROM user_identity WHERE email = :email")
+                .sql("SELECT salon_id, role, active FROM user_identity WHERE lower(btrim(email)) = lower(btrim(:email))")
                 .param("email", email)
                 .query((rs, _) -> new SalonAccess(
                         rs.getObject("salon_id", UUID.class),

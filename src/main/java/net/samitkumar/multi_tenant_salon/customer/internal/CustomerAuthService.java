@@ -157,7 +157,7 @@ class CustomerAuthService {
     String requireEmail(UUID salonId, String token) {
         if (!StringUtils.hasText(token)) throw unauthenticated();
         var now = Instant.now();
-        return jdbc.sql("""
+        var email = jdbc.sql("""
                         UPDATE customer_session SET last_seen_at = :now
                         WHERE token_hash = :hash AND salon_id = :salon AND revoked_at IS NULL AND expires_at > :now
                         RETURNING email""")
@@ -165,6 +165,7 @@ class CustomerAuthService {
                 .query(String.class)
                 .optional()
                 .orElseThrow(CustomerAuthService::unauthenticated);
+        return email;
     }
 
     /** Ends the session; signing out twice, or with a dead token, is not an error. */

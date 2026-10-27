@@ -41,11 +41,13 @@ class LanguageSettingsIntegrationTest {
         handler = "languages-" + salonId;
         jdbc.update("INSERT INTO salon(id, name, handler, created_at) VALUES (?, 'Language test', ?, now())", salonId, handler);
         adminPath = "/api/salon-admin/" + salonId + "/languages";
+        // Live authorization requires a real owner grant, not only synthetic JWT claims.
+        jdbc.update("UPDATE salon SET owner_email='owner@fixtures.test' WHERE id=?", salonId);
         client = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
         when(decoder.decode(anyString())).thenAnswer(invocation -> {
             String token = invocation.getArgument(0);
             String role = token.equals("staff") ? "STAFF" : "OWNER";
-            return Jwt.withTokenValue(token).header("alg", "RS256").subject(token)
+            return Jwt.withTokenValue(token).header("alg", "RS256").subject(token + "@fixtures.test")
                     .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300))
                     .claim("roles", List.of(role)).claim("salons", List.of(Map.of("salonId",
                             token.equals("other") ? UUID.randomUUID().toString() : salonId.toString(),

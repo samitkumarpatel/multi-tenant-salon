@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +38,7 @@ import static org.awaitility.Awaitility.await;
 class CustomerDirectoryIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
+    @Autowired net.samitkumar.multi_tenant_salon.rating.RatingApi ratings;
     @Autowired ApplicationEventPublisher publisher;
     @Autowired PlatformTransactionManager transactionManager;
 
@@ -115,6 +117,8 @@ class CustomerDirectoryIntegrationTest {
         var date = LocalDate.now().plusDays(3);
         long upcoming = booking(salonId, "dana@example.com", date, "CONFIRMED");
         long past = booking(salonId, "Dana@example.com", LocalDate.now().minusDays(10), "COMPLETED");
+        String reviewToken = ratings.issueInvitation(past, salonId, staffId);
+        client.get().uri("/api/public/rating/" + reviewToken).exchange().expectStatus().isOk();
         long theirOrder = order(salonId, "dana@example.com", "SO-2001");
         jdbc.update("INSERT INTO shop_order_activity (order_id, salon_id, type, message, actor, subject, body, created_at) " +
                 "VALUES (?, ?, 'CUSTOMER_NOTIFIED', 'x', 'system', 'Hi Dana Dunn', 'Ships to 1 Main St', now())", theirOrder, salonId);
@@ -144,6 +148,9 @@ class CustomerDirectoryIntegrationTest {
         assertThat(JsonPath.<Boolean>read(get(salonId, dana), "$.canDelete")).isTrue();
         client.delete().uri("/api/salon-admin/{id}/customers/{c}", salonId, dana).exchange().expectStatus().isNoContent();
         client.delete().uri("/api/salon-admin/{id}/customers/{c}", salonId, dana).exchange().expectStatus().isNotFound();
+        client.get().uri("/api/public/rating/" + reviewToken).exchange().expectStatus().isNotFound();
+        client.post().uri("/api/public/rating/" + reviewToken).contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("salonRating", 5, "staffRating", 5)).exchange().expectStatus().isBadRequest();
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM salon_customer WHERE id = ?", Integer.class, dana)).isZero();
         for (long id : new long[]{upcoming, past}) {

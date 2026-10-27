@@ -2,7 +2,7 @@ import type { SalonLanguages, LanguagePolicy } from "@salon/i18n";
 import { useEffect } from "react";
 import { Outlet, useLoaderData, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE } from "@salon/ui-website";
+import { SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE, isNotFoundError } from "@salon/ui-website";
 import type { Salon, StaffMember, ServiceItem, WebsiteTheme, SalonPolicy } from "@salon/ui-website";
 import { AnalyticsTracker } from "../components/AnalyticsTracker";
 import { tenantHost } from "../lib/tenant-host";
@@ -73,8 +73,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
     return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, websitePolicies, bookingPolicies, canonicalOrigin, languagePolicy: languages.website, languageScope: String(salon.id) };
   } catch (err) {
-    const is404 = err instanceof Error && /HTTP 404|not found/i.test(err.message);
-    return { status: is404 ? "not_found" : "error" };
+    return { status: isNotFoundError(err) ? "not_found" : "error" };
   }
 }
 

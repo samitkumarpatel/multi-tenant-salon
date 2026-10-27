@@ -13,6 +13,8 @@ interface StaffRepository extends ListCrudRepository<StaffMember, Long> {
     List<StaffMember> findBySalonId(UUID salonId);
     List<StaffMember> findBySalonIdAndAvailableForBookingTrue(UUID salonId);
     List<StaffMember> findByEmail(String email);
+    @Query("SELECT sm.* FROM staff_member sm JOIN salon s ON s.id = sm.salon_id WHERE lower(btrim(sm.email)) = :email AND s.status = 'ACTIVE'")
+    List<StaffMember> findByCanonicalEmail(String email);
 
     /** A targeted update, so recolouring never rewrites the profile's child rows. */
     @Modifying

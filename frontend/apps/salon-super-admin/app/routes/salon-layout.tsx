@@ -1,18 +1,18 @@
+import { AdminHeader } from "~/components/AdminHeader";
 import { useI18n } from "@salon/i18n";
 import { useState, useEffect } from "react";
 import { Link, NavLink, Outlet, useNavigate, redirect } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import {
-  ArrowLeft, Shield, LogOut, LayoutDashboard, Pencil,
-  Scissors, Users, CalendarDays, CalendarCheck, Menu, X,
+  ArrowLeft, Shield, LayoutDashboard, Pencil,
+  Scissors, Users, CalendarDays, CalendarCheck,
 } from "lucide-react";
-import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
+import { Toast, useToast } from "@salon/ui-shared";
 import { apiFetch, ADMIN_API } from "~/lib/api";
 import type { Salon, SalonManageContext } from "~/lib/types";
 import {
   getSession,
-  getAccessTokenExpiry,
   logout as authLogout,
   startSilentRenewLoop,
   startOAuth2Login,
@@ -28,6 +28,7 @@ const NAV = [
   { label: "Overview",   icon: LayoutDashboard, to: "" },
   { label: "Edit Details", icon: Pencil,        to: "edit" },
   { label: "Services",   icon: Scissors,        to: "services" },
+  { label: "Customers", icon: Users, to: "customers" },
   { label: "Staff",      icon: Users,           to: "staff" },
   { label: "Holidays",   icon: CalendarDays,    to: "holidays" },
   { label: "Bookings",   icon: CalendarCheck,   to: "bookings" },
@@ -39,15 +40,7 @@ export default function SalonLayout() {
   const [salon, setSalon] = useState<Salon>(initial);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
-  const session = getSession();
   const { toast, notify } = useToast();
-  // getAccessTokenExpiry() is read once here and then only ever updated by
-  // the renew loop below — a silent renew rewrites localStorage but doesn't
-  // otherwise touch React state, so without this the header badge would
-  // keep counting down to the pre-renewal expiry and flash "Expired".
-  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
-  const [renewing, setRenewing] = useState(false);
-
   // Steps 8-13: keep the access token alive via hidden-iframe silent renew
   // for as long as the AS session cookie stays valid. Once that cookie has
   // actually expired the iframe comes back empty-handed, so fall back to a
@@ -55,17 +48,13 @@ export default function SalonLayout() {
   // just start failing with 401s.
   useEffect(() => {
     return startSilentRenewLoop(
-      (expiresAt) => {
-        setRenewing(false);
-        setTokenExpiry(expiresAt);
+      () => {
         notify("Session renewed");
       },
       () => {
-        setRenewing(false);
         notify("Your session expired — signing you in again…", "error");
         setTimeout(() => startOAuth2Login(), 1200);
-      },
-      () => setRenewing(true)
+      }
     );
   }, []);
 
@@ -77,48 +66,7 @@ export default function SalonLayout() {
 
   return (
     <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
-      {/* Top bar */}
-      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-3 sm:px-4 gap-2 sm:gap-3 shrink-0 sticky top-0 z-30">
-        <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          className="md:hidden p-1.5 text-stone-400 hover:text-stone-800 transition-colors cursor-pointer"
-        >
-          {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-        </button>
-        <span className="hidden sm:inline-flex">
-          <AppLogo size={24} textColor="#e2e8f0" onClick={() => navigate("/")} />
-        </span>
-        <span className="sm:hidden">
-          <AppLogo size={24} showText={false} onClick={() => navigate("/")} />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded hidden sm:inline">
-          {translateUi("Super Admin ")}</span>
-        <div className="h-4 border-l border-stone-200 hidden sm:block" />
-        <span className="text-sm font-semibold text-stone-600 truncate hidden sm:block max-w-[200px]">
-          {salon.name}
-        </span>
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {session && (
-            <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} tone="stone" />
-            </div>
-          )}
-          <Link
-            to="/"
-            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            <span className="hidden sm:inline">{translateUi("All Salons")}</span>
-          </Link>
-          <button
-            onClick={handleSignOut}
-            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">{translateUi("Sign out")}</span>
-          </button>
-        </div>
-      </header>
+      <AdminHeader onSignOut={handleSignOut} onToggleMenu={() => setSidebarOpen((v) => !v)} menuOpen={sidebarOpen} />
 
       <div className="flex flex-1 min-h-0">
         {/* Sidebar backdrop (mobile) */}
@@ -130,13 +78,17 @@ export default function SalonLayout() {
         )}
 
         {/* Sidebar */}
-        <nav className={`
-          fixed md:static inset-y-0 left-0 z-20 top-12
+        <nav id="salon-navigation" className={`
+          fixed md:static inset-y-0 left-0 z-20 top-[88px]
           w-56 bg-white border-r border-stone-200 flex flex-col shrink-0
           transition-transform duration-200
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}>
           <div className="px-3 py-4 flex-1 space-y-0.5">
+            <Link to="/" className="mb-3 flex min-h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-stone-600 hover:bg-stone-100">
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              {translateUi("All Salons")}
+            </Link>
             <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 px-3 mb-2">
               {salon.name}
             </p>

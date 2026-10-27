@@ -25,12 +25,12 @@ interface MembershipSubscriptionRepository extends ListCrudRepository<Membership
     boolean existsByPlanId(Long planId);
     boolean existsByMemberCode(String memberCode);
 
-    @Query("SELECT * FROM membership_subscription WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) AND status <> 'INCOMPLETE' ORDER BY created_at DESC")
+    @Query("SELECT * FROM membership_subscription WHERE salon_id = :salonId AND lower(btrim(customer_email)) = lower(btrim(:email)) AND status <> 'INCOMPLETE' ORDER BY created_at DESC")
     List<MembershipSubscription> findByCustomerEmail(UUID salonId, String email);
 
     /** Includes {@code INCOMPLETE} rows: an abandoned checkout still holds the person's details. */
     @Modifying
-    @Query("UPDATE membership_subscription SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL WHERE salon_id = :salonId AND lower(customer_email) = lower(:email)")
+    @Query("UPDATE membership_subscription SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL, cancel_reason = NULL, renewal_token = md5(random()::text || clock_timestamp()::text), member_code = upper(substr(md5(random()::text),1,20)) WHERE salon_id = :salonId AND lower(btrim(customer_email)) = lower(btrim(:email))")
     int anonymizeCustomer(UUID salonId, String email, String replacement);
 }
 

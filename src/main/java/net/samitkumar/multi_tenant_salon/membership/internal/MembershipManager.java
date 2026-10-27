@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_salon.membership.internal;
 
+import net.samitkumar.multi_tenant_salon.accesscontrol.UserAccessPolicy;
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.membership.BillingInterval;
 import net.samitkumar.multi_tenant_salon.membership.MembershipActivatedEvent;
@@ -657,7 +658,8 @@ class MembershipManager implements MembershipApi {
     Optional<SubscriptionDetail> verify(UUID salonId, String code) {
         var normalized = normalizeCode(code);
         if (normalized.isEmpty()) return Optional.empty();
-        return subscriptions.findByMemberCodeAndSalonId(normalized, salonId).flatMap(s -> detail(salonId, s.id()));
+        return subscriptions.findByMemberCodeAndSalonId(normalized, salonId)
+                .flatMap(s -> detail(salonId, s.id()));
     }
 
     Optional<byte[]> qrPng(UUID salonId, Long id) {
@@ -1076,7 +1078,10 @@ class MembershipManager implements MembershipApi {
     @Override
     @Transactional
     public int anonymizeCustomer(UUID salonId, String email, String replacementEmail) {
-        return subscriptions.anonymizeCustomer(salonId, email, replacementEmail);
+        int count = subscriptions.anonymizeCustomer(salonId, email, replacementEmail);
+        jdbc.sql("UPDATE membership_activity SET message='Details removed for deleted customer', actor=CASE WHEN lower(btrim(actor))=:email THEN 'Deleted user' ELSE actor END WHERE subscription_id IN (SELECT id FROM membership_subscription WHERE salon_id=:salon AND customer_email=:replacement)")
+                .param("email",UserAccessPolicy.canonical(email)).param("salon",salonId).param("replacement",replacementEmail).update();
+        return count;
     }
 
     @Override

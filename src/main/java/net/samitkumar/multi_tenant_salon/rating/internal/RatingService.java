@@ -59,6 +59,7 @@ class RatingService implements RatingApi {
                 JOIN salon s ON s.id = i.salon_id
                 JOIN staff_member sm ON sm.id = i.staff_id
                 WHERE i.token_hash = :tokenHash AND i.expires_at > now()
+                  AND lower(b.customer_email) NOT LIKE '%@anonymized.invalid'
                 """)
                 .param("tokenHash", tokenHash)
                 .query((rs, row) -> new RatingReviewTarget(rs.getString("salon_name"), rs.getString("staff_name"),
@@ -77,6 +78,7 @@ class RatingService implements RatingApi {
                 FROM rating_invitation i
                 JOIN booking b ON b.id = i.booking_id AND b.status = 'COMPLETED'
                 WHERE i.token_hash = :tokenHash AND i.expires_at > now()
+                  AND lower(b.customer_email) NOT LIKE '%@anonymized.invalid'
                 ON CONFLICT (booking_id) DO NOTHING
                 """)
                 .param("salonRating", salonRating).param("staffRating", staffRating)

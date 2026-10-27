@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_salon.staff.internal;
 
+import net.samitkumar.multi_tenant_salon.accesscontrol.UserAccessPolicy;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
@@ -50,7 +51,8 @@ public class StaffService implements StaffApi {
 
     @Override
     public List<StaffMember> findByEmail(String email) {
-        return repository.findByEmail(email);
+        return repository.findByCanonicalEmail(UserAccessPolicy.canonical(email)).stream()
+                .filter(m -> m.status() == StaffStatus.ACTIVE).toList();
     }
 
     @Override

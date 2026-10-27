@@ -3,6 +3,47 @@ import type { Language } from "./languages";
 // English source messages are stable keys and the fallback for missing translations.
 // Columns: English | Danish | Swedish | Norwegian Bokmål | French | German.
 const rows = `
+Read-only account details. Salon owners manage their own customers and staff in Salon Admin.|Skrivebeskyttede kontooplysninger. Salonejere administrerer deres egne kunder og medarbejdere i Salon Admin.|Skrivskyddade kontouppgifter. Salongsägare hanterar sina egna kunder och sin personal i Salon Admin.|Skrivebeskyttede kontoopplysninger. Salongeiere administrerer sine egne kunder og ansatte i Salon Admin.|Détails du compte en lecture seule. Les propriétaires gèrent leurs clients et leur personnel dans Salon Admin.|Kontodetails mit Lesezugriff. Saloninhaber verwalten ihre Kunden und Mitarbeiter in Salon Admin.
+Read-only staff details. The salon owner manages team changes in Salon Admin.|Skrivebeskyttede medarbejderoplysninger. Salonejeren administrerer teamændringer i Salon Admin.|Skrivskyddade personaluppgifter. Salongsägaren hanterar teamändringar i Salon Admin.|Skrivebeskyttede ansattopplysninger. Salongeieren administrerer teamendringer i Salon Admin.|Détails du personnel en lecture seule. Le propriétaire gère les changements d’équipe dans Salon Admin.|Mitarbeiterdetails mit Lesezugriff. Der Saloninhaber verwaltet Teamänderungen in Salon Admin.
+View user details|Vis brugeroplysninger|Visa användaruppgifter|Vis brukeropplysninger|Voir les détails utilisateur|Benutzerdetails anzeigen
+
+No reviews yet|Ingen anmeldelser endnu|Inga recensioner än|Ingen anmeldelser ennå|Pas encore d’avis|Noch keine Bewertungen
+Users and access|Brugere og adgang|Användare och åtkomst|Brukere og tilgang|Utilisateurs et accès|Benutzer und Zugriff
+Customer relationships|Kunderelationer|Kundrelationer|Kunderelasjoner|Relations clients|Kundenbeziehungen
+All users|Alle brugere|Alla användare|Alle brukere|Tous les utilisateurs|Alle Benutzer
+Roles and salon access|Roller og salonadgang|Roller och salongsåtkomst|Roller og salongtilgang|Rôles et accès aux salons|Rollen und Salonzugriff
+Effective role|Effektiv rolle|Effektiv roll|Effektiv rolle|Rôle effectif|Wirksame Rolle
+Source status|Oprindelig status|Ursprunglig status|Opprinnelig status|Statut d’origine|Quellstatus
+Source record|Oprindelig post|Ursprunglig post|Opprinnelig oppføring|Enregistrement source|Quelldatensatz
+Platform-wide|Hele platformen|Hela plattformen|Hele plattformen|Toute la plateforme|Plattformweit
+Active access|Aktiv adgang|Aktiv åtkomst|Aktiv tilgang|Accès actif|Aktiver Zugriff
+Restricted access|Begrænset adgang|Begränsad åtkomst|Begrenset tilgang|Accès restreint|Eingeschränkter Zugriff
+No active access|Ingen aktiv adgang|Ingen aktiv åtkomst|Ingen aktiv tilgang|Aucun accès actif|Kein aktiver Zugriff
+Access blocked|Adgang blokeret|Åtkomst blockerad|Tilgang blokkert|Accès bloqué|Zugriff gesperrt
+Access revoked|Adgang tilbagekaldt|Åtkomst återkallad|Tilgang tilbakekalt|Accès révoqué|Zugriff entzogen
+Manage user access|Administrer brugeradgang|Hantera användaråtkomst|Administrer brukertilgang|Gérer l’accès utilisateur|Benutzerzugriff verwalten
+Revoke access|Tilbagekald adgang|Återkalla åtkomst|Tilbakekall tilgang|Révoquer l’accès|Zugriff entziehen
+Preview impact|Se konsekvenser|Förhandsgranska konsekvenser|Forhåndsvis konsekvenser|Prévisualiser les conséquences|Auswirkungen prüfen
+Removal impact|Konsekvenser af fjernelse|Konsekvenser av borttagning|Konsekvenser av fjerning|Conséquences de la suppression|Auswirkungen der Entfernung
+All salons and platform access|Alle saloner og platformadgang|Alla salonger och plattformsåtkomst|Alle salonger og plattformtilgang|Tous les salons et l’accès plateforme|Alle Salons und Plattformzugriff
+Scope|Omfang|Omfattning|Omfang|Périmètre|Umfang
+Confirm access revocation|Bekræft tilbagekaldelse af adgang|Bekräfta återkallad åtkomst|Bekreft tilbakekalling av tilgang|Confirmer la révocation de l’accès|Zugriffsentzug bestätigen
+Confirm deletion and access block|Bekræft sletning og adgangsblokering|Bekräfta radering och åtkomstblockering|Bekreft sletting og tilgangsblokkering|Confirmer la suppression et le blocage|Löschung und Zugriffssperre bestätigen
+Delete local user data and block access|Slet lokale brugerdata og bloker adgang|Radera lokala användardata och blockera åtkomst|Slett lokale brukerdata og blokker tilgang|Supprimer les données locales et bloquer l’accès|Lokale Benutzerdaten löschen und Zugriff sperren
+Local user data deleted|Lokale brugerdata slettet|Lokala användardata raderade|Lokale brukerdata slettet|Données utilisateur locales supprimées|Lokale Benutzerdaten gelöscht
+Removal history|Historik over fjernelser|Borttagningshistorik|Fjerningshistorikk|Historique des suppressions|Entfernungsverlauf
+Retained data and cleanup boundaries|Bevarede data og oprydningens omfang|Bevarade data och rensningens omfattning|Bevarte data og oppryddingens omfang|Données conservées et limites du nettoyage|Aufbewahrte Daten und Bereinigungsumfang
+Active sessions|Aktive sessioner|Aktiva sessioner|Aktive økter|Sessions actives|Aktive Sitzungen
+Sign-in codes|Login-koder|Inloggningskoder|Innloggingskoder|Codes de connexion|Anmeldecodes
+Staff appointments|Medarbejderaftaler|Personalbokningar|Ansattavtaler|Rendez-vous du personnel|Mitarbeitertermine
+Search users|Søg efter brugere|Sök användare|Søk etter brukere|Rechercher des utilisateurs|Benutzer suchen
+All roles|Alle roller|Alla roller|Alle roller|Tous les rôles|Alle Rollen
+All statuses|Alle statusser|Alla statusar|Alle statuser|Tous les statuts|Alle Status
+Access status|Adgangsstatus|Åtkomststatus|Tilgangsstatus|Statut d’accès|Zugriffsstatus
+Load customer history|Indlæs kundehistorik|Ladda kundhistorik|Last inn kundehistorikk|Charger l’historique client|Kundenhistorie laden
+Salon notes|Salonnoter|Salongsanteckningar|Salongnotater|Notes du salon|Salonnotizen
+Last seen|Sidst set|Senast sedd|Sist sett|Dernière activité|Zuletzt gesehen
+
 Delivered to your address|Leveres til din adresse|Levereras till din adress|Leveres til adressen din|Livré à votre adresse|An Ihre Adresse geliefert
 My account|Min konto|Mitt konto|Min konto|Mon compte|Mein Konto
 Sign in to your account|Log ind på din konto|Logga in på ditt konto|Logg inn på kontoen din|Connectez-vous à votre compte|Melden Sie sich bei Ihrem Konto an

@@ -1,12 +1,13 @@
+import { AdminHeader } from "~/components/AdminHeader";
 import { useI18n } from "@salon/i18n";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router";
 import {
-  Shield, LogOut, Search, Building2, MapPin, User, Mail, Zap,
+  Shield, Search, Building2, MapPin, User, Mail, Zap,
   Trash2, Power, ChevronRight, X, Check, AlertTriangle, RefreshCw,
   LayoutGrid, List, Filter, ExternalLink,
 } from "lucide-react";
-import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
+import { Toast, useToast } from "@salon/ui-shared";
 import { apiFetch, SUPER_ADMIN_API } from "~/lib/api";
 import {
   ALL_FEATURES, FEATURE_LABEL,
@@ -14,7 +15,6 @@ import {
 } from "~/lib/types";
 import {
   getSession,
-  getAccessTokenExpiry,
   logout as authLogout,
   startSilentRenewLoop,
   startOAuth2Login,
@@ -304,7 +304,6 @@ function SalonDrawer({ salon, onClose, onUpdated }: DrawerProps) {
 export default function SuperAdminHome() {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const navigate = useNavigate();
-  const session = getSession();
   const [salons, setSalons]   = useState<Salon[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
@@ -313,8 +312,6 @@ export default function SuperAdminHome() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selected, setSelected] = useState<Salon | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => getAccessTokenExpiry());
-  const [renewing, setRenewing] = useState(false);
   const { toast, notify } = useToast();
 
   useEffect(() => {
@@ -327,17 +324,13 @@ export default function SuperAdminHome() {
   // for as long as the AS session cookie stays valid.
   useEffect(() => {
     return startSilentRenewLoop(
-      (expiresAt) => {
-        setRenewing(false);
-        setTokenExpiry(expiresAt);
+      () => {
         notify("Session renewed");
       },
       () => {
-        setRenewing(false);
         notify("Your session expired — signing you in again…", "error");
         setTimeout(() => startOAuth2Login(), 1200);
-      },
-      () => setRenewing(true)
+      }
     );
   }, []);
 
@@ -385,38 +378,7 @@ export default function SuperAdminHome() {
   return (
     <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
 
-      {/* Top bar */}
-      <header className="h-12 border-b border-stone-200 bg-white/80 flex items-center px-3 sm:px-6 gap-2 sm:gap-3 shrink-0 sticky top-0 z-30">
-        <span className="hidden sm:inline-flex">
-          <AppLogo size={24} textColor="#e2e8f0" />
-        </span>
-        <span className="sm:hidden">
-          <AppLogo size={24} showText={false} />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-matcha-500 bg-matcha-50 border border-matcha-200 px-2 py-0.5 rounded hidden sm:inline">
-          {translateUi("Super Admin ")}</span>
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {session && (
-            <div className="hidden md:flex">
-              <SessionBadge email={session.email} expiresAt={tokenExpiry} renewing={renewing} tone="stone" />
-            </div>
-          )}
-          <button
-            onClick={() => loadSalons(search, statusFilter)}
-            className="shrink-0 p-1.5 rounded-md text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"
-            title={translateUi("Refresh")}
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={handleSignOut}
-            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 text-xs font-medium text-stone-500 hover:text-stone-800 hover:border-stone-300 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3 h-3" />
-            <span className="hidden sm:inline">{translateUi("Sign out")}</span>
-          </button>
-        </div>
-      </header>
+      <AdminHeader onSignOut={handleSignOut} />
 
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
 
@@ -431,6 +393,11 @@ export default function SuperAdminHome() {
                 {salons.length} {translateUi("total · ")}{activeCount} {translateUi("active · ")}{disabledCount} {translateUi("disabled ")}</p>
             )}
           </div>
+          <button type="button" onClick={() => loadSalons(search, statusFilter)}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 hover:bg-stone-100 sm:ml-auto">
+            <RefreshCw className="size-4" aria-hidden="true" />
+            {translateUi("Refresh")}
+          </button>
         </div>
 
         {/* Stat tiles */}

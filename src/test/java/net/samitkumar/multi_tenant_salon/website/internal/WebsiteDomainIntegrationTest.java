@@ -47,11 +47,14 @@ class WebsiteDomainIntegrationTest {
         jdbc.update("INSERT INTO salon(id, name, handler, created_at) VALUES (?, 'Domain test', ?, now())", salonId, "domain-" + salonId);
         jdbc.update("INSERT INTO salon_feature(salon_id, salon_key, feature) VALUES (?, 0, 'STATIC_WEBSITE')", salonId);
         path = "/api/salon-admin/" + salonId + "/website/domains";
+        // Live authorization requires a real owner grant, not only synthetic JWT claims.
+        jdbc.update("UPDATE salon SET owner_email='owner@fixtures.test' WHERE id=?", salonId);
+        jdbc.update("INSERT INTO super_admin(email,active) VALUES ('super@fixtures.test',true) ON CONFLICT(email) DO UPDATE SET active=true");
         client = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
         when(decoder.decode(anyString())).thenAnswer(invocation -> {
             String token = invocation.getArgument(0);
             String role = token.equals("super") ? "SUPER_ADMIN" : token.equals("staff") ? "STAFF" : "OWNER";
-            return Jwt.withTokenValue(token).header("alg", "RS256").subject(token)
+            return Jwt.withTokenValue(token).header("alg", "RS256").subject(token + "@fixtures.test")
                     .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300))
                     .claim("roles", List.of(role)).claim("salons", List.of(Map.of("salonId",
                             token.equals("other") ? UUID.randomUUID().toString() : salonId.toString(), "role", role, "active", true))).build();

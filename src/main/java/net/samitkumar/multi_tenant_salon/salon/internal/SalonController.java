@@ -90,7 +90,14 @@ class SalonController {
         // (e.g. local mock-mode) callers.
         var ownerEmail = jwt != null ? jwt.getSubject() : email;
         if (ownerEmail == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        var salons = service.findByOwnerEmail(ownerEmail);
+        var identityApi = identities.getIfAvailable();
+        var allowedIds = jwt == null || identityApi == null ? null : identityApi.findByEmail(ownerEmail).stream()
+                .flatMap(identity -> identity.salons().stream())
+                .filter(access -> access.active() && "OWNER".equals(access.role()))
+                .map(access -> access.salonId()).collect(java.util.stream.Collectors.toSet());
+        var salons = service.findByOwnerEmail(ownerEmail).stream()
+                .filter(salon -> jwt == null || (allowedIds != null && allowedIds.contains(salon.id())))
+                .toList();
         if (salons.isEmpty()) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(salons);
     }

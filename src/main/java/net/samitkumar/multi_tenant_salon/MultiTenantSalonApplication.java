@@ -60,7 +60,7 @@ public class MultiTenantSalonApplication {
 	ThrowingCustomizer<HttpSecurity> httpSecurityCustomizer(
 			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
 			@Value("${app.security.permit-all:false}") boolean permitAll,
-			SalonDeskAccess deskAccess) {
+			SalonDeskAccess deskAccess, org.springframework.beans.factory.ObjectProvider<net.samitkumar.multi_tenant_salon.accesscontrol.UserAccessPolicy> policyProvider) {
 		// Opening the whole API needs an explicit opt-in, not merely an unset issuer. The issuer
 		// defaults to localhost, so keying off that alone meant a deploy that forgot OAUTH2_ISSUER_URI
 		// silently served every owner endpoint unauthenticated with nothing but a warning in the log.
@@ -76,6 +76,7 @@ public class MultiTenantSalonApplication {
 							}))
 					.authorizeHttpRequests(authH -> authH.requestMatchers("/**").permitAll());
 		}
+		var accessPolicy = policyProvider.getObject();
 		return http ->
 				http
 						.csrf(AbstractHttpConfigurer::disable)
@@ -84,7 +85,7 @@ public class MultiTenantSalonApplication {
 								.addHeaderWriter((request, response) -> {
 									if (!request.getRequestURI().startsWith("/mcp-app/")) response.setHeader("X-Frame-Options", "DENY");
 								}))
-						.oauth2ResourceServer(oauth2 -> oauth2
+                        .oauth2ResourceServer(oauth2 -> oauth2
 								.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
 						).authorizeHttpRequests(authH -> authH
 								//.anyRequest().access((_, ctx) -> new AuthorizationDecision(ctx.getRequest().getServerName().equals("localhost")))
@@ -109,7 +110,10 @@ public class MultiTenantSalonApplication {
 								"/mcp-app", "/mcp-app/**",
 								"/internal/user-identity").permitAll()
 								.requestMatchers("/api/payments/stripe/webhook").permitAll()
-								.requestMatchers("/api/salon-super-admin/**").hasRole("SUPER_ADMIN")
+								.requestMatchers("/api/salon-super-admin/**").access((authentication, context) -> new AuthorizationDecision(
+                                        authentication.get() instanceof JwtAuthenticationToken token
+                                        && token.getAuthorities().stream().anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()))
+                                        && accessPolicy.hasRole(token.getToken().getSubject(), null, "SUPER_ADMIN")))
 								// A salon owner is also auto-enrolled as a staff_member row (role=MANAGER,
 								// isOwner=true) so they can use the same portal for their own bookings/holidays —
 								// but the user_identity view gives OWNER precedence over STAFF for the same
@@ -132,28 +136,28 @@ public class MultiTenantSalonApplication {
 										return new AuthorizationDecision(false);
 									}
 
-									// A platform super-admin manages every salon on the owner's behalf through
-									// these same /api/salon-admin/{salonId}/** endpoints (there's no separate
-									// per-salon super-admin API), so they bypass the ownership check below.
-									boolean isSuperAdmin = auth.getAuthorities().stream()
-											.anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()));
-									if (isSuperAdmin) {
-										return new AuthorizationDecision(true);
-									}
-
-                                    assert context != null;
                                     String salonIdParam = context.getVariables().get("salonId");
-									Jwt jwt = jwtAuth.getToken();
-									List<Map<String, Object>> salons = jwt.getClaim("salons");
-									log.info("Requested salonId: {} having jwt: {}", salonIdParam, salons);
-									boolean allowed = salons != null && salons.stream().anyMatch(s ->
-											String.valueOf(s.get("salonId")).equals(salonIdParam)
-													&& "OWNER".equals(s.get("role"))
-													&& Boolean.TRUE.equals(s.get("active"))
-									);
-									// Not the owner: the salon's own staff may still use the desk's endpoints
-									// (SalonDeskAccess keeps the allowlist and re-checks membership live).
-									if (!allowed) allowed = deskAccess.allows(jwt, salonIdParam, context.getRequest());
+                                    java.util.UUID target;
+                                    try { target = java.util.UUID.fromString(salonIdParam); }
+                                    catch (Exception e) { return new AuthorizationDecision(false); }
+                                    var jwt = jwtAuth.getToken();
+                                    boolean isSuperAdmin = auth.getAuthorities().stream()
+                                            .anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()))
+                                            && accessPolicy.hasRole(jwt.getSubject(), null, "SUPER_ADMIN");
+                                    String requestPath = org.springframework.web.util.UriUtils.decode(
+                                            context.getRequest().getRequestURI()
+                                                    .substring(context.getRequest().getContextPath().length()),
+                                            java.nio.charset.StandardCharsets.UTF_8);
+                                    String tenantPath = requestPath.substring(("/api/salon-admin/" + salonIdParam).length());
+                                    boolean tenantPeopleWrite = !java.util.Set.of("GET", "HEAD", "OPTIONS")
+                                            .contains(context.getRequest().getMethod())
+                                            && (tenantPath.equals("/staff") || tenantPath.startsWith("/staff/")
+                                            || tenantPath.equals("/customers") || tenantPath.startsWith("/customers/"));
+                                    // Platform oversight grants read access to people. Only this salon's
+                                    // current owner may change customer records or staff identities/access.
+                                    boolean allowed = accessPolicy.hasRole(jwt.getSubject(), target, "OWNER")
+                                            || (isSuperAdmin && !tenantPeopleWrite);
+                                    if (!allowed) allowed = deskAccess.allows(jwt, salonIdParam, context.getRequest());
 									return new AuthorizationDecision(allowed);
 								})
 

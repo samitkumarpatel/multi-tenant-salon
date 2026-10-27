@@ -895,6 +895,7 @@ class NotificationService {
 
     private DispatchStatus dispatch(String toEmail, String toName, String subject, String textBody, String htmlBody,
                                     List<MailjetAttachment> inlined) {
+        if (toEmail != null && toEmail.toLowerCase(Locale.ROOT).endsWith("@anonymized.invalid")) return DispatchStatus.FAILED;
         if (!StringUtils.hasText(toEmail)) {
             log.warn("[NOTIFICATION] No recipient email — skipping send. subject='{}'", subject);
             return DispatchStatus.FAILED;

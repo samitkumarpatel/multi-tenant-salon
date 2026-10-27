@@ -45,14 +45,14 @@ interface ShopOrderRepository extends ListCrudRepository<ShopOrder, Long> {
     Optional<ShopOrder> findByIdAndSalonId(Long id, UUID salonId);
     Optional<ShopOrder> findByOrderNumberAndSalonId(String orderNumber, UUID salonId);
 
-    @Query("SELECT * FROM shop_order WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) ORDER BY created_at DESC")
+    @Query("SELECT * FROM shop_order WHERE salon_id = :salonId AND lower(btrim(customer_email)) = lower(btrim(:email)) ORDER BY created_at DESC")
     List<ShopOrder> findByCustomerEmail(UUID salonId, String email);
 
     @Modifying
     @Query("""
             UPDATE shop_order SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL,
-                   ship_line1 = NULL, ship_line2 = NULL, ship_city = NULL, ship_state = NULL, ship_country = NULL, ship_zip_code = NULL
-            WHERE salon_id = :salonId AND lower(customer_email) = lower(:email)""")
+                   refund_reason = NULL, return_reason = NULL, return_notes = NULL, tracking_number = NULL, ship_line1 = NULL, ship_line2 = NULL, ship_city = NULL, ship_state = NULL, ship_country = NULL, ship_zip_code = NULL
+            WHERE salon_id = :salonId AND lower(btrim(customer_email)) = lower(btrim(:email))""")
     int anonymizeCustomer(UUID salonId, String email, String replacement);
 }
 

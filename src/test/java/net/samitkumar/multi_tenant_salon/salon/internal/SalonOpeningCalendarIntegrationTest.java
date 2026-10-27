@@ -56,9 +56,11 @@ class SalonOpeningCalendarIntegrationTest {
                     salonId, key++, day.name(), day == DayOfWeek.SUNDAY);
         }
         adminPath = "/api/salon-admin/" + salonId;
+        // Live authorization requires a real owner grant, not only synthetic JWT claims.
+        jdbc.update("UPDATE salon SET owner_email='owner@fixtures.test' WHERE id=?", salonId);
         client = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
         when(decoder.decode(anyString())).thenAnswer(invocation -> Jwt.withTokenValue(invocation.getArgument(0))
-                .header("alg", "RS256").subject("owner")
+                .header("alg", "RS256").subject("owner@fixtures.test")
                 .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300))
                 .claim("roles", List.of("OWNER"))
                 .claim("salons", List.of(Map.of("salonId", salonId.toString(), "role", "OWNER", "active", true)))

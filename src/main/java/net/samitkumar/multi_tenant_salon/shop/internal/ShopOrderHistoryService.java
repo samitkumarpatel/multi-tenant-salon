@@ -15,10 +15,12 @@ class ShopOrderHistoryService implements ShopOrderHistoryApi {
     /** Notes the salon writes for itself; never shown to the customer. */
     private static final Set<String> STAFF_ONLY = Set.of("WORK_NOTE");
 
+    private final org.springframework.jdbc.core.simple.JdbcClient jdbc;
     private final ShopOrderRepository orders;
     private final ShopOrderActivityRepository activities;
 
-    ShopOrderHistoryService(ShopOrderRepository orders, ShopOrderActivityRepository activities) {
+    ShopOrderHistoryService(ShopOrderRepository orders, ShopOrderActivityRepository activities, org.springframework.jdbc.core.simple.JdbcClient jdbc) {
+        this.jdbc = jdbc;
         this.orders = orders;
         this.activities = activities;
     }
@@ -40,6 +42,10 @@ class ShopOrderHistoryService implements ShopOrderHistoryApi {
         var count = orders.anonymizeCustomer(salonId, email, replacementEmail);
         // Runs after the orders carry the replacement address, which is how their timelines are found.
         activities.redactNotifiedEmails(salonId, replacementEmail);
+        jdbc.sql("UPDATE shop_order_activity SET message='Details removed for deleted customer', actor=CASE WHEN lower(btrim(actor))=lower(btrim(:email)) THEN 'Deleted user' ELSE actor END WHERE order_id IN (SELECT id FROM shop_order WHERE salon_id=:salon AND customer_email=:replacement)")
+                .param("email",email).param("salon",salonId).param("replacement",replacementEmail).update();
+        jdbc.sql("UPDATE shop_order_line_activity SET message='Details removed for deleted customer', actor=CASE WHEN lower(btrim(actor))=lower(btrim(:email)) THEN 'Deleted user' ELSE actor END WHERE order_line_id IN (SELECT l.id FROM shop_order_line l JOIN shop_order o ON o.id=l.order_id WHERE o.salon_id=:salon AND o.customer_email=:replacement)")
+                .param("email",email).param("salon",salonId).param("replacement",replacementEmail).update();
         return count;
     }
 }

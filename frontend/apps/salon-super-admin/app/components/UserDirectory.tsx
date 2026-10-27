@@ -1,0 +1,81 @@
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { useI18n } from "@salon/i18n";
+import { apiFetch, SUPER_ADMIN_API } from "~/lib/api";
+import { buttonClass, fieldClass, type UserPage } from "~/lib/users";
+
+export function UserDirectory({ customers = false, salonId }: { customers?: boolean; salonId?: string }) {
+  const { t } = useI18n();
+  const [params, setParams] = useSearchParams();
+  const selectedSalon = salonId ?? params.get("salonId") ?? undefined;
+  const [salons, setSalons] = useState<{ id: string; name: string }[]>([]);
+  const [salonError, setSalonError] = useState(false);
+  const q = params.get("q") ?? "";
+  const role = customers ? "CUSTOMER" : params.get("role") ?? "";
+  const status = params.get("status") ?? "ALL";
+  const page = Math.max(0, Number(params.get("page")) || 0);
+  const [data, setData] = useState<UserPage>();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refresh, setRefresh] = useState(0);
+  const [search, setSearch] = useState(q);
+
+  useEffect(() => { setSearch(q); }, [q]);
+  useEffect(() => {
+    if (salonId) return;
+    const controller = new AbortController();
+    apiFetch<{ id: string; name: string }[]>(`${SUPER_ADMIN_API}/salons`, { signal: controller.signal })
+      .then(setSalons).catch(() => { if (!controller.signal.aborted) setSalonError(true); });
+    return () => controller.abort();
+  }, [salonId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setError("");
+    const query = new URLSearchParams({ q, role, status, page: String(page), size: "25" });
+    if (selectedSalon) query.set("salonId", selectedSalon);
+    apiFetch<UserPage>(`${SUPER_ADMIN_API}/users?${query}`, { signal: controller.signal })
+      .then(setData).catch((e) => { if (!controller.signal.aborted) setError(e.message); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [q, role, status, page, selectedSalon, refresh]);
+
+  function update(key: string, value: string) {
+    const next = new URLSearchParams(params);
+    value ? next.set(key, value) : next.delete(key);
+    if (key !== "page") next.delete("page");
+    setParams(next);
+  }
+
+  return <section className="space-y-5">
+    <div><h1 className="text-xl font-bold text-stone-900">{t(customers ? "Customers" : "Users and access")}</h1>
+      <p className="mt-1 text-sm text-stone-500">{t(customers ? "View customer relationships and the salons they belong to." : "Inspect all identity roles, salon relationships and access restrictions.")}</p></div>
+    <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); update("q", search.trim()); }}>
+      <input aria-label={t("Search users")} placeholder={t("Search by email, customer name or phone")} className={`${fieldClass} min-w-0 flex-1 basis-60`} value={search} onChange={(e) => setSearch(e.target.value)} />
+      <button className={buttonClass} type="submit">{t("Search")}</button>
+      {!salonId && <select className={`${fieldClass} max-w-full`} aria-label={t("Salon")} value={selectedSalon ?? ""} onChange={(e) => update("salonId", e.target.value)}>
+        <option value="">{t("All salons")}</option>
+        {salonError && <option disabled>{t("Salon list unavailable")}</option>}
+        {salons.map((salon) => <option key={salon.id} value={salon.id}>{salon.name}</option>)}
+      </select>}
+      {!customers && <select className={fieldClass} aria-label={t("Role")} value={role} onChange={(e) => update("role", e.target.value)}>
+        <option value="">{t("All roles")}</option>{["SUPER_ADMIN", "OWNER", "STAFF", "CUSTOMER"].map((value) => <option key={value}>{value}</option>)}
+      </select>}
+      <select className={fieldClass} aria-label={t("Access status")} value={status} onChange={(e) => update("status", e.target.value)}>
+        {[["ALL", "All statuses"], ["ACTIVE", "Active access"], ["INACTIVE", "No active access"]].map(([value, text]) => <option key={value} value={value}>{t(text)}</option>)}
+      </select>
+    </form>
+    {loading ? <p role="status">{t("Loading…")}</p> : error ? <div role="alert" className="space-y-3 text-red-700"><p>{error}</p><button className={buttonClass} onClick={() => setRefresh((v) => v + 1)}>{t("Retry")}</button></div> : <>
+      {!data?.content.length ? <p className="rounded-xl border border-stone-200 bg-white p-6 text-stone-500">{t("No matching users found.")}</p> : <ul className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white">
+        {data.content.map((user) => <li key={user.email}><Link to={`/users/detail?${new URLSearchParams({ email: user.email, ...(selectedSalon ? { salonId: selectedSalon } : {}) })}`}
+          className="flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-matcha-600">
+          <div className="min-w-0"><p className="break-words font-semibold text-stone-800">{user.name}</p><p className="break-all text-sm text-stone-500">{user.email}</p><p className="mt-1 text-xs text-stone-500">{user.roles}</p></div>
+          <div className="text-sm text-stone-500"><p>{t("Salons")}: {user.salonCount}</p><p >{t(user.hasAccess ? "Active access" : "No active access")}</p></div>
+        </Link></li>)}
+      </ul>}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-stone-500">
+        <span>{t("Total")}: {data?.totalElements ?? 0} · {t("Page")} {page + 1} / {Math.max(1, data?.totalPages ?? 1)}</span>
+        <div className="flex gap-2"><button className={buttonClass} disabled={page === 0} onClick={() => update("page", String(page - 1))}>{t("Previous")}</button><button className={buttonClass} disabled={page + 1 >= (data?.totalPages ?? 0)} onClick={() => update("page", String(page + 1))}>{t("Next")}</button></div>
+      </div>
+    </>}
+  </section>;
+}

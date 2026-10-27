@@ -1,0 +1,7 @@
+export type UserSummary = { email: string; name: string; roles: string; salonCount: number; hasAccess: boolean };
+export type UserPage = { content: UserSummary[]; page: number; size: number; totalElements: number; totalPages: number };
+export type Grant = { salonId: string | null; salonName: string | null; role: string; staffRole: string | null; effectiveRole: string; active: boolean; sourceId: number | null };
+export type CustomerProfile = { id: number; salon_id: string; salon_name: string; name: string; phone: string | null; notes: string | null; last_seen_at: string };
+export type UserDetail = { email: string; grants: Grant[]; customers: CustomerProfile[] };
+export const fieldClass = "min-h-10 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-2 focus:outline-matcha-600";
+export const buttonClass = "inline-flex min-h-10 items-center justify-center rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-matcha-600 disabled:cursor-not-allowed disabled:opacity-50";

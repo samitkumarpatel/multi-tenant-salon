@@ -27,10 +27,10 @@ interface BookingRepository extends ListCrudRepository<Booking, Long> {
 
     List<Booking> findBySalonIdAndStaffId(UUID salonId, Long staffId);
 
-    @Query("SELECT * FROM booking WHERE salon_id = :salonId AND lower(customer_email) = lower(:email) ORDER BY appointment_date DESC, start_time DESC")
+    @Query("SELECT * FROM booking WHERE salon_id = :salonId AND lower(btrim(customer_email)) = lower(btrim(:email)) ORDER BY appointment_date DESC, start_time DESC")
     List<Booking> findByCustomerEmail(UUID salonId, String email);
 
     @Modifying
-    @Query("UPDATE booking SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL WHERE salon_id = :salonId AND lower(customer_email) = lower(:email)")
+    @Query("UPDATE booking SET customer_name = 'Deleted customer', customer_email = :replacement, customer_phone = NULL, notes = NULL WHERE salon_id = :salonId AND lower(btrim(customer_email)) = lower(btrim(:email))")
     int anonymizeCustomer(UUID salonId, String email, String replacement);
 }

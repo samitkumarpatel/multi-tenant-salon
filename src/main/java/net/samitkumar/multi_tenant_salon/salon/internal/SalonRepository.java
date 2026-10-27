@@ -12,6 +12,7 @@ import java.util.UUID;
 interface SalonRepository extends ListCrudRepository<Salon, UUID> {
     Optional<Salon> findByHandler(String handler);
     boolean existsByHandler(String handler);
+    @Query("SELECT * FROM salon WHERE lower(btrim(owner_email)) = lower(btrim(:ownerEmail))")
     List<Salon> findByOwnerEmail(String ownerEmail);
     List<Salon> findByStatus(Salon.SalonStatus status);
 

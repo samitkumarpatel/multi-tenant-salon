@@ -98,6 +98,7 @@ class CustomerDirectory {
 
     // ── write ────────────────────────────────────────────────────────────────
 
+    @Transactional
     SalonCustomer create(UUID salonId, CustomerSpec spec) {
         var name = requireName(spec);
         var email = spec.email() == null ? "" : spec.email().trim();
@@ -175,6 +176,7 @@ class CustomerDirectory {
      * {@code last_seen_at} and fills a phone the record lacks. Never overwrites what the owner edited.
      * Idempotent, so a redelivered event is harmless.
      */
+    @Transactional
     void seen(UUID salonId, String name, String email, String phone) {
         if (salonId == null || !StringUtils.hasText(email)) return;
         var clean = email.trim();
