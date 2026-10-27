@@ -3,55 +3,6 @@ info:
   title: Multi-Tenant Salon API
   description: |
     REST API for the multi-tenant SaaS salon/salon management platform.
-
-    ## Module / Access Hierarchy
-
-    The API is split into four distinct path namespaces:
-
-    | Namespace | Base Path | Who uses it |
-    |---|---|---|
-    | **Salon Onboarding** | `/api/salon-onboarding` | Anyone registering a new salon tenant; platform-level listing |
-    | **Customer** | `/api/salon/{salonId}/...` | Public/customer-facing — browse, book, read |
-    | **Admin** | `/api/salon-admin/{salonId}/...` | Salon owner/administrator — manage, configure, operate. Also callable by a platform super-admin for any salon, since super-admin management of a specific salon reuses these endpoints rather than duplicating them. |
-    | **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
-    | **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
-    | **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
-    | **Analytics Ingestion** | `/api/analytics/events` | Public, anonymous — client-side JS on the salon's public website reporting page views/clicks |
-
-    ### Customer sub-paths
-    - `/api/salon/{salonId}/services/...` — browse the service catalog
-    - `/api/salon/{salonId}/staff/...` — view staff members
-    - `/api/salon/{salonId}/booking/...` — slot discovery and appointment creation
-    - `/api/salon/{salonId}/website` — public website theme
-    - `/api/salon/{salonId}/policies` — published, salon-specific legal policies for the website or booking page
-    - `/api/salon/{salonId}/chat` — AI assistant for the Generative UI website mode
-
-    ### Admin sub-paths
-    - `/api/salon-admin/{salonId}/services/...` — full CRUD on the service catalog
-    - `/api/salon-admin/{salonId}/staff/...` — full CRUD + availability management
-    - `/api/salon-admin/{salonId}/booking/...` — view, reschedule, and change booking status
-    - `/api/salon-admin/{salonId}/website` — website theme management
-    - `/api/salon-admin/{salonId}/website-type` — get or update the active website presentation type
-    - `/api/salon-admin/{salonId}/policies` — edit and publish salon-specific customer policies
-    - `/api/salon-admin/{salonId}/analytics/summary` — website analytics rollup (requires the `ANALYTICS` feature)
-    - `/api/salon-admin/{salonId}/analytics/genui-summary` — Generative-UI chat usage rollup (requires the `ANALYTICS` feature)
-
-    ## Notification Events
-    Domain events are emitted via Spring Modulith and handled by the `notification` module,
-    which is the single entry point for every outbound email. Emails are sent via Mailjet;
-    when `spring.application.notification.mailjet.api-key` is unset (the default for dev/test),
-    sends are logged instead of dispatched.
-    - **SalonCreatedEvent** → welcome email to the owner with admin and public-website links.
-    - **SalonUpdatedEvent** → owner notified whenever salon settings (profile, features,
-      booking settings, or re-enabling) are changed.
-    - **SalonDisabledEvent** → owner notified the salon has been disabled.
-    - **BookingCreatedEvent** → booking confirmation sent to customer.
-    - **BookingStatusChangedEvent** → customer notified on confirm/cancel/complete/no-show.
-    - **BookingRescheduledEvent** → customer notified of new date/time.
-    - **StaffBookingAssignedEvent** → the assigned staff member is notified of a new booking.
-    - **StaffScheduleUpdatedEvent** → logged for admin visibility (weekly schedule replacement).
-    - **StaffAvailabilityOverrideAddedEvent** → logged for admin visibility (new date override).
-    - **StaffAvailabilityOverrideRemovedEvent** → logged for admin visibility (deleted override).
   version: 2.0.0
 
 servers:

@@ -1,5 +1,5 @@
 import { useI18n } from "@salon/i18n";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { redirect, useLoaderData, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
@@ -7,18 +7,22 @@ import {
   Maximize2, Minimize2, Minus, Pencil, Plus, Receipt, ShoppingCart, Trash2, TriangleAlert, UserRound, X, XCircle,
   Search,
 } from "lucide-react";
-import { BookingPaymentLinkDialog, noShowFeeFor, Toast, useToast, type BookingFeePolicy } from "@salon/ui-shared";
+import {
+  BookingPaymentLinkDialog, BookingPaymentLinkHistory, PaymentFollowUps, latestLinkByBooking,
+  noShowFeeFor, Toast, useToast, type BookingFeePolicy, type BookingPaymentLink, type PaymentFollowUp,
+} from "@salon/ui-shared";
 import { ADMIN_API, CUSTOMER_API, apiFetch } from "~/lib/api";
 import { getDashboardSession } from "~/lib/auth";
 import { formatPrice } from "~/lib/format";
 import { DaySheet } from "~/components/DaySheet";
-import { StaffCalendar } from "~/components/StaffCalendar";
+import { ColorPopover, StaffCalendar } from "~/components/StaffCalendar";
 import {
   JS_DAYS, addDays, hasBookableServiceAtTime, isSalonOpenAt, isTimeInPast, localDateKey, nextDateKey, parseDate, prettyDate,
-  restrictionFor, staffColorMap, type StaffScheduleData,
+  restrictionFor, staffColorMap, withAlpha, type StaffScheduleData,
 } from "~/lib/calendar";
 import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
 import { LoyaltyDesk } from "~/components/LoyaltyDesk";
+import { BookingSearch } from "~/components/BookingSearch";
 import { TerminalPaymentDialog, loadTerminals, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import type {
   AvailableSlot, Booking, Country, OperatingHours, Salon, SalonClosure, SalonHoliday, ServiceItem, StaffAvailability,
@@ -227,6 +231,39 @@ export default function DashboardPage() {
   const [editTarget, setEditTarget] = useState<Booking | null>(null);
   const [paymentLinkTarget, setPaymentLinkTarget] = useState<Booking | null>(null);
   const [paymentLinkFee, setPaymentLinkFee] = useState(0);
+  // The latest payment link of every appointment that has one: the follow-up list and the status in the appointment dialog.
+  const [followUps, setFollowUps] = useState<PaymentFollowUp[] | null>(null);
+  const [followUpsError, setFollowUpsError] = useState<string | null>(null);
+  const bookingManagement = initial.settings.bookingManagementEnabled;
+  const loadFollowUps = useCallback(async () => {
+    if (!bookingManagement) return;
+    try {
+      setFollowUps(await apiFetch<PaymentFollowUp[]>(`${ADMIN_API}/${initial.sid}/booking/payment-links?status=ALL&limit=200`) ?? []);
+      setFollowUpsError(null);
+    } catch (e) {
+      setFollowUps((current) => current ?? []);
+      setFollowUpsError(e instanceof Error ? e.message : "Could not load payment links.");
+    }
+  }, [initial.sid, bookingManagement]);
+  useEffect(() => { void loadFollowUps(); }, [loadFollowUps]);
+  const paymentLinksValue = useMemo(() => ({
+    latest: latestLinkByBooking(followUps),
+    loadHistory: async (bookingId: number) => (await apiFetch<BookingPaymentLink[]>(`${ADMIN_API}/${initial.sid}/booking/${bookingId}/payment-links`)) ?? [],
+    resend: async (bookingId: number, linkId: number) => {
+      const sent = await apiFetch<BookingPaymentLink>(`${ADMIN_API}/${initial.sid}/booking/${bookingId}/payment-links/${linkId}/resend`, { method: "POST" });
+      void loadFollowUps();
+      return sent;
+    },
+  }), [followUps, initial.sid, loadFollowUps]);
+
+  /** "New payment link" from the follow-up list: the appointment may not be in the loaded range, so fetch it if needed. */
+  async function newLinkFor(item: PaymentFollowUp) {
+    try {
+      const booking = bookings.find((b) => b.id === item.link.bookingId)
+        ?? await apiFetch<Booking>(`${ADMIN_API}/${initial.sid}/booking/${item.link.bookingId}`);
+      await openPaymentLink(booking);
+    } catch (e) { notify(e instanceof Error ? e.message : "Could not open the appointment", "error"); }
+  }
 
   /** A no-show is billed the salon's no-show fee, so look it up before the dialog opens with its default amount. */
   async function openPaymentLink(booking: Booking) {
@@ -244,6 +281,7 @@ export default function DashboardPage() {
       `${ADMIN_API}/${initial.sid}/booking/${booking.id}/payment-link`, { method: "POST", body: JSON.stringify(body) });
     setBookings((current) => current.map((item) => item.id === booking.id ? result.booking : item));
     setSelectedBooking((current) => current?.id === booking.id ? result.booking : current);
+    void loadFollowUps();
     return result;
   }
 
@@ -454,10 +492,10 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "loyalty" ? translateUi("Loyalty") : view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "loyalty" ? translateUi("Hand over a reward or check a customer's points.") : view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "loyalty" ? translateUi("Loyalty") : view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : appointmentsView === "payments" ? translateUi("Payment follow-ups") : translateUi("Overview")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "loyalty" ? translateUi("Hand over a reward or check a customer's points.") : view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : appointmentsView === "payments" ? translateUi("Payment links you have sent: see what is unpaid, resend or copy a link, or send a new one.") : translateUi("Appointments for the selected date.")}</p>
           </div>
-          {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
+          {view === "appointments" && appointmentsView !== "new" && appointmentsView !== "payments" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
         </div>
       </div>
 
@@ -468,11 +506,24 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {view === "appointments" && appointmentsView !== "new" && settings.bookingManagementEnabled && (
-        <TodayAppointmentsReadOnly colors={staffColorMap(initial.staff, staffColors)} bookings={bookings} staff={initial.staff} services={initial.services} operatingHours={salon.operatingHours}
+      {view === "appointments" && settings.bookingManagementEnabled && (
+        // Keyed by salon so a search never carries over when the desk switches salon. Opening a result uses the same
+        // dialog as the calendar, so it can be confirmed, completed, cancelled, edited or charged from here.
+        <BookingSearch key={initial.sid} salonId={initial.sid} bookings={bookings} staff={initial.staff} services={initial.services}
+          onOpen={setSelectedBooking}
+          onGoToDate={(date) => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("date", date); next.delete("appointmentsView"); setParams(next); }} />
+      )}
+
+      {view === "appointments" && appointmentsView !== "new" && appointmentsView !== "payments" && settings.bookingManagementEnabled && (
+        <TodayAppointmentsReadOnly colors={staffColorMap(initial.staff, staffColors)} colorOverrides={staffColors} onColorChange={changeStaffColor} bookings={bookings} staff={initial.staff} services={initial.services} operatingHours={salon.operatingHours}
           date={params.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(params.get("date")!) ? params.get("date")! : localDateKey()} mode={todayView}
           onDateChange={(date) => { const next = new URLSearchParams(params); next.set("date", date); setParams(next); }}
           onModeChange={(mode) => { const next = new URLSearchParams(params); next.set("todayView", mode); setParams(next); }} />
+      )}
+
+      {view === "appointments" && appointmentsView === "payments" && settings.bookingManagementEnabled && (
+        <PaymentFollowUps items={followUps} error={followUpsError} onRefresh={() => void loadFollowUps()}
+          onResend={(item) => paymentLinksValue.resend(item.link.bookingId, item.link.id)} onNew={(item) => void newLinkFor(item)} />
       )}
 
       {view === "appointments" && appointmentsView === "new" && settings.bookingManagementEnabled && (
@@ -711,7 +762,7 @@ export default function DashboardPage() {
         operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays} schedules={initial.schedules}
         bookingAdvanceDays={salon.bookingAdvanceDays}
         onClose={() => setNewDefaults(null)} onSaved={(booking) => { setBookings((current) => [...current, booking]); setNewDefaults(null); notify("Appointment created."); }} />}
-      {selectedBooking && <BookingActions booking={selectedBooking} staff={initial.staff} services={initial.services}
+      {selectedBooking && <BookingActions booking={selectedBooking} staff={initial.staff} services={initial.services} paymentLinks={paymentLinksValue}
         onClose={() => setSelectedBooking(null)}
         onEdit={() => { setEditTarget(selectedBooking); setSelectedBooking(null); }}
         onRequestPayment={() => { void openPaymentLink(selectedBooking); setSelectedBooking(null); }}
@@ -732,6 +783,19 @@ export default function DashboardPage() {
   );
 }
 
+/**
+ * An appointment card takes its stylist's colour (so the desk can tell stylists apart at a glance), and the status shows
+ * as a small badge and in the border: dashed while pending, faded once it is over or cancelled.
+ */
+function stylistCardStyle(color: string, status: Booking["status"], past: boolean): React.CSSProperties {
+  const faded = past || status === "CANCELLED";
+  return {
+    background: withAlpha(color, faded ? 0.08 : 0.2),
+    border: `1px ${status === "PENDING" ? "dashed" : "solid"} ${withAlpha(color, faded ? 0.3 : 0.55)}`,
+    borderLeft: `4px solid ${color}`,
+  };
+}
+
 const STATUS_STYLE: Record<Booking["status"], string> = {
   PENDING: "border-amber-200 bg-amber-50 text-amber-800",
   CONFIRMED: "border-blue-200 bg-blue-50 text-blue-800",
@@ -740,8 +804,9 @@ const STATUS_STYLE: Record<Booking["status"], string> = {
   NO_SHOW: "border-red-200 bg-red-50 text-red-700",
 };
 
-function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, colors, date, mode, onDateChange, onModeChange }: {
-  colors: Map<number, string>; bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
+function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, colors, colorOverrides, onColorChange, date, mode, onDateChange, onModeChange }: {
+  colors: Map<number, string>; colorOverrides: Record<number, string | null | undefined>; onColorChange: (staffId: number, color: string | null) => Promise<void>;
+  bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
   date: string; mode: "stylist" | "day"; onDateChange: (date: string) => void; onModeChange: (mode: "stylist" | "day") => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -757,7 +822,7 @@ function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, 
     appointments: dayBookings.filter((booking) => booking.staffId === member.id),
   }));
 
-  return <section className={expanded ? "fixed inset-3 z-50 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl" : "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"}>
+  return <section className={expanded ? "fixed inset-3 z-50 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
     <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
       <div className="min-w-[180px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? translateUi("appointment") : translateUi("appointments")} {translateUi("· Read only")}</p></div>
       <label className="flex items-center gap-2 text-xs font-medium text-slate-500">{translateUi("Date")}<input type="date" value={date} onChange={(event) => event.target.value && onDateChange(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-matcha-500" /></label>
@@ -769,10 +834,38 @@ function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, 
         <button type="button" onClick={() => onModeChange("day")} aria-pressed={mode === "day"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "day" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("Overall view")}</button>
       </div>
     </div>
+    <StylistColorLegend staff={staff} colors={colors} colorOverrides={colorOverrides} dayBookings={dayBookings} onColorChange={onColorChange} />
     {mode === "stylist" ? <StylistSchedule date={date} groups={grouped} operatingHours={operatingHours} services={serviceMap} colors={colors} />
       : dayBookings.length ? <ReadOnlyDayTimeline date={date} bookings={dayBookings} services={serviceMap} staff={staffMap} colors={colors} operatingHours={operatingHours} closed={!!dayHours?.closed} />
         : <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No appointments scheduled for this date.")}</p>}
   </section>;
+}
+
+/** Each active stylist with their colour and today's count. The swatch opens the colour picker, so a colour can be assigned right here. */
+function StylistColorLegend({ staff, colors, colorOverrides, dayBookings, onColorChange }: {
+  staff: StaffMember[]; colors: Map<number, string>; colorOverrides: Record<number, string | null | undefined>; dayBookings: Booking[];
+  onColorChange: (staffId: number, color: string | null) => Promise<void>;
+}) {
+  const { t: translateUi } = useI18n();
+  const [editing, setEditing] = useState<number | null>(null);
+  const active = staff.filter((member) => member.status === "ACTIVE");
+  if (!active.length) return null;
+  return <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+    {active.map((member) => {
+      const color = colors.get(member.id) ?? "#94a3b8";
+      const count = dayBookings.filter((booking) => booking.staffId === member.id && booking.status !== "CANCELLED").length;
+      return <div key={member.id} className="relative">
+        <div className="flex items-center gap-1.5 rounded-full border py-1 pl-1.5 pr-2.5 text-xs font-semibold text-slate-700" style={{ borderColor: withAlpha(color, 0.5), background: withAlpha(color, 0.1) }}>
+          <button type="button" onClick={() => setEditing(editing === member.id ? null : member.id)} title={translateUi("Change colour")}
+            aria-label={`${translateUi("Change colour")} — ${member.name}`} aria-expanded={editing === member.id}
+            className="h-5 w-5 rounded-full ring-1 ring-white" style={{ background: color }} />
+          <span>{member.name}</span><span className="font-normal text-slate-400">{count}</span>
+        </div>
+        {editing === member.id && <ColorPopover current={color} custom={(member.id in colorOverrides ? colorOverrides[member.id] : member.calendarColor) != null}
+          onPick={(next) => { void onColorChange(member.id, next); setEditing(null); }} onClose={() => setEditing(null)} />}
+      </div>;
+    })}
+  </div>;
 }
 
 function ExpandIcon({ expanded }: { expanded: boolean }) {
@@ -834,7 +927,7 @@ function ReadOnlyDayTimeline({ date, bookings, services, staff, colors, operatin
   const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
   return <div className="divide-y divide-slate-100">
     {closed && <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">{translateUi("Salon is marked closed today. Existing appointments are shown below.")}</p>}
-    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={{ borderLeft: `4px solid ${colors.get(booking.staffId) ?? "#94a3b8"}` }} className={`flex items-center gap-2 rounded-md border px-3 py-2 ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><StaffAvatar member={member} /></div>; })}</div></div>)}
+    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={stylistCardStyle(colors.get(booking.staffId) ?? "#94a3b8", booking.status, past)} className={`flex items-center gap-2 rounded-md px-3 py-2 text-slate-800 ${past || booking.status === "CANCELLED" ? "text-slate-500" : ""} ${booking.status === "CANCELLED" ? "line-through" : ""}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold no-underline ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span><StaffAvatar member={member} /></div>; })}</div></div>)}
   </div>;
 }
 
@@ -889,8 +982,8 @@ function StylistSchedule({ date, groups, operatingHours, services, colors }: {
             {times.map((minutes) => {
               const rowBookings = appointments.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
               return <div key={minutes} className="h-16 overflow-hidden border-b border-slate-100 px-1 py-1">
-                {rowBookings.map((booking) => { const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={{ borderLeft: `4px solid ${colors.get(member.id) ?? "#94a3b8"}` }} className={`truncate rounded border px-2 py-1 text-[10px] ${past ? "border-slate-200 bg-slate-100 text-slate-400" : STATUS_STYLE[booking.status]}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"}`}>
-                  <p className="truncate font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate opacity-75">{services.get(booking.serviceId) ?? "Service"}</p>
+                {rowBookings.map((booking) => { const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={stylistCardStyle(colors.get(member.id) ?? "#94a3b8", booking.status, past)} className={`truncate rounded px-2 py-1 text-[10px] text-slate-800 ${past || booking.status === "CANCELLED" ? "text-slate-500" : ""} ${booking.status === "CANCELLED" ? "line-through" : ""}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"} · ${booking.status.replace("_", " ")}`}>
+                  <p className="flex items-center gap-1"><span className="min-w-0 flex-1 truncate font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</span><span className={`shrink-0 rounded-full border px-1 text-[8px] font-bold no-underline ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></p><p className="truncate opacity-75">{services.get(booking.serviceId) ?? "Service"}</p>
                 </div>; })}
               </div>;
             })}
@@ -912,13 +1005,36 @@ function ReadOnlyAppointment({ booking, serviceName, staffName, compact = false 
   </div>;
 }
 
-function BookingActions({ booking, staff, services, onClose, onEdit, onRequestPayment, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; onClose: () => void; onEdit: () => void; onRequestPayment: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
+type PaymentLinksData = {
+  latest: Map<number, BookingPaymentLink>;
+  loadHistory: (bookingId: number) => Promise<BookingPaymentLink[]>;
+  resend: (bookingId: number, linkId: number) => Promise<unknown>;
+};
+
+/** One appointment's payment links, refetched whenever the page learns its latest link changed (new, re-emailed, paid, expired). */
+function BookingLinkHistorySection({ booking, data, onNew }: { booking: Booking; data: PaymentLinksData; onNew?: () => void }) {
+  const [links, setLinks] = useState<BookingPaymentLink[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const current = data.latest.get(booking.id);
+  const { loadHistory } = data;
+  useEffect(() => {
+    let alive = true;
+    loadHistory(booking.id)
+      .then((l) => { if (alive) { setLinks(l); setError(null); } })
+      .catch((e) => { if (alive) { setLinks([]); setError(e instanceof Error ? e.message : "Could not load payment links."); } });
+    return () => { alive = false; };
+  }, [booking.id, loadHistory, current?.id, current?.status, current?.emailCount]);
+  return <BookingPaymentLinkHistory links={links} customerEmail={booking.customerEmail} error={error} onNew={onNew}
+    onResend={(link) => data.resend(booking.id, link.id)} />;
+}
+
+function BookingActions({ booking, staff, services, paymentLinks, onClose, onEdit, onRequestPayment, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; paymentLinks: PaymentLinksData; onClose: () => void; onEdit: () => void; onRequestPayment: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const service = services.find((item) => item.id === booking.serviceId); const member = staff.find((item) => item.id === booking.staffId); const active = booking.status === "PENDING" || booking.status === "CONFIRMED";
   const confirmAction = (action: "cancel" | "no-show", message: string) => {
     if (window.confirm(message)) void onAction(booking.id, action);
   };
-  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{(booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID" && <button onClick={onRequestPayment} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"><CreditCard className="h-3.5 w-3.5" />{translateUi(booking.status === "NO_SHOW" ? "Request payment (no-show)" : "Request payment")}</button>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div></div></Dialog>;
+  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{(booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID" && <button onClick={onRequestPayment} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"><CreditCard className="h-3.5 w-3.5" />{translateUi(booking.status === "NO_SHOW" ? "Request payment (no-show)" : "Request payment")}</button>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div>{((booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID") || paymentLinks.latest.has(booking.id) ? <div className="border-t border-slate-100 pt-4"><BookingLinkHistorySection booking={booking} data={paymentLinks} onNew={(booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID" ? onRequestPayment : undefined} /></div> : null}</div></Dialog>;
 }
 
 function AvailableServicePicker({ sid, date, time, staffId, services, staff, onClose, onSelect }: {

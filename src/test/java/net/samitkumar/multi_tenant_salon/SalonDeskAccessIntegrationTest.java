@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -131,6 +132,60 @@ class SalonDeskAccessIntegrationTest {
         get("/booking", staffToken(otherSalonId, "elsewhere")).expectStatus().isForbidden();
         // A token claiming this salon doesn't help: the database says they don't work here.
         get("/booking", staffToken(salonId, "elsewhere")).expectStatus().isForbidden();
+    }
+
+    /**
+     * The desk's search runs over the list the desk loads, so that list is what keeps one salon's customers away from
+     * another's staff: it holds only this salon's appointments, and an id from another salon can't be acted on.
+     */
+    @Test void theDeskSeesAndManagesOnlyItsOwnSalonsBookings() {
+        long mine = booking(salonId, "Jane Smith", "jane@mine.test");
+        long theirs = booking(otherSalonId, "Eve Other", "eve@theirs.test");
+        var token = staffToken(salonId, "stylist");
+
+        var listed = get("/booking", token).expectStatus().isOk().returnResult(String.class).getResponseBody();
+        assertThat(listed).contains("Jane Smith").contains("jane@mine.test").doesNotContain("Eve Other").doesNotContain("eve@theirs.test");
+
+        // Managing their own salon's appointment works...
+        client.post().uri("/api/salon-admin/" + salonId + "/booking/" + mine + "/confirm").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isOk();
+        assertThat(jdbc.queryForObject("SELECT status FROM booking WHERE id = ?", String.class, mine)).isEqualTo("CONFIRMED");
+
+        // ...but another salon's appointment can't be reached by id, whichever salon the request names.
+        for (var action : List.of("confirm", "cancel", "complete", "no-show")) {
+            client.post().uri("/api/salon-admin/" + salonId + "/booking/" + theirs + "/" + action).header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isNotFound();
+            client.post().uri("/api/salon-admin/" + otherSalonId + "/booking/" + theirs + "/" + action).header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        }
+        client.get().uri("/api/salon-admin/" + salonId + "/booking/" + theirs).header("Authorization", token).exchange().expectStatus().isNotFound();
+        assertThat(jdbc.queryForObject("SELECT status FROM booking WHERE id = ?", String.class, theirs)).as("untouched").isEqualTo("PENDING");
+    }
+
+    /** The desk picks a colour per stylist; it must be saved and come back in the staff list the desk loads. */
+    @Test void aStylistColourChosenOnTheDeskIsSavedAndListed() {
+        long stylist = jdbc.queryForObject("SELECT id FROM staff_member WHERE salon_id = ? AND email = ?", Long.class, salonId, "stylist-" + tag + "@desk.test");
+        var token = staffToken(salonId, "stylist");
+        client.put().uri("/api/salon-admin/" + salonId + "/staff/" + stylist + "/calendar-color").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"color\":\"#FF5500\"}").exchange().expectStatus().isOk();
+        assertThat(jdbc.queryForObject("SELECT calendar_color FROM staff_member WHERE id = ?", String.class, stylist)).isEqualTo("#ff5500");
+        var listed = get("/staff", token).expectStatus().isOk().returnResult(String.class).getResponseBody();
+        assertThat(listed).contains("\"calendarColor\":\"#ff5500\"");
+        // A bad value is refused, and "reset" clears it.
+        client.put().uri("/api/salon-admin/" + salonId + "/staff/" + stylist + "/calendar-color").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"color\":\"red\"}").exchange().expectStatus().isBadRequest();
+        client.put().uri("/api/salon-admin/" + salonId + "/staff/" + stylist + "/calendar-color").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"color\":null}").exchange().expectStatus().isOk();
+        assertThat(jdbc.queryForObject("SELECT calendar_color FROM staff_member WHERE id = ?", String.class, stylist)).isNull();
+    }
+
+    private long booking(UUID salon, String customer, String email) {
+        long serviceId = jdbc.queryForObject("INSERT INTO service_item (salon_id, name, category, price, currency, duration_minutes, active, created_at) "
+                + "VALUES (?, 'Cut', 'HAIR', 400, 'DKK', 60, true, now()) RETURNING id", Long.class, salon);
+        long staffId = jdbc.queryForObject("SELECT id FROM staff_member WHERE salon_id = ? LIMIT 1", Long.class, salon);
+        return jdbc.queryForObject("INSERT INTO booking (salon_id, service_id, staff_id, customer_name, customer_email, customer_phone, appointment_date, "
+                + "start_time, end_time, status, created_at) VALUES (?, ?, ?, ?, ?, '+4511111111', current_date + 1, '10:00', '11:00', 'PENDING', now()) RETURNING id",
+                Long.class, salon, serviceId, staffId, customer, email);
     }
 
     @Test void deactivatedOrRemovedStaffAreLockedOutStraightAway() {

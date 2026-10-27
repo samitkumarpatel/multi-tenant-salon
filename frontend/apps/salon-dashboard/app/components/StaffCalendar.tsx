@@ -411,7 +411,7 @@ function StatusTags({ booking }: { booking: Booking }) {
   return <span className="mt-0.5 flex flex-wrap gap-1">{tags.map(([label, tone]) => <span key={label} className={`rounded px-1 py-px text-[9px] font-bold ${tone}`}>{label}</span>)}</span>;
 }
 
-function ColorPopover({ current, custom, onPick, onClose }: { current: string; custom: boolean; onPick: (color: string | null) => void; onClose: () => void }) {
+export function ColorPopover({ current, custom, onPick, onClose }: { current: string; custom: boolean; onPick: (color: string | null) => void; onClose: () => void }) {
   const { t: translateUi } = useI18n();
   return <>
     <button type="button" aria-label={translateUi("Close")} className="fixed inset-0 z-40 cursor-default" onClick={onClose} />

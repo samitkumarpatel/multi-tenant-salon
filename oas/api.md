@@ -49,24 +49,6 @@ role / not the salon's owner → `403`.
 
 ---
 
-## Path Namespace Overview
-
-| Namespace | Base Path | Audience |
-|---|---|---|
-| **Salon Onboarding** | `/api/salon-onboarding` | New tenant registration; platform-level listing |
-| **Customer** | `/api/salon/{salonId}/...` | Public/customer-facing — browse, book, read |
-| **Admin** | `/api/salon-admin/{salonId}/...` | Salon owner/administrator — manage, configure, operate. Also callable by a platform super-admin for any salon, since super-admin management of a specific salon reuses these endpoints rather than duplicating them. |
-| **Super Admin** | `/api/salon-super-admin/...` | Platform super-admin — cross-tenant management of all salons |
-| **Staff Portal** | `/api/salon-staff/...` | Authenticated staff member — self-service profile, appointments, personal holidays |
-| **Utility** | `/api/salon-utility/...` | Any consumer needing reference data (countries with embedded currency info) |
-| **Analytics Ingestion** | `/api/analytics/events` | Public, anonymous — client-side JS on the salon's public website reporting page views/clicks |
-
-Customer sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/website`, `/chat`, `/shop/...`, `/membership/...`, `/account/...`
-
-Admin sub-paths: `/services/...`, `/staff/...`, `/booking/...`, `/closures`, `/holidays`, `/booking-settings`, `/contact`, `/website`, `/website-type`, `/features`, `/analytics/summary`, `/shop/...`, `/membership/...`, `/payments/...`, `/customers/...`, `/customer-self-service`
-
----
-
 ## Salon Onboarding
 
 ### Register a new salon
