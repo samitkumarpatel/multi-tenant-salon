@@ -1,6 +1,8 @@
 package net.samitkumar.multi_tenant_salon.rating.internal;
 
 import net.samitkumar.multi_tenant_salon.rating.RatingApi;
+import net.samitkumar.multi_tenant_salon.rating.BookingRating;
+import net.samitkumar.multi_tenant_salon.rating.CustomerRatingOption;
 import net.samitkumar.multi_tenant_salon.rating.RatingReviewTarget;
 import net.samitkumar.multi_tenant_salon.rating.RatingSummary;
 import net.samitkumar.multi_tenant_salon.rating.SalonRatings;
@@ -100,6 +102,53 @@ class RatingService implements RatingApi {
                     return 1;
                 }).list();
         return new SalonRatings(salon, Map.copyOf(staff));
+    }
+
+    @Override
+    public java.util.List<BookingRating> getBookingRatings(UUID salonId, Long staffId) {
+        var sql = """
+                SELECT b.id AS booking_id,b.customer_name,si.name AS service_name,sm.name AS staff_name,
+                       b.appointment_date,r.salon_rating,r.staff_rating,r.submitted_at
+                FROM booking_review r
+                JOIN booking b ON b.id=r.booking_id
+                JOIN service_item si ON si.id=b.service_id
+                JOIN staff_member sm ON sm.id=r.staff_id
+                WHERE r.salon_id=:salonId
+                """ + (staffId == null ? "" : " AND r.staff_id=:staffId ") + """
+                ORDER BY r.submitted_at DESC,r.booking_id DESC LIMIT 500
+                """;
+        var query = jdbc.sql(sql).param("salonId", salonId);
+        if (staffId != null) query = query.param("staffId", staffId);
+        return query
+                .query((rs, row) -> new BookingRating(rs.getLong("booking_id"), rs.getString("customer_name"),
+                        rs.getString("service_name"), rs.getString("staff_name"), rs.getDate("appointment_date").toLocalDate(),
+                        rs.getInt("salon_rating"), rs.getInt("staff_rating"), rs.getTimestamp("submitted_at").toInstant())).list();
+    }
+
+    @Override
+    public java.util.List<CustomerRatingOption> getCustomerRatingOptions(UUID salonId, String customerEmail) {
+        return jdbc.sql("""
+                SELECT b.id,si.name service_name,sm.name staff_name,b.appointment_date,
+                       EXISTS(SELECT 1 FROM booking_review r WHERE r.booking_id=b.id) submitted
+                FROM booking b JOIN service_item si ON si.id=b.service_id JOIN staff_member sm ON sm.id=b.staff_id
+                WHERE b.salon_id=:salonId AND lower(b.customer_email)=:email AND b.status='COMPLETED'
+                ORDER BY b.appointment_date DESC,b.id DESC LIMIT 100
+                """).param("salonId", salonId).param("email", customerEmail)
+                .query((rs, row) -> new CustomerRatingOption(rs.getLong("id"), rs.getString("service_name"),
+                        rs.getString("staff_name"), rs.getDate("appointment_date").toLocalDate(), rs.getBoolean("submitted"))).list();
+    }
+
+    @Override
+    @Transactional
+    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, int salonRating, int staffRating) {
+        if (salonRating < 1 || salonRating > 5 || staffRating < 1 || staffRating > 5) return false;
+        return jdbc.sql("""
+                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating)
+                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating FROM booking b
+                WHERE b.id=:bookingId AND b.salon_id=:salonId AND lower(b.customer_email)=:email AND b.status='COMPLETED'
+                ON CONFLICT (booking_id) DO NOTHING
+                """).param("bookingId", bookingId).param("salonId", salonId).param("email", customerEmail)
+                .param("salonRating", salonRating).param("staffRating", staffRating).update() == 1;
     }
 
     private static RatingSummary summary(Double average, long count) {

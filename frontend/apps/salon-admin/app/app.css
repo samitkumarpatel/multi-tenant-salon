@@ -3,6 +3,17 @@
 @source "../../../packages/ui-shared/src";
 @source "../../../packages/ui-website/src";
 
+/* Tailwind Preflight resets buttons and selects to the default cursor. Keep every
+   interactive control visibly clickable, with a clear disabled state. */
+.admin-shell :is(a, button, summary, select, [role="button"], input[type="checkbox"], input[type="radio"]) {
+  cursor: pointer;
+}
+
+.admin-shell :is(button, select, [role="button"]):disabled,
+.admin-shell :is(button, select, [role="button"])[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 .admin-shell :is(a, button, summary):focus-visible {
   outline: 2px solid var(--color-matcha-600);
   outline-offset: 3px;

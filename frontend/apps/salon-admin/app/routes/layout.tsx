@@ -6,7 +6,7 @@ import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "rea
 import { useLoaderData } from "react-router";
 import { getAdminSession, getAccessTokenExpiry, logout as authLogout, startSilentRenewLoop, startOAuth2Login } from "~/lib/auth";
 import { SalonErrorPage } from "@salon/ui-website";
-import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText, Contact } from "lucide-react";
+import { Globe, Trash2, LayoutDashboard, Briefcase, Users, LogOut, ChevronDown, Check, MapPin, Palette, Menu, X as XIcon, CalendarCheck, CalendarDays, CreditCard, ShoppingBag, BarChart2, Gift, HelpCircle, BookOpen, Sparkles, ListChecks, Power, AlertTriangle, Gauge, FileText, Contact, Star } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
@@ -710,6 +710,11 @@ export default function Layout() {
                 <NavLink to="holiday" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
                   <CalendarDays className="w-4 h-4 shrink-0" /> {translateUi("Holidays ")}</NavLink>
               </Tooltip>
+            )}
+
+            {salon.features?.includes("BOOKING") && (
+              <NavLink to="ratings" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+                <Star className="w-4 h-4 shrink-0" /> {translateUi("Feedback ratings")}</NavLink>
             )}
 
             <Tooltip content="Connect Stripe and choose which salon features can accept card payments.">

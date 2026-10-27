@@ -4,6 +4,8 @@ import net.samitkumar.multi_tenant_salon.booking.Booking;
 import net.samitkumar.multi_tenant_salon.booking.BookingApi;
 import net.samitkumar.multi_tenant_salon.booking.StaffAvailabilityOverride;
 import net.samitkumar.multi_tenant_salon.media.MediaService;
+import net.samitkumar.multi_tenant_salon.rating.BookingRating;
+import net.samitkumar.multi_tenant_salon.rating.RatingApi;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.staff.StaffApi;
@@ -29,12 +31,14 @@ class StaffPortalController {
     private final BookingApi bookingApi;
     private final SalonApi salonApi;
     private final MediaService mediaApi;
+    private final RatingApi ratingApi;
 
-    StaffPortalController(StaffApi staffApi, BookingApi bookingApi, SalonApi salonApi, Optional<MediaService> mediaApi) {
+    StaffPortalController(StaffApi staffApi, BookingApi bookingApi, SalonApi salonApi, Optional<MediaService> mediaApi, RatingApi ratingApi) {
         this.staffApi = staffApi;
         this.bookingApi = bookingApi;
         this.salonApi = salonApi;
         this.mediaApi = mediaApi.orElse(null);
+        this.ratingApi = ratingApi;
     }
 
     record ProfileUpdateRequest(String name, String phone, List<String> specializations, Boolean availableForBooking,
@@ -131,6 +135,14 @@ class StaffPortalController {
         return staffApi.findById(staffId).map(member ->
                 ResponseEntity.ok(bookingApi.findByStaff(member.salonId(), staffId))
         ).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{staffId}/ratings")
+    ResponseEntity<List<BookingRating>> getRatings(@AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+                                                    @PathVariable Long staffId) {
+        if (!isOwnStaffId(jwt, staffId)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        return staffApi.findById(staffId).map(member -> ResponseEntity.ok(
+                ratingApi.getBookingRatings(member.salonId(), staffId))).orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{staffId}/holidays")

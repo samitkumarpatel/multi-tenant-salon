@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.customer.internal;
 
 import lombok.extern.slf4j.Slf4j;
+import net.samitkumar.multi_tenant_salon.superadmin.internal.LoginAuditService;
 import net.samitkumar.multi_tenant_salon.customer.CustomerSignInCodeRequestedEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -9,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -46,6 +49,7 @@ class CustomerAuthService {
     private final SecureRandom random = new SecureRandom();
     private final JdbcClient jdbc;
     private final CustomerAccountService accounts;
+    private final LoginAuditService loginAudit;
     private final ApplicationEventPublisher events;
     private final Duration codeTtl;
     private final Duration sessionTtl;
@@ -53,7 +57,7 @@ class CustomerAuthService {
     private final int maxRequestsPerIp;
     private final int maxCodeAttempts;
 
-    CustomerAuthService(JdbcTemplate template, CustomerAccountService accounts, ApplicationEventPublisher events,
+    CustomerAuthService(JdbcTemplate template, CustomerAccountService accounts, LoginAuditService loginAudit, ApplicationEventPublisher events,
                         @Value("${spring.application.customer.code-ttl:PT10M}") Duration codeTtl,
                         @Value("${spring.application.customer.session-ttl:P30D}") Duration sessionTtl,
                         @Value("${spring.application.customer.max-codes-per-email:5}") int maxCodesPerEmail,
@@ -61,6 +65,7 @@ class CustomerAuthService {
                         @Value("${spring.application.customer.max-code-attempts:5}") int maxCodeAttempts) {
         this.jdbc = JdbcClient.create(template);
         this.accounts = accounts;
+        this.loginAudit = loginAudit;
         this.events = events;
         this.codeTtl = codeTtl;
         this.sessionTtl = sessionTtl;
@@ -121,6 +126,7 @@ class CustomerAuthService {
         var email = normalize(rawEmail);
         var code = rawCode == null ? "" : rawCode.replaceAll("\\s", "");
         var now = Instant.now();
+        try {
         var latest = jdbc.sql("""
                         SELECT id, code_hash, attempts FROM customer_sign_in_code
                         WHERE salon_id = :salon AND email = :email AND code_hash IS NOT NULL
@@ -149,8 +155,15 @@ class CustomerAuthService {
                 .param("salon", salonId).param("email", email).param("hash", sha256(token))
                 .param("now", ts(now)).param("expires", ts(expiresAt))
                 .update();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { loginAudit.recordCustomer(salonId, email, "SUCCESS", true); }
+        });
         log.info("[CUSTOMER] Signed in to salon {} (session until {})", salonId, expiresAt);
         return new Session(token, email, expiresAt);
+        } catch (ResponseStatusException authenticationFailure) {
+            loginAudit.recordCustomer(salonId, email, "FAILED", false);
+            throw authenticationFailure;
+        }
     }
 
     /** The email a live session for this salon is signed in as, or 401. */

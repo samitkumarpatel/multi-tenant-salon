@@ -100,6 +100,7 @@ export default function PublicWebsitePage() {
             <p className="text-[11px] text-slate-500">© {new Date().getFullYear()} {data.salon.name}</p>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
               <SalonPolicyLinks policies={data.websitePolicies} color="#64748B" salonName={data.salon.name} />
+              {hasCustomerAccount(data.salon) && <a href={`/account${search}`} className="text-[11px] font-semibold hover:underline" style={{ color: theme.accentColor }}>{translateUi("Rate your visit")}</a>}
               <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:opacity-75">
                 {translateUi("Back to top ")}<ArrowUp className="h-3 w-3" />
               </button>

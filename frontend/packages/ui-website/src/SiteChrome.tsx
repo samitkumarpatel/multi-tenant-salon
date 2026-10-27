@@ -519,6 +519,11 @@ export function SiteFooter({
             © {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved. ")}</p>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
             <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
+            {current !== "account" && hasCustomerAccount(salon) && getPagePath && (
+              <a href={getPagePath("account")} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
+                {translateUi("Rate your visit")}
+              </a>
+            )}
             {isScrollable && (
               <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
                 {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />

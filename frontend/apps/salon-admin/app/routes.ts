@@ -16,6 +16,7 @@ export default [
     route("customers", "routes/customers.tsx"),
     route("website", "routes/website.tsx"),
     route("booking", "routes/booking.tsx"),
+    route("ratings", "routes/ratings.tsx"),
     route("dashboard-settings", "routes/dashboard-settings.tsx"),
     route("payments", "routes/payments.tsx"),
     route("shop", "routes/shop.tsx", [

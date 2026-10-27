@@ -3,7 +3,7 @@ import { redirect, NavLink, Outlet, useNavigate, useRouteError, isRouteErrorResp
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, Images, LogOut, Menu, X as XIcon, Store, ChevronDown, Check } from "lucide-react";
+import { LayoutDashboard, CalendarCheck, CalendarDays, UserCircle, Images, LogOut, Menu, X as XIcon, Store, ChevronDown, Check, Star } from "lucide-react";
 import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import {
   getStaffSession,
@@ -347,6 +347,9 @@ export default function Layout() {
 
             <NavLink to="/portal/appointments" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <CalendarCheck className="w-4 h-4 shrink-0" /> {translateUi("My Appointments ")}</NavLink>
+
+            <NavLink to="/portal/ratings" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
+              <Star className="w-4 h-4 shrink-0" /> {translateUi("Feedback ratings ")}</NavLink>
 
             <NavLink to="/portal/holidays" className={sideNavClass} onClick={() => setSidebarOpen(false)}>
               <CalendarDays className="w-4 h-4 shrink-0" /> {translateUi("My Holidays ")}</NavLink>

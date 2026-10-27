@@ -1,7 +1,7 @@
 import { useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, CalendarDays, ChevronDown, Clock, Crown, Loader2, LogOut, Mail, Package, Truck, User, X,
+  ArrowLeft, CalendarDays, ChevronDown, Clock, Crown, Loader2, LogOut, Mail, Package, Truck, User, X, Star,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { ApiError, friendlyMessage } from "./apiError";
@@ -11,7 +11,7 @@ import type { SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
 import type {
   AvailableSlot, CustomerAccount, CustomerBooking, CustomerMembership, CustomerOrder, CustomerSelfServicePolicy, CustomerSession, Salon,
-  WebsiteTheme,
+  WebsiteTheme, CustomerRatingOption,
 } from "./types";
 
 /**
@@ -188,6 +188,8 @@ export function CustomerAccountPanel({ salon, theme, pageHref, onNavigate, renew
   const tone = toneFor(theme);
   const [session, setSession] = useCustomerSession(salon.id);
   const [account, setAccount] = useState<CustomerAccount | null>(null);
+  const [ratingOptions, setRatingOptions] = useState<CustomerRatingOption[]>([]);
+  const [ratingLoadError, setRatingLoadError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
 
@@ -209,10 +211,21 @@ export function CustomerAccountPanel({ salon, theme, pageHref, onNavigate, renew
     return () => { alive = false; };
   }, [session, salon.id, setSession]);
 
+  useEffect(() => {
+    if (!session) { setRatingOptions([]); return; }
+    let alive = true;
+    setRatingLoadError(null);
+    apiFetch<CustomerRatingOption[]>(`${API_BASE}/api/salon/${salon.id}/account/ratings`, { headers: jsonHeaders(session.sessionToken) })
+      .then((options) => alive && setRatingOptions(options))
+      .catch((e) => alive && setRatingLoadError(friendlyMessage(e)));
+    return () => { alive = false; };
+  }, [session, salon.id]);
+
   function signOut() {
     const token = session?.sessionToken;
     setSession(null);
     setAccount(null);
+    setRatingOptions([]);
     setExpired(false);
     if (token) {
       apiFetch<void>(`${API_BASE}/api/salon/${salon.id}/account/sign-out`, { method: "POST", headers: jsonHeaders(token) })
@@ -249,6 +262,8 @@ export function CustomerAccountPanel({ salon, theme, pageHref, onNavigate, renew
   return (
     <AccountDetails salon={salon} theme={theme} tone={tone} account={account} translateUi={translateUi}
       onSignOut={signOut} links={{ pageHref, onNavigate, renewHref }} token={session.sessionToken}
+      ratingOptions={ratingOptions} ratingLoadError={ratingLoadError}
+      onRatingSubmitted={(bookingId) => setRatingOptions((items) => items.map((item) => item.bookingId === bookingId ? { ...item, submitted: true } : item))}
       onBookingChanged={(b) => setAccount((a) => (a ? { ...a, bookings: a.bookings.map((x) => (x.id === b.id ? b : x)) } : a))} />
   );
 }
@@ -396,9 +411,10 @@ function SignIn({ salon, theme, tone, translateUi, notice, onSignedIn }: {
 
 type Tab = "bookings" | "orders" | "memberships";
 
-function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, links, token, onBookingChanged }: {
+function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, links, token, onBookingChanged, ratingOptions, ratingLoadError, onRatingSubmitted }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; account: CustomerAccount; translateUi: Translate;
   onSignOut: () => void; links: CustomerAccountLinks; token: string; onBookingChanged: (b: CustomerBooking) => void;
+  ratingOptions: CustomerRatingOption[]; ratingLoadError: string | null; onRatingSubmitted: (bookingId: number) => void;
 }) {
   const features = salon.features ?? [];
   const tabs = [
@@ -406,7 +422,7 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
     { key: "orders" as const, label: translateUi("Orders"), count: account.orders.length, on: features.includes("WEBSHOP") },
     { key: "memberships" as const, label: translateUi("Membership"), count: account.memberships.length, on: features.includes("MEMBERSHIP") },
   ].filter((t) => t.on || t.count > 0);
-  const [tab, setTab] = useState<Tab>(() => (tabs.find((t) => t.count > 0) ?? tabs[0])?.key ?? "bookings");
+  const [tab, setTab] = useState<Tab>(() => (tabs.find((t) => t.key === "bookings" && t.count > 0) ?? tabs.find((t) => t.count > 0) ?? tabs[0])?.key ?? "bookings");
   const name = account.profile.name;
 
   return (
@@ -445,7 +461,7 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
       )}
 
       {tab === "bookings" && <BookingsList salon={salon} theme={theme} tone={tone} bookings={account.bookings} policy={account.selfService} token={token}
-        onChanged={onBookingChanged} translateUi={translateUi} links={links} />}
+        onChanged={onBookingChanged} translateUi={translateUi} links={links} ratingOptions={ratingOptions} ratingLoadError={ratingLoadError} onRatingSubmitted={onRatingSubmitted} />}
       {tab === "orders" && <OrdersList theme={theme} tone={tone} orders={account.orders} translateUi={translateUi} links={links} />}
       {tab === "memberships" && <MembershipsList salon={salon} theme={theme} tone={tone} memberships={account.memberships} translateUi={translateUi} links={links} />}
     </div>
@@ -490,9 +506,10 @@ function SectionTitle({ tone, children }: { tone: Tone; children: React.ReactNod
 
 // ── Bookings ───────────────────────────────────────────────────────────────────
 
-function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, translateUi, links }: {
+function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, translateUi, links, ratingOptions, ratingLoadError, onRatingSubmitted }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; bookings: CustomerBooking[]; policy: CustomerSelfServicePolicy | undefined;
   token: string; onChanged: (b: CustomerBooking) => void; translateUi: Translate; links: CustomerAccountLinks;
+  ratingOptions: CustomerRatingOption[]; ratingLoadError: string | null; onRatingSubmitted: (bookingId: number) => void;
 }) {
   const { locale } = useI18n();
   const now = Date.now();
@@ -536,6 +553,11 @@ function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, 
             {!faded && (b.canCancel || b.canReschedule || b.blockedReason) && (
               <BookingActions salon={salon} theme={theme} tone={tone} booking={b} token={token} onChanged={onChanged} translateUi={translateUi} />
             )}
+            {b.status === "COMPLETED" && ratingOptions.some((item) => item.bookingId === b.id) && (
+              <CustomerBookingRating salon={salon} theme={theme} tone={tone} booking={b}
+                option={ratingOptions.find((item) => item.bookingId === b.id)!} token={token}
+                error={ratingLoadError} translateUi={translateUi} onSubmitted={onRatingSubmitted} />
+            )}
           </div>
         </div>
       </Card>
@@ -568,6 +590,42 @@ function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, 
       )}
     </div>
   );
+}
+
+function CustomerBookingRating({ salon, theme, tone, booking, option, token, error, translateUi, onSubmitted }: {
+  salon: Salon; theme: WebsiteTheme; tone: Tone; booking: CustomerBooking; option: CustomerRatingOption;
+  token: string; error: string | null; translateUi: Translate; onSubmitted: (bookingId: number) => void;
+}) {
+  const [salonRating, setSalonRating] = useState(0);
+  const [staffRating, setStaffRating] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  async function submit() {
+    setBusy(true); setSubmitError("");
+    try {
+      await apiFetch<void>(`${API_BASE}/api/salon/${salon.id}/account/ratings`, {
+        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating, staffRating }),
+      });
+      onSubmitted(booking.id);
+    } catch (e) { setSubmitError(friendlyMessage(e)); }
+    finally { setBusy(false); }
+  }
+  if (option.submitted) return <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: CHIP_COLOR.good }}><Star className="size-3.5 fill-current" />{translateUi("Thanks for rating your visit")}</p>;
+  return <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: tone.soft, border: `1px solid ${tone.border}` }}>
+    <p className="text-xs font-semibold" style={{ color: tone.text }}>{translateUi("How was your visit?")}</p>
+    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      {[{ label: salon.name, value: salonRating, set: setSalonRating }, { label: booking.staffName ?? option.staffName ?? translateUi("Your stylist"), value: staffRating, set: setStaffRating }].map((rating) => <div key={rating.label}>
+        <p className="mb-1 text-[11px]" style={{ color: tone.sub }}>{rating.label}</p><div className="flex gap-1" role="radiogroup" aria-label={rating.label}>
+          {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" role="radio" aria-checked={rating.value === value} aria-label={`${value} ${translateUi("stars")}`} onClick={() => rating.set(value)}
+            className="size-8 rounded-md text-lg focus-visible:outline focus-visible:outline-2" style={{ color: value <= rating.value ? "#D97706" : tone.border }}>{value <= rating.value ? "★" : "☆"}</button>)}
+        </div>
+      </div>)}
+    </div>
+    {(error || submitError) && <p role="alert" className="mt-2 text-xs text-red-600">{submitError || error}</p>}
+    <button type="button" disabled={busy || salonRating < 1 || staffRating < 1} onClick={submit}
+      className="mt-3 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+      style={{ backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) }}>{busy ? translateUi("Submitting…") : translateUi("Send feedback")}</button>
+  </div>;
 }
 
 /** Cancel / reschedule one upcoming appointment; the server re-checks every rule, this only mirrors them. */

@@ -6,6 +6,7 @@ export default [
   route("portal", "routes/layout.tsx", [
     index("routes/dashboard.tsx"),
     route("appointments", "routes/appointments.tsx"),
+    route("ratings", "routes/ratings.tsx"),
     route("holidays", "routes/holidays.tsx"),
     route("profile", "routes/profile.tsx"),
     route("media", "routes/media.tsx"),

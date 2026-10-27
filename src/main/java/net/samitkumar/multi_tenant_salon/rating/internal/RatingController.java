@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.rating.internal;
 
 import net.samitkumar.multi_tenant_salon.rating.RatingApi;
+import net.samitkumar.multi_tenant_salon.rating.BookingRating;
 import net.samitkumar.multi_tenant_salon.rating.RatingReviewTarget;
 import net.samitkumar.multi_tenant_salon.rating.SalonRatings;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
@@ -34,5 +35,10 @@ class RatingController {
     @GetMapping("/api/salon/{salonId}/ratings")
     SalonRatings salonRatings(@PathVariable String salonId) {
         return ratings.getRatings(salons.resolveId(salonId));
+    }
+
+    @GetMapping("/api/salon-admin/{salonId}/ratings")
+    java.util.List<BookingRating> adminRatings(@PathVariable String salonId) {
+        return ratings.getBookingRatings(salons.resolveId(salonId), null);
     }
 }

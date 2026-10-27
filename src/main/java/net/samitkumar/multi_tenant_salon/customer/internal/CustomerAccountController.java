@@ -10,7 +10,10 @@ import net.samitkumar.multi_tenant_salon.customer.internal.CustomerAccountViews.
 import net.samitkumar.multi_tenant_salon.customer.internal.CustomerAccountViews.SignInRequest;
 import net.samitkumar.multi_tenant_salon.customer.internal.CustomerAccountViews.VerifyRequest;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
+import net.samitkumar.multi_tenant_salon.rating.CustomerRatingOption;
+import net.samitkumar.multi_tenant_salon.rating.RatingApi;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 /**
  * The customer's self-service account for one salon — {@code /api/salon/{salonId}/account/**}, under
@@ -40,10 +44,12 @@ class CustomerAccountController {
     private final SalonApi salonApi;
     private final BookingApi bookingApi;
     private final SelfServicePolicies policies;
+    private final RatingApi ratings;
 
     CustomerAccountController(CustomerAuthService auth, CustomerAccountService accounts, SalonApi salonApi,
-                              BookingApi bookingApi, SelfServicePolicies policies) {
+                              BookingApi bookingApi, SelfServicePolicies policies, RatingApi ratings) {
         this.bookingApi = bookingApi;
+        this.ratings = ratings;
         this.policies = policies;
         this.auth = auth;
         this.accounts = accounts;
@@ -62,6 +68,25 @@ class CustomerAccountController {
     SessionView verify(@PathVariable String salonId, @RequestBody VerifyRequest body) {
         var session = auth.verify(salonApi.resolveId(salonId), body == null ? null : body.email(), body == null ? null : body.code());
         return new SessionView(session.token(), session.email(), session.expiresAt());
+    }
+
+    record SubmitRatingRequest(Long bookingId, int salonRating, int staffRating) {}
+
+    @GetMapping("/ratings")
+    List<CustomerRatingOption> ratingOptions(@PathVariable String salonId,
+            @RequestHeader(name = SESSION_HEADER, required = false) String token) {
+        var id = salonApi.resolveId(salonId);
+        return ratings.getCustomerRatingOptions(id, auth.requireEmail(id, token));
+    }
+
+    @PostMapping("/ratings")
+    ResponseEntity<Void> submitRating(@PathVariable String salonId,
+            @RequestHeader(name = SESSION_HEADER, required = false) String token,
+            @RequestBody SubmitRatingRequest request) {
+        var id = salonApi.resolveId(salonId);
+        var email = auth.requireEmail(id, token);
+        return ratings.submitCustomerReview(id, email, request.bookingId(), request.salonRating(), request.staffRating())
+                ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build();
     }
 
     @GetMapping

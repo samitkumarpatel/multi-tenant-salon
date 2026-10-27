@@ -7,7 +7,8 @@ import java.util.UUID;
 @RequestMapping("/api/salon-super-admin/users")
 class UserManagementController {
     private final UserManagementService users;
-    UserManagementController(UserManagementService users) { this.users = users; }
+    private final LoginAuditService loginAudit;
+    UserManagementController(UserManagementService users, LoginAuditService loginAudit) { this.users = users; this.loginAudit = loginAudit; }
 
     @GetMapping
     UserManagementService.UserPage list(@RequestParam(defaultValue="") String q,
@@ -18,4 +19,11 @@ class UserManagementController {
     }
     @GetMapping("/detail")
     UserManagementService.Detail detail(@RequestParam String email) { return users.detail(email); }
+
+    @GetMapping("/login-history")
+    LoginAuditService.Page loginHistory(@RequestParam String email,
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
+        users.detail(email); // Reuse canonical email validation and reject unknown identities.
+        return loginAudit.customerHistory(email.trim().toLowerCase(java.util.Locale.ROOT), page, size);
+    }
 }

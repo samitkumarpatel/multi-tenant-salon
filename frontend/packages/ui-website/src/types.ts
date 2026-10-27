@@ -636,6 +636,14 @@ export interface CustomerBooking {
   staffId: number | null;
 }
 
+export interface CustomerRatingOption {
+  bookingId: number;
+  serviceName: string | null;
+  staffName: string | null;
+  appointmentDate: string;
+  submitted: boolean;
+}
+
 export interface CustomerSelfServicePolicy {
   allowCancel: boolean;
   cancelNoticeHours: number;

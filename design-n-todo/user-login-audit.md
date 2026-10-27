@@ -1,6 +1,6 @@
 # Per-user login audit history
 
-Status: planned; no audit capability has been implemented yet.
+Status: partial implementation. Customer code attempts and the Super Admin history view are implemented; trusted OAuth coverage remains planned.
 
 ## Outcome
 
@@ -42,6 +42,10 @@ Index by identity/email and descending occurrence time plus event ID; support ap
 Never record OTPs, magic links, authorization codes, PKCE verifiers, tokens, cookies, or raw authentication payloads. Use parameterized queries, server-derived identity/client metadata, and bounded controlled reason codes. Restrict runtime event updates/deletes except through a dedicated retention mechanism. Decide retention and account deletion/anonymization behavior before rollout; append-only history must not bypass those policies.
 
 Required checks: customer success/failure/expiry/throttle persistence; rollback semantics; no secret leakage; OAuth delivery authentication, replay protection and deduplication; renewal excluded from login counts; identity/salon isolation; super-admin-only reads including inactive/deleted users; stable pagination/filtering; UI states and timezone rendering. Run focused backend integration tests plus Super Admin typecheck/build.
+
+## Implemented customer slice
+
+Migration `V29__login_audit.sql` stores customer code verification results. Customer successes are recorded after the session transaction commits; failed code checks are recorded in a separate transaction. The Super Admin user detail page reads paginated customer history and labels failed attempts as unverified. No OAuth events are recorded yet.
 
 ## Next starting point
 
