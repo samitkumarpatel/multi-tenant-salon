@@ -263,7 +263,7 @@ export function CustomerAccountPanel({ salon, theme, pageHref, onNavigate, renew
     <AccountDetails salon={salon} theme={theme} tone={tone} account={account} translateUi={translateUi}
       onSignOut={signOut} links={{ pageHref, onNavigate, renewHref }} token={session.sessionToken}
       ratingOptions={ratingOptions} ratingLoadError={ratingLoadError}
-      onRatingSubmitted={(bookingId) => setRatingOptions((items) => items.map((item) => item.bookingId === bookingId ? { ...item, submitted: true } : item))}
+      onRatingSubmitted={(bookingId, feedback) => setRatingOptions((items) => items.map((item) => item.bookingId === bookingId ? { ...item, submitted: true, feedback } : item))}
       onBookingChanged={(b) => setAccount((a) => (a ? { ...a, bookings: a.bookings.map((x) => (x.id === b.id ? b : x)) } : a))} />
   );
 }
@@ -414,7 +414,7 @@ type Tab = "bookings" | "orders" | "memberships";
 function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, links, token, onBookingChanged, ratingOptions, ratingLoadError, onRatingSubmitted }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; account: CustomerAccount; translateUi: Translate;
   onSignOut: () => void; links: CustomerAccountLinks; token: string; onBookingChanged: (b: CustomerBooking) => void;
-  ratingOptions: CustomerRatingOption[]; ratingLoadError: string | null; onRatingSubmitted: (bookingId: number) => void;
+  ratingOptions: CustomerRatingOption[]; ratingLoadError: string | null; onRatingSubmitted: (bookingId: number, feedback: string | null) => void;
 }) {
   const features = salon.features ?? [];
   const tabs = [
@@ -509,14 +509,21 @@ function SectionTitle({ tone, children }: { tone: Tone; children: React.ReactNod
 function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, translateUi, links, ratingOptions, ratingLoadError, onRatingSubmitted }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; bookings: CustomerBooking[]; policy: CustomerSelfServicePolicy | undefined;
   token: string; onChanged: (b: CustomerBooking) => void; translateUi: Translate; links: CustomerAccountLinks;
-  ratingOptions: CustomerRatingOption[]; ratingLoadError: string | null; onRatingSubmitted: (bookingId: number) => void;
+  ratingOptions: CustomerRatingOption[]; ratingLoadError: string | null; onRatingSubmitted: (bookingId: number, feedback: string | null) => void;
 }) {
   const { locale } = useI18n();
   const now = Date.now();
   const isUpcoming = (b: CustomerBooking) =>
     appointmentStart(b).getTime() >= now && (b.status === "PENDING" || b.status === "CONFIRMED");
+  // `?staff=<id>` (from a stylist card's "Rate" link) narrows the list to visits with that stylist.
+  const [focusStaff, setFocusStaff] = useState<number | null>(null);
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("staff"));
+    setFocusStaff(Number.isFinite(id) && id > 0 ? id : null);
+  }, []);
+  const focusName = focusStaff == null ? null : bookings.find((b) => b.staffId === focusStaff)?.staffName ?? null;
   const upcoming = bookings.filter(isUpcoming).sort((a, b) => appointmentStart(a).getTime() - appointmentStart(b).getTime());
-  const past = bookings.filter((b) => !isUpcoming(b)).sort((a, b) => appointmentStart(b).getTime() - appointmentStart(a).getTime());
+  const past = bookings.filter((b) => !isUpcoming(b) && (focusStaff == null || b.staffId === focusStaff)).sort((a, b) => appointmentStart(b).getTime() - appointmentStart(a).getTime());
 
   if (bookings.length === 0) {
     return <Empty tone={tone} icon={<CalendarDays className="w-5 h-5" />} title={translateUi("No appointments yet")}
@@ -566,6 +573,12 @@ function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, 
 
   return (
     <div className="flex flex-col gap-5">
+      {focusStaff != null && (
+        <div className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs" style={{ backgroundColor: tone.soft, border: `1px solid ${tone.border}`, color: tone.text }}>
+          <span>{focusName ? translateUi("Rate your visits with {name}", { name: focusName }) : translateUi("Rate your visits with this stylist")}</span>
+          <button type="button" className="font-semibold underline" onClick={() => setFocusStaff(null)}>{translateUi("Show all")}</button>
+        </div>
+      )}
       <section>
         <SectionTitle tone={tone}>{translateUi("Upcoming")}</SectionTitle>
         {upcoming.length > 0
@@ -594,23 +607,29 @@ function BookingsList({ salon, theme, tone, bookings, policy, token, onChanged, 
 
 function CustomerBookingRating({ salon, theme, tone, booking, option, token, error, translateUi, onSubmitted }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; booking: CustomerBooking; option: CustomerRatingOption;
-  token: string; error: string | null; translateUi: Translate; onSubmitted: (bookingId: number) => void;
+  token: string; error: string | null; translateUi: Translate; onSubmitted: (bookingId: number, feedback: string | null) => void;
 }) {
   const [salonRating, setSalonRating] = useState(0);
   const [staffRating, setStaffRating] = useState(0);
+  const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
   async function submit() {
     setBusy(true); setSubmitError("");
     try {
       await apiFetch<void>(`${API_BASE}/api/salon/${salon.id}/account/ratings`, {
-        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating, staffRating }),
+        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating, staffRating, feedback: feedback.trim() || null }),
       });
-      onSubmitted(booking.id);
+      onSubmitted(booking.id, feedback.trim() || null);
     } catch (e) { setSubmitError(friendlyMessage(e)); }
     finally { setBusy(false); }
   }
-  if (option.submitted) return <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: CHIP_COLOR.good }}><Star className="size-3.5 fill-current" />{translateUi("Thanks for rating your visit")}</p>;
+  if (option.submitted) return <div className="mt-3 space-y-2">
+    <p className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: CHIP_COLOR.good }}><Star className="size-3.5 fill-current" />{translateUi("Thanks for rating your visit")}</p>
+    {option.feedback && <p className="text-xs italic" style={{ color: tone.sub }}>“{option.feedback}”</p>}
+    {option.reply && <div className="rounded-lg p-2.5 text-xs" style={{ backgroundColor: tone.soft, border: `1px solid ${tone.border}`, color: tone.text }}>
+      <p className="font-semibold">{translateUi("Reply from {salon}", { salon: salon.name })}</p><p className="mt-0.5 whitespace-pre-line">{option.reply}</p></div>}
+  </div>;
   return <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: tone.soft, border: `1px solid ${tone.border}` }}>
     <p className="text-xs font-semibold" style={{ color: tone.text }}>{translateUi("How was your visit?")}</p>
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -621,6 +640,10 @@ function CustomerBookingRating({ salon, theme, tone, booking, option, token, err
         </div>
       </div>)}
     </div>
+    <label className="mt-3 block text-[11px]" style={{ color: tone.sub }}>{translateUi("Tell us more (optional)")}
+      <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} maxLength={1000} rows={3}
+        className="mt-1 w-full rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: tone.border, color: tone.text, backgroundColor: "transparent" }} />
+    </label>
     {(error || submitError) && <p role="alert" className="mt-2 text-xs text-red-600">{submitError || error}</p>}
     <button type="button" disabled={busy || salonRating < 1 || staffRating < 1} onClick={submit}
       className="mt-3 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"

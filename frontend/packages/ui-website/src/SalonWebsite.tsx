@@ -1212,6 +1212,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                                 <span className="text-slate-400">{translateUi("No reviews yet")}</span>
                               )}
                             </div>
+                            {hasCustomerAccount(salon) && getPagePath && (
+                              <a href={`${getPagePath("account")}${getPagePath("account").includes("?") ? "&" : "?"}staff=${m.id}`} onClick={(e) => e.stopPropagation()}
+                                className="text-[10px] font-semibold no-underline hover:underline" style={{ color: theme.accentColor }}>{translateUi("Rate this stylist")}</a>
+                            )}
                             {photos + videos > 0 ? (
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
                                 {photos > 0 && <span className="inline-flex items-center gap-0.5"><Images className="w-2.5 h-2.5" />{photos}</span>}

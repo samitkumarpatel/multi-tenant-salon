@@ -59,6 +59,8 @@ servers:
     description: Local development server
 
 tags:
+  - name: Ratings
+    description: Customer ratings and written feedback per visit; the owner can reply, staff can read their own.
   - name: AdminPayments
     description: Stripe Connect (Accounts v2) onboarding and embedded account components, per-area payment settings and checkout style, card readers (Stripe Terminal), the payment ledger with refunds, and the Connect webhook.
   - name: SalonOnboarding
@@ -4357,6 +4359,100 @@ paths:
           description: Not this customer's appointment
         "409":
           description: Not allowed now (policy off, too close to the start, not cancellable, paid online); the message says which
+
+  /api/salon/{salonId}/account/ratings:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CustomerSessionHeader"
+    get:
+      tags: [CustomerAccount]
+      summary: My completed visits that can be rated
+      description: Each option says whether feedback was left (`submitted`) and carries the customer's `feedback` and the salon's `reply`, if any.
+      operationId: customerRatingOptions
+      responses:
+        "200":
+          description: Completed visits, newest first
+        "401":
+          description: Missing, expired or foreign session
+    post:
+      tags: [CustomerAccount]
+      summary: Rate a completed visit
+      description: >
+        `salonRating` and `staffRating` are 1-5; `feedback` is optional free text (trimmed, max 1000 chars). One review per
+        visit; the first submission wins and is never edited afterwards. `400` for a bad rating, someone else's visit,
+        a visit that is not `COMPLETED`, or one already rated.
+      operationId: customerSubmitRating
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, salonRating, staffRating]
+              properties:
+                bookingId: { type: integer, format: int64 }
+                salonRating: { type: integer, minimum: 1, maximum: 5 }
+                staffRating: { type: integer, minimum: 1, maximum: 5 }
+                feedback: { type: string, maxLength: 1000, nullable: true }
+      responses:
+        "204":
+          description: Saved
+        "400":
+          description: Not rateable
+        "401":
+          description: Missing, expired or foreign session
+
+  /api/salon-admin/{salonId}/ratings:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Ratings]
+      summary: Customer ratings and feedback for the salon
+      description: Newest first (max 500). Read-only; each row carries `feedback` (the customer's words), and `reply` / `repliedAt` (the owner's answer).
+      operationId: adminListRatings
+      responses:
+        "200":
+          description: Ratings
+
+  /api/salon-admin/{salonId}/ratings/{bookingId}/reply:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: bookingId, required: true, schema: { type: integer, format: int64 } }
+    put:
+      tags: [Ratings]
+      summary: Reply to a review
+      description: >
+        Sets or replaces the owner's reply (trimmed, max 1000 chars). This is the only write on a review: the customer's
+        ratings and feedback can be neither edited nor deleted by the salon.
+      operationId: adminReplyToRating
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reply]
+              properties:
+                reply: { type: string, maxLength: 1000 }
+      responses:
+        "204":
+          description: Saved
+        "400":
+          description: Blank reply or no such review
+
+  /api/salon-staff/{staffId}/ratings:
+    parameters:
+      - { in: path, name: staffId, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [Ratings]
+      summary: My own ratings and feedback (staff portal)
+      description: Read-only, only the caller's own staff record (`403` otherwise). Includes the owner's `reply`.
+      operationId: staffListRatings
+      responses:
+        "200":
+          description: Ratings
+        "403":
+          description: Not the caller's staff record
 
   /api/salon/{salonId}/account/bookings/{bookingId}/reschedule:
     parameters:

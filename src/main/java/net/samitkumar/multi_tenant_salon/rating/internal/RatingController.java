@@ -18,7 +18,8 @@ class RatingController {
         this.salons = salons;
     }
 
-    record SubmitRatingRequest(int salonRating, int staffRating) {}
+    record SubmitRatingRequest(int salonRating, int staffRating, String feedback) {}
+    record ReplyRequest(String reply) {}
 
     @GetMapping("/api/public/rating/{token}")
     ResponseEntity<RatingReviewTarget> reviewTarget(@PathVariable String token) {
@@ -28,7 +29,7 @@ class RatingController {
 
     @PostMapping("/api/public/rating/{token}")
     ResponseEntity<Void> submit(@PathVariable String token, @RequestBody SubmitRatingRequest request) {
-        return ratings.submitReview(token, request.salonRating(), request.staffRating())
+        return ratings.submitReview(token, request.salonRating(), request.staffRating(), request.feedback())
                 ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build();
     }
 
@@ -40,5 +41,12 @@ class RatingController {
     @GetMapping("/api/salon-admin/{salonId}/ratings")
     java.util.List<BookingRating> adminRatings(@PathVariable String salonId) {
         return ratings.getBookingRatings(salons.resolveId(salonId), null);
+    }
+
+    /** The owner answers a review. Reviews themselves are never edited or deleted here. */
+    @PutMapping("/api/salon-admin/{salonId}/ratings/{bookingId}/reply")
+    ResponseEntity<Void> reply(@PathVariable String salonId, @PathVariable Long bookingId, @RequestBody ReplyRequest request) {
+        return ratings.replyToReview(salons.resolveId(salonId), bookingId, request.reply())
+                ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build();
     }
 }

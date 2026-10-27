@@ -638,10 +638,15 @@ export interface CustomerBooking {
 
 export interface CustomerRatingOption {
   bookingId: number;
+  staffId: number | null;
   serviceName: string | null;
   staffName: string | null;
   appointmentDate: string;
   submitted: boolean;
+  feedback: string | null;
+  /** The salon owner's answer, if any. */
+  reply: string | null;
+  repliedAt: string | null;
 }
 
 export interface CustomerSelfServicePolicy {
