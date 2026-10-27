@@ -101,7 +101,7 @@ const FEATURE_NAV: { key: string; label: string; hint: string; icon: React.Eleme
   { key: "MEMBERSHIP",      label: "Membership",      hint: "Subscription plans for regular customers",icon: CreditCard,     route: "membership" },
   { key: "WEBSHOP",         label: "Shop",            hint: "Sell products and gift cards online",     icon: ShoppingBag,    route: "shop" },
   { key: "ANALYTICS",       label: "Analytics",       hint: "Track visits, revenue, and trends",       icon: BarChart2,      route: "analytics" },
-  { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "coming-soon" },
+  { key: "LOYALTY_PROGRAM", label: "Loyalty Program", hint: "Reward and retain your best customers",   icon: Gift,           route: "loyalty" },
 ];
 
 const WEBSITE_SECTIONS = [

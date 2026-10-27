@@ -9,6 +9,7 @@ import {
 import { FEATURE_LABEL, DAY_SHORT, STAFF_ROLE_LABEL, CATEGORY_LABEL, isVideoUrl, formatPrice } from "./constants";
 import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } from "./theme";
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
+import { LoyaltyView } from "./LoyaltyView";
 import { BookingWizard } from "./BookingWizard";
 import { SalonPolicyLinks } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
@@ -800,6 +801,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
         {...siteAccountLinks(salon, getPagePath, (page) => onNavigate?.(page))}
       />
     );
+  }
+
+  if (currentPage === "loyalty" && featurePages.some((fp) => fp.path === "loyalty")) {
+    return <LoyaltyView salon={salon} theme={theme} policies={websitePolicies} getPagePath={getPagePath} onNavigate={(page) => onNavigate?.(page)} />;
   }
 
   const featureViewKey = featurePages.some((fp) => fp.path === currentPage) && FEATURE_VIEWS[currentPage] ? currentPage : null;

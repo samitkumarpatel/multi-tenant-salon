@@ -22,7 +22,7 @@ export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
 };
 
 /** Features whose customers have something to see in their account (bookings, orders, memberships). */
-const ACCOUNT_FEATURES = ["BOOKING", "WEBSHOP", "MEMBERSHIP"];
+const ACCOUNT_FEATURES = ["BOOKING", "WEBSHOP", "MEMBERSHIP", "LOYALTY_PROGRAM"];
 
 export function hasCustomerAccount(salon: Salon) {
   return (salon.features ?? []).some((f) => ACCOUNT_FEATURES.includes(f));

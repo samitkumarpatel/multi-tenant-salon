@@ -2,7 +2,7 @@ import { useOutletContext, useLocation, useNavigate } from "react-router";
 import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
 import {
-  SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, SalonPolicyLinks,
+  SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks,
   CustomerAccountView, hasCustomerAccount, siteAccountLinks,
 } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
@@ -54,6 +54,19 @@ export default function PublicWebsitePage() {
     if (activePage === "membership" && data.salon.features?.includes("MEMBERSHIP")) {
       return (
         <MembershipView
+          salon={data.salon}
+          theme={theme}
+          policies={data.websitePolicies}
+          getPagePath={(page) => `/${page}${search}`}
+          onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
+        />
+      );
+    }
+
+    // And /loyalty — how points are earned and what they buy
+    if (activePage === "loyalty" && data.salon.features?.includes("LOYALTY_PROGRAM")) {
+      return (
+        <LoyaltyView
           salon={data.salon}
           theme={theme}
           policies={data.websitePolicies}

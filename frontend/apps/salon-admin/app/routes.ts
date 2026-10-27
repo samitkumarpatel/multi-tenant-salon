@@ -44,6 +44,7 @@ export default [
     ]),
     route("analytics", "routes/analytics.tsx"),
     route("holiday", "routes/holiday.tsx"),
+    route("loyalty", "routes/loyalty.tsx"),
     route("coming-soon", "routes/coming-soon.tsx"),
     route("help", "routes/help.tsx"),
     route("website-preview", "routes/salon-page.tsx"),

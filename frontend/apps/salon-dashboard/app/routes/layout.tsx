@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigate } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
-import { BadgeCheck, CalendarDays, Calculator, ChevronDown, LogOut, Receipt, ScanLine, ShoppingCart, UserPlus } from "lucide-react";
+import { BadgeCheck, CalendarDays, Gift, Calculator, ChevronDown, LogOut, Receipt, ScanLine, ShoppingCart, UserPlus } from "lucide-react";
 import { SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { DEFAULT_THEME, API_BASE, contrastText } from "@salon/ui-website";
 import type { Salon, WebsiteTheme } from "@salon/ui-website";
@@ -158,15 +158,20 @@ export default function DashboardLayout() {
   const sellingMembership = search.get("membershipView") === "sell";
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
   const membershipEnabled = Boolean(salon.features?.includes("MEMBERSHIP"));
+  const loyaltyEnabled = Boolean(salon.features?.includes("LOYALTY_PROGRAM"));
   // Mirrors the view choice in dashboard.tsx.
   const activeView = requestedView === "cashier" && settings.cashierEnabled
     ? "cashier"
     : requestedView === "membership" && membershipEnabled ? "membership"
-    : bookingEnabled ? "appointments" : settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
+    : requestedView === "loyalty" && loyaltyEnabled ? "loyalty"
+    : bookingEnabled ? "appointments"
+    : !settings.cashierEnabled && !membershipEnabled && loyaltyEnabled ? "loyalty"
+    : settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
   const navItems = [
     ...(bookingEnabled ? [{ key: "appointments", label: "Appointments", icon: CalendarDays }] : []),
     ...(settings.cashierEnabled ? [{ key: "cashier", label: "Cashier", icon: ShoppingCart }] : []),
     ...(membershipEnabled ? [{ key: "membership", label: "Membership", icon: BadgeCheck }] : []),
+    ...(loyaltyEnabled ? [{ key: "loyalty", label: "Loyalty", icon: Gift }] : []),
   ];
   const navTarget = (key: string) => key === "cashier" ? "?view=cashier&cashierView=pos"
     : key === "membership" ? "?view=membership&membershipView=check-in" : `?view=${key}`;

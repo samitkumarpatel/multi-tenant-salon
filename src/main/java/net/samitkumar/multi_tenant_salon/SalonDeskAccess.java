@@ -81,6 +81,14 @@ public class SalonDeskAccess {
             rule(HttpMethod.GET, "/membership/subscriptions/{subscriptionId}"),
             rule(HttpMethod.GET, "/membership/subscriptions/{subscriptionId}/qr.png"),
             rule(HttpMethod.POST, "/membership/subscriptions/{subscriptionId}/send-renewal-link"),
+            // loyalty: look a customer up, find a redemption code and hand the reward over. Settings, rewards,
+            // manual point adjustments and cancelling a redemption stay with the owner.
+            rule(HttpMethod.GET, "/loyalty"),
+            rule(HttpMethod.GET, "/loyalty/members"),
+            rule(HttpMethod.GET, "/loyalty/member"),
+            rule(HttpMethod.GET, "/loyalty/redemptions"),
+            rule(HttpMethod.GET, "/loyalty/redemptions/by-code/{code}"),
+            rule(HttpMethod.POST, "/loyalty/redemptions/{id}/use"),
             // Taking money at the counter — cash included — answers to the same switch as the till.
             cashierRule(HttpMethod.POST, "/membership/desk-sales"));
 

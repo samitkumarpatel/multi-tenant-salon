@@ -12,6 +12,8 @@ import net.samitkumar.multi_tenant_salon.customer.internal.CustomerAccountViews.
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.rating.CustomerRatingOption;
 import net.samitkumar.multi_tenant_salon.rating.RatingApi;
+import net.samitkumar.multi_tenant_salon.loyalty.CustomerLoyalty;
+import net.samitkumar.multi_tenant_salon.loyalty.LoyaltyApi;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -45,11 +47,13 @@ class CustomerAccountController {
     private final BookingApi bookingApi;
     private final SelfServicePolicies policies;
     private final RatingApi ratings;
+    private final LoyaltyApi loyalty;
 
     CustomerAccountController(CustomerAuthService auth, CustomerAccountService accounts, SalonApi salonApi,
-                              BookingApi bookingApi, SelfServicePolicies policies, RatingApi ratings) {
+                              BookingApi bookingApi, SelfServicePolicies policies, RatingApi ratings, LoyaltyApi loyalty) {
         this.bookingApi = bookingApi;
         this.ratings = ratings;
+        this.loyalty = loyalty;
         this.policies = policies;
         this.auth = auth;
         this.accounts = accounts;
@@ -87,6 +91,20 @@ class CustomerAccountController {
         var email = auth.requireEmail(id, token);
         return ratings.submitCustomerReview(id, email, request.bookingId(), request.salonRating(), request.staffRating(), request.feedback())
                 ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build();
+    }
+
+    /** Balance, history, rules and redeemable rewards; {@code enabled=false} when the salon runs no programme. */
+    @GetMapping("/loyalty")
+    CustomerLoyalty loyalty(@PathVariable String salonId, @RequestHeader(name = SESSION_HEADER, required = false) String token) {
+        var id = salonApi.resolveId(salonId);
+        return loyalty.forCustomer(id, auth.requireEmail(id, token));
+    }
+
+    @PostMapping("/loyalty/rewards/{rewardId}/redeem")
+    CustomerLoyalty.Redemption redeem(@PathVariable String salonId, @PathVariable Long rewardId,
+            @RequestHeader(name = SESSION_HEADER, required = false) String token) {
+        var id = salonApi.resolveId(salonId);
+        return loyalty.redeem(id, auth.requireEmail(id, token), rewardId);
     }
 
     @GetMapping

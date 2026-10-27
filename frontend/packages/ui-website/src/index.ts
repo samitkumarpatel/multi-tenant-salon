@@ -50,10 +50,13 @@ export type {
   MembershipSubscription, MembershipPayment, MembershipActivity, MembershipDetail, MembershipRenewal,
   MembershipMoney, MembershipOverview,
   CustomerSession, CustomerAccount, CustomerBooking, CustomerOrder, CustomerMembership,
+  CustomerLoyalty, LoyaltyProgram, LoyaltyReward, LoyaltyEntry, LoyaltyRedemption,
 } from "./types";
 
 export { ShopView } from "./ShopView";
 export { MembershipView, membershipBenefits } from "./MembershipView";
+export { LoyaltyView } from "./LoyaltyView";
+export type { LoyaltyViewProps } from "./LoyaltyView";
 export type { MembershipViewProps } from "./MembershipView";
 export type { ShopViewProps } from "./ShopView";
 export {

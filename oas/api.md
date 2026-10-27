@@ -587,6 +587,16 @@ the API reserves for staff JWTs.
 | `GET /api/salon-admin/{salonId}/ratings` | Owner. Ratings with `feedback`, `reply`, `repliedAt` (read-only) |
 | `PUT /api/salon-admin/{salonId}/ratings/{bookingId}/reply` | Owner. `{ reply }` → `204`. The only write on a review; customer feedback cannot be edited or deleted |
 | `GET /api/salon-staff/{staffId}/ratings` | Staff portal, own record only (`403` otherwise). Read-only, includes `reply` |
+| `GET /api/salon/{salonId}/loyalty` | Public. Programme rules + active rewards for the website (`enabled=false` unless the salon has `LOYALTY_PROGRAM` and the owner switched it on). Never customer data |
+| `GET /api/salon/{salonId}/account/loyalty` | Header `X-Customer-Session`. `{ enabled, balance, program, rewards, history (latest 100), redemptions }` |
+| `POST /api/salon/{salonId}/account/loyalty/rewards/{id}/redeem` | Spends the reward's points → `{ id, rewardName, points, code, status: ISSUED }`; the code is emailed. Serialized per customer. `404` unknown/inactive, `409` not enough points / programme off |
+| `GET /api/salon-admin/{salonId}/loyalty` | Programme + rewards + `{ members, outstandingPoints, pendingRedemptions }` (desk staff may read) |
+| `PUT /api/salon-admin/{salonId}/loyalty/program` | Owner. `{ enabled, pointsPerUnit, earnOnBookings, earnOnOrders, expiryMonths }` |
+| `GET/POST /api/salon-admin/{salonId}/loyalty/rewards`, `PUT/DELETE …/rewards/{id}` | Owner. Reward catalogue: `{ name, description?, pointsCost, type, value?, active? }` |
+| `GET /api/salon-admin/{salonId}/loyalty/members?q=` and `GET …/loyalty/member?email=` | Customers with points (top 200) and one customer's balance/history/codes (desk staff may read) |
+| `POST /api/salon-admin/{salonId}/loyalty/adjustments` | Owner. `{ email, points, note }` — a reason is required, the balance can't go below zero |
+| `GET …/loyalty/redemptions?status=`, `GET …/redemptions/by-code/{code}`, `POST …/redemptions/{id}/use` | Codes. Desk staff may list, look up and hand over (`use` is conditional on `ISSUED`, so a code works once) |
+| `POST …/loyalty/redemptions/{id}/cancel` | Owner. Voids an unused code and refunds the points once |
 | `POST /api/salon/{salonId}/account/sign-out` | Header `X-Customer-Session`. → `204`. Revokes the session; idempotent. (POST, not DELETE: custom salon domains only get GET/POST through CORS) |
 
 Sessions last 30 days. Limits and lifetimes are `spring.application.customer.*` (`code-ttl`,

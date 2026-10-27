@@ -199,7 +199,13 @@ class SalonDeskAccessIntegrationTest {
                 new Call("GET", "/membership/subscriptions/999999"),
                 new Call("GET", "/membership/subscriptions/999999/qr.png"),
                 new Call("POST", "/membership/subscriptions/999999/send-renewal-link"),
-                new Call("POST", "/membership/desk-sales"));
+                new Call("POST", "/membership/desk-sales"),
+                new Call("GET", "/loyalty"),
+                new Call("GET", "/loyalty/members"),
+                new Call("GET", "/loyalty/member?email=a@b.c"),
+                new Call("GET", "/loyalty/redemptions"),
+                new Call("GET", "/loyalty/redemptions/by-code/NOPE"),
+                new Call("POST", "/loyalty/redemptions/999999/use"));
 
         for (var call : calls) {
             var uri = "/api/salon-admin/" + salonId + call.path();
@@ -232,6 +238,15 @@ class SalonDeskAccessIntegrationTest {
         client.post().uri("/api/salon-admin/" + salonId + "/membership/subscriptions/1/cancel")
                 .header("Authorization", token).contentType(MediaType.APPLICATION_JSON).body("{}")
                 .exchange().expectStatus().isForbidden();
+        // Loyalty: the desk hands rewards over but cannot change the programme, mint points or void a code.
+        client.put().uri("/api/salon-admin/" + salonId + "/loyalty/program").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        client.post().uri("/api/salon-admin/" + salonId + "/loyalty/rewards").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        client.post().uri("/api/salon-admin/" + salonId + "/loyalty/adjustments").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        client.post().uri("/api/salon-admin/" + salonId + "/loyalty/redemptions/1/cancel").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
         // Refunding a membership payment is owner-only.
         client.post().uri("/api/salon-admin/" + salonId + "/membership/subscriptions/1/payments/1/refund")
                 .header("Authorization", token).contentType(MediaType.APPLICATION_JSON).body("{}")

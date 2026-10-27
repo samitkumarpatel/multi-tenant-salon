@@ -59,6 +59,8 @@ servers:
     description: Local development server
 
 tags:
+  - name: Loyalty
+    description: Points earned on completed appointments and paid shop orders, redeemed for owner-defined rewards. Needs the `LOYALTY_PROGRAM` feature.
   - name: Ratings
     description: Customer ratings and written feedback per visit; the owner can reply, staff can read their own.
   - name: AdminPayments
@@ -4336,6 +4338,237 @@ paths:
       responses:
         "204":
           description: Signed out
+
+  /api/salon/{salonId}/loyalty:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Loyalty]
+      summary: Public loyalty rules and rewards
+      description: >
+        For the website's loyalty page. `enabled=false` (and no rewards) unless the salon has the `LOYALTY_PROGRAM`
+        feature and the owner has switched the programme on. Never carries any customer's data (`balance` is 0).
+      operationId: publicLoyalty
+      responses:
+        "200":
+          description: Rules and active rewards
+
+  /api/salon/{salonId}/account/loyalty:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CustomerSessionHeader"
+    get:
+      tags: [Loyalty]
+      summary: My points, rewards, history and codes
+      description: Balance is the sum of the customer's ledger. `history` is the latest 100 entries; `redemptions` includes the codes still waiting to be used.
+      operationId: customerLoyalty
+      responses:
+        "200":
+          description: The signed-in customer's loyalty data
+        "401":
+          description: Missing, expired or foreign session
+
+  /api/salon/{salonId}/account/loyalty/rewards/{rewardId}/redeem:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/CustomerSessionHeader"
+      - { in: path, name: rewardId, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [Loyalty]
+      summary: Spend points on a reward
+      description: >
+        Deducts the reward's points and issues an 8-character code, which is also emailed. Serialized per customer, so
+        concurrent redemptions cannot overspend. `404` unknown/inactive reward, `409` programme off or not enough points.
+      operationId: customerRedeemReward
+      responses:
+        "200":
+          description: The issued redemption (`status` ISSUED)
+        "401":
+          description: Missing, expired or foreign session
+        "404":
+          description: No such active reward
+        "409":
+          description: Not enough points, or the programme is not running
+
+  /api/salon-admin/{salonId}/loyalty:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Loyalty]
+      summary: Programme, rewards and headline numbers
+      description: Also open to active desk staff.
+      operationId: adminLoyaltyOverview
+      responses:
+        "200":
+          description: "`{ program, rewards, members, outstandingPoints, pendingRedemptions }`"
+
+  /api/salon-admin/{salonId}/loyalty/program:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    put:
+      tags: [Loyalty]
+      summary: Change the programme settings (owner only)
+      description: >
+        `{ enabled, pointsPerUnit (0-1000), earnOnBookings, earnOnOrders, expiryMonths (1-120 or null = never) }`; omitted
+        fields keep their value. Points are only earned for visits/orders completed while the programme runs.
+      operationId: adminSaveLoyaltyProgram
+      responses:
+        "200":
+          description: The saved programme
+        "400":
+          description: Out-of-range value
+
+  /api/salon-admin/{salonId}/loyalty/rewards:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Loyalty]
+      summary: All rewards, including hidden ones (owner only)
+      operationId: adminListLoyaltyRewards
+      responses:
+        "200":
+          description: Rewards, cheapest first
+    post:
+      tags: [Loyalty]
+      summary: Create a reward (owner only)
+      description: "`{ name, description?, pointsCost (1-1,000,000), type: DISCOUNT_AMOUNT | FREE_SERVICE | FREE_PRODUCT | CUSTOM, value?, active? }`"
+      operationId: adminCreateLoyaltyReward
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Invalid reward
+
+  /api/salon-admin/{salonId}/loyalty/rewards/{rewardId}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: rewardId, required: true, schema: { type: integer, format: int64 } }
+    put:
+      tags: [Loyalty]
+      summary: Change a reward (owner only)
+      operationId: adminUpdateLoyaltyReward
+      responses:
+        "200":
+          description: Updated
+        "404":
+          description: No such reward
+    delete:
+      tags: [Loyalty]
+      summary: Delete a reward (owner only)
+      description: Codes already issued keep the reward's name.
+      operationId: adminDeleteLoyaltyReward
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: No such reward
+
+  /api/salon-admin/{salonId}/loyalty/members:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Loyalty]
+      summary: Customers with points
+      description: "Highest balance first (max 200). `q` filters by part of the email. Also open to desk staff."
+      operationId: adminLoyaltyMembers
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+      responses:
+        "200":
+          description: "`[{ email, balance, earned, lastActivity }]`"
+
+  /api/salon-admin/{salonId}/loyalty/member:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Loyalty]
+      summary: One customer's balance, history and codes
+      description: The email is a query parameter so dots and plus signs survive. Also open to desk staff.
+      operationId: adminLoyaltyMember
+      parameters:
+        - { in: query, name: email, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: "`{ email, balance, history, redemptions }`"
+
+  /api/salon-admin/{salonId}/loyalty/adjustments:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [Loyalty]
+      summary: Add or remove points by hand (owner only)
+      description: >
+        `{ email, points, note }`. `points` is non-zero (max 100,000 either way) and `note` is required; the entry records
+        who did it. `409` if it would take the balance below zero.
+      operationId: adminAdjustLoyaltyPoints
+      responses:
+        "200":
+          description: The customer's updated detail
+        "400":
+          description: Missing reason, zero points or no email
+        "409":
+          description: Would go below zero
+
+  /api/salon-admin/{salonId}/loyalty/redemptions:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Loyalty]
+      summary: Reward codes
+      description: "`status` = ISSUED | USED | CANCELLED (empty = all), newest first (max 200). Also open to desk staff."
+      operationId: adminLoyaltyRedemptions
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+      responses:
+        "200":
+          description: Redemptions
+
+  /api/salon-admin/{salonId}/loyalty/redemptions/by-code/{code}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: code, required: true, schema: { type: string } }
+    get:
+      tags: [Loyalty]
+      summary: Find a redemption by its code
+      description: Case-insensitive. Also open to desk staff.
+      operationId: adminLoyaltyRedemptionByCode
+      responses:
+        "200":
+          description: The redemption
+        "404":
+          description: Unknown code
+
+  /api/salon-admin/{salonId}/loyalty/redemptions/{id}/use:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [Loyalty]
+      summary: Hand the reward over
+      description: Conditional on `ISSUED`, so a code cannot be used twice (`409`). Also open to desk staff.
+      operationId: adminUseLoyaltyRedemption
+      responses:
+        "200":
+          description: The redemption, now `USED`
+        "404":
+          description: No such redemption
+        "409":
+          description: Already used or cancelled
+
+  /api/salon-admin/{salonId}/loyalty/redemptions/{id}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [Loyalty]
+      summary: Void an unused code and refund the points (owner only)
+      description: The points go back exactly once; `409` if the code is no longer `ISSUED`.
+      operationId: adminCancelLoyaltyRedemption
+      responses:
+        "200":
+          description: The redemption, now `CANCELLED`
+        "409":
+          description: Already used or cancelled
 
   /api/salon/{salonId}/account/bookings/{bookingId}/cancel:
     parameters:

@@ -1,7 +1,7 @@
 package net.samitkumar.multi_tenant_salon.customer.internal;
 
 import lombok.extern.slf4j.Slf4j;
-import net.samitkumar.multi_tenant_salon.superadmin.internal.LoginAuditService;
+import net.samitkumar.multi_tenant_salon.superadmin.LoginAuditApi;
 import net.samitkumar.multi_tenant_salon.customer.CustomerSignInCodeRequestedEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -49,7 +49,7 @@ class CustomerAuthService {
     private final SecureRandom random = new SecureRandom();
     private final JdbcClient jdbc;
     private final CustomerAccountService accounts;
-    private final LoginAuditService loginAudit;
+    private final LoginAuditApi loginAudit;
     private final ApplicationEventPublisher events;
     private final Duration codeTtl;
     private final Duration sessionTtl;
@@ -57,7 +57,7 @@ class CustomerAuthService {
     private final int maxRequestsPerIp;
     private final int maxCodeAttempts;
 
-    CustomerAuthService(JdbcTemplate template, CustomerAccountService accounts, LoginAuditService loginAudit, ApplicationEventPublisher events,
+    CustomerAuthService(JdbcTemplate template, CustomerAccountService accounts, LoginAuditApi loginAudit, ApplicationEventPublisher events,
                         @Value("${spring.application.customer.code-ttl:PT10M}") Duration codeTtl,
                         @Value("${spring.application.customer.session-ttl:P30D}") Duration sessionTtl,
                         @Value("${spring.application.customer.max-codes-per-email:5}") int maxCodesPerEmail,

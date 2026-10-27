@@ -649,6 +649,53 @@ export interface CustomerRatingOption {
   repliedAt: string | null;
 }
 
+export interface LoyaltyProgram {
+  enabled: boolean;
+  pointsPerUnit: number;
+  earnOnBookings: boolean;
+  earnOnOrders: boolean;
+  expiryMonths: number | null;
+}
+
+export interface LoyaltyReward {
+  id: number;
+  name: string;
+  description: string | null;
+  pointsCost: number;
+  type: "DISCOUNT_AMOUNT" | "FREE_SERVICE" | "FREE_PRODUCT" | "CUSTOM";
+  value: number | null;
+  active: boolean;
+}
+
+export interface LoyaltyEntry {
+  id: number;
+  delta: number;
+  reason: string;
+  note: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
+export interface LoyaltyRedemption {
+  id: number;
+  rewardName: string;
+  points: number;
+  code: string;
+  status: "ISSUED" | "USED" | "CANCELLED";
+  createdAt: string;
+  usedAt: string | null;
+}
+
+/** `GET /api/salon/{id}/loyalty` (rules only, balance 0) and `GET …/account/loyalty` (the signed-in customer's own data). */
+export interface CustomerLoyalty {
+  enabled: boolean;
+  balance: number;
+  program: LoyaltyProgram;
+  rewards: LoyaltyReward[];
+  history: LoyaltyEntry[];
+  redemptions: LoyaltyRedemption[];
+}
+
 export interface CustomerSelfServicePolicy {
   allowCancel: boolean;
   cancelNoticeHours: number;

@@ -5,6 +5,7 @@ import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import net.samitkumar.multi_tenant_salon.customer.internal.CustomerDirectoryViews.CustomerDetail;
 import net.samitkumar.multi_tenant_salon.customer.internal.CustomerDirectoryViews.CustomerPage;
 import net.samitkumar.multi_tenant_salon.customer.internal.CustomerDirectoryViews.CustomerSpec;
+import net.samitkumar.multi_tenant_salon.loyalty.LoyaltyApi;
 import net.samitkumar.multi_tenant_salon.membership.MembershipApi;
 import net.samitkumar.multi_tenant_salon.membership.MembershipSubscription;
 import net.samitkumar.multi_tenant_salon.shop.ShopOrderHistoryApi;
@@ -48,14 +49,16 @@ class CustomerDirectory {
     private final BookingApi bookingApi;
     private final ShopOrderHistoryApi orderApi;
     private final MembershipApi membershipApi;
+    private final LoyaltyApi loyaltyApi;
     private final CustomerAccountService accounts;
 
     CustomerDirectory(JdbcTemplate jdbcTemplate, BookingApi bookingApi, ShopOrderHistoryApi orderApi,
-                      MembershipApi membershipApi, CustomerAccountService accounts) {
+                      MembershipApi membershipApi, LoyaltyApi loyaltyApi, CustomerAccountService accounts) {
         this.jdbc = JdbcClient.create(jdbcTemplate);
         this.bookingApi = bookingApi;
         this.orderApi = orderApi;
         this.membershipApi = membershipApi;
+        this.loyaltyApi = loyaltyApi;
         this.accounts = accounts;
     }
 
@@ -144,6 +147,7 @@ class CustomerDirectory {
         int bookings = bookingApi.anonymizeCustomer(salonId, customer.email(), replacement);
         int orders = orderApi.anonymizeCustomer(salonId, customer.email(), replacement);
         int memberships = membershipApi.anonymizeCustomer(salonId, customer.email(), replacement);
+        loyaltyApi.anonymizeCustomer(salonId, customer.email(), replacement);
         jdbc.sql("DELETE FROM customer_session WHERE salon_id = :salonId AND lower(email) = lower(:email)")
                 .param("salonId", salonId).param("email", customer.email()).update();
         jdbc.sql("DELETE FROM customer_sign_in_code WHERE salon_id = :salonId AND lower(email) = lower(:email)")

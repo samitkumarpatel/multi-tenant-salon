@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_salon.superadmin.internal;
 
+import net.samitkumar.multi_tenant_salon.superadmin.LoginAuditApi;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -8,7 +9,7 @@ import java.util.UUID;
 
 /** Records completed customer authentication attempts in their own transaction. */
 @Service
-public class LoginAuditService {
+class LoginAuditService implements LoginAuditApi {
     record Event(long id, String occurredAt, String application, String method, String result,
                  String salonName, boolean identityVerified) {}
     record Page(java.util.List<Event> content, int page, int size, long totalElements, int totalPages) {}
@@ -16,6 +17,7 @@ public class LoginAuditService {
     private final JdbcClient jdbc;
     LoginAuditService(JdbcClient jdbc) { this.jdbc = jdbc; }
 
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordCustomer(UUID salonId, String email, String result, boolean verified) {
         jdbc.sql("""

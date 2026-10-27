@@ -1,7 +1,7 @@
 import { useI18n } from "@salon/i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, CalendarDays, ChevronDown, Clock, Crown, Loader2, LogOut, Mail, Package, Truck, User, X, Star,
+  ArrowLeft, CalendarDays, Gift, ChevronDown, Clock, Crown, Loader2, LogOut, Mail, Package, Truck, User, X, Star,
 } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { ApiError, friendlyMessage } from "./apiError";
@@ -11,7 +11,7 @@ import type { SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
 import type {
   AvailableSlot, CustomerAccount, CustomerBooking, CustomerMembership, CustomerOrder, CustomerSelfServicePolicy, CustomerSession, Salon,
-  WebsiteTheme, CustomerRatingOption,
+  WebsiteTheme, CustomerRatingOption, CustomerLoyalty,
 } from "./types";
 
 /**
@@ -409,7 +409,7 @@ function SignIn({ salon, theme, tone, translateUi, notice, onSignedIn }: {
 
 // ── Signed in ──────────────────────────────────────────────────────────────────
 
-type Tab = "bookings" | "orders" | "memberships";
+type Tab = "bookings" | "orders" | "memberships" | "loyalty";
 
 function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, links, token, onBookingChanged, ratingOptions, ratingLoadError, onRatingSubmitted }: {
   salon: Salon; theme: WebsiteTheme; tone: Tone; account: CustomerAccount; translateUi: Translate;
@@ -421,6 +421,7 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
     { key: "bookings" as const, label: translateUi("Appointments"), count: account.bookings.length, on: features.includes("BOOKING") },
     { key: "orders" as const, label: translateUi("Orders"), count: account.orders.length, on: features.includes("WEBSHOP") },
     { key: "memberships" as const, label: translateUi("Membership"), count: account.memberships.length, on: features.includes("MEMBERSHIP") },
+    { key: "loyalty" as const, label: translateUi("Loyalty"), count: 0, on: features.includes("LOYALTY_PROGRAM") },
   ].filter((t) => t.on || t.count > 0);
   const [tab, setTab] = useState<Tab>(() => (tabs.find((t) => t.key === "bookings" && t.count > 0) ?? tabs.find((t) => t.count > 0) ?? tabs[0])?.key ?? "bookings");
   const name = account.profile.name;
@@ -463,7 +464,124 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
       {tab === "bookings" && <BookingsList salon={salon} theme={theme} tone={tone} bookings={account.bookings} policy={account.selfService} token={token}
         onChanged={onBookingChanged} translateUi={translateUi} links={links} ratingOptions={ratingOptions} ratingLoadError={ratingLoadError} onRatingSubmitted={onRatingSubmitted} />}
       {tab === "orders" && <OrdersList theme={theme} tone={tone} orders={account.orders} translateUi={translateUi} links={links} />}
+      {tab === "loyalty" && <LoyaltyTab salon={salon} theme={theme} tone={tone} token={token} translateUi={translateUi} links={links} />}
       {tab === "memberships" && <MembershipsList salon={salon} theme={theme} tone={tone} memberships={account.memberships} translateUi={translateUi} links={links} />}
+    </div>
+  );
+}
+
+// ── Loyalty ────────────────────────────────────────────────────────────────────
+
+const LOYALTY_REASON: Record<string, string> = {
+  EARN_BOOKING: "Appointment", EARN_ORDER: "Shop order", REDEEM: "Reward redeemed", REDEEM_REFUND: "Redemption cancelled",
+  REVERSAL: "Points taken back", ADJUST: "Adjustment", EXPIRE: "Points expired",
+};
+
+function LoyaltyTab({ salon, theme, tone, token, translateUi, links }: {
+  salon: Salon; theme: WebsiteTheme; tone: Tone; token: string; translateUi: Translate; links: CustomerAccountLinks;
+}) {
+  const { locale } = useI18n();
+  const [data, setData] = useState<CustomerLoyalty | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const load = useCallback(() => {
+    let alive = true;
+    apiFetch<CustomerLoyalty>(`${API_BASE}/api/salon/${salon.id}/account/loyalty`, { headers: jsonHeaders(token) })
+      .then((d) => alive && setData(d)).catch((e) => alive && setError(friendlyMessage(e)));
+    return () => { alive = false; };
+  }, [salon.id, token]);
+  useEffect(() => load(), [load]);
+
+  async function redeem(rewardId: number) {
+    setBusy(rewardId); setError(null); setNotice(null);
+    try {
+      const r = await apiFetch<{ code: string }>(`${API_BASE}/api/salon/${salon.id}/account/loyalty/rewards/${rewardId}/redeem`, { method: "POST", headers: jsonHeaders(token) });
+      setNotice(translateUi("Reward claimed! Show code {code} at the salon.", { code: r.code }));
+      load();
+    } catch (e) { setError(friendlyMessage(e)); }
+    finally { setBusy(null); }
+  }
+
+  if (error && !data) return <p role="alert" className="text-xs text-red-600">{error}</p>;
+  if (!data) return <p role="status" className="text-xs py-6 text-center" style={{ color: tone.sub }}>{translateUi("Loading…")}</p>;
+  if (!data.enabled) return <Empty tone={tone} icon={<Gift className="w-5 h-5" />} title={translateUi("No loyalty programme yet")}
+    body={translateUi("{salon} hasn't opened its loyalty programme yet.", { salon: salon.name })} />;
+
+  const open = data.redemptions.filter((r) => r.status === "ISSUED");
+  return (
+    <div className="flex flex-col gap-5">
+      <Card tone={tone}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: tone.sub }}>{translateUi("Your points")}</p>
+        <p className="text-3xl font-black tabular-nums" style={{ color: theme.accentColor }}>{data.balance}</p>
+        <p className="text-[11px] mt-1" style={{ color: tone.sub }}>
+          {translateUi("Earn {points} per 1 spent.", { points: data.program.pointsPerUnit })}
+          {data.program.expiryMonths ? ` ${translateUi("Points expire after {months} months.", { months: data.program.expiryMonths })}` : ""}
+        </p>
+      </Card>
+
+      {notice && <p role="status" className="text-xs font-semibold" style={{ color: CHIP_COLOR.good }}>{notice}</p>}
+      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+
+      {open.length > 0 && (
+        <section>
+          <SectionTitle tone={tone}>{translateUi("Your codes")}</SectionTitle>
+          <div className="flex flex-col gap-2">
+            {open.map((r) => (
+              <Card key={r.id} tone={tone}>
+                <p className="text-sm font-semibold" style={{ color: tone.text }}>{r.rewardName}</p>
+                <p className="text-lg font-black tracking-[0.25em] tabular-nums" style={{ color: theme.accentColor }}>{r.code}</p>
+                <p className="text-[11px]" style={{ color: tone.sub }}>{translateUi("Show this code at the salon.")}</p>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <SectionTitle tone={tone}>{translateUi("Rewards")}</SectionTitle>
+        {data.rewards.length === 0
+          ? <p className="text-xs py-2" style={{ color: tone.sub }}>{translateUi("Rewards will appear here soon.")}</p>
+          : <div className="flex flex-col gap-2.5">
+              {data.rewards.map((r) => {
+                const enough = data.balance >= r.pointsCost;
+                return (
+                  <Card key={r.id} tone={tone}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold" style={{ color: tone.text }}>{r.name}</p>
+                        {r.description && <p className="text-xs" style={{ color: tone.sub }}>{r.description}</p>}
+                        <p className="text-xs font-bold tabular-nums mt-1" style={{ color: theme.accentColor }}>{r.pointsCost} {translateUi("points")}</p>
+                      </div>
+                      <button type="button" disabled={!enough || busy !== null} onClick={() => redeem(r.id)}
+                        className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{ backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) }}>
+                        {busy === r.id ? translateUi("Claiming…") : enough ? translateUi("Redeem") : translateUi("Not enough points")}
+                      </button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>}
+      </section>
+
+      {data.history.length > 0 && (
+        <section>
+          <SectionTitle tone={tone}>{translateUi("History")}</SectionTitle>
+          <div className="flex flex-col gap-1.5">
+            {data.history.map((h) => (
+              <div key={h.id} className="flex items-center justify-between gap-3 text-xs rounded-xl px-3 py-2" style={{ backgroundColor: tone.soft, border: `1px solid ${tone.border}` }}>
+                <div className="min-w-0">
+                  <p className="font-semibold truncate" style={{ color: tone.text }}>{translateUi(LOYALTY_REASON[h.reason] ?? h.reason)}{h.note ? ` · ${h.note}` : ""}</p>
+                  <p style={{ color: tone.sub }}>{new Date(h.createdAt).toLocaleDateString(locale)}</p>
+                </div>
+                <span className="font-bold tabular-nums" style={{ color: h.delta >= 0 ? CHIP_COLOR.good : tone.sub }}>{h.delta > 0 ? "+" : ""}{h.delta}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="flex flex-wrap gap-2"><PageLink page="book" label={translateUi("Book an appointment")} theme={theme} links={links} primary /></div>
     </div>
   );
 }

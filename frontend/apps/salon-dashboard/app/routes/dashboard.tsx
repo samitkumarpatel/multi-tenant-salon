@@ -18,6 +18,7 @@ import {
   restrictionFor, staffColorMap, type StaffScheduleData,
 } from "~/lib/calendar";
 import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
+import { LoyaltyDesk } from "~/components/LoyaltyDesk";
 import { TerminalPaymentDialog, loadTerminals, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import type {
   AvailableSlot, Booking, Country, OperatingHours, Salon, SalonClosure, SalonHoliday, ServiceItem, StaffAvailability,
@@ -25,7 +26,7 @@ import type {
 } from "@salon/ui-website";
 import { CustomerDetailsFields, StripeCheckoutPanel, beginCheckout, type CheckoutInstructions, type CheckoutResult, type ContactMethod } from "@salon/ui-website";
 
-type DashboardView = "appointments" | "cashier" | "membership";
+type DashboardView = "appointments" | "cashier" | "membership" | "loyalty";
 type CashierView = "pos" | "invoices" | "report";
 
 interface DashboardSettings {
@@ -147,10 +148,14 @@ export default function DashboardPage() {
   const todayView = params.get("todayView") === "stylist" ? "stylist" : "day";
   const membershipEnabled = Boolean(initial.salon.features?.includes("MEMBERSHIP"));
   const membershipView: MembershipDeskView = params.get("membershipView") === "sell" ? "sell" : "check-in";
+  const loyaltyEnabled = Boolean(initial.salon.features?.includes("LOYALTY_PROGRAM"));
   const view: DashboardView = requestedView === "cashier" && initial.settings.cashierEnabled
     ? "cashier"
     : requestedView === "membership" && membershipEnabled ? "membership"
-    : appointmentEnabled ? "appointments" : initial.settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
+    : requestedView === "loyalty" && loyaltyEnabled ? "loyalty"
+    : appointmentEnabled ? "appointments"
+    : !initial.settings.cashierEnabled && !membershipEnabled && loyaltyEnabled ? "loyalty"
+    : initial.settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
 
   const [settings] = useState(initial.settings);
   const cardPaymentEnabled = cardArea(initial.paymentSetup, "POS");
@@ -449,14 +454,14 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "loyalty" ? translateUi("Loyalty") : view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : translateUi("Overview")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "loyalty" ? translateUi("Hand over a reward or check a customer's points.") : view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : translateUi("Appointments for the selected date.")}</p>
           </div>
           {view === "appointments" && appointmentsView !== "new" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
         </div>
       </div>
 
-      {!appointmentEnabled && !settings.cashierEnabled && !membershipEnabled && (
+      {!appointmentEnabled && !settings.cashierEnabled && !membershipEnabled && !loyaltyEnabled && (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
           <h2 className="text-sm font-semibold text-slate-800">{translateUi("This salon desk is not available yet")}</h2>
           <p className="mt-1 text-xs text-slate-400">{translateUi("Ask the salon manager to enable appointments or cashier.")}</p>
@@ -656,6 +661,8 @@ export default function DashboardPage() {
           )}
         </div>
       )}
+
+      {view === "loyalty" && <LoyaltyDesk sid={initial.sid} notify={notify} />}
 
       {view === "membership" && (
         <MembershipDesk sid={initial.sid} view={membershipView} cardEnabled={membershipCardEnabled} notify={notify}

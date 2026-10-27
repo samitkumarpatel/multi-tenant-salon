@@ -13,6 +13,7 @@ import net.samitkumar.multi_tenant_salon.booking.StaffScheduleUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.customer.CustomerSignInCodeRequestedEvent;
 import net.samitkumar.multi_tenant_salon.membership.BillingInterval;
 import net.samitkumar.multi_tenant_salon.membership.MembershipActivatedEvent;
+import net.samitkumar.multi_tenant_salon.loyalty.LoyaltyRedeemedEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipCancelledEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipCustomerNotifiedEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipRenewalDueEvent;
@@ -691,6 +692,34 @@ class NotificationService {
 
         sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
+    }
+
+    void notifyLoyaltyRedeemed(LoyaltyRedeemedEvent event) {
+        var subject = salonSubject(event.salonName(), "Your reward: " + event.rewardName());
+        var text = """
+                Hi there,
+
+                You redeemed %d points for "%s". Show this code at the salon to claim it:
+
+                %s
+
+                Points left: %d
+                %s
+                %s
+                """.formatted(event.points(), event.rewardName(), event.code(), event.balanceAfter(),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureText(event.salonName()));
+        var html = """
+                <p>Hi there,</p>
+                <p>You redeemed %d points for <strong>%s</strong>. Show this code at the salon to claim it:</p>
+                <p style="font-size:22px;letter-spacing:3px"><strong>%s</strong></p>
+                <p><small>Points left: %d</small></p>
+                %s
+                %s
+                """.formatted(event.points(), HtmlUtils.htmlEscape(event.rewardName()), event.code(), event.balanceAfter(),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureHtml(event.salonName()));
+
+        sendEmail(event.customerEmail(), "", subject, text, html,
+                new NotificationContext(event.salonId(), "LOYALTY", String.valueOf(event.redemptionId())));
     }
 
     void notifyMembershipRenewalDue(MembershipRenewalDueEvent event) {
