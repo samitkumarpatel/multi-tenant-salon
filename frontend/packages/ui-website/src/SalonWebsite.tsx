@@ -1309,6 +1309,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                                 ) : (
                                   <p className="mt-0.5 text-[10px] text-slate-400">{translateUi("No reviews yet")}</p>
                                 )}
+                                {hasCustomerAccount(salon) && getPagePath && (
+                                  <a href={`${getPagePath("account")}${getPagePath("account").includes("?") ? "&" : "?"}staff=${m.id}`} onClick={(e) => e.stopPropagation()}
+                                    className="mt-0.5 inline-block text-[10px] font-semibold no-underline hover:underline" style={{ color: theme.accentColor }}>{translateUi("Rate this stylist")}</a>
+                                )}
                                 {hint && (
                                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
                                     {workMedia.length > 0
@@ -1443,6 +1447,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
             <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved.")}</p>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
               <SalonPolicyLinks policies={websitePolicies} color={footerDim} salonName={salon.name} />
+              {hasCustomerAccount(salon) && getPagePath && (
+                <a href={getPagePath("account")} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
+                  {translateUi("Rate your visit & leave feedback")}
+                </a>
+              )}
               {isScrollable && (
                 <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
                   {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
