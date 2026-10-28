@@ -16,7 +16,7 @@ import type { SalonPolicy } from "./SalonPolicyLinks";
 import { ShopView } from "./ShopView";
 import { MembershipView } from "./MembershipView";
 import { CustomerAccountView, siteAccountLinks } from "./CustomerAccount";
-import { AccountButton, FEATURE_NAV, FooterOpeningHours, hasCustomerAccount, holidayOn, useSalonHolidays } from "./SiteChrome";
+import { AccountButton, FEATURE_NAV, FooterOpeningHours, footerMenuLinks, hasCustomerAccount, holidayOn, useSalonHolidays } from "./SiteChrome";
 import { SocialLinksRow } from "./SocialIcons";
 import { CategoryIcon } from "./CategoryIcon";
 import { useIsScrollable } from "./useIsScrollable";
@@ -1447,11 +1447,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
             <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved.")}</p>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
               <SalonPolicyLinks policies={websitePolicies} color={footerDim} salonName={salon.name} />
-              {hasCustomerAccount(salon) && getPagePath && (
-                <a href={getPagePath("account")} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
-                  {translateUi("Rate your visit & leave feedback")}
+              {footerMenuLinks(salon, theme, getPagePath).map((l) => (
+                <a key={l.key} href={l.href} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
+                  {translateUi(l.label)}
                 </a>
-              )}
+              ))}
               {isScrollable && (
                 <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
                   {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />

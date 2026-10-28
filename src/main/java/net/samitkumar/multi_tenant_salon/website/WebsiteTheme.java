@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_salon.website;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
@@ -20,5 +21,7 @@ public record WebsiteTheme(
         String footerBg,
         @Column("chat_layout") String chatLayout,
         @Column("chat_bg") String chatBg,
+        /** JSON object keyed by menu (BOOKING, WEBSHOP, MEMBERSHIP, LOYALTY_PROGRAM, ACCOUNT); null = defaults. */
+        @JsonRawValue @Column("footer_links") String footerLinks,
         Instant updatedAt
 ) {}

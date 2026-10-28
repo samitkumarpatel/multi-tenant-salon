@@ -7943,6 +7943,22 @@ components:
         footerBg:
           type: string
           description: Footer background color
+        footerLinks:
+          type: [object, "null"]
+          description: |
+            Per-menu footer links on the public website, keyed by `BOOKING`, `WEBSHOP`, `MEMBERSHIP`,
+            `LOYALTY_PROGRAM` and `ACCOUNT` (rate your visit). A missing key is shown with its default label;
+            `null` means all defaults. Only menus the salon has enabled are rendered.
+          additionalProperties:
+            type: object
+            properties:
+              visible:
+                type: boolean
+                description: "`false` hides the link (default `true`)"
+              label:
+                type: string
+                maxLength: 60
+                description: Custom link text; blank uses the default
         chatLayout:
           type: string
           enum: [fullscreen, windowed]
@@ -8191,6 +8207,22 @@ components:
         footerBg:
           type: string
           description: Footer background color
+        footerLinks:
+          type: [object, "null"]
+          description: |
+            Per-menu footer links on the public website, keyed by `BOOKING`, `WEBSHOP`, `MEMBERSHIP`,
+            `LOYALTY_PROGRAM` and `ACCOUNT` (rate your visit). A missing key is shown with its default label;
+            `null` means all defaults. Only menus the salon has enabled are rendered.
+          additionalProperties:
+            type: object
+            properties:
+              visible:
+                type: boolean
+                description: "`false` hides the link (default `true`)"
+              label:
+                type: string
+                maxLength: 60
+                description: Custom link text; blank uses the default
         chatLayout:
           type: string
           enum: [fullscreen, windowed]

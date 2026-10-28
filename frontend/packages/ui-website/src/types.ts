@@ -115,7 +115,15 @@ export interface WebsiteTheme {
    *  (incl. the legacy "app" value and undefined) = fullscreen. */
   chatLayout?: "fullscreen" | "windowed" | "app";
   chatBg?: string;
+  /** Per-menu footer links, keyed by FOOTER_LINK_KEYS; a missing key = shown with its default label. */
+  footerLinks?: Record<string, FooterLinkSetting> | null;
   updatedAt?: string;
+}
+
+export interface FooterLinkSetting {
+  visible?: boolean;
+  /** Owner's wording; blank = the default label. */
+  label?: string;
 }
 
 export interface ServiceItem {

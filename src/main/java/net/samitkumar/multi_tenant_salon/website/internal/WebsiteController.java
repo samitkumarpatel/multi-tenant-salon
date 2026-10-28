@@ -1,5 +1,6 @@
 package net.samitkumar.multi_tenant_salon.website.internal;
 
+import tools.jackson.databind.JsonNode;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.website.WebsiteTheme;
 import net.samitkumar.multi_tenant_salon.website.WebsiteType;
@@ -26,8 +27,14 @@ class WebsiteController {
             String headerBg,
             String footerBg,
             String chatLayout,
-            String chatBg
+            String chatBg,
+            JsonNode footerLinks
     ) {}
+
+    /** Only an object is stored; anything else (absent, null, array) falls back to the defaults. */
+    private static String footerLinksJson(JsonNode node) {
+        return node != null && node.isObject() ? node.toString() : null;
+    }
 
     record WebsiteTypeRequest(WebsiteType websiteType) {}
     record WebsiteTypeResponse(WebsiteType websiteType) {}
@@ -41,7 +48,8 @@ class WebsiteController {
     ResponseEntity<WebsiteTheme> saveTheme(@PathVariable String id, @RequestBody SaveThemeRequest req) {
         var theme = service.saveTheme(salonApi.resolveId(id), req.heroBg(), req.heroTextColor(),
                 req.accentColor(), req.fontFamily(), req.logoBgColor(),
-                req.headerBg(), req.footerBg(), req.chatLayout(), req.chatBg());
+                req.headerBg(), req.footerBg(), req.chatLayout(), req.chatBg(),
+                footerLinksJson(req.footerLinks()));
         return ResponseEntity.ok(theme);
     }
 

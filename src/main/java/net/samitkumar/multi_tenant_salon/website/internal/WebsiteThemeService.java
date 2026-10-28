@@ -31,7 +31,7 @@ class WebsiteThemeService implements WebsiteThemeApi {
     WebsiteTheme getTheme(UUID salonId) {
         return repository.findById(salonId)
                 .orElse(new WebsiteTheme(salonId, "#EEF2F4", "#0F172A", "#4B5563", "Noto Sans KR", "#DB2777",
-                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", "fullscreen", "#EEF2F4", null));
+                        WebsiteType.STATIC_WEBSITE, "#E2E8F0", "#E2E8F0", "fullscreen", "#EEF2F4", null, null));
     }
 
     WebsiteType getWebsiteType(UUID salonId) {
@@ -43,13 +43,13 @@ class WebsiteThemeService implements WebsiteThemeApi {
     WebsiteTheme saveTheme(UUID salonId, String heroBg, String heroTextColor,
                            String accentColor, String fontFamily, String logoBgColor,
                            String headerBg, String footerBg, String chatLayout,
-                           String chatBg) {
+                           String chatBg, String footerLinks) {
         log.info("[WebsiteThemeService] Saving theme for salon={}", salonId);
         jdbc.update("""
                 INSERT INTO salon_website_theme
-                  (salon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color, header_bg, footer_bg, chat_layout, chat_bg, updated_at)
+                  (salon_id, hero_bg, hero_text_color, accent_color, font_family, logo_bg_color, header_bg, footer_bg, chat_layout, chat_bg, footer_links, updated_at)
                 VALUES
-                  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (salon_id) DO UPDATE SET
                   hero_bg         = EXCLUDED.hero_bg,
                   hero_text_color = EXCLUDED.hero_text_color,
@@ -60,13 +60,14 @@ class WebsiteThemeService implements WebsiteThemeApi {
                   footer_bg       = EXCLUDED.footer_bg,
                   chat_layout     = EXCLUDED.chat_layout,
                   chat_bg         = EXCLUDED.chat_bg,
+                  footer_links    = EXCLUDED.footer_links,
                   updated_at      = EXCLUDED.updated_at
                 """,
                 salonId, heroBg, heroTextColor, accentColor, fontFamily, logoBgColor,
                 headerBg != null ? headerBg : "#E2E8F0",
                 footerBg != null ? footerBg : "#E2E8F0",
                 chatLayout != null ? chatLayout : "fullscreen",
-                chatBg, Timestamp.from(Instant.now()));
+                chatBg, footerLinks, Timestamp.from(Instant.now()));
 
         return repository.findById(salonId).orElseThrow();
     }

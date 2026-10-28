@@ -8,6 +8,7 @@ import {
   SalonWebsite, GenerativeUIWebsite, SalonErrorPage, DEFAULT_THEME, FONTS,
   loadGoogleFont, fontStack, isLightColor, contrastText,
 } from "@salon/ui-website";
+import { FOOTER_LINK_MENUS } from "@salon/ui-website";
 import type { WebsiteTheme, Salon, StaffMember, ServiceItem } from "@salon/ui-website";
 import { GOOGLE_FONTS, type GoogleFontCategory } from "@salon/ui-website/google-fonts";
 import { CUSTOMER_API, ADMIN_API, apiFetch } from "~/lib/api";
@@ -474,8 +475,8 @@ function AiThemeMatcher({ salonId, salonName, services, theme, onChange, accent 
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-function ThemePanel({ salonId, salonName, services, theme, onChange, onClose }: {
-  salonId: string; salonName: string; services: ServiceItem[];
+function ThemePanel({ salonId, salonName, features, services, theme, onChange, onClose }: {
+  salonId: string; salonName: string; features: string[]; services: ServiceItem[];
   theme: WebsiteTheme; onChange: (t: WebsiteTheme) => void; onClose: () => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
@@ -494,6 +495,7 @@ function ThemePanel({ salonId, salonName, services, theme, onChange, onClose }: 
           fontFamily: theme.fontFamily, logoBgColor: theme.logoBgColor,
           headerBg: theme.headerBg, footerBg: theme.footerBg,
           chatBg: theme.chatBg ?? null, chatLayout: theme.chatLayout ?? "fullscreen",
+          footerLinks: theme.footerLinks ?? null,
         }),
       });
       setSaveState("saved");
@@ -630,6 +632,28 @@ function ThemePanel({ salonId, salonName, services, theme, onChange, onClose }: 
                 <ColorPicker label={translateUi("Footer Background")} value={theme.footerBg} onChange={(v) => onChange({ ...theme, footerBg: v })} />
               </div>
             </section>
+
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{translateUi("Footer links")}</p>
+              <p className="text-[11px] text-slate-400 mb-3">{translateUi("Choose which menus link from the footer and what the link says.")}</p>
+              <div className="space-y-3">
+                {FOOTER_LINK_MENUS.filter((m) => !m.feature || features.includes(m.feature)).map((m) => {
+                  const cfg = theme.footerLinks?.[m.key] ?? {};
+                  const set = (patch: { visible?: boolean; label?: string }) =>
+                    onChange({ ...theme, footerLinks: { ...(theme.footerLinks ?? {}), [m.key]: { ...cfg, ...patch } } });
+                  const on = cfg.visible !== false;
+                  return (
+                    <div key={m.key} className="flex items-center gap-2">
+                      <input type="checkbox" checked={on} onChange={(e) => set({ visible: e.target.checked })}
+                        aria-label={translateUi(m.label)} className="w-4 h-4 shrink-0 cursor-pointer" />
+                      <input type="text" value={cfg.label ?? ""} disabled={!on} maxLength={60}
+                        placeholder={translateUi(m.label)} onChange={(e) => set({ label: e.target.value })}
+                        className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 disabled:opacity-40" />
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           </>
         )}
 
@@ -734,6 +758,7 @@ export default function SalonPreviewPage() {
         <ThemePanel
           salonId={salonId}
           salonName={salon.name}
+          features={salon.features ?? []}
           services={services}
           theme={theme}
           onChange={setTheme}

@@ -11,7 +11,7 @@ export type { BookingFeePolicy } from "./bookingFee";
 export { CustomerDetailsFields } from "./CustomerDetailsFields";
 export type { CustomerBookingForm, ContactMethod } from "./CustomerDetailsFields";
 export { FeatureView, FEATURE_VIEWS } from "./FeatureView";
-export { SiteHeader, SiteFooter, FEATURE_NAV, AccountButton, hasCustomerAccount } from "./SiteChrome";
+export { SiteHeader, SiteFooter, FEATURE_NAV, FOOTER_LINK_MENUS, footerMenuLinks, AccountButton, hasCustomerAccount } from "./SiteChrome";
 export { CustomerAccountView, CustomerAccountPanel, CustomerAccountDrawer, siteAccountLinks, useCustomerSession } from "./CustomerAccount";
 export type { CustomerAccountViewProps, CustomerAccountPanelProps, CustomerAccountLinks, AccountPage } from "./CustomerAccount";
 export { SalonPolicyLinks } from "./SalonPolicyLinks";
@@ -35,7 +35,7 @@ export type { ErrorStateProps, ErrorNoteProps } from "./ErrorState";
 
 export type {
   Salon, Owner, Location, ContactInfo, OperatingHours,
-  StaffMember, ServiceItem, WebsiteTheme, WebsiteMode,
+  StaffMember, ServiceItem, WebsiteTheme, FooterLinkSetting, WebsiteMode,
   Booking, BookingStatus, AvailableSlot, StaffAvailability, StaffAvailabilityOverride,
   SalonClosure, SalonHoliday,
   Country, Currency,

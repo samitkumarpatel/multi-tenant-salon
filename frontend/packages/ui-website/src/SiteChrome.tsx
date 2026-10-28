@@ -21,6 +21,24 @@ export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
   LOYALTY_PROGRAM: { label: "Loyalty",    path: "loyalty" },
 };
 
+/** Menus that can put a link in the website footer, with the feature each needs and its default label/page. */
+export const FOOTER_LINK_MENUS: { key: string; feature?: string; label: string; page: string }[] = [
+  { key: "BOOKING",         feature: "BOOKING",         label: "Book an appointment",              page: "book" },
+  { key: "WEBSHOP",         feature: "WEBSHOP",         label: "Shop",                             page: "shop" },
+  { key: "MEMBERSHIP",      feature: "MEMBERSHIP",      label: "Membership",                       page: "membership" },
+  { key: "LOYALTY_PROGRAM", feature: "LOYALTY_PROGRAM", label: "Loyalty",                          page: "loyalty" },
+  { key: "ACCOUNT",                                     label: "Rate your visit & leave feedback", page: "account" },
+];
+
+/** The footer links the visitor sees: one per menu the salon has, unless the owner switched it off. */
+export function footerMenuLinks(salon: Salon, theme: WebsiteTheme, getPagePath?: (page: string) => string, current?: string) {
+  if (!getPagePath) return [];
+  return FOOTER_LINK_MENUS
+    .filter((m) => (m.feature ? (salon.features ?? []).includes(m.feature) : hasCustomerAccount(salon)))
+    .filter((m) => m.page !== current && theme.footerLinks?.[m.key]?.visible !== false)
+    .map((m) => ({ key: m.key, label: theme.footerLinks?.[m.key]?.label?.trim() || m.label, href: getPagePath(m.page) }));
+}
+
 /** Features whose customers have something to see in their account (bookings, orders, memberships). */
 const ACCOUNT_FEATURES = ["BOOKING", "WEBSHOP", "MEMBERSHIP", "LOYALTY_PROGRAM"];
 
@@ -519,11 +537,11 @@ export function SiteFooter({
             © {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved. ")}</p>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
             <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
-            {current !== "account" && hasCustomerAccount(salon) && getPagePath && (
-              <a href={getPagePath("account")} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
-                {translateUi("Rate your visit & leave feedback")}
+            {footerMenuLinks(salon, theme, getPagePath, current).map((l) => (
+              <a key={l.key} href={l.href} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
+                {translateUi(l.label)}
               </a>
-            )}
+            ))}
             {isScrollable && (
               <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
                 {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />

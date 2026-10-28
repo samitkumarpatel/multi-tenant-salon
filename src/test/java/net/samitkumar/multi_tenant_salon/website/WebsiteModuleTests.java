@@ -109,6 +109,30 @@ class WebsiteModuleTests {
     }
 
     @Test
+    void footerLinksRoundTripAsJsonAndDefaultToNull() {
+        client.get().uri("/api/salon/{id}/website", salonId).exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.footerLinks").isEmpty();
+
+        client.put()
+                .uri("/api/salon-admin/{id}/website", salonId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {"heroBg": "#1A1A2E", "heroTextColor": "#E0E0E0", "accentColor": "#E94560",
+                         "fontFamily": "roboto", "logoBgColor": "#0F3460",
+                         "footerLinks": {"WEBSHOP": {"visible": false}, "BOOKING": {"label": "Book now"}}}
+                        """)
+                .exchange()
+                .expectStatus().isOk();
+
+        client.get().uri("/api/salon/{id}/website", salonId).exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.footerLinks.WEBSHOP.visible").isEqualTo(false)
+                .jsonPath("$.footerLinks.BOOKING.label").isEqualTo("Book now");
+    }
+
+    @Test
     void saveThemeIsIdempotent() {
         var body = """
                 {

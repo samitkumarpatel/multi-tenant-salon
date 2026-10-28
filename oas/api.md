@@ -1608,6 +1608,7 @@ Creates or fully replaces the theme (`ON CONFLICT DO UPDATE`).
 | `logoBgColor` | string | Background color behind the salon logo |
 | `headerBg` | string | Navigation bar background color |
 | `footerBg` | string | Footer background color |
+| `footerLinks` | object \| null | Per-menu footer links keyed by `BOOKING`, `WEBSHOP`, `MEMBERSHIP`, `LOYALTY_PROGRAM`, `ACCOUNT`; each `{ "visible": bool, "label": string }`. Missing key = shown with default label; `null` = all defaults. Stored as JSON in `salon_website_theme.footer_links` (V34) |
 | `chatLayout` | string | How the Generative UI chat opens: `"windowed"` or `"fullscreen"` (default) |
 
 **Response** `200 OK`

@@ -182,6 +182,7 @@ spring:
         - classpath:db/V31__loyalty.sql
         - classpath:db/V32__booking_payment_links.sql
         - classpath:db/V33__rating_feedback_and_till_desk.sql
+        - classpath:db/V34__website_footer_links.sql
   modulith:
     events:
       jdbc:
