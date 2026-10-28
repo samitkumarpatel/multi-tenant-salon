@@ -38,11 +38,23 @@ function RatingInput({ label, value, onChange }: { label: string; value: number;
   );
 }
 
+function FeedbackInput({ label, value, onChange }: { label: string; value: string; onChange: (text: string) => void }) {
+  const { t: translateUi } = useI18n();
+  return (
+    <label className="block text-xs font-medium text-slate-600">{translateUi(label)}
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} maxLength={1000} rows={3}
+        className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none" />
+    </label>
+  );
+}
+
 export default function ReviewPage() {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const { target, token, invalid } = useLoaderData<typeof clientLoader>();
   const [salonRating, setSalonRating] = useState(0);
   const [staffRating, setStaffRating] = useState(0);
+  const [salonFeedback, setSalonFeedback] = useState("");
+  const [staffFeedback, setStaffFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -54,7 +66,7 @@ export default function ReviewPage() {
     try {
       await apiFetch<void>(`${API_BASE}/api/public/rating/${encodeURIComponent(token)}`, {
         method: "POST",
-        body: JSON.stringify({ salonRating, staffRating }),
+        body: JSON.stringify({ salonRating, staffRating, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null }),
       });
       setSubmitted(true);
     } catch {
@@ -79,7 +91,9 @@ export default function ReviewPage() {
             <p className="mt-2 text-sm leading-relaxed text-slate-600">{translateUi("Rate your experience at ")}{target.salonName} {translateUi("and with ")}{target.staffName}.</p>
             <div className="mt-7 space-y-6">
               <RatingInput label={`Your experience at ${target.salonName}`} value={salonRating} onChange={setSalonRating} />
+              <FeedbackInput label={`Anything to tell ${target.salonName}? (optional)`} value={salonFeedback} onChange={setSalonFeedback} />
               <RatingInput label={`Your experience with ${target.staffName}`} value={staffRating} onChange={setStaffRating} />
+              <FeedbackInput label={`Anything to tell ${target.staffName}? (optional)`} value={staffFeedback} onChange={setStaffFeedback} />
             </div>
             {error && <p role="alert" className="mt-4 text-sm text-red-600">{error}</p>}
             <button type="button" disabled={submitting || salonRating < 1 || staffRating < 1} onClick={submit}

@@ -17,3 +17,10 @@
   --color-matcha-800: #36491f;
   --color-matcha-900: #2a3a18;
 }
+
+/* Print only the receipt dialog's slip (see ReceiptDialog), not the whole desk. */
+@media print {
+  html.printing-receipt body * { visibility: hidden; }
+  html.printing-receipt #receipt-print, html.printing-receipt #receipt-print * { visibility: visible; }
+  html.printing-receipt #receipt-print { position: absolute; left: 0; top: 0; width: 80mm; border: 0; }
+}

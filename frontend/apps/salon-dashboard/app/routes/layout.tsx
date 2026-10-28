@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigate } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
-import { BadgeCheck, CalendarDays, Gift, Calculator, ChevronDown, LogOut, Receipt, ScanLine, ShoppingCart, UserPlus } from "lucide-react";
+import { BadgeCheck, CalendarDays, Gift, Package, Users, Calculator, ChevronDown, LogOut, Receipt, ScanLine, ShoppingCart, UserPlus } from "lucide-react";
 import { SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { DEFAULT_THEME, API_BASE, contrastText } from "@salon/ui-website";
 import type { Salon, WebsiteTheme } from "@salon/ui-website";
@@ -159,11 +159,14 @@ export default function DashboardLayout() {
   const bookingEnabled = settings.bookingManagementEnabled && salon.features?.includes("BOOKING");
   const membershipEnabled = Boolean(salon.features?.includes("MEMBERSHIP"));
   const loyaltyEnabled = Boolean(salon.features?.includes("LOYALTY_PROGRAM"));
+  const ordersEnabled = Boolean(salon.features?.includes("WEBSHOP"));
   // Mirrors the view choice in dashboard.tsx.
   const activeView = requestedView === "cashier" && settings.cashierEnabled
     ? "cashier"
     : requestedView === "membership" && membershipEnabled ? "membership"
     : requestedView === "loyalty" && loyaltyEnabled ? "loyalty"
+    : requestedView === "orders" && ordersEnabled ? "orders"
+    : requestedView === "customers" ? "customers"
     : bookingEnabled ? "appointments"
     : !settings.cashierEnabled && !membershipEnabled && loyaltyEnabled ? "loyalty"
     : settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
@@ -172,6 +175,8 @@ export default function DashboardLayout() {
     ...(settings.cashierEnabled ? [{ key: "cashier", label: "Cashier", icon: ShoppingCart }] : []),
     ...(membershipEnabled ? [{ key: "membership", label: "Membership", icon: BadgeCheck }] : []),
     ...(loyaltyEnabled ? [{ key: "loyalty", label: "Loyalty", icon: Gift }] : []),
+    ...(ordersEnabled ? [{ key: "orders", label: "Orders", icon: Package }] : []),
+    { key: "customers", label: "Customers", icon: Users },
   ];
   const navTarget = (key: string) => key === "cashier" ? "?view=cashier&cashierView=pos"
     : key === "membership" ? "?view=membership&membershipView=check-in" : `?view=${key}`;
@@ -200,8 +205,9 @@ export default function DashboardLayout() {
               <Link to="?view=appointments&appointmentsView=new" className={`my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"}`}>{translateUi("Book")}</Link>
             </AnimatedSubmenu>}
             {key === "cashier" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
-              <Link to="?view=cashier&cashierView=pos" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView !== "invoices" && requestedCashierView !== "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ShoppingCart className="h-3.5 w-3.5" />{translateUi("Till / POS")}</Link>
+              <Link to="?view=cashier&cashierView=pos" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView !== "invoices" && requestedCashierView !== "report" && requestedCashierView !== "shift" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><ShoppingCart className="h-3.5 w-3.5" />{translateUi("Till / POS")}</Link>
               <Link to="?view=cashier&cashierView=invoices" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Receipt className="h-3.5 w-3.5" />{translateUi("Invoices")}</Link>
+              <Link to="?view=cashier&cashierView=shift" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "shift" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Calculator className="h-3.5 w-3.5" />{translateUi("Till shift")}</Link>
               <Link to="?view=cashier&cashierView=report" className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs no-underline ${requestedCashierView === "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}><Calculator className="h-3.5 w-3.5" />{translateUi("End of day")}</Link>
             </AnimatedSubmenu>}
             {key === "membership" && <AnimatedSubmenu open={activeView === key} className="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3">
@@ -222,8 +228,9 @@ export default function DashboardLayout() {
             <Link to="?view=appointments&appointmentsView=new" className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 no-underline transition-colors ${requestedAppointmentsView === "new" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-600"}`}>{translateUi("Book")}</Link>
           </AnimatedSubmenu>
           <AnimatedSubmenu open={activeView === "cashier"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">
-            <Link to="?view=cashier&cashierView=pos" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView !== "invoices" && requestedCashierView !== "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Till / POS")}</Link>
+            <Link to="?view=cashier&cashierView=pos" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView !== "invoices" && requestedCashierView !== "report" && requestedCashierView !== "shift" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Till / POS")}</Link>
             <Link to="?view=cashier&cashierView=invoices" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "invoices" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Invoices")}</Link>
+            <Link to="?view=cashier&cashierView=shift" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "shift" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("Till shift")}</Link>
             <Link to="?view=cashier&cashierView=report" className={`shrink-0 rounded px-2 py-1 no-underline ${requestedCashierView === "report" ? "bg-matcha-100 font-semibold text-matcha-900" : "text-slate-500"}`}>{translateUi("End of day")}</Link>
           </AnimatedSubmenu>
           <AnimatedSubmenu open={activeView === "membership"} className="mt-2 flex gap-4 overflow-x-auto border-t border-slate-100 pt-2 text-xs">

@@ -3279,6 +3279,38 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/salon-admin/{salonId}/shop/orders/{orderId}/desk-status:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: [AdminShop]
+      summary: Move an order along from the salon desk
+      description: |
+        Like `/status` but limited to `PROCESSING`, `READY_TO_SHIP`, `SHIPPED`, `DELIVERED` and `FULFILLED` (`400` for
+        anything else); cancelling stays owner-only. Desk staff may call it. The change is attributed to the signed-in person.
+      operationId: updateOrderStatusFromDesk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { $ref: "#/components/schemas/OrderStatus" }
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopOrder" }
+        "400":
+          description: A status the desk may not set
+        "404":
+          description: No such order
+        "409":
+          description: The order is already terminal
+
   /api/salon-admin/{salonId}/shop/orders/{orderId}/status:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -3664,6 +3696,13 @@ paths:
                   items: { type: object }
                 inlineCheckout: { type: boolean, nullable: true }
                 idempotencyKey: { type: string, nullable: true, description: The till's own key for this cart }
+                discountType: { type: string, enum: [AMOUNT, PERCENT], nullable: true, description: How `discountValue` is read }
+                discountValue: { type: number, nullable: true, description: 'Money off the items (AMOUNT, at most the items total) or a percentage 0-100 (PERCENT)' }
+                discountReason: { type: string, nullable: true }
+                tipAmount: { type: number, nullable: true, description: 'Added on top, 0-10000' }
+                customerEmail: { type: string, nullable: true, description: The customer, so the sale earns loyalty points and a receipt can be emailed }
+                applyMembership: { type: boolean, nullable: true, description: 'Apply the customer''s active membership: included services with allowance left are free, the rest get the plan discount. 409 when there is no active membership' }
+                loyaltyCode: { type: string, nullable: true, description: 'An issued DISCOUNT_AMOUNT reward code to spend as money off. 404 unknown code; 409 used, cancelled, belonging to another customer, or a reward handed over by hand' }
       responses:
         "200":
           description: Pending sale and its checkout
@@ -3707,6 +3746,13 @@ paths:
                   type: array
                   items: { type: object }
                 idempotencyKey: { type: string, nullable: true, description: The till's own key for this cart }
+                discountType: { type: string, enum: [AMOUNT, PERCENT], nullable: true, description: How `discountValue` is read }
+                discountValue: { type: number, nullable: true, description: 'Money off the items (AMOUNT, at most the items total) or a percentage 0-100 (PERCENT)' }
+                discountReason: { type: string, nullable: true }
+                tipAmount: { type: number, nullable: true, description: 'Added on top, 0-10000' }
+                customerEmail: { type: string, nullable: true, description: The customer, so the sale earns loyalty points and a receipt can be emailed }
+                applyMembership: { type: boolean, nullable: true, description: 'Apply the customer''s active membership: included services with allowance left are free, the rest get the plan discount. 409 when there is no active membership' }
+                loyaltyCode: { type: string, nullable: true, description: 'An issued DISCOUNT_AMOUNT reward code to spend as money off. 404 unknown code; 409 used, cancelled, belonging to another customer, or a reward handed over by hand' }
       responses:
         "200":
           description: Pending sale and the payment on the reader
@@ -3755,6 +3801,13 @@ paths:
                       sourceId: { type: integer, format: int64 }
                       quantity: { type: integer }
                 idempotencyKey: { type: string, nullable: true, description: The till's own key for this cart }
+                discountType: { type: string, enum: [AMOUNT, PERCENT], nullable: true, description: How `discountValue` is read }
+                discountValue: { type: number, nullable: true, description: 'Money off the items (AMOUNT, at most the items total) or a percentage 0-100 (PERCENT)' }
+                discountReason: { type: string, nullable: true }
+                tipAmount: { type: number, nullable: true, description: 'Added on top, 0-10000' }
+                customerEmail: { type: string, nullable: true, description: The customer, so the sale earns loyalty points and a receipt can be emailed }
+                applyMembership: { type: boolean, nullable: true, description: 'Apply the customer''s active membership: included services with allowance left are free, the rest get the plan discount. 409 when there is no active membership' }
+                loyaltyCode: { type: string, nullable: true, description: 'An issued DISCOUNT_AMOUNT reward code to spend as money off. 404 unknown code; 409 used, cancelled, belonging to another customer, or a reward handed over by hand' }
       responses:
         "200":
           description: The sale (the original one on an idempotent replay)
@@ -3762,7 +3815,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PosSale" }
         "400":
-          description: Missing payment method or items, invalid item, or a BOOKING line with quantity other than 1
+          description: Missing payment method or items, invalid item, a BOOKING line with quantity other than 1, or an impossible discount or tip
         "409":
           description: Card method used here, the key was replayed with a different payment method, a BOOKING that is cancelled or already paid, or mixed currencies
 
@@ -3813,6 +3866,162 @@ paths:
               schema: { $ref: "#/components/schemas/PosSale" }
         "409":
           description: Already voided, or still PENDING
+
+  /api/salon-admin/{salonId}/dashboard/sales/{saleId}/receipt:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: saleId, required: true, schema: { type: integer, format: int64 } }
+    post:
+      tags: [AdminPayments]
+      summary: Email a Till / POS receipt
+      description: Emails the customer a receipt for a settled sale. Desk staff get `403` when `cashierEnabled` is off.
+      operationId: emailPosReceipt
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202":
+          description: Queued for delivery
+        "400":
+          description: Not a valid email address
+        "404":
+          description: No such sale in this salon
+        "409":
+          description: The sale is unpaid or has been voided
+
+  /api/salon-admin/{salonId}/dashboard/shift:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminPayments]
+      summary: The open cash-drawer shift
+      description: The shift with `expectedCash` — the float plus cash sales and cash memberships since it opened. `204` when none is open. Desk staff get `403` when `cashierEnabled` is off.
+      operationId: getCurrentShift
+      security:
+        - BearerAuth: []
+      responses:
+        "200": { description: The open shift }
+        "204": { description: No shift is open }
+
+  /api/salon-admin/{salonId}/dashboard/shifts:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminPayments]
+      summary: Recent cash-drawer shifts
+      description: The last 30, newest first. A closed shift keeps the `expectedCash` it had at close, so `difference` (counted minus expected) never changes.
+      operationId: listShifts
+      security:
+        - BearerAuth: []
+      responses:
+        "200": { description: Shifts }
+
+  /api/salon-admin/{salonId}/dashboard/shift/open:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminPayments]
+      summary: Open the cash drawer
+      operationId: openShift
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [openingFloat, currency]
+              properties:
+                openingFloat: { type: number, minimum: 0 }
+                currency: { type: string, description: 3-letter code }
+      responses:
+        "200": { description: The opened shift }
+        "400": { description: Negative or oversized float, or a bad currency }
+        "409": { description: A shift is already open }
+
+  /api/salon-admin/{salonId}/dashboard/shift/close:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    post:
+      tags: [AdminPayments]
+      summary: Close the cash drawer
+      operationId: closeShift
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [countedCash]
+              properties:
+                countedCash: { type: number, minimum: 0 }
+                note: { type: string, nullable: true }
+      responses:
+        "200": { description: The closed shift, with expectedCash and difference }
+        "409": { description: No shift is open }
+
+  /api/salon-admin/{salonId}/dashboard/walk-ins:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminBooking]
+      summary: The walk-in queue
+      description: Customers waiting without an appointment, in arrival order. Desk staff get `403` when appointment management is off.
+      operationId: listWalkIns
+      security:
+        - BearerAuth: []
+      responses:
+        "200": { description: Waiting entries }
+    post:
+      tags: [AdminBooking]
+      summary: Add someone to the walk-in queue
+      operationId: addWalkIn
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerName]
+              properties:
+                customerName: { type: string }
+                phone: { type: string, nullable: true }
+                serviceId: { type: integer, format: int64, nullable: true }
+                staffId: { type: integer, format: int64, nullable: true }
+                note: { type: string, nullable: true }
+      responses:
+        "200": { description: The queue entry }
+        "400": { description: A name is required }
+        "404": { description: The service or stylist is not in this salon }
+        "409": { description: The queue is full (100) }
+
+  /api/salon-admin/{salonId}/dashboard/walk-ins/{id}/{action}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+      - { in: path, name: action, required: true, schema: { type: string, enum: [seat, leave] } }
+    post:
+      tags: [AdminBooking]
+      summary: Seat a waiting walk-in, or remove one who left
+      operationId: resolveWalkIn
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Done }
+        "404": { description: No one is waiting under that entry (already seated or gone) }
 
   /api/salon-admin/{salonId}/dashboard/reports/daily:
     parameters:
@@ -4698,7 +4907,7 @@ paths:
     get:
       tags: [CustomerAccount]
       summary: My completed visits that can be rated
-      description: Each option says whether feedback was left (`submitted`) and carries the customer's `feedback` and the salon's `reply`, if any.
+      description: Each option says whether feedback was left (`submitted`) and carries the customer's `salonFeedback` and `staffFeedback` and the salon's `reply`, if any.
       operationId: customerRatingOptions
       responses:
         "200":
@@ -4709,7 +4918,7 @@ paths:
       tags: [CustomerAccount]
       summary: Rate a completed visit
       description: >
-        `salonRating` and `staffRating` are 1-5; `feedback` is optional free text (trimmed, max 1000 chars). One review per
+        `salonRating` and `staffRating` are 1-5; `salonFeedback` (about the salon) and `staffFeedback` (about the stylist) are optional free text (trimmed, max 1000 chars each). One review per
         visit; the first submission wins and is never edited afterwards. `400` for a bad rating, someone else's visit,
         a visit that is not `COMPLETED`, or one already rated.
       operationId: customerSubmitRating
@@ -4724,7 +4933,8 @@ paths:
                 bookingId: { type: integer, format: int64 }
                 salonRating: { type: integer, minimum: 1, maximum: 5 }
                 staffRating: { type: integer, minimum: 1, maximum: 5 }
-                feedback: { type: string, maxLength: 1000, nullable: true }
+                salonFeedback: { type: string, maxLength: 1000, nullable: true }
+                staffFeedback: { type: string, maxLength: 1000, nullable: true }
       responses:
         "204":
           description: Saved
@@ -4739,7 +4949,7 @@ paths:
     get:
       tags: [Ratings]
       summary: Customer ratings and feedback for the salon
-      description: Newest first (max 500). Read-only; each row carries `feedback` (the customer's words), and `reply` / `repliedAt` (the owner's answer).
+      description: Newest first (max 500). Read-only; each row carries `salonFeedback` and `staffFeedback` (the customer's words), and `reply` / `repliedAt` (the owner's answer).
       operationId: adminListRatings
       responses:
         "200":
@@ -5392,6 +5602,44 @@ paths:
         "404":
           description: No membership at this salon has that code
 
+  /api/salon-admin/{salonId}/membership/benefits:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [AdminMembership]
+      summary: What an active member can use at the till
+      description: >
+        The plan's service and product discount percentages and each included service with the allowance left in the
+        current billing cycle. Desk staff may call it. `404` when the email holds no active membership.
+      operationId: membershipBenefits
+      security:
+        - BearerAuth: []
+      parameters:
+        - { in: query, name: email, required: true, schema: { type: string, format: email } }
+      responses:
+        "200":
+          description: The member's benefits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptionId: { type: integer, format: int64 }
+                  planName: { type: string }
+                  serviceDiscountPercent: { type: integer, nullable: true }
+                  productDiscountPercent: { type: integer, nullable: true }
+                  cycleEnd: { type: string, format: date-time }
+                  included:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        serviceId: { type: integer, format: int64 }
+                        perCycle: { type: integer }
+                        remaining: { type: integer }
+        "404":
+          description: No active membership under that email
+
   /api/salon-admin/{salonId}/membership/overview:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -5912,7 +6160,13 @@ components:
         saleNumber: { type: string }
         customerName: { type: string, nullable: true }
         paymentMethod: { type: string, enum: [CASH, CARD, OTHER] }
-        total: { type: number }
+        total: { type: number, description: What the customer pays - subtotal minus discountAmount plus tipAmount }
+        subtotal: { type: number, description: The items before discount and tip }
+        discountAmount: { type: number }
+        discountReason: { type: string, nullable: true }
+        tipAmount: { type: number }
+        customerEmail: { type: string, nullable: true }
+        loyaltyRedemptionId: { type: integer, format: int64, nullable: true }
         currency: { type: string }
         createdAt: { type: string, format: date-time }
         paymentStatus: { type: string }

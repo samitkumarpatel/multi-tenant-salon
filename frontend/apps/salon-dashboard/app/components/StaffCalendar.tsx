@@ -373,7 +373,7 @@ export function StaffCalendar(props: StaffCalendarProps) {
                       onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(booking.id)); setDrag({ booking, grab: event.nativeEvent.offsetY }); setHover(null); }}
                       onDragEnd={() => { setDrag(null); setPreview(null); }}
                       onClick={(event) => { event.stopPropagation(); onSelect(booking); }}
-                      title={`${booking.startTime.slice(0, 5)}–${booking.endTime.slice(0, 5)} ${booking.customerName} · ${serviceMap.get(booking.serviceId) ?? ""}${member ? ` · ${member.name}` : ""}${movable ? `\n${translateUi("Drag to move")}` : ""}`}
+                      title={`${booking.startTime.slice(0, 5)}–${booking.endTime.slice(0, 5)} ${booking.customerName} · ${serviceMap.get(booking.serviceId) ?? ""}${member ? ` · ${member.name}` : ""}${booking.customerPhone ? `\n${booking.customerPhone}` : ""}${booking.notes ? `\n${booking.notes}` : ""}${movable ? `\n${translateUi("Drag to move")}` : ""}`}
                       className={`absolute z-[5] overflow-hidden rounded-md px-2 py-1 text-left text-[10px] leading-tight text-slate-900 shadow-sm transition hover:z-10 hover:shadow-md ${movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${cancelled ? "opacity-50" : ""} ${drag?.booking.id === booking.id ? "opacity-40" : ""}`}
                       style={{
                         top: pos(start) + 1, height,
@@ -382,8 +382,9 @@ export function StaffCalendar(props: StaffCalendarProps) {
                         border: `1px ${booking.status === "PENDING" ? "dashed" : "solid"} ${withAlpha(color, 0.55)}`,
                         borderLeft: `4px solid ${color}`,
                       }}>
-                      <span className={`block truncate font-bold ${cancelled ? "line-through" : ""}`}>{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</span>
+                      <span className={`block truncate font-bold ${cancelled ? "line-through" : ""}`}>{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}{booking.notes ? " ✎" : ""}</span>
                       {height >= 38 && <span className="block truncate opacity-75">{serviceMap.get(booking.serviceId)}{!column.staff && view === "day" && member ? ` · ${member.name}` : ""}</span>}
+                      {height >= 52 && booking.customerPhone && <span className="block truncate opacity-60">{booking.customerPhone}</span>}
                       {height >= 52 && <StatusTags booking={booking} />}
                     </button>;
                   })}

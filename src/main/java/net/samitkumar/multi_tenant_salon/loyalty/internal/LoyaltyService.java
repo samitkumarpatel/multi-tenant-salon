@@ -1,6 +1,7 @@
 package net.samitkumar.multi_tenant_salon.loyalty.internal;
 
 import lombok.extern.slf4j.Slf4j;
+import net.samitkumar.multi_tenant_salon.loyalty.CounterReward;
 import net.samitkumar.multi_tenant_salon.loyalty.CustomerLoyalty;
 import net.samitkumar.multi_tenant_salon.loyalty.CustomerLoyalty.Entry;
 import net.samitkumar.multi_tenant_salon.loyalty.CustomerLoyalty.Program;
@@ -47,6 +48,8 @@ class LoyaltyService implements LoyaltyApi {
     static final String EARN_ORDER = "EARN_ORDER";
     static final String SOURCE_BOOKING = "BOOKING";
     static final String SOURCE_ORDER = "ORDER";
+    static final String EARN_POS = "EARN_POS";
+    static final String SOURCE_POS = "POS_SALE";
     static final Set<String> REWARD_TYPES = Set.of("DISCOUNT_AMOUNT", "FREE_SERVICE", "FREE_PRODUCT", "CUSTOM");
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int HISTORY_LIMIT = 100;
@@ -62,7 +65,7 @@ class LoyaltyService implements LoyaltyApi {
     record MemberDetail(String email, int balance, List<Entry> history, List<AdminRedemption> redemptions) {}
 
     record AdminRedemption(Long id, String email, String rewardName, int points, String code, String status,
-                           Instant createdAt, Instant usedAt, String usedBy) {}
+                           Instant createdAt, Instant usedAt, String usedBy, String rewardType, BigDecimal rewardValue) {}
 
     record Overview(Program program, List<Reward> rewards, long members, long outstandingPoints, long pendingRedemptions) {}
 
@@ -334,6 +337,25 @@ class LoyaltyService implements LoyaltyApi {
         return settled(salonId, id, changed);
     }
 
+    @Override
+    @Transactional
+    public CounterReward useAtCounter(UUID salonId, String code, String actor) {
+        var redemption = redemptionByCode(salonId, code)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No reward with that code"));
+        if (!"DISCOUNT_AMOUNT".equals(redemption.rewardType()) || redemption.rewardValue() == null || redemption.rewardValue().signum() <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This reward is handed over by hand, not taken off the sale");
+        }
+        markUsed(salonId, redemption.id(), actor); // 409 when it is already used or cancelled
+        return new CounterReward(redemption.id(), redemption.rewardName(), redemption.rewardValue(), redemption.email());
+    }
+
+    @Override
+    @Transactional
+    public void reopenCounterReward(UUID salonId, Long redemptionId) {
+        jdbc.sql("UPDATE loyalty_redemption SET status = 'ISSUED', used_at = NULL, used_by = NULL WHERE id = :id AND salon_id = :salon AND status = 'USED'")
+                .param("id", redemptionId).param("salon", salonId).update();
+    }
+
     /** The owner voids an issued code and the points go back to the customer, once. */
     @Transactional
     AdminRedemption cancel(UUID salonId, Long id, String actor) {
@@ -455,12 +477,14 @@ class LoyaltyService implements LoyaltyApi {
     }
 
     private static final String REDEMPTION_SELECT =
-            "SELECT id, email, reward_name, points, code, status, created_at, used_at, used_by FROM loyalty_redemption";
+            "SELECT id, email, reward_name, points, code, status, created_at, used_at, used_by,\n"
+                    + "(SELECT r.reward_type FROM loyalty_reward r WHERE r.id = loyalty_redemption.reward_id) AS reward_type,\n"
+                    + "(SELECT r.reward_value FROM loyalty_reward r WHERE r.id = loyalty_redemption.reward_id) AS reward_value FROM loyalty_redemption";
 
     private static AdminRedemption redemption(ResultSet rs, int row) throws SQLException {
         return new AdminRedemption(rs.getLong("id"), rs.getString("email"), rs.getString("reward_name"), rs.getInt("points"),
                 rs.getString("code"), rs.getString("status"), instant(rs.getTimestamp("created_at")),
-                instant(rs.getTimestamp("used_at")), rs.getString("used_by"));
+                instant(rs.getTimestamp("used_at")), rs.getString("used_by"), rs.getString("reward_type"), rs.getBigDecimal("reward_value"));
     }
 
     private static Reward reward(ResultSet rs, int row) throws SQLException {

@@ -521,7 +521,7 @@ export function SiteFooter({
             <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
             {current !== "account" && hasCustomerAccount(salon) && getPagePath && (
               <a href={getPagePath("account")} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
-                {translateUi("Rate your visit")}
+                {translateUi("Rate your visit & leave feedback")}
               </a>
             )}
             {isScrollable && (

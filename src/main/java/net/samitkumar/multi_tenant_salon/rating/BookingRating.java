@@ -5,4 +5,4 @@ import java.time.LocalDate;
 
 public record BookingRating(long bookingId, String customerName, String serviceName, String staffName,
                             LocalDate appointmentDate, int salonRating, int staffRating, Instant submittedAt,
-                            String feedback, String reply, Instant repliedAt) {}
+                            String salonFeedback, String staffFeedback, String reply, Instant repliedAt) {}

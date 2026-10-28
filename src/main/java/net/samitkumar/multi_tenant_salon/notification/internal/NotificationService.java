@@ -17,6 +17,9 @@ import net.samitkumar.multi_tenant_salon.loyalty.LoyaltyRedeemedEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipCancelledEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipCustomerNotifiedEvent;
 import net.samitkumar.multi_tenant_salon.membership.MembershipRenewalDueEvent;
+import net.samitkumar.multi_tenant_salon.dashboard.PosReceiptRequestedEvent;
+import net.samitkumar.multi_tenant_salon.salon.Salon;
+import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.salon.SalonCreatedEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
@@ -44,6 +47,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +71,7 @@ class NotificationService {
 
     private final MailjetClient mailjetClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final SalonApi salonApi;
 
     @Value("${spring.application.notification.mailjet.sender:noreply@salonsaas.org}")
     private String sender;
@@ -88,9 +93,10 @@ class NotificationService {
     @Value("${spring.application.notification.help-url:https://help.salonsaas.org}")
     private String helpUrl;
 
-    NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher) {
+    NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher, SalonApi salonApi) {
         this.mailjetClient = mailjetClient;
         this.eventPublisher = eventPublisher;
+        this.salonApi = salonApi;
     }
 
     // ── Salon lifecycle ──────────────────────────────────────────────────────
@@ -246,7 +252,7 @@ class NotificationService {
 
         var sms = "Hi " + event.customerName() + ": we received your booking request (#" + event.bookingId() + ") for "
                 + formattedDateTime(event) + " at " + event.startTime().format(TIME_FMT) + ". " + statusLine + " — " + event.salonName();
-        sendBookingCustomerMessage(event.customerEmail(), event.customerPhone(), event.customerName(), subject, text, html, sms);
+        sendBookingCustomerMessage(event.customerEmail(), event.customerPhone(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html), sms);
     }
 
     void notifyBookingPaymentLink(BookingPaymentLinkEvent event) {
@@ -276,7 +282,7 @@ class NotificationService {
                 HtmlUtils.htmlEscape(when), HtmlUtils.htmlEscape(event.paymentUrl()), price, HtmlUtils.htmlEscape(event.paymentUrl()),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html));
     }
 
     void notifyBookingStatusChanged(BookingStatusChangedEvent event) {
@@ -320,7 +326,51 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html));
+    }
+
+    void notifyPosReceipt(PosReceiptRequestedEvent event) {
+        var subject = salonSubject(event.salonName(), "Your receipt " + event.saleNumber());
+        var when = event.createdAt() == null ? "—" : event.createdAt().atZone(ZoneOffset.UTC).format(DATE_FMT) + " " + event.createdAt().atZone(ZoneOffset.UTC).format(TIME_FMT) + " UTC";
+        var text = new StringBuilder("Hi %s,\n\nThank you for your visit. Here is your receipt %s from %s (%s).\n\n"
+                .formatted(StringUtils.hasText(event.customerName()) ? event.customerName() : "there", event.saleNumber(), event.salonName(), when));
+        var rows = new StringBuilder();
+        for (var line : event.lines()) {
+            var amount = formatMoney(line.lineTotal(), event.currency());
+            text.append("%d x %s — %s\n".formatted(line.quantity(), line.itemName(), amount));
+            rows.append("<tr><td style=\"padding:6px 0\">%d × %s</td><td align=\"right\" style=\"padding:6px 0\">%s</td></tr>"
+                    .formatted(line.quantity(), HtmlUtils.htmlEscape(line.itemName()), HtmlUtils.htmlEscape(amount)));
+        }
+        var total = formatMoney(event.total(), event.currency());
+        if (event.discountAmount().signum() > 0) {
+            var discount = "-" + formatMoney(event.discountAmount(), event.currency());
+            text.append("Discount — %s\n".formatted(discount));
+            rows.append("<tr><td style=\"padding:6px 0;color:#64748b\">Discount</td><td align=\"right\" style=\"padding:6px 0;color:#64748b\">%s</td></tr>"
+                    .formatted(HtmlUtils.htmlEscape(discount)));
+        }
+        if (event.tipAmount().signum() > 0) {
+            var tip = formatMoney(event.tipAmount(), event.currency());
+            text.append("Tip — %s\n".formatted(tip));
+            rows.append("<tr><td style=\"padding:6px 0;color:#64748b\">Tip</td><td align=\"right\" style=\"padding:6px 0;color:#64748b\">%s</td></tr>"
+                    .formatted(HtmlUtils.htmlEscape(tip)));
+        }
+        text.append("\nTotal: %s (%s)\n%s\n%s".formatted(total, humanize(event.paymentMethod()),
+                salonContactText(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureText(event.salonName())));
+        var html = """
+                <p>Hi %s,</p>
+                <p>Thank you for your visit. Here is your receipt <strong>%s</strong> from %s.</p>
+                <p style="color:#64748b;font-size:13px;margin-top:-6px">%s</p>
+                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;margin:12px 0">%s
+                  <tr><td style="padding:10px 0;border-top:1px solid #e2e8f0;font-weight:700">Total (%s)</td><td align="right" style="padding:10px 0;border-top:1px solid #e2e8f0;font-weight:700">%s</td></tr>
+                </table>
+                %s
+                %s
+                """.formatted(HtmlUtils.htmlEscape(StringUtils.hasText(event.customerName()) ? event.customerName() : "there"),
+                HtmlUtils.htmlEscape(event.saleNumber()), HtmlUtils.htmlEscape(event.salonName()), HtmlUtils.htmlEscape(when), rows,
+                humanize(event.paymentMethod()), HtmlUtils.htmlEscape(total),
+                salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureHtml(event.salonName()));
+        sendEmail(event.customerEmail(), event.customerName(), subject,
+                withFeedbackText(event.salonId(), text.toString()), withFeedbackHtml(event.salonId(), html));
     }
 
     void notifyBookingRescheduled(BookingRescheduledEvent event) {
@@ -345,7 +395,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html);
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html));
     }
 
     // ── Bookings — staff-facing ──────────────────────────────────────────────
@@ -529,7 +579,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -568,7 +618,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -592,7 +642,7 @@ class NotificationService {
                 """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -656,7 +706,7 @@ class NotificationService {
         var qr = new MailjetAttachment("image/png", "membership-" + event.memberCode() + ".png", MEMBER_QR_CID,
                 Base64.getEncoder().encodeToString(QrCodes.png(event.memberCode(), 440)));
 
-        var status = dispatch(event.customerEmail(), event.customerName(), subject, text, html, List.of(qr));
+        var status = dispatch(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html), List.of(qr));
         acknowledge(event.customerEmail(), subject, text, status,
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
@@ -690,7 +740,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
 
@@ -718,7 +768,7 @@ class NotificationService {
                 """.formatted(event.points(), HtmlUtils.htmlEscape(event.rewardName()), event.code(), event.balanceAfter(),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), "", subject, text, html,
+        sendEmail(event.customerEmail(), "", subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
                 new NotificationContext(event.salonId(), "LOYALTY", String.valueOf(event.redemptionId())));
     }
 
@@ -756,7 +806,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, text, html,
+        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
 
@@ -822,6 +872,62 @@ class NotificationService {
 
     private String bookingUrl(String handler) {
         return bookingAppUrl + "/" + handler;
+    }
+
+    /**
+     * The salon website's account page, where a customer signs in with their email and rates or writes feedback
+     * on any completed visit. Null when the salon can't be found, so the footer is simply left out.
+     */
+    private String feedbackUrl(UUID salonId) {
+        if (salonId == null) return null;
+        return salonApi.findById(salonId).map(Salon::handler).filter(StringUtils::hasText)
+                .map(handler -> websiteUrl(handler) + "/account").orElse(null);
+    }
+
+    /** Appended to every customer-facing email so there is always a way to leave feedback. */
+    private String withFeedbackText(UUID salonId, String text) {
+        var url = feedbackUrl(salonId);
+        return url == null ? text : text + "\n\nShare your feedback about the salon or your stylist:\n" + url + "\n";
+    }
+
+    /** Customer emails: the salon's name in the header, the message in a card, the feedback link below it. */
+    private String withFeedbackHtml(UUID salonId, String html) {
+        var url = feedbackUrl(salonId);
+        var brand = salonId == null ? null : salonApi.findById(salonId).map(Salon::name).orElse(null);
+        var feedback = url == null ? "" : "<p style=\"margin:24px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b\">"
+                + "Tell us how we're doing — <a href=\"" + HtmlUtils.htmlEscape(url) + "\" style=\"color:#0f172a;font-weight:600\">leave feedback about the salon or your stylist</a>.</p>";
+        return layout(brand, html + feedback);
+    }
+
+    private static final String LAYOUT_MARKER = "<!--salon-layout-->";
+
+    /**
+     * The one email frame: a coloured header band with the sender's name, the content in a white card and a quiet
+     * footer. Table-based with inline styles because mail clients ignore most modern CSS.
+     */
+    private String layout(String brandName, String bodyHtml) {
+        var brand = HtmlUtils.htmlEscape(StringUtils.hasText(brandName) ? brandName : senderName);
+        return LAYOUT_MARKER + """
+                <!doctype html>
+                <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+                <style>p{margin:0 0 14px} a{color:#0f172a} ul{margin:0 0 14px;padding-left:20px}</style></head>
+                <body style="margin:0;padding:0;background:#f1f5f9">
+                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px">
+                <tr><td align="center">
+                  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%%;max-width:600px">
+                    <tr><td style="background:#0f172a;border-radius:12px 12px 0 0;padding:26px 32px;text-align:center">
+                      <span style="font-family:Georgia,'Times New Roman',serif;font-size:24px;letter-spacing:.5px;color:#ffffff">%s</span>
+                    </td></tr>
+                    <tr><td style="background:#ffffff;padding:32px;border-radius:0 0 12px 12px;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1e293b">
+                      %s
+                    </td></tr>
+                    <tr><td style="padding:18px 8px;text-align:center;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#94a3b8">
+                      Sent by %s · powered by %s
+                    </td></tr>
+                  </table>
+                </td></tr></table>
+                </body></html>
+                """.formatted(brand, bodyHtml, brand, HtmlUtils.htmlEscape(senderName));
     }
 
     private String formattedDateTime(BookingCreatedEvent event) {
@@ -934,10 +1040,12 @@ class NotificationService {
             return DispatchStatus.LOGGED;
         }
         try {
+            var framed = htmlBody == null ? null : htmlBody.startsWith(LAYOUT_MARKER)
+                    ? htmlBody.substring(LAYOUT_MARKER.length()) : layout(null, htmlBody);
             var request = new MailjetRequest(List.of(new MailjetMessage(
                     new MailjetEmail(sender, senderName),
                     List.of(new MailjetEmail(toEmail, toName)),
-                    subject, textBody, htmlBody, inlined)));
+                    subject, textBody, framed, inlined)));
             var result = mailjetClient.send(request);
             log.info("[NOTIFICATION] Sent '{}' to {} <{}> — result: {}", subject, toName, toEmail, result);
             return DispatchStatus.SENT;

@@ -53,9 +53,9 @@ class RatingFeedbackIntegrationTest {
         assertThat(ratings.getCustomerRatingOptions(salonId, "eve@example.com")).singleElement()
                 .satisfies(option -> assertThat(option.submitted()).isFalse());
 
-        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, 5, 4, "  Lovely cut!  ")).isTrue();
-        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, 1, 1, "changed my mind")).as("first submission wins").isFalse();
-        assertThat(ratings.submitCustomerReview(salonId, "someone@else.com", bookingId, 5, 5, "x")).as("not their visit").isFalse();
+        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, 5, 4, "  Lovely salon!  ", " Sam was great ")).isTrue();
+        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, 1, 1, "changed my mind", "nope")).as("first submission wins").isFalse();
+        assertThat(ratings.submitCustomerReview(salonId, "someone@else.com", bookingId, 5, 5, "x", "y")).as("not their visit").isFalse();
 
         // Replying needs text and an existing salon.
         client.put().uri("/api/salon-admin/{s}/ratings/{b}/reply", salonId, bookingId).contentType(MediaType.APPLICATION_JSON)
@@ -70,13 +70,15 @@ class RatingFeedbackIntegrationTest {
         // Admin and staff read the same row: customer's words untouched, owner's latest reply attached.
         var admin = client.get().uri("/api/salon-admin/{s}/ratings", salonId).exchange().expectStatus().isOk()
                 .returnResult(String.class).getResponseBody();
-        assertThat(JsonPath.<String>read(admin, "$[0].feedback")).isEqualTo("Lovely cut!");
+        assertThat(JsonPath.<String>read(admin, "$[0].salonFeedback")).isEqualTo("Lovely salon!");
+        assertThat(JsonPath.<String>read(admin, "$[0].staffFeedback")).isEqualTo("Sam was great");
         assertThat(JsonPath.<Integer>read(admin, "$[0].salonRating")).isEqualTo(5);
         assertThat(JsonPath.<Integer>read(admin, "$[0].staffRating")).isEqualTo(4);
         assertThat(JsonPath.<String>read(admin, "$[0].reply")).isEqualTo("See you soon!");
         var forStaff = ratings.getBookingRatings(salonId, staffId);
         assertThat(forStaff).singleElement().satisfies(r -> {
-            assertThat(r.feedback()).isEqualTo("Lovely cut!");
+            assertThat(r.salonFeedback()).isEqualTo("Lovely salon!");
+            assertThat(r.staffFeedback()).isEqualTo("Sam was great");
             assertThat(r.reply()).isEqualTo("See you soon!");
             assertThat(r.repliedAt()).isNotNull();
         });

@@ -14,6 +14,17 @@ public interface LoyaltyApi {
      */
     CustomerLoyalty.Redemption redeem(UUID salonId, String customerEmail, Long rewardId);
 
+    /**
+     * Spends an issued {@code DISCOUNT_AMOUNT} reward code at the till and returns the money off. Conditional on
+     * {@code ISSUED}, so the same code cannot be used twice.
+     *
+     * @throws org.springframework.web.server.ResponseStatusException 404 unknown code, 409 already used/cancelled or a reward that is handed over by hand
+     */
+    CounterReward useAtCounter(UUID salonId, String code, String actor);
+
+    /** Puts a code spent by {@link #useAtCounter} back to {@code ISSUED} (the sale failed or was voided). A no-op if it is not {@code USED}. */
+    void reopenCounterReward(UUID salonId, Long redemptionId);
+
     /** Rewrites every loyalty row held under {@code email} to {@code replacementEmail}; returns how many rows changed. */
     int anonymizeCustomer(UUID salonId, String email, String replacementEmail);
 

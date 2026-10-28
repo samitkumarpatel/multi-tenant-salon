@@ -643,7 +643,8 @@ export interface CustomerRatingOption {
   staffName: string | null;
   appointmentDate: string;
   submitted: boolean;
-  feedback: string | null;
+  salonFeedback: string | null;
+  staffFeedback: string | null;
   /** The salon owner's answer, if any. */
   reply: string | null;
   repliedAt: string | null;

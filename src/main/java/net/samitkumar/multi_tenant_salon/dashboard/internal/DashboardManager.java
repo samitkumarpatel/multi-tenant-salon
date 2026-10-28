@@ -5,8 +5,13 @@ import net.samitkumar.multi_tenant_salon.booking.Booking;
 import net.samitkumar.multi_tenant_salon.booking.BookingApi;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import net.samitkumar.multi_tenant_salon.dashboard.DashboardApi;
+import net.samitkumar.multi_tenant_salon.loyalty.CounterSaleSettledEvent;
+import net.samitkumar.multi_tenant_salon.loyalty.CounterSaleVoidedEvent;
+import net.samitkumar.multi_tenant_salon.loyalty.LoyaltyApi;
 import net.samitkumar.multi_tenant_salon.membership.MembershipApi;
+import net.samitkumar.multi_tenant_salon.membership.MembershipApi.SalePricing;
 import net.samitkumar.multi_tenant_salon.dashboard.DashboardSettings;
+import net.samitkumar.multi_tenant_salon.dashboard.PosReceiptRequestedEvent;
 import net.samitkumar.multi_tenant_salon.dashboard.PosSale;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
@@ -23,6 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,6 +65,14 @@ class DashboardManager implements DashboardApi {
                        BigDecimal price, String currency, Integer availableQuantity) {}
     record SaleItemRequest(PosSale.SourceType sourceType, Long sourceId, int quantity) {}
 
+    enum DiscountType { AMOUNT, PERCENT }
+
+    /** What the operator took off the cart and any tip added on top; both optional. */
+    record Adjustments(DiscountType discountType, BigDecimal discountValue, String discountReason, BigDecimal tip,
+                       String customerEmail, String loyaltyCode, boolean applyMembership) {
+        static final Adjustments NONE = new Adjustments(null, null, null, null, null, null, false);
+    }
+
     private final DashboardSettingsRepository settingsRepository;
     private final PosSaleRepository saleRepository;
     private final SalonApi salonApi;
@@ -67,16 +81,19 @@ class DashboardManager implements DashboardApi {
     private final PaymentGateway stripe;
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
+    private final org.springframework.context.ApplicationEventPublisher events;
     /** Provider: a module-scoped test context may leave booking out; then the till just has no appointments. */
     private final ObjectProvider<BookingApi> bookings;
     private final ObjectProvider<MembershipApi> memberships;
+    private final ObjectProvider<LoyaltyApi> loyalty;
     /** How long a card sale may sit unpaid before the sweeper releases its stock. */
     private final Duration staleCardSaleAfter;
 
     DashboardManager(DashboardSettingsRepository settingsRepository, PosSaleRepository saleRepository,
                      SalonApi salonApi, SalonServiceApi serviceApi, ShopCatalogApi shopApi,
                      PaymentGateway stripe, JdbcTemplate jdbcTemplate, TransactionTemplate tx,
-                     ObjectProvider<BookingApi> bookings, ObjectProvider<MembershipApi> memberships,
+                     org.springframework.context.ApplicationEventPublisher events,
+                     ObjectProvider<BookingApi> bookings, ObjectProvider<MembershipApi> memberships, ObjectProvider<LoyaltyApi> loyalty,
                      @Value("${spring.application.dashboard.stale-card-sale-after:PT30M}") Duration staleCardSaleAfter) {
         this.settingsRepository = settingsRepository;
         this.saleRepository = saleRepository;
@@ -86,8 +103,10 @@ class DashboardManager implements DashboardApi {
         this.stripe = stripe;
         this.jdbc = JdbcClient.create(jdbcTemplate);
         this.tx = tx;
+        this.events = events;
         this.bookings = bookings;
         this.memberships = memberships;
+        this.loyalty = loyalty;
         this.staleCardSaleAfter = staleCardSaleAfter;
     }
 
@@ -152,7 +171,7 @@ class DashboardManager implements DashboardApi {
 
     @Transactional
     PosSale createSale(UUID salonId, String customerName, PosSale.PaymentMethod paymentMethod,
-                       List<SaleItemRequest> requestedItems, String idempotencyKey, String actor) {
+                       List<SaleItemRequest> requestedItems, Adjustments adjustments, String idempotencyKey, String actor) {
         // A retried request (lost response, flaky salon wifi) must return the sale it already made
         // rather than ring the cart up a second time.
         var replayed = replayOf(salonId, idempotencyKey);
@@ -220,14 +239,107 @@ class DashboardManager implements DashboardApi {
             lines.add(new PosSale.Line(null, requested.sourceType(), requested.sourceId(), name,
                     price, requested.quantity(), lineTotal));
         }
+        var adjust = adjustments == null ? Adjustments.NONE : adjustments;
+        var subtotal = total;
+        var customerEmail = trimToNull(adjust.customerEmail());
+        // A member's included services and plan discounts come off first (they can be refused only for a customer who
+        // is not a member), then a reward code, then whatever the operator takes off by hand.
+        SalePricing membership = null;
+        if (adjust.applyMembership()) {
+            var api = memberships.getIfAvailable();
+            if (customerEmail == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose the customer to apply their membership");
+            membership = api == null ? null : api.priceSale(salonId, customerEmail, lines.stream()
+                    .filter(l -> l.sourceType() != PosSale.SourceType.BOOKING)
+                    .map(l -> new MembershipApi.SaleLine(l.sourceType() == PosSale.SourceType.SERVICE, l.sourceId(), l.unitPrice(), l.quantity())).toList())
+                    .orElse(null);
+            if (membership == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This customer has no active membership");
+        }
+        var memberDiscount = membership == null ? BigDecimal.ZERO : membership.discount().min(subtotal);
+        // A loyalty reward code is spent next (inside this transaction, so a refused sale gives it back) and
+        // takes its value off the items; the operator's own discount can only use what is left.
+        BigDecimal rewardDiscount = BigDecimal.ZERO;
+        Long redemptionId = null;
+        String rewardName = null;
+        if (trimToNull(adjust.loyaltyCode()) != null) {
+            var api = loyalty.getIfAvailable();
+            if (api == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "Loyalty rewards are not available");
+            var reward = api.useAtCounter(salonId, adjust.loyaltyCode(), actor);
+            if (customerEmail != null && !customerEmail.equalsIgnoreCase(reward.customerEmail())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "That reward code belongs to another customer");
+            }
+            customerEmail = reward.customerEmail();
+            redemptionId = reward.redemptionId();
+            rewardName = reward.rewardName();
+            rewardDiscount = reward.discount().min(subtotal.subtract(memberDiscount)).setScale(2, RoundingMode.HALF_UP);
+        }
+        var manualDiscount = discountAmount(adjust, subtotal.subtract(memberDiscount).subtract(rewardDiscount));
+        var discount = memberDiscount.add(rewardDiscount).add(manualDiscount);
+        var discountNote = java.util.stream.Stream.of(membership == null ? null : membership.summary(), rewardName == null ? null : "Reward: " + rewardName,
+                        manualDiscount.signum() > 0 ? trimToNull(adjust.discountReason()) : null)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining(" · "));
+        var tip = adjust.tip() == null ? BigDecimal.ZERO : adjust.tip().setScale(2, RoundingMode.HALF_UP);
+        if (tip.signum() < 0 || tip.compareTo(MAX_TIP) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The tip must be between 0 and " + MAX_TIP.toPlainString());
+        }
+        var payable = subtotal.subtract(discount).add(tip);
+        if (paymentMethod == PosSale.PaymentMethod.CARD && payable.signum() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is nothing to charge to a card after the discount");
+        }
         var saleNumber = "POS-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         var sale = saleRepository.save(PosSale.rungUp(salonId, saleNumber, trimToNull(customerName),
-                paymentMethod, total, currency == null ? "USD" : currency, Instant.now(), "PAID",
-                trimToNull(idempotencyKey), trimToNull(actor), lines));
+                paymentMethod, payable, currency == null ? "USD" : currency, Instant.now(), "PAID",
+                trimToNull(idempotencyKey), trimToNull(actor), subtotal, discount,
+                discountNote.isEmpty() ? null : discountNote, tip, customerEmail, redemptionId, lines));
         // Cash and "other" are settled the moment they're rung up, so any appointment on the sale is
         // paid now. A card sale is re-saved as PENDING by pendingCardSale and settles via the webhook.
-        if (paymentMethod != PosSale.PaymentMethod.CARD) markBookingsPaid(salonId, sale);
+        if (membership != null) memberships.getObject().recordSaleUse(salonId, sale.id(), membership);
+        if (paymentMethod != PosSale.PaymentMethod.CARD) {
+            markBookingsPaid(salonId, sale);
+            publishSettled(sale);
+        }
         return sale;
+    }
+
+    /** Points are earned on what was sold at the counter, after the discount and without the tip or any appointment line (those earn on completion). */
+    private void publishSettled(PosSale sale) {
+        if (sale.customerEmail() == null) return;
+        var itemsSold = sale.lines().stream().filter(l -> l.sourceType() != PosSale.SourceType.BOOKING)
+                .map(PosSale.Line::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        var share = sale.subtotal().signum() == 0 ? BigDecimal.ZERO
+                : sale.discountAmount().multiply(itemsSold).divide(sale.subtotal(), 2, RoundingMode.HALF_UP);
+        events.publishEvent(new CounterSaleSettledEvent(sale.salonId(), sale.id(), sale.customerEmail(), itemsSold.subtract(share)));
+    }
+
+    /** A sale that did not go through gives the member's included services back. */
+    private void releaseMembershipUse(PosSale sale) {
+        var api = memberships.getIfAvailable();
+        if (api != null) api.releaseSaleUse(sale.salonId(), sale.id());
+    }
+
+    /** A sale that did not go through hands the spent reward code back to the customer. */
+    private void reopenReward(PosSale sale) {
+        if (sale.loyaltyRedemptionId() == null) return;
+        var api = loyalty.getIfAvailable();
+        if (api != null) api.reopenCounterReward(sale.salonId(), sale.loyaltyRedemptionId());
+    }
+
+    private static final BigDecimal MAX_TIP = new BigDecimal("10000");
+
+    /** The money taken off the cart: a fixed amount or a percentage, never more than the cart is worth. */
+    private static BigDecimal discountAmount(Adjustments adjust, BigDecimal subtotal) {
+        if (adjust.discountType() == null || adjust.discountValue() == null || adjust.discountValue().signum() == 0) return BigDecimal.ZERO;
+        var value = adjust.discountValue();
+        if (value.signum() < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A discount cannot be negative");
+        var amount = switch (adjust.discountType()) {
+            case AMOUNT -> value;
+            case PERCENT -> {
+                if (value.compareTo(BigDecimal.valueOf(100)) > 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A discount cannot be more than 100%");
+                yield subtotal.multiply(value).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            }
+        };
+        amount = amount.setScale(2, RoundingMode.HALF_UP);
+        if (amount.compareTo(subtotal) > 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A discount cannot be more than the items cost");
+        return amount;
     }
 
     /** The sale this idempotency key already produced, or {@code null} if it is a new cart. */
@@ -275,6 +387,9 @@ class DashboardManager implements DashboardApi {
         sale.lines().stream().filter(line -> line.sourceType() == PosSale.SourceType.PRODUCT)
                 .forEach(line -> shopApi.incrementStock(salonId, line.sourceId(), line.quantity()));
         unmarkBookingsPaid(salonId, sale);
+        reopenReward(sale);
+        releaseMembershipUse(sale);
+        events.publishEvent(new CounterSaleVoidedEvent(salonId, saleId));
 
         // Only a settled card sale has money at Stripe to send back.
         BigDecimal refunded = null;
@@ -357,9 +472,9 @@ class DashboardManager implements DashboardApi {
      * with no sale behind it. With the sale committed first, the catch below is a real compensation.
      */
     CardCheckout createCardCheckout(UUID salonId, String customerName, List<SaleItemRequest> requestedItems,
-                                    boolean inlineCheckout, String idempotencyKey, String actor) {
+                                    Adjustments adjustments, boolean inlineCheckout, String idempotencyKey, String actor) {
         stripe.requireEnabled(salonId, "POS");
-        var pending = tx.execute(status -> pendingCardSale(salonId, customerName, requestedItems, idempotencyKey, actor));
+        var pending = tx.execute(status -> pendingCardSale(salonId, customerName, requestedItems, adjustments, idempotencyKey, actor));
         try {
             var checkout = stripe.createCheckout(salonId, new PaymentGateway.CheckoutRequest("POS", String.valueOf(pending.id()),
                     pending.total(), pending.currency(), "Salon purchase " + pending.saleNumber(), null, null, inlineCheckout));
@@ -376,10 +491,10 @@ class DashboardManager implements DashboardApi {
      * then marks it paid, or failed with the stock put back.
      */
     TerminalCheckout createTerminalCheckout(UUID salonId, String customerName, List<SaleItemRequest> requestedItems,
-                                            Long terminalId, String idempotencyKey, String actor) {
+                                            Adjustments adjustments, Long terminalId, String idempotencyKey, String actor) {
         stripe.requireEnabled(salonId, "POS");
         if (terminalId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a card reader");
-        var pending = tx.execute(status -> pendingCardSale(salonId, customerName, requestedItems, idempotencyKey, actor));
+        var pending = tx.execute(status -> pendingCardSale(salonId, customerName, requestedItems, adjustments, idempotencyKey, actor));
         try {
             var payment = stripe.collectOnTerminal(salonId, "POS", String.valueOf(pending.id()), pending.total(),
                     pending.currency(), "Salon purchase " + pending.saleNumber(), terminalId);
@@ -391,7 +506,7 @@ class DashboardManager implements DashboardApi {
     }
 
     private PosSale pendingCardSale(UUID salonId, String customerName, List<SaleItemRequest> requestedItems,
-                                    String idempotencyKey, String actor) {
+                                    Adjustments adjustments, String idempotencyKey, String actor) {
         // A card sale that already exists for this cart must not be touched: re-saving it as PENDING
         // would flip a sale that was paid (or failed) back to waiting. The reply to the first request
         // may have been lost, so tell the operator where to look rather than starting a second charge.
@@ -399,7 +514,7 @@ class DashboardManager implements DashboardApi {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "This card sale was already started — check Recent sales for its status.");
         }
-        var sale = createSale(salonId, customerName, PosSale.PaymentMethod.CARD, requestedItems, idempotencyKey, actor);
+        var sale = createSale(salonId, customerName, PosSale.PaymentMethod.CARD, requestedItems, adjustments, idempotencyKey, actor);
         return saleRepository.save(sale.awaitingPayment());
     }
 
@@ -413,7 +528,10 @@ class DashboardManager implements DashboardApi {
         if (updated != 1) return;
         if (succeeded) {
             markBookingsPaid(salonId, sale);
+            publishSettled(sale);
         } else {
+            reopenReward(sale);
+            releaseMembershipUse(sale);
             sale.lines().stream().filter(line -> line.sourceType() == PosSale.SourceType.PRODUCT)
                     .forEach(line -> shopApi.incrementStock(salonId, line.sourceId(), line.quantity()));
         }
@@ -514,6 +632,28 @@ class DashboardManager implements DashboardApi {
                 .param("salon", salonId).param("from", f).param("to", t).query(Long.class).single();
 
         return new DailyReport(day, zoneId.getId(), takings, refunded, byPerson, voided, awaiting);
+    }
+
+    /** Emails the customer a receipt for a settled sale. A sale that is still unpaid or has been voided has nothing to receipt. */
+    @Transactional
+    void sendReceipt(UUID salonId, Long saleId, String email) {
+        var salon = requireDashboard(salonId);
+        if (!settings(salonId).cashierEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cashier is disabled");
+        }
+        var sale = saleRepository.findById(saleId).filter(s -> s.salonId().equals(salonId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sale not found"));
+        if (sale.voided() || !"PAID".equals(sale.paymentStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a paid sale that has not been voided has a receipt");
+        }
+        var to = trimToNull(email);
+        if (to == null || !to.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email address is required");
+        }
+        events.publishEvent(new PosReceiptRequestedEvent(salonId, salon.name(),
+                salon.contact() == null ? null : salon.contact().phone(), salon.contact() == null ? null : salon.contact().email(),
+                sale.saleNumber(), sale.customerName(), to, sale.paymentMethod(), sale.currency(), sale.total(), sale.createdAt(),
+                sale.subtotal(), sale.discountAmount(), sale.tipAmount(), sale.lines().stream().map(l -> new PosReceiptRequestedEvent.Line(l.itemName(), l.quantity(), l.unitPrice(), l.lineTotal())).toList()));
     }
 
     List<PosSale> recentSales(UUID salonId) {

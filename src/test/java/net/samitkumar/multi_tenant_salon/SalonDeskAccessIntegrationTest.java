@@ -226,6 +226,14 @@ class SalonDeskAccessIntegrationTest {
                 new Call("POST", "/dashboard/sales/card-checkout"),
                 new Call("POST", "/dashboard/sales/terminal-checkout"),
                 new Call("POST", "/dashboard/sales/999999/void"),
+                new Call("POST", "/dashboard/sales/999999/receipt"),
+                new Call("GET", "/dashboard/walk-ins"),
+                new Call("POST", "/dashboard/walk-ins"),
+                new Call("POST", "/dashboard/walk-ins/999999/seat"),
+                new Call("GET", "/dashboard/shift"),
+                new Call("GET", "/dashboard/shifts"),
+                new Call("POST", "/dashboard/shift/open"),
+                new Call("POST", "/dashboard/shift/close"),
                 new Call("GET", "/payments/stripe"),
                 new Call("GET", "/payments/terminals"),
                 new Call("GET", "/payments/terminal-payments/999999"),
@@ -252,8 +260,15 @@ class SalonDeskAccessIntegrationTest {
                 new Call("GET", "/staff"),
                 new Call("GET", "/staff/999999/availability"),
                 new Call("GET", "/staff/999999/availability/overrides"),
+                new Call("GET", "/shop/orders"),
+                new Call("GET", "/shop/orders/999999"),
+                new Call("POST", "/shop/orders/999999/desk-status"),
+                new Call("GET", "/customers"),
+                new Call("GET", "/customers/999999"),
+                new Call("POST", "/customers"),
                 new Call("GET", "/membership/plans"),
                 new Call("GET", "/membership/verify?code=NOPE"),
+                new Call("GET", "/membership/benefits?email=a@b.c"),
                 new Call("GET", "/membership/subscriptions/999999"),
                 new Call("GET", "/membership/subscriptions/999999/qr.png"),
                 new Call("POST", "/membership/subscriptions/999999/send-renewal-link"),
@@ -305,10 +320,31 @@ class SalonDeskAccessIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
         client.post().uri("/api/salon-admin/" + salonId + "/loyalty/redemptions/1/cancel").header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        // Shop orders: the desk moves them along but cannot cancel, refund or return them.
+        client.post().uri("/api/salon-admin/" + salonId + "/shop/orders/1/status").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"status\":\"CANCELLED\"}").exchange().expectStatus().isForbidden();
+        client.post().uri("/api/salon-admin/" + salonId + "/shop/orders/1/refunds").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        client.get().uri("/api/salon-admin/" + salonId + "/shop/products").header("Authorization", token).exchange().expectStatus().isForbidden();
+        // Customers: the desk finds and adds them but cannot rewrite their details or erase them.
+        client.put().uri("/api/salon-admin/" + salonId + "/customers/1").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{}").exchange().expectStatus().isForbidden();
+        client.delete().uri("/api/salon-admin/" + salonId + "/customers/1").header("Authorization", token)
+                .exchange().expectStatus().isForbidden();
         // Refunding a membership payment is owner-only.
         client.post().uri("/api/salon-admin/" + salonId + "/membership/subscriptions/1/payments/1/refund")
                 .header("Authorization", token).contentType(MediaType.APPLICATION_JSON).body("{}")
                 .exchange().expectStatus().isForbidden();
+    }
+
+    @Test void theDeskMayOnlyMoveAShopOrderAlongNotCancelIt() {
+        var token = staffToken(salonId, "stylist");
+        for (var status : List.of("CANCELLED", "FAILED", "NEW")) {
+            client.post().uri("/api/salon-admin/" + salonId + "/shop/orders/999999/desk-status").header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON).body("{\"status\":\"" + status + "\"}").exchange().expectStatus().isBadRequest();
+        }
+        client.post().uri("/api/salon-admin/" + salonId + "/shop/orders/999999/desk-status").header("Authorization", token)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"status\":\"FULFILLED\"}").exchange().expectStatus().isNotFound();
     }
 
     @Test void turningOffAppointmentManagementClosesTheBookingEndpointsToTheDesk() {

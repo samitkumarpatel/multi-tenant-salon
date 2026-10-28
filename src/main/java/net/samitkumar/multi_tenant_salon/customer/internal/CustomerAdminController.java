@@ -10,7 +10,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
  * The owner's customer list — {@code /api/salon-admin/{salonId}/customers/**}, owner-gated by the
- * security config's {@code /api/salon-admin/{salonId}/**} rule. Deliberately not on the desk-staff allowlist.
+ * security config's {@code /api/salon-admin/{salonId}/**} rule. The desk-staff allowlist lets in only the list, the detail
+ * and create; editing and erasing stay owner-only.
  */
 @RestController
 @RequestMapping("/api/salon-admin/{salonId}/customers")

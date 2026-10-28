@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.booking.BookingApi;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatusChangedEvent;
+import net.samitkumar.multi_tenant_salon.loyalty.CounterSaleSettledEvent;
+import net.samitkumar.multi_tenant_salon.loyalty.CounterSaleVoidedEvent;
 import net.samitkumar.multi_tenant_salon.salonservice.SalonServiceApi;
 import net.samitkumar.multi_tenant_salon.salonservice.ServiceItem;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
@@ -49,6 +51,17 @@ class LoyaltyEventListeners {
     @ApplicationModuleListener
     void onOrderPlaced(OrderPlacedEvent event) {
         loyalty.earn(event.salonId(), event.customerEmail(), EARN_ORDER, SOURCE_ORDER, String.valueOf(event.orderId()), event.subtotal());
+    }
+
+    /** Items sold at the counter earn like a shop order; the sale id is the source, so a redelivery changes nothing. */
+    @ApplicationModuleListener
+    void onCounterSaleSettled(CounterSaleSettledEvent event) {
+        loyalty.earn(event.salonId(), event.customerEmail(), EARN_POS, SOURCE_POS, String.valueOf(event.saleId()), event.earnableAmount());
+    }
+
+    @ApplicationModuleListener
+    void onCounterSaleVoided(CounterSaleVoidedEvent event) {
+        loyalty.reverse(event.salonId(), EARN_POS, SOURCE_POS, String.valueOf(event.saleId()));
     }
 
     @ApplicationModuleListener

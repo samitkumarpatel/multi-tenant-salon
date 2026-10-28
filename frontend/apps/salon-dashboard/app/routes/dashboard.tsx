@@ -22,6 +22,12 @@ import {
 } from "~/lib/calendar";
 import { MembershipDesk, type MembershipDeskView } from "~/components/MembershipDesk";
 import { LoyaltyDesk } from "~/components/LoyaltyDesk";
+import { CustomerDesk, CustomerSuggest } from "~/components/CustomerDesk";
+import { ReceiptDialog } from "~/components/ReceiptDialog";
+import { OrdersDesk } from "~/components/OrdersDesk";
+import { ShiftDesk } from "~/components/ShiftDesk";
+import { WalkInQueue } from "~/components/WalkInQueue";
+import { DaySummary } from "~/components/DaySummary";
 import { BookingSearch } from "~/components/BookingSearch";
 import { TerminalPaymentDialog, loadTerminals, type Terminal, type TerminalPayment } from "~/components/TerminalPaymentDialog";
 import type {
@@ -30,8 +36,8 @@ import type {
 } from "@salon/ui-website";
 import { CustomerDetailsFields, StripeCheckoutPanel, beginCheckout, type CheckoutInstructions, type CheckoutResult, type ContactMethod } from "@salon/ui-website";
 
-type DashboardView = "appointments" | "cashier" | "membership" | "loyalty";
-type CashierView = "pos" | "invoices" | "report";
+type DashboardView = "appointments" | "cashier" | "membership" | "loyalty" | "customers" | "orders";
+type CashierView = "pos" | "invoices" | "report" | "shift";
 
 interface DashboardSettings {
   salonId: string;
@@ -53,6 +59,7 @@ interface PosSale {
   id: number;
   saleNumber: string;
   customerName?: string | null;
+  customerEmail?: string | null;
   paymentMethod: "CASH" | "CARD" | "OTHER";
   total: number;
   currency: string;
@@ -62,6 +69,10 @@ interface PosSale {
   voidedAt?: string | null;
   voidReason?: string | null;
   refundedAmount?: number | null;
+  subtotal?: number;
+  discountAmount?: number;
+  tipAmount?: number;
+  lines?: { itemName: string; unitPrice: number; quantity: number; lineTotal: number }[];
 }
 interface PaymentSetup {
   stripe: {
@@ -72,6 +83,11 @@ interface PaymentSetup {
 }
 
 /** What the operator should read a sale as — a pending or failed card sale must not look paid. */
+/** Only a settled, un-voided sale has a receipt. */
+function canReceipt(sale: PosSale) {
+  return !sale.voidedAt && (sale.paymentStatus ?? "PAID") === "PAID";
+}
+
 function saleStatus(sale: PosSale): { label: string; tone: string } | null {
   if (sale.voidedAt) return { label: sale.refundedAmount ? "Voided · refunded" : "Voided", tone: "border-slate-200 bg-slate-100 text-slate-500" };
   if (sale.paymentStatus === "PENDING") return { label: "Awaiting payment", tone: "border-amber-200 bg-amber-50 text-amber-700" };
@@ -143,7 +159,7 @@ export default function DashboardPage() {
   const appointmentEnabled = initial.settings.bookingManagementEnabled && initial.salon.features?.includes("BOOKING");
   const requestedView = params.get("view");
   const requestedCashierView = params.get("cashierView");
-  const cashierView: CashierView = requestedCashierView === "invoices" ? "invoices" : requestedCashierView === "report" ? "report" : "pos";
+  const cashierView: CashierView = requestedCashierView === "invoices" ? "invoices" : requestedCashierView === "report" ? "report" : requestedCashierView === "shift" ? "shift" : "pos";
   const invoicePeriod = params.get("invoicePeriod") ?? "all";
   const [invoicePicker, setInvoicePicker] = useState<"month" | "range" | null>(null);
   const paymentReturn = params.get("payment");
@@ -153,10 +169,13 @@ export default function DashboardPage() {
   const membershipEnabled = Boolean(initial.salon.features?.includes("MEMBERSHIP"));
   const membershipView: MembershipDeskView = params.get("membershipView") === "sell" ? "sell" : "check-in";
   const loyaltyEnabled = Boolean(initial.salon.features?.includes("LOYALTY_PROGRAM"));
+  const ordersEnabled = Boolean(initial.salon.features?.includes("WEBSHOP"));
   const view: DashboardView = requestedView === "cashier" && initial.settings.cashierEnabled
     ? "cashier"
     : requestedView === "membership" && membershipEnabled ? "membership"
     : requestedView === "loyalty" && loyaltyEnabled ? "loyalty"
+    : requestedView === "orders" && ordersEnabled ? "orders"
+    : requestedView === "customers" ? "customers"
     : appointmentEnabled ? "appointments"
     : !initial.settings.cashierEnabled && !membershipEnabled && loyaltyEnabled ? "loyalty"
     : initial.settings.cashierEnabled || !membershipEnabled ? "cashier" : "membership";
@@ -224,10 +243,33 @@ export default function DashboardPage() {
   const [voidReason, setVoidReason] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PosSale["paymentMethod"]>("CASH");
   const [customerName, setCustomerName] = useState("");
+  const [receiptSale, setReceiptSale] = useState<PosSale | null>(null);
+  const [discountType, setDiscountType] = useState<"AMOUNT" | "PERCENT">("PERCENT");
+  const [discountValue, setDiscountValue] = useState("");
+  const [tipValue, setTipValue] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const loyaltyEnabled0 = Boolean(initial.salon.features?.includes("LOYALTY_PROGRAM"));
+  const [rewardCode, setRewardCode] = useState("");
+  const [reward, setReward] = useState<{ code: string; name: string; value: number; email: string } | null>(null);
+  const [rewardError, setRewardError] = useState("");
+  type MemberBenefits = { planName: string; serviceDiscountPercent: number | null; productDiscountPercent: number | null; included: { serviceId: number; remaining: number }[] };
+  const [benefits, setBenefits] = useState<MemberBenefits | null>(null);
+  const [applyMembership, setApplyMembership] = useState(false);
+  const membershipFeature = Boolean(initial.salon.features?.includes("MEMBERSHIP"));
+  // Look the picked customer up for a membership; no email (or no membership) means nothing to apply.
+  useEffect(() => {
+    setApplyMembership(false); setBenefits(null);
+    if (!membershipFeature || !customerEmail.trim()) return;
+    const controller = new AbortController();
+    apiFetch<MemberBenefits>(`${ADMIN_API}/${initial.sid}/membership/benefits?email=${encodeURIComponent(customerEmail.trim())}`, { signal: controller.signal })
+      .then((found) => { setBenefits(found); setApplyMembership(true); }).catch(() => undefined);
+    return () => controller.abort();
+  }, [customerEmail, membershipFeature, initial.sid]);
   const [saving, setSaving] = useState(false);
   const [newDefaults, setNewDefaults] = useState<{ date: string; time?: string; serviceId?: number; staffId?: number } | null>(null);
   const [servicePickerTime, setServicePickerTime] = useState<{ date: string; time: string; staffId?: number } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const calendarDate = /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") ?? "") ? params.get("date")! : localDateKey();
   const [editTarget, setEditTarget] = useState<Booking | null>(null);
   const [paymentLinkTarget, setPaymentLinkTarget] = useState<Booking | null>(null);
   const [paymentLinkFee, setPaymentLinkFee] = useState(0);
@@ -320,6 +362,15 @@ export default function DashboardPage() {
     }
   }
 
+  /** Sends an unpaid appointment to the till: it lands in the cart ready to charge. */
+  function takeAtTill(booking: Booking) {
+    const item = payableBookings.find((candidate) => candidate.sourceId === booking.id);
+    if (!item) return;
+    if (!cart.some((line) => line.sourceType === "BOOKING" && line.sourceId === booking.id)) addToCart(item);
+    setSelectedBooking(null);
+    const next = new URLSearchParams(params); next.set("view", "cashier"); next.set("cashierView", "pos"); next.delete("appointmentsView"); setParams(next);
+  }
+
   function addToCart(item: CashierItem) {
     setSaleError(null);
     setCartKey(crypto.randomUUID());
@@ -366,7 +417,45 @@ export default function DashboardPage() {
       .filter((item) => item.quantity > 0));
   }
 
-  const cartTotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  // Mirrors the server: a percentage of the items or a fixed amount, never more than the items cost.
+  // Mirrors the server: included services that still have allowance are free, the rest get the plan's percentages.
+  const memberDiscount = (() => {
+    if (!applyMembership || !benefits) return 0;
+    const left = new Map(benefits.included.map((item) => [item.serviceId, item.remaining]));
+    let total = 0;
+    for (const line of cart) {
+      if (line.sourceType === "BOOKING") continue;
+      const isService = line.sourceType === "SERVICE";
+      const free = isService ? Math.min(line.quantity, left.get(line.sourceId) ?? 0) : 0;
+      if (free) left.set(line.sourceId, (left.get(line.sourceId) ?? 0) - free);
+      const pct = (isService ? benefits.serviceDiscountPercent : benefits.productDiscountPercent) ?? 0;
+      total += free * line.price + Math.round((line.quantity - free) * line.price * pct) / 100;
+    }
+    return Math.min(cartSubtotal, Math.round(total * 100) / 100);
+  })();
+  const rewardDiscount = Math.min(cartSubtotal - memberDiscount, reward?.value ?? 0);
+  const discountNumber = Math.max(0, Number(discountValue) || 0);
+  const manualBase = cartSubtotal - memberDiscount - rewardDiscount;
+  const manualDiscount = Math.min(manualBase, Math.round((discountType === "PERCENT" ? manualBase * Math.min(discountNumber, 100) / 100 : discountNumber) * 100) / 100);
+  const cartDiscount = memberDiscount + rewardDiscount + manualDiscount;
+  const tipNumber = Math.max(0, Number(tipValue) || 0);
+  const cartTotal = Math.round((cartSubtotal - cartDiscount + tipNumber) * 100) / 100;
+  async function applyRewardCode() {
+    const code = rewardCode.trim();
+    if (!code) return;
+    setRewardError("");
+    try {
+      const found = await apiFetch<{ email: string; rewardName: string; status: string; rewardType: string | null; rewardValue: number | null }>(
+        `${ADMIN_API}/${initial.sid}/loyalty/redemptions/by-code/${encodeURIComponent(code)}`);
+      if (found.status !== "ISSUED") { setRewardError(translateUi("This code has already been used.")); return; }
+      if (found.rewardType !== "DISCOUNT_AMOUNT" || !found.rewardValue) { setRewardError(translateUi("This reward is handed over by hand — use the Loyalty page.")); return; }
+      changeAdjustment(() => { setReward({ code: code.toUpperCase(), name: found.rewardName, value: found.rewardValue!, email: found.email }); setCustomerEmail(found.email); });
+      setRewardCode("");
+    } catch { setRewardError(translateUi("No reward with that code.")); }
+  }
+  /** Changing what the customer pays is a different cart, so it must not replay the earlier sale's idempotency key. */
+  function changeAdjustment(apply: () => void) { apply(); setCartKey(crypto.randomUUID()); }
   // An empty cart still shows a total; use the salon's own currency rather than a hardcoded dollar.
   const cartCurrency = cart[0]?.currency ?? cashierItems[0]?.currency ?? payableBookings[0]?.currency ?? "USD";
   const visibleCashierItems = useMemo(() => {
@@ -425,6 +514,11 @@ export default function DashboardPage() {
           inlineCheckout: true,
           terminalId: onReader ? cardVia : null,
           idempotencyKey: cartKey,
+          ...(manualDiscount > 0 ? { discountType, discountValue: discountNumber } : {}),
+          customerEmail: customerEmail.trim() || null,
+          ...(applyMembership && benefits ? { applyMembership: true } : {}),
+          ...(reward ? { loyaltyCode: reward.code } : {}),
+          ...(tipNumber > 0 ? { tipAmount: tipNumber } : {}),
         }),
       });
       const sale = "sale" in response ? response.sale : response;
@@ -437,6 +531,11 @@ export default function DashboardPage() {
       setCartKey(crypto.randomUUID());
       setSaleError(null);
       setCustomerName("");
+      setDiscountValue("");
+      setTipValue("");
+      setCustomerEmail("");
+      setReward(null);
+      setRewardCode("");
       void refreshCatalogue();
       if ("terminalPayment" in response) {
         setReaderPayment({ saleId: sale.id, payment: response.terminalPayment });
@@ -492,8 +591,8 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{view === "loyalty" ? translateUi("Loyalty") : view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : appointmentsView === "payments" ? translateUi("Payment follow-ups") : translateUi("Overview")}</h1>
-            <p className="mt-1 text-sm text-slate-500">{view === "loyalty" ? translateUi("Hand over a reward or check a customer's points.") : view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : appointmentsView === "payments" ? translateUi("Payment links you have sent: see what is unpaid, resend or copy a link, or send a new one.") : translateUi("Appointments for the selected date.")}</p>
+            <h1 className="text-xl font-bold text-slate-900">{view === "orders" ? translateUi("Shop orders") : view === "customers" ? translateUi("Customers") : view === "loyalty" ? translateUi("Loyalty") : view === "membership" ? membershipView === "sell" ? translateUi("Sell membership") : translateUi("Member check-in") : view === "cashier" ? cashierView === "invoices" ? translateUi("Invoices") : cashierView === "report" ? translateUi("End of day") : translateUi("Till / POS") : appointmentsView === "new" ? translateUi("Book appointment") : appointmentsView === "payments" ? translateUi("Payment follow-ups") : translateUi("Overview")}</h1>
+            <p className="mt-1 text-sm text-slate-500">{view === "orders" ? translateUi("Web-shop orders: find one, see what is in it and hand it over.") : view === "customers" ? translateUi("Find a customer, see their history, or add a walk-in.") : view === "loyalty" ? translateUi("Hand over a reward or check a customer's points.") : view === "membership" ? membershipView === "sell" ? translateUi("Sign a customer up to a membership plan at the till.") : translateUi("Verify a member's QR code or member code.") : view === "cashier" ? cashierView === "invoices" ? translateUi("Review sales recorded through Till / POS.") : cashierView === "report" ? translateUi("What was taken today, how, and by whom — to count the drawer against.") : translateUi("Build an in-salon sale from services and products.") : appointmentsView === "new" ? translateUi("Choose an available time to start a booking.") : appointmentsView === "payments" ? translateUi("Payment links you have sent: see what is unpaid, resend or copy a link, or send a new one.") : translateUi("Appointments for the selected date.")}</p>
           </div>
           {view === "appointments" && appointmentsView !== "new" && appointmentsView !== "payments" && <button type="button" onClick={() => { const next = new URLSearchParams(params); next.set("view", "appointments"); next.set("appointmentsView", "new"); setParams(next); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-matcha-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus:outline-none focus:ring-2 focus:ring-matcha-500 focus:ring-offset-2">{translateUi("Book")}</button>}
         </div>
@@ -515,18 +614,15 @@ export default function DashboardPage() {
       )}
 
       {view === "appointments" && appointmentsView !== "new" && appointmentsView !== "payments" && settings.bookingManagementEnabled && (
-        <TodayAppointmentsReadOnly colors={staffColorMap(initial.staff, staffColors)} colorOverrides={staffColors} onColorChange={changeStaffColor} bookings={bookings} staff={initial.staff} services={initial.services} operatingHours={salon.operatingHours}
-          date={params.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(params.get("date")!) ? params.get("date")! : localDateKey()} mode={todayView}
-          onDateChange={(date) => { const next = new URLSearchParams(params); next.set("date", date); setParams(next); }}
-          onModeChange={(mode) => { const next = new URLSearchParams(params); next.set("todayView", mode); setParams(next); }} />
+        <WalkInQueue sid={initial.sid} services={initial.services} staff={initial.staff} notify={notify} />
       )}
-
       {view === "appointments" && appointmentsView === "payments" && settings.bookingManagementEnabled && (
         <PaymentFollowUps items={followUps} error={followUpsError} onRefresh={() => void loadFollowUps()}
           onResend={(item) => paymentLinksValue.resend(item.link.bookingId, item.link.id)} onNew={(item) => void newLinkFor(item)} />
       )}
 
-      {view === "appointments" && appointmentsView === "new" && settings.bookingManagementEnabled && (
+      {view === "appointments" && appointmentsView !== "payments" && settings.bookingManagementEnabled && (<>
+        <DaySummary date={calendarDate} bookings={bookings} services={initial.services} staff={initial.staff} onOpen={setSelectedBooking} />
         <StaffCalendar bookings={bookings} staff={initial.staff} services={initial.services}
           operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays}
           schedules={initial.schedules}
@@ -535,9 +631,10 @@ export default function DashboardPage() {
           searchParams={params} setSearchParams={setParams}
           onNew={(date, time, staffId) => setServicePickerTime({ date, time: time ?? "09:00", staffId })} onSelect={setSelectedBooking}
           onMove={moveBooking} onColorChange={changeStaffColor} />
-      )}
+      </>)}
 
       {view === "cashier" && cashierView === "report" && settings.cashierEnabled && <DaySheet sid={initial.sid} />}
+      {view === "cashier" && cashierView === "shift" && settings.cashierEnabled && <ShiftDesk sid={initial.sid} currency={cartCurrency} notify={notify} />}
 
       {view === "cashier" && cashierView === "invoices" && settings.cashierEnabled && (
         <section className="rounded-xl border border-slate-200 bg-white">
@@ -575,6 +672,7 @@ export default function DashboardPage() {
               <span className="text-slate-400">{new Intl.DateTimeFormat(uiLocale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(sale.createdAt))}</span>
               <span className="capitalize text-slate-500">{sale.paymentMethod.toLowerCase()}{sale.paymentStatus === "PENDING" ? translateUi(" · awaiting payment") : sale.paymentStatus === "FAILED" ? translateUi(" · failed") : ""}</span>
               <span className="font-semibold text-slate-800">{formatPrice(sale.total, sale.currency, uiLocale)}</span>
+              {canReceipt(sale) && <button type="button" onClick={() => setReceiptSale(sale)} className="min-h-9 cursor-pointer rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">{translateUi("Receipt")}</button>}
             </div>)}
           </div> : <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No invoices found for this period.")}</p>}
         </section>
@@ -657,9 +755,38 @@ export default function DashboardPage() {
                 </div>
               ))}
               <div className="border-t border-slate-100 pt-3">
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <div className="flex gap-1">
+                    <input type="number" min="0" step="0.01" inputMode="decimal" className={`${inputCls} min-w-0`} aria-label={translateUi("Discount")} placeholder={translateUi("Discount")}
+                      value={discountValue} onChange={(event) => changeAdjustment(() => setDiscountValue(event.target.value))} />
+                    <select className={`${inputCls} !w-auto`} aria-label={translateUi("Discount type")} value={discountType}
+                      onChange={(event) => changeAdjustment(() => setDiscountType(event.target.value as "AMOUNT" | "PERCENT"))}>
+                      <option value="PERCENT">%</option><option value="AMOUNT">{cartCurrency}</option></select>
+                  </div>
+                  <input type="number" min="0" step="0.01" inputMode="decimal" className={inputCls} aria-label={translateUi("Tip")} placeholder={translateUi("Tip")}
+                    value={tipValue} onChange={(event) => changeAdjustment(() => setTipValue(event.target.value))} />
+                </div>
+                {benefits && <label className="mb-2 flex items-center gap-2 rounded-lg bg-matcha-50 px-3 py-2 text-xs text-matcha-800">
+                  <input type="checkbox" checked={applyMembership} onChange={(event) => changeAdjustment(() => setApplyMembership(event.target.checked))} />
+                  <span>{translateUi("Apply membership")}: {benefits.planName}{benefits.serviceDiscountPercent ? ` · ${benefits.serviceDiscountPercent}% ${translateUi("services")}` : ""}{benefits.productDiscountPercent ? ` · ${benefits.productDiscountPercent}% ${translateUi("products")}` : ""}</span></label>}
+                {loyaltyEnabled0 && (reward
+                  ? <p className="mb-2 flex items-center justify-between rounded-lg bg-matcha-50 px-3 py-2 text-xs text-matcha-800">
+                      <span>{translateUi("Reward")}: {reward.name} ({reward.email})</span>
+                      <button type="button" className="font-semibold underline" onClick={() => changeAdjustment(() => setReward(null))}>{translateUi("Remove")}</button></p>
+                  : <div className="mb-2"><div className="flex gap-1">
+                      <input className={`${inputCls} min-w-0 font-mono uppercase`} aria-label={translateUi("Reward code")} placeholder={translateUi("Reward code")} maxLength={16}
+                        value={rewardCode} onChange={(event) => setRewardCode(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void applyRewardCode(); } }} />
+                      <button type="button" onClick={() => void applyRewardCode()} className="shrink-0 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">{translateUi("Apply")}</button></div>
+                    {rewardError && <p role="alert" className="mt-1 text-xs text-red-600">{rewardError}</p>}</div>)}
+                {(cartDiscount > 0 || tipNumber > 0) && <div className="mb-2 space-y-0.5 text-xs text-slate-500">
+                  <div className="flex justify-between"><span>{translateUi("Subtotal")}</span><span>{formatPrice(cartSubtotal, cartCurrency, uiLocale)}</span></div>
+                  {cartDiscount > 0 && <div className="flex justify-between"><span>{translateUi("Discount")}</span><span>-{formatPrice(cartDiscount, cartCurrency, uiLocale)}</span></div>}
+                  {tipNumber > 0 && <div className="flex justify-between"><span>{translateUi("Tip")}</span><span>{formatPrice(tipNumber, cartCurrency, uiLocale)}</span></div>}
+                </div>}
                 <div className="mb-3 flex justify-between text-sm font-bold text-slate-800">
                   <span>{translateUi("Total")}</span><span>{formatPrice(cartTotal, cartCurrency, uiLocale)}</span>
                 </div>
+                <CustomerSuggest sid={initial.sid} className="mb-2" onPick={(customer) => changeAdjustment(() => { setCustomerName(customer.name); setCustomerEmail(customer.email); })} />
                 <input className={`${inputCls} mb-2`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder={translateUi("Customer name (optional)")} />
                 <select className={`${inputCls} mb-3`} value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PosSale["paymentMethod"])}>
                   <option value="CASH">{translateUi("Cash")}</option><option value="CARD" disabled={!cardPaymentEnabled}>{translateUi("Card")}{cardPaymentEnabled ? translateUi(" · Stripe") : translateUi(" · connect Stripe in Admin")}</option><option value="OTHER">{translateUi("Other")}</option>
@@ -698,6 +825,7 @@ export default function DashboardPage() {
                       <span className="min-w-0 flex-1 truncate text-slate-400">{sale.customerName || "Walk-in customer"} · {sale.paymentMethod.toLowerCase()}</span>
                       {status && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${status.tone}`}>{translateUi(status.label)}</span>}
                       <span className={`font-semibold text-slate-700 ${sale.voidedAt ? "line-through" : ""}`}>{formatPrice(sale.total, sale.currency, uiLocale)}</span>
+                      {canReceipt(sale) && <button type="button" onClick={() => setReceiptSale(sale)} className="min-h-9 cursor-pointer rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">{translateUi("Receipt")}</button>}
                       {!sale.voidedAt && sale.paymentStatus !== "PENDING" && (
                         <button type="button" onClick={() => { setVoiding(sale); setVoidReason(""); }}
                           className="min-h-9 cursor-pointer rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
@@ -714,12 +842,15 @@ export default function DashboardPage() {
       )}
 
       {view === "loyalty" && <LoyaltyDesk sid={initial.sid} notify={notify} />}
+      {view === "orders" && <OrdersDesk sid={initial.sid} notify={notify} />}
+      {view === "customers" && <CustomerDesk sid={initial.sid} notify={notify} />}
 
       {view === "membership" && (
         <MembershipDesk sid={initial.sid} view={membershipView} cardEnabled={membershipCardEnabled} notify={notify}
           terminals={terminals} testMode={testMode} />
       )}
 
+      {receiptSale && <ReceiptDialog sid={initial.sid} salonName={initial.salon.name} sale={receiptSale} onClose={() => setReceiptSale(null)} notify={notify} />}
       {inlineCheckout && <StripeCheckoutPanel checkout={inlineCheckout} title={translateUi("Card payment")} />}
       {readerPayment && (
         <TerminalPaymentDialog sid={initial.sid} payment={readerPayment.payment} terminals={terminals} testMode={testMode}
@@ -762,7 +893,9 @@ export default function DashboardPage() {
         operatingHours={salon.operatingHours} closures={initial.closures} holidays={initial.holidays} schedules={initial.schedules}
         bookingAdvanceDays={salon.bookingAdvanceDays}
         onClose={() => setNewDefaults(null)} onSaved={(booking) => { setBookings((current) => [...current, booking]); setNewDefaults(null); notify("Appointment created."); }} />}
-      {selectedBooking && <BookingActions booking={selectedBooking} staff={initial.staff} services={initial.services} paymentLinks={paymentLinksValue}
+      {selectedBooking && <BookingActions sid={initial.sid} booking={selectedBooking} staff={initial.staff} services={initial.services} paymentLinks={paymentLinksValue}
+        canTakePayment={settings.cashierEnabled && payableBookings.some((item) => item.sourceId === selectedBooking.id)}
+        onTakePayment={() => takeAtTill(selectedBooking)}
         onClose={() => setSelectedBooking(null)}
         onEdit={() => { setEditTarget(selectedBooking); setSelectedBooking(null); }}
         onRequestPayment={() => { void openPaymentLink(selectedBooking); setSelectedBooking(null); }}
@@ -787,15 +920,6 @@ export default function DashboardPage() {
  * An appointment card takes its stylist's colour (so the desk can tell stylists apart at a glance), and the status shows
  * as a small badge and in the border: dashed while pending, faded once it is over or cancelled.
  */
-function stylistCardStyle(color: string, status: Booking["status"], past: boolean): React.CSSProperties {
-  const faded = past || status === "CANCELLED";
-  return {
-    background: withAlpha(color, faded ? 0.08 : 0.2),
-    border: `1px ${status === "PENDING" ? "dashed" : "solid"} ${withAlpha(color, faded ? 0.3 : 0.55)}`,
-    borderLeft: `4px solid ${color}`,
-  };
-}
-
 const STATUS_STYLE: Record<Booking["status"], string> = {
   PENDING: "border-amber-200 bg-amber-50 text-amber-800",
   CONFIRMED: "border-blue-200 bg-blue-50 text-blue-800",
@@ -803,207 +927,6 @@ const STATUS_STYLE: Record<Booking["status"], string> = {
   COMPLETED: "border-green-200 bg-green-50 text-green-800",
   NO_SHOW: "border-red-200 bg-red-50 text-red-700",
 };
-
-function TodayAppointmentsReadOnly({ bookings, staff, services, operatingHours, colors, colorOverrides, onColorChange, date, mode, onDateChange, onModeChange }: {
-  colors: Map<number, string>; colorOverrides: Record<number, string | null | undefined>; onColorChange: (staffId: number, color: string | null) => Promise<void>;
-  bookings: Booking[]; staff: StaffMember[]; services: ServiceItem[]; operatingHours?: OperatingHours[];
-  date: string; mode: "stylist" | "day"; onDateChange: (date: string) => void; onModeChange: (mode: "stylist" | "day") => void;
-}) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const [expanded, setExpanded] = useState(false);
-  const selectedDate = parseDate(date);
-  const dayBookings = bookings.filter((booking) => booking.appointmentDate === date)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const staffMap = new Map(staff.map((member) => [member.id, member]));
-  const serviceMap = new Map(services.map((service) => [service.id, service.name]));
-  const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[selectedDate.getDay()]);
-  const grouped = staff.filter((member) => member.status === "ACTIVE").map((member) => ({
-    member,
-    appointments: dayBookings.filter((booking) => booking.staffId === member.id),
-  }));
-
-  return <section className={expanded ? "fixed inset-3 z-50 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
-    <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
-      <div className="min-w-[180px] flex-1"><h2 className="text-sm font-bold text-slate-800">{prettyDate(selectedDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</h2><p className="text-xs text-slate-400">{dayBookings.length} {dayBookings.length === 1 ? translateUi("appointment") : translateUi("appointments")} {translateUi("· Read only")}</p></div>
-      <label className="flex items-center gap-2 text-xs font-medium text-slate-500">{translateUi("Date")}<input type="date" value={date} onChange={(event) => event.target.value && onDateChange(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-matcha-500" /></label>
-      <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} title={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExpandIcon expanded={expanded} /></button>
-    </div>
-    <div className="flex flex-wrap items-center justify-end gap-3 border-b border-slate-100 px-4 py-2.5">
-      <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Appointment overview layout")}>
-        <button type="button" onClick={() => onModeChange("stylist")} aria-pressed={mode === "stylist"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "stylist" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("By Stylist")}</button>
-        <button type="button" onClick={() => onModeChange("day")} aria-pressed={mode === "day"} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "day" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>{translateUi("Overall view")}</button>
-      </div>
-    </div>
-    <StylistColorLegend staff={staff} colors={colors} colorOverrides={colorOverrides} dayBookings={dayBookings} onColorChange={onColorChange} />
-    {mode === "stylist" ? <StylistSchedule date={date} groups={grouped} operatingHours={operatingHours} services={serviceMap} colors={colors} />
-      : dayBookings.length ? <ReadOnlyDayTimeline date={date} bookings={dayBookings} services={serviceMap} staff={staffMap} colors={colors} operatingHours={operatingHours} closed={!!dayHours?.closed} />
-        : <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No appointments scheduled for this date.")}</p>}
-  </section>;
-}
-
-/** Each active stylist with their colour and today's count. The swatch opens the colour picker, so a colour can be assigned right here. */
-function StylistColorLegend({ staff, colors, colorOverrides, dayBookings, onColorChange }: {
-  staff: StaffMember[]; colors: Map<number, string>; colorOverrides: Record<number, string | null | undefined>; dayBookings: Booking[];
-  onColorChange: (staffId: number, color: string | null) => Promise<void>;
-}) {
-  const { t: translateUi } = useI18n();
-  const [editing, setEditing] = useState<number | null>(null);
-  const active = staff.filter((member) => member.status === "ACTIVE");
-  if (!active.length) return null;
-  return <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2.5">
-    {active.map((member) => {
-      const color = colors.get(member.id) ?? "#94a3b8";
-      const count = dayBookings.filter((booking) => booking.staffId === member.id && booking.status !== "CANCELLED").length;
-      return <div key={member.id} className="relative">
-        <div className="flex items-center gap-1.5 rounded-full border py-1 pl-1.5 pr-2.5 text-xs font-semibold text-slate-700" style={{ borderColor: withAlpha(color, 0.5), background: withAlpha(color, 0.1) }}>
-          <button type="button" onClick={() => setEditing(editing === member.id ? null : member.id)} title={translateUi("Change colour")}
-            aria-label={`${translateUi("Change colour")} — ${member.name}`} aria-expanded={editing === member.id}
-            className="h-5 w-5 rounded-full ring-1 ring-white" style={{ background: color }} />
-          <span>{member.name}</span><span className="font-normal text-slate-400">{count}</span>
-        </div>
-        {editing === member.id && <ColorPopover current={color} custom={(member.id in colorOverrides ? colorOverrides[member.id] : member.calendarColor) != null}
-          onPick={(next) => { void onColorChange(member.id, next); setEditing(null); }} onClose={() => setEditing(null)} />}
-      </div>;
-    })}
-  </div>;
-}
-
-function ExpandIcon({ expanded }: { expanded: boolean }) {
-  return expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />;
-}
-
-function StaffAvatar({ member, size = "sm" }: { member?: StaffMember; size?: "sm" | "md" }) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const sizeClass = size === "md" ? "h-9 w-9 text-xs" : "h-6 w-6 text-[9px]";
-  return <span className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 font-semibold text-slate-500 ${sizeClass}`} title={member?.name ?? "Stylist"} aria-hidden="true">
-    <span>{member?.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "?"}</span>
-    {member?.avatarUrl && <img src={member.avatarUrl} alt={""} className="absolute inset-0 h-full w-full rounded-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
-  </span>;
-}
-
-function useFloatingScrollPosition(anchorRef: React.RefObject<HTMLElement | null>, enabled: boolean) {
-  const [position, setPosition] = useState<{ top: number; left: number; right: number } | null>(null);
-  useEffect(() => {
-    const anchor = anchorRef.current;
-    if (!anchor || !enabled) { setPosition(null); return; }
-    const update = () => {
-      const bounds = anchor.getBoundingClientRect();
-      const visibleTop = Math.max(12, bounds.top);
-      const visibleBottom = Math.min(window.innerHeight - 12, bounds.bottom);
-      if (visibleBottom <= visibleTop) { setPosition(null); return; }
-      const buttonSize = 48;
-      const top = Math.max(12, Math.min(window.innerHeight - buttonSize - 12, (visibleTop + visibleBottom - buttonSize) / 2));
-      const left = Math.max(12, Math.min(window.innerWidth - buttonSize - 12, bounds.left + 92));
-      const right = Math.max(12, Math.min(window.innerWidth - buttonSize - 12, bounds.right - buttonSize - 8));
-      setPosition((current) => current?.top === top && current.left === left && current.right === right ? current : { top, left, right });
-    };
-    update();
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
-    const observer = new ResizeObserver(update);
-    observer.observe(anchor);
-    return () => { window.removeEventListener("scroll", update, true); window.removeEventListener("resize", update); observer.disconnect(); };
-  }, [anchorRef, enabled]);
-  return position;
-}
-
-function ReadOnlyDayTimeline({ date, bookings, services, staff, colors, operatingHours, closed }: {
-  colors: Map<number, string>; date: string; bookings: Booking[]; services: Map<number, string>; staff: Map<number, StaffMember>;
-  operatingHours?: OperatingHours[]; closed: boolean;
-}) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const hours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
-  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-  const opening = hours && !hours.closed ? toMinutes(hours.openTime) : 8 * 60;
-  const closing = hours && !hours.closed ? toMinutes(hours.closeTime) : 20 * 60;
-  const bookedAt = new Map<number, Booking[]>();
-  for (const booking of bookings) {
-    const key = Math.floor(toMinutes(booking.startTime) / 30) * 30;
-    bookedAt.set(key, [...(bookedAt.get(key) ?? []), booking]);
-  }
-  const starts = [...bookedAt.keys()];
-  const start = Math.min(Math.floor(opening / 30) * 30, ...starts);
-  const end = Math.max(Math.ceil(closing / 30) * 30, ...starts.map((minutes) => minutes + 30));
-  const slots = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
-  return <div className="divide-y divide-slate-100">
-    {closed && <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">{translateUi("Salon is marked closed today. Existing appointments are shown below.")}</p>}
-    {slots.map((minutes) => <div key={minutes} className="flex min-h-12"><span className="sticky left-0 z-10 w-20 shrink-0 border-r border-slate-100 bg-white px-3 py-3 text-right text-[11px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</span><div className="min-w-0 flex-1 space-y-1 px-2 py-1">{(bookedAt.get(minutes) ?? []).map((booking) => { const member = staff.get(booking.staffId); const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={stylistCardStyle(colors.get(booking.staffId) ?? "#94a3b8", booking.status, past)} className={`flex items-center gap-2 rounded-md px-3 py-2 text-slate-800 ${past || booking.status === "CANCELLED" ? "text-slate-500" : ""} ${booking.status === "CANCELLED" ? "line-through" : ""}`}><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {booking.customerName}</p><p className="truncate text-[10px] opacity-75">{services.get(booking.serviceId) ?? "Service"} · {member?.name ?? "Staff"}</p></div><span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold no-underline ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span><StaffAvatar member={member} /></div>; })}</div></div>)}
-  </div>;
-}
-
-function StylistSchedule({ date, groups, operatingHours, services, colors }: {
-  colors: Map<number, string>; date: string; groups: { member: StaffMember; appointments: Booking[] }[];
-  operatingHours?: OperatingHours[]; services: Map<number, string>;
-}) {
-  const { t: translateUi, locale: uiLocale } = useI18n();
-  const columnsRef = useRef<HTMLDivElement>(null);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [hasOverflow, setHasOverflow] = useState(false);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const floatingPosition = useFloatingScrollPosition(anchorRef, canScrollLeft || canScrollRight);
-  const dayHours = operatingHours?.find((item) => item.day === JS_DAYS[parseDate(date).getDay()]);
-  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-  const opening = dayHours && !dayHours.closed ? toMinutes(dayHours.openTime) : 8 * 60;
-  const closing = dayHours && !dayHours.closed ? toMinutes(dayHours.closeTime) : 20 * 60;
-  const starts = groups.flatMap(({ appointments }) => appointments.map((booking) => toMinutes(booking.startTime)));
-  const start = Math.min(Math.floor(opening / 30) * 30, ...starts.map((minutes) => Math.floor(minutes / 30) * 30));
-  const end = Math.max(Math.ceil(closing / 30) * 30, ...starts.map((minutes) => Math.floor(minutes / 30) * 30 + 30));
-  const times = Array.from({ length: Math.max(1, (end - start) / 30) }, (_, index) => start + index * 30);
-
-  useEffect(() => {
-    const columns = columnsRef.current;
-    if (!columns) return;
-    const updateOverflow = () => {
-      const overflow = columns.scrollWidth > columns.clientWidth + 1;
-      setHasOverflow(overflow);
-      setCanScrollLeft(columns.scrollLeft > 1);
-      setCanScrollRight(columns.scrollLeft + columns.clientWidth < columns.scrollWidth - 1);
-    };
-    updateOverflow();
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(columns);
-    columns.addEventListener("scroll", updateOverflow, { passive: true });
-    return () => { observer.disconnect(); columns.removeEventListener("scroll", updateOverflow); };
-  }, [groups.length]);
-
-  return <div ref={anchorRef}>
-    {hasOverflow && <p className="mx-4 mt-3 flex w-fit items-center rounded-full border border-matcha-200 bg-matcha-50 px-2.5 py-1.5 text-[11px] font-semibold text-matcha-800">{translateUi("Scroll to see all stylists")}</p>}
-    {!groups.length ? <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No active stylists are available.")}</p> : <div className="flex min-w-0 px-4 pb-4 pt-3">
-      <div className="sticky left-0 z-20 w-16 shrink-0 border-r border-slate-200 bg-white">
-        <div className="flex h-11 items-center justify-center border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">{translateUi("Time")}</div>
-        {times.map((minutes) => <div key={minutes} className="h-16 border-b border-slate-100 pr-2 pt-1 text-right text-[10px] font-medium tabular-nums text-slate-400">{minutes % 60 === 0 ? `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00` : ""}</div>)}
-      </div>
-      <div className="relative min-w-0 flex-1">
-      <div ref={columnsRef} className="min-w-0 overflow-x-auto">
-        <div className="grid auto-cols-[240px] grid-flow-col gap-3">
-          {groups.map(({ member, appointments }) => <section key={member.id} className="overflow-hidden rounded-lg border border-slate-200">
-            <h3 className="flex h-11 items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 text-xs font-bold text-slate-700"><span className="flex min-w-0 items-center gap-2"><span className="h-6 w-1 shrink-0 rounded-full" style={{ background: colors.get(member.id) ?? "#94a3b8" }} /><StaffAvatar member={member} /><span className="truncate">{member.name}</span></span><span className="shrink-0 font-normal text-slate-400">{appointments.length}</span></h3>
-            {times.map((minutes) => {
-              const rowBookings = appointments.filter((booking) => Math.floor(toMinutes(booking.startTime) / 30) * 30 === minutes);
-              return <div key={minutes} className="h-16 overflow-hidden border-b border-slate-100 px-1 py-1">
-                {rowBookings.map((booking) => { const past = isTimeInPast(date, booking.startTime); return <div key={booking.id} style={stylistCardStyle(colors.get(member.id) ?? "#94a3b8", booking.status, past)} className={`truncate rounded px-2 py-1 text-[10px] text-slate-800 ${past || booking.status === "CANCELLED" ? "text-slate-500" : ""} ${booking.status === "CANCELLED" ? "line-through" : ""}`} title={`${booking.startTime.slice(0, 5)} ${booking.customerName} · ${services.get(booking.serviceId) ?? "Service"} · ${booking.status.replace("_", " ")}`}>
-                  <p className="flex items-center gap-1"><span className="min-w-0 flex-1 truncate font-bold">{booking.startTime.slice(0, 5)} · {booking.customerName}</span><span className={`shrink-0 rounded-full border px-1 text-[8px] font-bold no-underline ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></p><p className="truncate opacity-75">{services.get(booking.serviceId) ?? "Service"}</p>
-                </div>; })}
-              </div>;
-            })}
-          </section>)}
-        </div>
-      </div>
-      {floatingPosition && canScrollLeft && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: -Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to previous stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.left }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronLeft className="h-6 w-6" /></button>}
-      {floatingPosition && canScrollRight && <button type="button" onClick={() => columnsRef.current?.scrollBy({ left: Math.max(240, columnsRef.current.clientWidth * 0.75), behavior: "smooth" })} aria-label={translateUi("Scroll to more stylists")} style={{ position: "fixed", top: floatingPosition.top, left: floatingPosition.right }} className="z-[100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition hover:scale-105 hover:bg-slate-50"><ChevronRight className="h-6 w-6" /></button>}
-      </div>
-    </div>}
-  </div>;
-}
-
-function ReadOnlyAppointment({ booking, serviceName, staffName, compact = false }: { booking: Booking; serviceName: string; staffName: string; compact?: boolean }) {
-  return <div className={`flex items-center gap-3 ${compact ? "py-1" : "px-3 py-2.5"}`}>
-    {!compact && <span className="w-12 shrink-0 text-xs font-semibold tabular-nums text-slate-500">{booking.startTime.slice(0, 5)}</span>}
-    <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-slate-800">{booking.customerName}</p><p className="truncate text-[11px] text-slate-400">{serviceName} · {staffName}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p></div>
-    {!compact && <span className="rounded-full border px-2 py-1 text-[10px] font-bold text-slate-500">{booking.status.replace("_", " ")}</span>}
-  </div>;
-}
 
 type PaymentLinksData = {
   latest: Map<number, BookingPaymentLink>;
@@ -1028,13 +951,99 @@ function BookingLinkHistorySection({ booking, data, onNew }: { booking: Booking;
     onResend={(link) => data.resend(booking.id, link.id)} />;
 }
 
-function BookingActions({ booking, staff, services, paymentLinks, onClose, onEdit, onRequestPayment, onAction }: { booking: Booking; staff: StaffMember[]; services: ServiceItem[]; paymentLinks: PaymentLinksData; onClose: () => void; onEdit: () => void; onRequestPayment: () => void; onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void> }) {
+type CustomerInsight = { visits: number; noShows: number; cancelled: number; lastVisit: string | null; notes: string | null; membership: string | null };
+
+/** What the salon already knows about this customer: how often they come, whether they no-show, their notes and membership. */
+function useCustomerInsight(sid: string, email: string): CustomerInsight | null {
+  const [insight, setInsight] = useState<CustomerInsight | null>(null);
+  useEffect(() => {
+    setInsight(null);
+    if (!email) return;
+    const controller = new AbortController();
+    (async () => {
+      const page = await apiFetch<{ content: { id: number }[] }>(`${ADMIN_API}/${sid}/customers?q=${encodeURIComponent(email)}&size=1`, { signal: controller.signal });
+      const id = page.content[0]?.id;
+      if (!id) return;
+      const detail = await apiFetch<{ customer: { notes: string | null }; history: { bookings: { status: string; appointmentDate: string }[]; memberships: { planName: string; status: string }[] } }>(
+        `${ADMIN_API}/${sid}/customers/${id}`, { signal: controller.signal });
+      const done = detail.history.bookings.filter((b) => b.status === "COMPLETED");
+      setInsight({
+        visits: done.length, noShows: detail.history.bookings.filter((b) => b.status === "NO_SHOW").length,
+        cancelled: detail.history.bookings.filter((b) => b.status === "CANCELLED").length,
+        lastVisit: done.map((b) => b.appointmentDate).sort().at(-1) ?? null, notes: detail.customer.notes,
+        membership: detail.history.memberships.find((m) => m.status === "ACTIVE")?.planName ?? null,
+      });
+    })().catch(() => undefined);
+    return () => controller.abort();
+  }, [sid, email]);
+  return insight;
+}
+
+const PAYMENT_CHIP: Record<string, { label: string; tone: string }> = {
+  PAID: { label: "Paid", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  PENDING: { label: "Awaiting payment", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+  FAILED: { label: "Payment failed", tone: "border-red-200 bg-red-50 text-red-700" },
+  REFUNDED: { label: "Refunded", tone: "border-slate-200 bg-slate-100 text-slate-600" },
+};
+
+function BookingActions({ sid, booking, staff, services, paymentLinks, canTakePayment, onClose, onEdit, onRequestPayment, onTakePayment, onAction }: {
+  sid: string; booking: Booking; staff: StaffMember[]; services: ServiceItem[]; paymentLinks: PaymentLinksData; canTakePayment: boolean;
+  onClose: () => void; onEdit: () => void; onRequestPayment: () => void; onTakePayment: () => void;
+  onAction: (id: number, action: "confirm" | "cancel" | "complete" | "no-show") => Promise<void>;
+}) {
   const { t: translateUi, locale: uiLocale } = useI18n();
-  const service = services.find((item) => item.id === booking.serviceId); const member = staff.find((item) => item.id === booking.staffId); const active = booking.status === "PENDING" || booking.status === "CONFIRMED";
+  const service = services.find((item) => item.id === booking.serviceId);
+  const member = staff.find((item) => item.id === booking.staffId);
+  const insight = useCustomerInsight(sid, booking.customerEmail);
+  const active = booking.status === "PENDING" || booking.status === "CONFIRMED";
+  const owed = (booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID";
+  const chip = booking.paymentStatus ? PAYMENT_CHIP[booking.paymentStatus] : undefined;
   const confirmAction = (action: "cancel" | "no-show", message: string) => {
     if (window.confirm(message)) void onAction(booking.id, action);
   };
-  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4"><div className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-800">{booking.appointmentDate}</p><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span></div><p className="mt-1 text-sm text-slate-600">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {service?.name ?? "Service"}</p><p className="mt-1 text-xs text-slate-400">{member?.name ?? "Staff"} · {booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</p>{booking.notes && <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{booking.notes}</p>}</div><div className="grid grid-cols-2 gap-2"><button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>{booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}{booking.status === "CONFIRMED" && <><button onClick={() => onAction(booking.id, "complete")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button><button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">{translateUi("Mark no-show")}</button></>}{(booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID" && <button onClick={onRequestPayment} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"><CreditCard className="h-3.5 w-3.5" />{translateUi(booking.status === "NO_SHOW" ? "Request payment (no-show)" : "Request payment")}</button>}{active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}</div>{((booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID") || paymentLinks.latest.has(booking.id) ? <div className="border-t border-slate-100 pt-4"><BookingLinkHistorySection booking={booking} data={paymentLinks} onNew={(booking.status === "NO_SHOW" || booking.status === "COMPLETED") && booking.paymentStatus !== "PAID" ? onRequestPayment : undefined} /></div> : null}</div></Dialog>;
+  const minutes = Math.round((new Date(`1970-01-01T${booking.endTime}`).getTime() - new Date(`1970-01-01T${booking.startTime}`).getTime()) / 60000);
+  const day = new Date(`${booking.appointmentDate}T00:00:00`).toLocaleDateString(uiLocale, { weekday: "long", day: "numeric", month: "long" });
+  const btn = "inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold";
+  return <Dialog title={`${booking.customerName} · #${booking.id}`} onClose={onClose}><div className="space-y-4">
+    <div className="rounded-xl bg-slate-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-bold capitalize text-slate-800">{day}</p>
+        <span className="flex gap-1.5">
+          {chip && <span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${chip.tone}`}>{translateUi(chip.label)}</span>}
+          <span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${STATUS_STYLE[booking.status]}`}>{booking.status.replace("_", " ")}</span>
+        </span>
+      </div>
+      <p className="mt-1 text-sm text-slate-700">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)}{minutes > 0 ? ` · ${minutes} min` : ""}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-800">{service?.name ?? translateUi("Service")}{service?.price != null ? ` · ${formatPrice(service.price, service.currency ?? "USD", uiLocale)}` : ""}</p>
+      <p className="mt-1 text-xs text-slate-500">{translateUi("With")} {member?.name ?? translateUi("Staff")}</p>
+      {booking.notes && <p className="mt-3 whitespace-pre-line border-t border-slate-200 pt-3 text-xs text-slate-600">{booking.notes}</p>}
+    </div>
+
+    <div className="rounded-xl border border-slate-200 p-4 text-sm">
+      <p className="font-semibold text-slate-800">{booking.customerName}</p>
+      <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {booking.customerPhone && <a href={`tel:${booking.customerPhone}`} className="font-medium text-matcha-700 hover:underline">{booking.customerPhone}</a>}
+        {booking.customerEmail && <a href={`mailto:${booking.customerEmail}`} className="font-medium text-matcha-700 hover:underline">{booking.customerEmail}</a>}
+      </p>
+      {insight && <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
+        <p><b>{insight.visits}</b> {translateUi("completed visits")}{insight.lastVisit ? ` · ${translateUi("last")} ${new Date(`${insight.lastVisit}T00:00:00`).toLocaleDateString(uiLocale)}` : ""}</p>
+        {(insight.noShows > 0 || insight.cancelled > 0) && <p className={insight.noShows > 0 ? "font-semibold text-red-600" : ""}>{insight.noShows} {translateUi("no-shows")} · {insight.cancelled} {translateUi("cancelled")}</p>}
+        {insight.membership && <p className="font-semibold text-matcha-700">{translateUi("Member")}: {insight.membership}</p>}
+        {insight.notes && <p className="whitespace-pre-line rounded-lg bg-amber-50 p-2 text-amber-900">{insight.notes}</p>}
+      </div>}
+    </div>
+
+    <div className="grid grid-cols-2 gap-2">
+      {booking.status === "PENDING" && <button onClick={() => onAction(booking.id, "confirm")} className={`${btn} bg-blue-600 text-white`}><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Confirm")}</button>}
+      {booking.status === "CONFIRMED" && <button onClick={() => onAction(booking.id, "complete")} className={`${btn} bg-green-600 text-white`}><CheckCircle2 className="h-3.5 w-3.5" />{translateUi("Complete")}</button>}
+      {canTakePayment && <button onClick={onTakePayment} className={`${btn} bg-slate-900 text-white`}><ShoppingCart className="h-3.5 w-3.5" />{translateUi("Take payment at till")}</button>}
+      {owed && <button onClick={onRequestPayment} className={`${btn} border border-slate-300 text-slate-800 hover:bg-slate-50`}><CreditCard className="h-3.5 w-3.5" />{translateUi(booking.status === "NO_SHOW" ? "Send no-show payment link" : "Send payment link")}</button>}
+      {active && <button onClick={onEdit} className={`${btn} border border-slate-200 text-slate-600 hover:bg-slate-50`}><Pencil className="h-3.5 w-3.5" />{translateUi("Edit / reschedule")}</button>}
+      {booking.status === "CONFIRMED" && <button onClick={() => confirmAction("no-show", `Mark ${booking.customerName}'s appointment as a no-show?`)} className={`${btn} border border-red-200 text-red-600 hover:bg-red-50`}>{translateUi("Mark no-show")}</button>}
+      {active && <button onClick={() => confirmAction("cancel", `Cancel ${booking.customerName}'s appointment?`)} className={`${btn} border border-red-200 text-red-600 hover:bg-red-50`}><XCircle className="h-3.5 w-3.5" />{translateUi("Cancel booking")}</button>}
+    </div>
+    {owed || paymentLinks.latest.has(booking.id) ? <div className="border-t border-slate-100 pt-4"><BookingLinkHistorySection booking={booking} data={paymentLinks} onNew={owed ? onRequestPayment : undefined} /></div> : null}
+  </div></Dialog>;
 }
 
 function AvailableServicePicker({ sid, date, time, staffId, services, staff, onClose, onSelect }: {
@@ -1142,7 +1151,7 @@ function AppointmentEditor({ sid, staff, services, countries, defaultCountry, bo
   }
   return <Dialog title={booking ? translateUi("Edit appointment") : translateUi("Book appointment")} onClose={onClose}>
     <div className="space-y-3">
-      {!booking && <><CustomerDetailsFields
+      {!booking && <><CustomerSuggest sid={sid} onPick={(customer) => { setContactMethod(customer.email ? "email" : "phone"); setForm((current) => ({ ...current, customerName: customer.name, customerEmail: customer.email ?? "", customerPhone: customer.phone ?? "" })); }} /><CustomerDetailsFields
         form={{ name: form.customerName, email: form.customerEmail, phone: form.customerPhone, notes: form.notes }}
         onChange={(details) => setForm({ ...form, customerName: details.name, customerEmail: details.email, customerPhone: details.phone, notes: details.notes })}
         contactMethod={contactMethod} onContactMethodChange={setContactMethod}

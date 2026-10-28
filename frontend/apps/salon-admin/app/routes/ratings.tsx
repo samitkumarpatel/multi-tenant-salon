@@ -5,7 +5,7 @@ import { useI18n } from "@salon/i18n";
 import { apiFetch, ADMIN_API } from "~/lib/api";
 import type { LayoutContext } from "~/lib/types";
 
-type Rating = { bookingId: number; customerName: string; serviceName: string; staffName: string; appointmentDate: string; salonRating: number; staffRating: number; submittedAt: string; feedback: string | null; reply: string | null; repliedAt: string | null };
+type Rating = { bookingId: number; customerName: string; serviceName: string; staffName: string; appointmentDate: string; salonRating: number; staffRating: number; submittedAt: string; salonFeedback: string | null; staffFeedback: string | null; reply: string | null; repliedAt: string | null };
 const inputClass = "min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-matcha-500 focus:outline-none";
 const MAX_REPLY = 1000;
 const stars = (count: number) => "★".repeat(count) + "☆".repeat(5 - count);
@@ -80,7 +80,8 @@ export default function RatingsPage() {
             <div className="min-w-0"><p className="truncate font-semibold text-slate-800">{rating.customerName || t("Customer")}</p><p className="mt-0.5 text-xs text-slate-500">{rating.serviceName} · {rating.staffName} · {new Date(`${rating.appointmentDate}T00:00:00`).toLocaleDateString()}</p></div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs"><span><span className="text-slate-500">{t("Salon")}: </span><span className="font-semibold tracking-wider text-amber-500" aria-label={`${rating.salonRating} ${t("stars")}`}>{stars(rating.salonRating)}</span></span><span><span className="text-slate-500">{t("Stylist")}: </span><span className="font-semibold tracking-wider text-amber-500" aria-label={`${rating.staffRating} ${t("stars")}`}>{stars(rating.staffRating)}</span></span></div>
           </div>
-          {rating.feedback && <p className="mt-2 whitespace-pre-line text-sm italic text-slate-600">“{rating.feedback}”</p>}
+          {rating.salonFeedback && <p className="mt-2 whitespace-pre-line text-sm text-slate-600"><span className="text-xs font-semibold not-italic text-slate-500">{t("About the salon")}: </span><span className="italic">“{rating.salonFeedback}”</span></p>}
+          {rating.staffFeedback && <p className="mt-1.5 whitespace-pre-line text-sm text-slate-600"><span className="text-xs font-semibold not-italic text-slate-500">{t("About {name}", { name: rating.staffName })}: </span><span className="italic">“{rating.staffFeedback}”</span></p>}
           <ReplyBox salonId={salon.id} rating={rating} onSaved={(bookingId, reply) => setRatings((items) => items.map((item) => item.bookingId === bookingId ? { ...item, reply, repliedAt: new Date().toISOString() } : item))} />
         </article>)}
       </div></div>}

@@ -1075,6 +1075,89 @@ class MembershipManager implements MembershipApi {
         return subscriptions.findByCustomerEmail(salonId, email);
     }
 
+    /** The member's active membership, latest first: ACTIVE with time left on the current period. */
+    private java.util.Optional<MembershipSubscription> activeMembership(UUID salonId, String email) {
+        return subscriptions.findByCustomerEmail(salonId, email).stream()
+                .filter(s -> s.status() == MembershipSubscription.Status.ACTIVE
+                        && s.currentPeriodEnd() != null && s.currentPeriodEnd().isAfter(Instant.now()))
+                .findFirst();
+    }
+
+    private int usedThisCycle(Long subscriptionId, Instant cycleEnd, Long serviceId) {
+        return jdbc.sql("SELECT COALESCE(SUM(quantity), 0) FROM membership_benefit_use WHERE subscription_id = :sub AND cycle_end = :end AND service_id = :service")
+                .param("sub", subscriptionId).param("end", java.sql.Timestamp.from(cycleEnd)).param("service", serviceId)
+                .query(Integer.class).single();
+    }
+
+    @Override
+    public java.util.Optional<MemberBenefits> benefitsFor(UUID salonId, String email) {
+        if (email == null || email.isBlank()) return java.util.Optional.empty();
+        return activeMembership(salonId, email.strip()).flatMap(sub -> plans.findById(sub.planId()).map(plan ->
+                new MemberBenefits(sub.id(), sub.planName(), plan.serviceDiscountPercent(), plan.productDiscountPercent(), sub.currentPeriodEnd(),
+                        plan.includedServices().stream().map(i -> new Included(i.serviceId(), i.quantityPerCycle(),
+                                Math.max(0, i.quantityPerCycle() - usedThisCycle(sub.id(), sub.currentPeriodEnd(), i.serviceId())))).toList())));
+    }
+
+    @Override
+    @Transactional
+    public java.util.Optional<SalePricing> priceSale(UUID salonId, String email, List<SaleLine> lines) {
+        if (email == null || email.isBlank()) return java.util.Optional.empty();
+        var sub = activeMembership(salonId, email.strip()).orElse(null);
+        if (sub == null) return java.util.Optional.empty();
+        // Serialize sales for this member so the same allowance is never spent twice.
+        jdbc.sql("SELECT pg_advisory_xact_lock(-7302, :sub)").param("sub", sub.id().intValue()).query((rs, row) -> 1).list();
+        var plan = plans.findById(sub.planId()).orElse(null);
+        if (plan == null) return java.util.Optional.empty();
+        var remaining = new java.util.HashMap<Long, Integer>();
+        plan.includedServices().forEach(i -> remaining.put(i.serviceId(),
+                Math.max(0, i.quantityPerCycle() - usedThisCycle(sub.id(), sub.currentPeriodEnd(), i.serviceId()))));
+        int servicePct = plan.serviceDiscountPercent() == null ? 0 : plan.serviceDiscountPercent();
+        int productPct = plan.productDiscountPercent() == null ? 0 : plan.productDiscountPercent();
+        var discount = BigDecimal.ZERO;
+        var uses = new java.util.ArrayList<Use>();
+        int freeUnits = 0;
+        for (var line : lines) {
+            int free = 0;
+            if (line.service() && remaining.containsKey(line.itemId())) {
+                free = Math.min(line.quantity(), remaining.get(line.itemId()));
+                if (free > 0) {
+                    remaining.merge(line.itemId(), -free, Integer::sum);
+                    uses.add(new Use(line.itemId(), free));
+                    freeUnits += free;
+                    discount = discount.add(line.unitPrice().multiply(BigDecimal.valueOf(free)));
+                }
+            }
+            int pct = line.service() ? servicePct : productPct;
+            if (pct > 0) {
+                discount = discount.add(line.unitPrice().multiply(BigDecimal.valueOf(line.quantity() - free))
+                        .multiply(BigDecimal.valueOf(pct)).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP));
+            }
+        }
+        var parts = new java.util.ArrayList<String>();
+        if (freeUnits > 0) parts.add(freeUnits + " included");
+        if (servicePct > 0) parts.add(servicePct + "% services");
+        if (productPct > 0) parts.add(productPct + "% products");
+        var summary = "Membership: " + sub.planName() + (parts.isEmpty() ? "" : " (" + String.join(", ", parts) + ")");
+        return java.util.Optional.of(new SalePricing(sub.id(), sub.planName(), sub.currentPeriodEnd(),
+                discount.setScale(2, java.math.RoundingMode.HALF_UP), summary, List.copyOf(uses)));
+    }
+
+    @Override
+    @Transactional
+    public void recordSaleUse(UUID salonId, Long saleId, SalePricing pricing) {
+        for (var use : pricing.uses()) {
+            jdbc.sql("INSERT INTO membership_benefit_use (salon_id, subscription_id, cycle_end, service_id, quantity, sale_id) VALUES (:salon, :sub, :end, :service, :qty, :sale)")
+                    .param("salon", salonId).param("sub", pricing.subscriptionId()).param("end", java.sql.Timestamp.from(pricing.cycleEnd()))
+                    .param("service", use.serviceId()).param("qty", use.quantity()).param("sale", saleId).update();
+        }
+    }
+
+    @Override
+    @Transactional
+    public void releaseSaleUse(UUID salonId, Long saleId) {
+        jdbc.sql("DELETE FROM membership_benefit_use WHERE salon_id = :salon AND sale_id = :sale").param("salon", salonId).param("sale", saleId).update();
+    }
+
     @Override
     @Transactional
     public int anonymizeCustomer(UUID salonId, String email, String replacementEmail) {

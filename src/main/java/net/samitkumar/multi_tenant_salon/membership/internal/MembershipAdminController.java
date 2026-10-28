@@ -175,6 +175,12 @@ class MembershipAdminController {
         return memberships.sellAtDesk(salonApi.resolveId(salonId), spec, jwt == null ? null : jwt.getSubject());
     }
 
+    /** What an active member can use at the till: plan discounts and the included services still unspent this cycle. */
+    @GetMapping("/benefits")
+    ResponseEntity<net.samitkumar.multi_tenant_salon.membership.MembershipApi.MemberBenefits> benefits(@PathVariable String salonId, @RequestParam String email) {
+        return ResponseEntity.of(memberships.benefitsFor(salonId == null ? null : salonApi.resolveId(salonId), email));
+    }
+
     /** Look a member up by the code in their QR (scanned or typed). */
     @GetMapping("/verify")
     ResponseEntity<SubscriptionDetail> verify(@PathVariable String salonId, @RequestParam String code) {

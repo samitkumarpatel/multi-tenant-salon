@@ -51,6 +51,13 @@ public class SalonDeskAccess {
             // Correcting a sale rung up wrong is counter work — the operator who made the mistake has
             // to be able to fix it without fetching the owner.
             rule(HttpMethod.POST, "/dashboard/sales/{saleId}/void"),
+            // the cash drawer: open with a float, close with the counted cash
+            cashierRule(HttpMethod.GET, "/dashboard/shift"),
+            cashierRule(HttpMethod.GET, "/dashboard/shifts"),
+            cashierRule(HttpMethod.POST, "/dashboard/shift/open"),
+            cashierRule(HttpMethod.POST, "/dashboard/shift/close"),
+            // emailing a settled sale's receipt is counter work too, so it answers to the cashier switch
+            cashierRule(HttpMethod.POST, "/dashboard/sales/{saleId}/receipt"),
             rule(HttpMethod.GET, "/payments/stripe"),
             // card readers: pick one, follow / retry / cancel the payment on it (registering stays owner-only)
             rule(HttpMethod.GET, "/payments/terminals"),
@@ -63,6 +70,10 @@ public class SalonDeskAccess {
             bookingRule(HttpMethod.POST, "/booking"),
             bookingRule(HttpMethod.PUT, "/booking/{bookingId}"),
             bookingRule(HttpMethod.POST, "/booking/{bookingId}/{action:confirm|cancel|complete|no-show}"),
+            // the walk-in queue answers to appointment management
+            bookingRule(HttpMethod.GET, "/dashboard/walk-ins"),
+            bookingRule(HttpMethod.POST, "/dashboard/walk-ins"),
+            bookingRule(HttpMethod.POST, "/dashboard/walk-ins/{id}/{action:seat|leave}"),
             // collecting from a customer who did not show up
             bookingRule(HttpMethod.POST, "/booking/{bookingId}/payment-link"),
             // following up on the links already sent: what is outstanding, an appointment's history, sending one again
@@ -79,9 +90,18 @@ public class SalonDeskAccess {
             bookingRule(HttpMethod.PUT, "/staff/{staffId}/calendar-color"),
             bookingRule(HttpMethod.GET, "/staff/{staffId}/availability"),
             bookingRule(HttpMethod.GET, "/staff/{staffId}/availability/overrides"),
+            // customers: find one, open their history, add a walk-in. Editing and erasing stay with the owner.
+            rule(HttpMethod.GET, "/customers"),
+            rule(HttpMethod.GET, "/customers/{customerId}"),
+            rule(HttpMethod.POST, "/customers"),
+            // web-shop orders: see them and move them along (cancel/refund/return stay with the owner)
+            rule(HttpMethod.GET, "/shop/orders"),
+            rule(HttpMethod.GET, "/shop/orders/{orderId}"),
+            rule(HttpMethod.POST, "/shop/orders/{orderId}/desk-status"),
             // member check-in and selling memberships
             rule(HttpMethod.GET, "/membership/plans"),
             rule(HttpMethod.GET, "/membership/verify"),
+            rule(HttpMethod.GET, "/membership/benefits"),
             rule(HttpMethod.GET, "/membership/subscriptions/{subscriptionId}"),
             rule(HttpMethod.GET, "/membership/subscriptions/{subscriptionId}/qr.png"),
             rule(HttpMethod.POST, "/membership/subscriptions/{subscriptionId}/send-renewal-link"),

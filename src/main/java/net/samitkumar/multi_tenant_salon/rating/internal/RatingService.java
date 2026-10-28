@@ -72,19 +72,19 @@ class RatingService implements RatingApi {
 
     @Override
     @Transactional
-    public boolean submitReview(String token, int salonRating, int staffRating, String feedback) {
+    public boolean submitReview(String token, int salonRating, int staffRating, String salonFeedback, String staffFeedback) {
         if (salonRating < 1 || salonRating > 5 || staffRating < 1 || staffRating > 5) return false;
         String tokenHash = hash(token);
         return jdbc.sql("""
-                INSERT INTO booking_review (booking_id, salon_id, staff_id, salon_rating, staff_rating, feedback)
-                SELECT i.booking_id, i.salon_id, i.staff_id, :salonRating, :staffRating, :feedback
+                INSERT INTO booking_review (booking_id, salon_id, staff_id, salon_rating, staff_rating, salon_feedback, staff_feedback)
+                SELECT i.booking_id, i.salon_id, i.staff_id, :salonRating, :staffRating, :salonFeedback, :staffFeedback
                 FROM rating_invitation i
                 JOIN booking b ON b.id = i.booking_id AND b.status = 'COMPLETED'
                 WHERE i.token_hash = :tokenHash AND i.expires_at > now()
                   AND lower(b.customer_email) NOT LIKE '%@anonymized.invalid'
                 ON CONFLICT (booking_id) DO NOTHING
                 """)
-                .param("salonRating", salonRating).param("staffRating", staffRating).param("feedback", cleanText(feedback))
+                .param("salonRating", salonRating).param("staffRating", staffRating).param("salonFeedback", cleanText(salonFeedback)).param("staffFeedback", cleanText(staffFeedback))
                 .param("tokenHash", tokenHash).update() == 1;
     }
 
@@ -109,7 +109,7 @@ class RatingService implements RatingApi {
     public java.util.List<BookingRating> getBookingRatings(UUID salonId, Long staffId) {
         var sql = """
                 SELECT b.id AS booking_id,b.customer_name,si.name AS service_name,sm.name AS staff_name,
-                       b.appointment_date,r.salon_rating,r.staff_rating,r.submitted_at,r.feedback,r.reply,r.replied_at
+                       b.appointment_date,r.salon_rating,r.staff_rating,r.submitted_at,r.salon_feedback,r.staff_feedback,r.reply,r.replied_at
                 FROM booking_review r
                 JOIN booking b ON b.id=r.booking_id
                 JOIN service_item si ON si.id=b.service_id
@@ -124,14 +124,14 @@ class RatingService implements RatingApi {
                 .query((rs, row) -> new BookingRating(rs.getLong("booking_id"), rs.getString("customer_name"),
                         rs.getString("service_name"), rs.getString("staff_name"), rs.getDate("appointment_date").toLocalDate(),
                         rs.getInt("salon_rating"), rs.getInt("staff_rating"), rs.getTimestamp("submitted_at").toInstant(),
-                        rs.getString("feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")))).list();
+                        rs.getString("salon_feedback"), rs.getString("staff_feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")))).list();
     }
 
     @Override
     public java.util.List<CustomerRatingOption> getCustomerRatingOptions(UUID salonId, String customerEmail) {
         return jdbc.sql("""
                 SELECT b.id,b.staff_id,si.name service_name,sm.name staff_name,b.appointment_date,
-                       (r.booking_id IS NOT NULL) submitted,r.feedback,r.reply,r.replied_at
+                       (r.booking_id IS NOT NULL) submitted,r.salon_feedback,r.staff_feedback,r.reply,r.replied_at
                 FROM booking b JOIN service_item si ON si.id=b.service_id JOIN staff_member sm ON sm.id=b.staff_id
                 LEFT JOIN booking_review r ON r.booking_id=b.id
                 WHERE b.salon_id=:salonId AND lower(b.customer_email)=:email AND b.status='COMPLETED'
@@ -139,20 +139,20 @@ class RatingService implements RatingApi {
                 """).param("salonId", salonId).param("email", customerEmail)
                 .query((rs, row) -> new CustomerRatingOption(rs.getLong("id"), rs.getLong("staff_id"), rs.getString("service_name"),
                         rs.getString("staff_name"), rs.getDate("appointment_date").toLocalDate(), rs.getBoolean("submitted"),
-                        rs.getString("feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")))).list();
+                        rs.getString("salon_feedback"), rs.getString("staff_feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")))).list();
     }
 
     @Override
     @Transactional
-    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, int salonRating, int staffRating, String feedback) {
+    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, int salonRating, int staffRating, String salonFeedback, String staffFeedback) {
         if (salonRating < 1 || salonRating > 5 || staffRating < 1 || staffRating > 5) return false;
         return jdbc.sql("""
-                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating,feedback)
-                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating,:feedback FROM booking b
+                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating,salon_feedback,staff_feedback)
+                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating,:salonFeedback,:staffFeedback FROM booking b
                 WHERE b.id=:bookingId AND b.salon_id=:salonId AND lower(b.customer_email)=:email AND b.status='COMPLETED'
                 ON CONFLICT (booking_id) DO NOTHING
                 """).param("bookingId", bookingId).param("salonId", salonId).param("email", customerEmail)
-                .param("salonRating", salonRating).param("staffRating", staffRating).param("feedback", cleanText(feedback)).update() == 1;
+                .param("salonRating", salonRating).param("staffRating", staffRating).param("salonFeedback", cleanText(salonFeedback)).param("staffFeedback", cleanText(staffFeedback)).update() == 1;
     }
 
     @Override

@@ -249,6 +249,27 @@ class ShopAdminController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * The desk's way to move an order along: only the steps that happen at the counter or in the back room. Cancelling,
+     * failing and refunding stay on the owner's {@code /status} endpoint. Attributed to the signed-in person.
+     */
+    @PostMapping("/orders/{orderId}/desk-status")
+    ResponseEntity<OrderView> updateOrderStatusFromDesk(@PathVariable String salonId, @PathVariable Long orderId,
+                                                        @RequestBody StatusRequest req,
+                                                        @org.springframework.security.core.annotation.AuthenticationPrincipal(errorOnInvalidType = false)
+                                                        org.springframework.security.oauth2.jwt.Jwt jwt) {
+        if (!DESK_STATUSES.contains(req.status())) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "The desk can set an order to processing, ready to ship, shipped, delivered or fulfilled");
+        }
+        return shop.updateOrderStatus(salonApi.resolveId(salonId), orderId, req.status(), jwt == null ? "desk" : jwt.getSubject())
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private static final java.util.Set<OrderStatus> DESK_STATUSES = java.util.EnumSet.of(
+            OrderStatus.PROCESSING, OrderStatus.READY_TO_SHIP, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.FULFILLED);
+
     @PostMapping("/orders/{orderId}/lines/{lineId}/notify")
     ResponseEntity<OrderView> notifyUser(@PathVariable String salonId, @PathVariable Long orderId,
                                          @PathVariable Long lineId,

@@ -4,7 +4,7 @@ import { useI18n } from "@salon/i18n";
 import { STAFF_PORTAL_API, apiFetch } from "~/lib/api";
 import { getStaffSession } from "~/lib/auth";
 
-type Rating = { bookingId: number; customerName: string; serviceName: string; staffName: string; appointmentDate: string; salonRating: number; staffRating: number; submittedAt: string; feedback: string | null; reply: string | null; repliedAt: string | null };
+type Rating = { bookingId: number; customerName: string; serviceName: string; staffName: string; appointmentDate: string; salonRating: number; staffRating: number; submittedAt: string; salonFeedback: string | null; staffFeedback: string | null; reply: string | null; repliedAt: string | null };
 const stars = (count: number) => "★".repeat(count) + "☆".repeat(5 - count);
 
 export default function StaffRatingsPage() {
@@ -30,7 +30,8 @@ export default function StaffRatingsPage() {
         <div><p className="font-semibold text-slate-800">{rating.customerName || t("Customer")}</p><p className="mt-0.5 text-xs text-slate-500">{rating.serviceName} · {new Date(`${rating.appointmentDate}T00:00:00`).toLocaleDateString()}</p></div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs"><span><span className="text-slate-500">{t("Salon")}: </span><span className="font-semibold tracking-wider text-amber-500" aria-label={`${rating.salonRating} ${t("stars")}`}>{stars(rating.salonRating)}</span></span><span><span className="text-slate-500">{t("Your rating")}: </span><span className="font-semibold tracking-wider text-amber-500" aria-label={`${rating.staffRating} ${t("stars")}`}>{stars(rating.staffRating)}</span></span></div>
       </div>
-      {rating.feedback && <p className="mt-2 whitespace-pre-line text-sm italic text-slate-600">“{rating.feedback}”</p>}
+      {rating.staffFeedback && <p className="mt-2 whitespace-pre-line text-sm text-slate-600"><span className="text-xs font-semibold text-slate-500">{t("About you")}: </span><span className="italic">“{rating.staffFeedback}”</span></p>}
+      {rating.salonFeedback && <p className="mt-1.5 whitespace-pre-line text-sm text-slate-600"><span className="text-xs font-semibold text-slate-500">{t("About the salon")}: </span><span className="italic">“{rating.salonFeedback}”</span></p>}
       {rating.reply && <div className="mt-2 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-700"><p className="font-semibold">{t("Reply from the salon")}</p><p className="mt-0.5 whitespace-pre-line">{rating.reply}</p></div>}
       </article>)}</div>}
   </section>;

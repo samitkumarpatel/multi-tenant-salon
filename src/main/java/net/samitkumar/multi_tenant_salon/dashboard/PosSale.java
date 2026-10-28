@@ -15,6 +15,8 @@ public record PosSale(
         UUID salonId,
         String saleNumber,
         String customerName,
+        /** Set when the sale names a customer, so points can be earned on it and a receipt prefilled. */
+        String customerEmail,
         PaymentMethod paymentMethod,
         BigDecimal total,
         String currency,
@@ -27,6 +29,13 @@ public record PosSale(
         String voidReason,
         /** How much has been given back, for a card sale that was refunded rather than simply voided. */
         BigDecimal refundedAmount,
+        /** Items before the discount and tip; {@code total} is what was actually paid. */
+        BigDecimal subtotal,
+        BigDecimal discountAmount,
+        String discountReason,
+        BigDecimal tipAmount,
+        /** The loyalty reward code spent on this sale; it goes back to the customer if the sale fails or is voided. */
+        Long loyaltyRedemptionId,
         /** Sign-in email of whoever rang it up / reversed it, so a short drawer can be traced to a person. */
         String createdBy,
         String voidedBy,
@@ -40,15 +49,18 @@ public record PosSale(
     /** A freshly rung-up sale — nothing settled by Stripe, nothing voided, nothing refunded. */
     public static PosSale rungUp(UUID salonId, String saleNumber, String customerName, PaymentMethod method,
                                  BigDecimal total, String currency, Instant createdAt, String paymentStatus,
-                                 String idempotencyKey, String createdBy, List<Line> lines) {
-        return new PosSale(null, salonId, saleNumber, customerName, method, total, currency, createdAt,
-                paymentStatus, null, idempotencyKey, null, null, null, createdBy, null, lines);
+                                 String idempotencyKey, String createdBy, BigDecimal subtotal, BigDecimal discountAmount,
+                                 String discountReason, BigDecimal tipAmount, String customerEmail, Long loyaltyRedemptionId, List<Line> lines) {
+        return new PosSale(null, salonId, saleNumber, customerName, customerEmail, method, total, currency, createdAt,
+                paymentStatus, null, idempotencyKey, null, null, null, subtotal, discountAmount, discountReason, tipAmount,
+                loyaltyRedemptionId, createdBy, null, lines);
     }
 
     /** The same sale awaiting a card payment instead of being settled on the spot. */
     public PosSale awaitingPayment() {
-        return new PosSale(id, salonId, saleNumber, customerName, paymentMethod, total, currency, createdAt,
-                "PENDING", null, idempotencyKey, voidedAt, voidReason, refundedAmount, createdBy, voidedBy, lines);
+        return new PosSale(id, salonId, saleNumber, customerName, customerEmail, paymentMethod, total, currency, createdAt,
+                "PENDING", null, idempotencyKey, voidedAt, voidReason, refundedAmount, subtotal, discountAmount, discountReason,
+                tipAmount, loyaltyRedemptionId, createdBy, voidedBy, lines);
     }
 
     public enum PaymentMethod { CASH, CARD, OTHER }
@@ -60,6 +72,9 @@ public record PosSale(
 
     public PosSale {
         if (paymentStatus == null) paymentStatus = "PAID";
+        if (subtotal == null) subtotal = total;
+        if (discountAmount == null) discountAmount = BigDecimal.ZERO;
+        if (tipAmount == null) tipAmount = BigDecimal.ZERO;
         lines = lines != null ? List.copyOf(lines) : List.of();
     }
 
