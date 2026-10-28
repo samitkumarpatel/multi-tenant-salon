@@ -7,7 +7,8 @@ import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
 import { SocialLinksRow } from "./SocialIcons";
 import { useIsScrollable } from "./useIsScrollable";
-import { SalonPolicyLinks } from "./SalonPolicyLinks";
+import { SalonPolicyLinks, policiesForSurface } from "./SalonPolicyLinks";
+import type { PolicySurface } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { apiFetch, API_BASE } from "./api";
 import type { OperatingHours, Salon, SalonHoliday, WebsiteTheme } from "./types";
@@ -21,12 +22,8 @@ export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
   LOYALTY_PROGRAM: { label: "Loyalty",    path: "loyalty" },
 };
 
-/** Menus that can put a link in the website footer, with the feature each needs and its default label/page. */
+/** Menus that can put a link in the website footer. The feature pages (book, shop, membership, loyalty) are reached from the header, so only the account link remains. */
 export const FOOTER_LINK_MENUS: { key: string; feature?: string; label: string; page: string }[] = [
-  { key: "BOOKING",         feature: "BOOKING",         label: "Book an appointment",              page: "book" },
-  { key: "WEBSHOP",         feature: "WEBSHOP",         label: "Shop",                             page: "shop" },
-  { key: "MEMBERSHIP",      feature: "MEMBERSHIP",      label: "Membership",                       page: "membership" },
-  { key: "LOYALTY_PROGRAM", feature: "LOYALTY_PROGRAM", label: "Loyalty",                          page: "loyalty" },
   { key: "ACCOUNT",                                     label: "Rate your visit & leave feedback", page: "account" },
 ];
 
@@ -405,6 +402,9 @@ export function SiteFooter({
   const accentText = contrastText(theme.accentColor);
   const isScrollable = useIsScrollable();
   const hasBooking = salon.features?.includes("BOOKING");
+  // Each surface shows its own policies: booking and refunds on the booking page, refunds and sales in the web-shop, the rest on the website.
+  const surface: PolicySurface = current === "book" || standalone ? "booking" : current === "shop" ? "webshop" : "website";
+  policies = policiesForSurface(policies, surface);
   // The slim booking-page footer below has no hours column, so don't fetch for it.
   const holidays   = useSalonHolidays(current === "book" ? undefined : salon.id);
   const city       = [salon.location?.city, salon.location?.country].filter(Boolean).join(", ");

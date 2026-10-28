@@ -22,6 +22,18 @@ const POLICY_LABELS: Record<string, Record<string, string>> = {
   sales: { en: "Sales Policy", da: "Salgspolitik", sv: "Försäljningspolicy", nb: "Salgsvilkår", fr: "Politique de vente", de: "Verkaufsrichtlinie" },
 };
 
+export type PolicySurface = "website" | "booking" | "webshop";
+
+/** Built-in policies that belong to one surface only; the rest (privacy, cookies, terms) are website policies. */
+const SURFACE_KEYS: Record<PolicySurface, string[]> = { website: [], booking: ["booking", "refunds"], webshop: ["sales", "refunds"] };
+const SURFACE_ONLY_KEYS = new Set(Object.values(SURFACE_KEYS).flat());
+
+/** The policies a surface's footer links to. Owner-created (custom) policies stay wherever the owner placed them. */
+export function policiesForSurface(policies: SalonPolicy[] = [], surface: PolicySurface): SalonPolicy[] {
+  if (surface === "website") return policies.filter((p) => !SURFACE_ONLY_KEYS.has(p.key));
+  return policies.filter((p) => SURFACE_KEYS[surface].includes(p.key));
+}
+
 /**
  * Links that open each policy in a modal. By default a wrapping row of links; pass `sentence`
  * (a translated string containing `{policies}`) to render the links inline inside that sentence,

@@ -11,7 +11,7 @@ import { DEFAULT_THEME, fontStack, loadGoogleFont, isLightColor, contrastText } 
 import { FeatureView, FEATURE_VIEWS } from "./FeatureView";
 import { LoyaltyView } from "./LoyaltyView";
 import { BookingWizard } from "./BookingWizard";
-import { SalonPolicyLinks } from "./SalonPolicyLinks";
+import { SalonPolicyLinks, policiesForSurface } from "./SalonPolicyLinks";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { ShopView } from "./ShopView";
 import { MembershipView } from "./MembershipView";
@@ -1446,7 +1446,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
           <div className="mt-10 pt-5 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: footerBorder }}>
             <p className="text-[11px]" style={{ color: footerDim }}>© {new Date().getFullYear()} {salon.name} {translateUi("· All rights reserved.")}</p>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
-              <SalonPolicyLinks policies={websitePolicies} color={footerDim} salonName={salon.name} />
+              <SalonPolicyLinks policies={policiesForSurface(websitePolicies, "website")} color={footerDim} salonName={salon.name} />
               {footerMenuLinks(salon, theme, getPagePath).map((l) => (
                 <a key={l.key} href={l.href} className="text-[11px] font-semibold no-underline hover:opacity-80" style={{ color: theme.accentColor }}>
                   {translateUi(l.label)}
