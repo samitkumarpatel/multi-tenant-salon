@@ -2,7 +2,7 @@ import { useOutletContext, useLocation, useNavigate } from "react-router";
 import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
 import {
-  productPath, FeedbackLink, FeedbackView, RatingsLink, PublicRatingsView, SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks, policiesForSurface,
+  FeedbackLink, FeedbackView, RatingsLink, PublicRatingsView, SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks, policiesForSurface,
   CustomerAccountView, hasCustomerAccount, siteAccountLinks,
 } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
@@ -55,7 +55,6 @@ export default function PublicWebsitePage() {
     if (activePage === "shop" && data.salon.features?.includes("WEBSHOP")) {
       return (
         <ShopView
-          getProductPath={(product) => productPath(product.handle, search)}
           salon={data.salon}
           theme={theme}
           policies={data.shopPolicies}
@@ -147,7 +146,6 @@ export default function PublicWebsitePage() {
 
   return (
     <SalonWebsite
-      getProductPath={(product) => productPath(product.handle, search)}
       salon={data.salon}
       staff={data.staff}
       services={data.services}
