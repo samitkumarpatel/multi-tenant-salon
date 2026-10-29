@@ -5,7 +5,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import {
   ArrowLeft, Banknote, Bell, Check, CheckCheck, Copy, CreditCard, ExternalLink, FileText, Mail,
   MapPin, MessageSquare, Package, Phone, Receipt, RefreshCcw, Send, StickyNote, Truck, X,
-  RotateCcw,
+  RotateCcw, Printer,
 } from "lucide-react";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
@@ -112,7 +112,7 @@ type ModalKind =
 
 export default function ShopOrderDetail() {
   const { t: translateUi, locale: uiLocale } = useI18n();
-  useOutletContext<ShopOutletContext>();
+  const { salon } = useOutletContext<ShopOutletContext>();
   const { sid, order: init, payments } = useLoaderData<typeof clientLoader>();
   const { salonId } = useParams<{ salonId: string }>();
   const [order, setOrder] = useState<ShopOrder>(init);
@@ -278,6 +278,36 @@ export default function ShopOrderDetail() {
 
   const addr = order.shippingAddress;
   const hasAddr = addr && (addr.line1 || addr.city || addr.country || addr.zipCode);
+
+  /** Opens a 100×150 mm shipping label (ship-to, sender, order, tracking) in a print window. */
+  function printLabel() {
+    if (!hasAddr) return;
+    const esc = (v?: string | null) => (v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+    const loc = salon.location;
+    const from = [salon.name, loc?.address, [loc?.zipCode, loc?.city].filter(Boolean).join(" "), loc?.country].filter(Boolean).map(esc).join("<br>");
+    const to = [order.customerName, addr!.line1, addr!.line2,
+      [addr!.zipCode, addr!.city].filter(Boolean).join(" ") + (addr!.state ? `, ${addr!.state}` : ""), addr!.country]
+      .filter(Boolean).map(esc).join("<br>");
+    const w = window.open("", "_blank", "width=480,height=700");
+    if (!w) { notify("Allow pop-ups to print the label", "error"); return; }
+    w.document.write(`<!doctype html><html><head><title>Label ${esc(order.orderNumber)}</title><style>
+      @page { size: 100mm 150mm; margin: 0 }
+      body { font-family: Arial, sans-serif; margin: 0; padding: 6mm; width: 88mm; box-sizing: content-box; color: #000 }
+      .from { font-size: 9pt; border-bottom: 1.5px solid #000; padding-bottom: 4mm; line-height: 1.35 }
+      .lbl { font-size: 7pt; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1mm }
+      .to { font-size: 15pt; font-weight: bold; line-height: 1.3; padding: 6mm 0; border-bottom: 1.5px solid #000 }
+      .meta { font-size: 9pt; padding-top: 4mm; line-height: 1.6 } .num { font-family: monospace; font-size: 12pt; font-weight: bold }
+    </style></head><body>
+      <div class="from"><div class="lbl">From</div>${from}</div>
+      <div class="to"><div class="lbl">Ship to</div>${to}${order.customerPhone ? `<div style="font-size:10pt;font-weight:normal;margin-top:2mm">Tel ${esc(order.customerPhone)}</div>` : ""}</div>
+      <div class="meta"><div class="num">${esc(order.orderNumber)}</div>
+        ${order.shippingMethodName ? `Service: ${esc(order.shippingMethodName)}<br>` : ""}
+        ${order.totalWeightGrams ? `Weight: ${esc(formatWeight(order.totalWeightGrams, uiLocale))}<br>` : ""}
+        ${order.trackingNumber ? `Tracking: ${esc(order.trackingCarrier)} ${esc(order.trackingNumber)}` : ""}</div>
+      <script>window.onload = () => { window.print(); }<\/script></body></html>`);
+    w.document.close();
+  }
+
   const activities: ShopOrderActivity[] = order.activities ?? [];
   const isClosed = order.status === "FULFILLED" || order.status === "CANCELLED" || order.status === "FAILED";
   const isDelivered = order.status === "DELIVERED" || order.status === "FULFILLED";
@@ -294,8 +324,8 @@ export default function ShopOrderDetail() {
         <div>
           <Link to=".." className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 mb-2">
             <ArrowLeft className="w-3.5 h-3.5" /> {translateUi("All orders ")}</Link>
-          <h1 className="text-xl font-black text-slate-900 font-mono tracking-tight">{order.orderNumber}</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <h1 className="text-lg sm:text-xl font-black break-all text-slate-900 font-mono tracking-tight">{order.orderNumber}</h1>
+          <p className="text-xs text-slate-400 mt-0.5 break-all">
             {new Date(order.createdAt).toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}
             {order.paymentReference
               ? <span> {translateUi("· ref ")}<span className="font-mono">{order.paymentReference}</span></span>
@@ -312,20 +342,22 @@ export default function ShopOrderDetail() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 max-w-3xl">
+      {/* One column (with the cards in a phone-friendly order) below xl; main + sidebar columns from xl up. */}
+      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+      <div className="contents xl:flex xl:flex-col xl:gap-4 xl:min-w-0">
 
         {/* ── Items ─────────────────────────────────────────────────────────── */}
-        <Card>
+        <Card className="order-1 xl:order-none">
           <SectionHeader>{translateUi("Order items")}</SectionHeader>
           <div className="divide-y divide-slate-50">
             {order.lines.map((line) => (
               <div key={line.id} className="py-3 first:pt-0 last:pb-0">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                   <Package className="w-4 h-4 text-slate-300" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">
+                <div className="flex-1 min-w-[9rem]">
+                  <p className="text-sm font-medium text-slate-800 break-words">
                     {line.productName}
                     {line.variantLabel
                       ? <span className="text-slate-400 font-normal"> · {line.variantLabel}</span>
@@ -336,7 +368,7 @@ export default function ShopOrderDetail() {
                     {line.variantId ? <span> · {translateUi("variant")} #{line.variantId}</span> : <span> · {translateUi("product no longer in the catalogue")}</span>}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
                   <span className="text-sm font-semibold text-slate-800">{formatPrice(line.lineTotal, order.currency, uiLocale)}</span>
                   <button
                     disabled={busy}
@@ -398,7 +430,7 @@ export default function ShopOrderDetail() {
         </Card>
 
         {/* ── Payment ───────────────────────────────────────────────────────── */}
-        <Card>
+        <Card className="order-5 xl:order-none">
           <div className="flex items-center justify-between gap-2 mb-3">
             <SectionHeader className="flex items-center gap-1 !mb-0"><CreditCard className="w-3 h-3" /> {translateUi("Payment")}</SectionHeader>
             {payments.length > 0 && (
@@ -472,9 +504,110 @@ export default function ShopOrderDetail() {
           )}
         </Card>
 
+        {/* ── Return card ─────────────────────────────────────────────────────── */}
+        {order.returnStatus && (
+          <Card className="order-6 xl:order-none">
+            <SectionHeader className="flex items-center gap-1"><RotateCcw className="w-3 h-3" /> {translateUi("Return")}</SectionHeader>
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+              <div>
+                <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${RETURN_STATUS_STYLE[order.returnStatus] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                  {RETURN_STATUS_LABEL[order.returnStatus] ?? order.returnStatus}
+                </span>
+                {order.returnReason && <span className="text-xs text-slate-500 ml-2">{order.returnReason}</span>}
+                {order.returnNotes && <p className="text-xs text-slate-400 mt-1">{order.returnNotes}</p>}
+              </div>
+              {order.returnUpdatedAt && (
+                <span className="text-[11px] text-slate-400 shrink-0">{relativeTime(order.returnUpdatedAt)}</span>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* ── Activity timeline ─────────────────────────────────────────────── */}
+        <Card className="order-7 xl:order-none">
+          <SectionHeader>{translateUi("Activity")}</SectionHeader>
+          {activities.length === 0 ? (
+            <p className="text-xs text-slate-400 pb-1">{translateUi("No activity yet.")}</p>
+          ) : (
+            <ol className="relative border-l-2 border-slate-100 ml-1 mb-4">
+              {activities.map((a) => {
+                const meta = ACTIVITY_META[a.type] ?? { label: a.type, dot: "bg-slate-300" };
+                const isNote = a.type === "WORK_NOTE";
+                const email = a.type === "CUSTOMER_NOTIFIED" && a.body ? a : null;
+                const isOpen = openEmail === a.id;
+                return (
+                  <li key={a.id} className="ml-5 pb-4 last:pb-0">
+                    <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white ${meta.dot}`} />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-semibold ${isNote ? "text-slate-400" : (meta.color ?? "text-slate-700")}`}>
+                        {meta.label}
+                      </span>
+                      {a.notified && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
+                          <Send className="w-2.5 h-2.5" /> {translateUi("Notified ")}</span>
+                      )}
+                      {email && a.status && a.status !== "SENT" && (
+                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5">
+                          {a.status === "LOGGED" ? translateUi("not sent (dev)") : a.status.toLowerCase()}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400">{relativeTime(a.createdAt)}</span>
+                    </div>
+                    {a.message && (
+                      <p className={`text-xs mt-0.5 leading-relaxed ${isNote ? "text-slate-400 italic" : "text-slate-500"}`}>
+                        {a.message}
+                      </p>
+                    )}
+                    {email && (
+                      <div className="mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setOpenEmail(isOpen ? null : a.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-700 hover:text-matcha-900 cursor-pointer"
+                        >
+                          <Mail className="w-3 h-3" /> {isOpen ? translateUi("Hide email") : translateUi("View email")}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <p className="text-[11px] text-slate-400">
+                              {translateUi("To ")}<span className="font-medium text-slate-600">{order.customerEmail}</span>
+                              {email.channel ? ` · ${email.channel.toLowerCase()}` : ""}
+                            </p>
+                            {email.subject && <p className="font-semibold text-slate-800 mt-1">{email.subject}</p>}
+                            <pre className="mt-1.5 whitespace-pre-wrap font-sans leading-relaxed text-slate-600">{email.body}</pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+          <div className="flex gap-2 border-t border-slate-100 pt-3">
+            <textarea
+              rows={2}
+              placeholder={translateUi("Add an internal note…")}
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && e.metaKey && submitNote()}
+              className={`${inputCls} resize-none flex-1`}
+            />
+            <button
+              disabled={busy || !noteText.trim()}
+              onClick={submitNote}
+              className="self-end px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              {translateUi("Add note ")}</button>
+          </div>
+        </Card>
+      </div>
+
+      {/* ── Sidebar ── */}
+      <div className="contents xl:flex xl:flex-col xl:gap-4 xl:min-w-0">
         {/* ── Customer + Ship-to ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Card>
+        <>
+          <Card className="order-2 xl:order-none">
             <SectionHeader className="flex items-center gap-1"><Mail className="w-3 h-3" /> {translateUi("Customer")}</SectionHeader>
             <p className="text-sm font-semibold text-slate-900 mb-2">{order.customerName}</p>
             <div className="flex flex-col gap-1.5">
@@ -493,7 +626,7 @@ export default function ShopOrderDetail() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="order-3 xl:order-none">
             <SectionHeader className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {translateUi("Delivery")}</SectionHeader>
             {hasAddr ? (
               <address className="not-italic text-xs text-slate-600 leading-relaxed mb-3">
@@ -504,6 +637,12 @@ export default function ShopOrderDetail() {
               </address>
             ) : (
               <p className="text-xs text-slate-600 mb-3">{translateUi("Collect in salon — no shipping address.")}</p>
+            )}
+            {hasAddr && (
+              <button type="button" onClick={printLabel}
+                className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-matcha-200 cursor-pointer">
+                <Printer className="w-3.5 h-3.5" /> {translateUi("Print shipping label")}
+              </button>
             )}
             <div className="flex flex-col gap-1.5">
               {order.shippingMethodName && (
@@ -520,10 +659,10 @@ export default function ShopOrderDetail() {
               <Row label={translateUi("Customer updates")} value={translateUi(COMMUNICATION_LABEL[order.communicationPreference] ?? order.communicationPreference)} />
             </div>
           </Card>
-        </div>
+        </>
 
         {/* ── Actions ───────────────────────────────────────────────────────── */}
-        <Card>
+        <Card className="order-4 xl:order-none">
           <SectionHeader>{translateUi("Actions")}</SectionHeader>
           <div className="flex flex-col gap-4">
 
@@ -616,103 +755,7 @@ export default function ShopOrderDetail() {
           </div>
         </Card>
 
-        {/* ── Return card ─────────────────────────────────────────────────────── */}
-        {order.returnStatus && (
-          <Card>
-            <SectionHeader className="flex items-center gap-1"><RotateCcw className="w-3 h-3" /> {translateUi("Return")}</SectionHeader>
-            <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-              <div>
-                <span className={`inline-flex items-center text-[0.65rem] font-semibold px-2 py-0.5 rounded-full border ${RETURN_STATUS_STYLE[order.returnStatus] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
-                  {RETURN_STATUS_LABEL[order.returnStatus] ?? order.returnStatus}
-                </span>
-                {order.returnReason && <span className="text-xs text-slate-500 ml-2">{order.returnReason}</span>}
-                {order.returnNotes && <p className="text-xs text-slate-400 mt-1">{order.returnNotes}</p>}
-              </div>
-              {order.returnUpdatedAt && (
-                <span className="text-[11px] text-slate-400 shrink-0">{relativeTime(order.returnUpdatedAt)}</span>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* ── Activity timeline ─────────────────────────────────────────────── */}
-        <Card>
-          <SectionHeader>{translateUi("Activity")}</SectionHeader>
-          {activities.length === 0 ? (
-            <p className="text-xs text-slate-400 pb-1">{translateUi("No activity yet.")}</p>
-          ) : (
-            <ol className="relative border-l-2 border-slate-100 ml-1 mb-4">
-              {activities.map((a) => {
-                const meta = ACTIVITY_META[a.type] ?? { label: a.type, dot: "bg-slate-300" };
-                const isNote = a.type === "WORK_NOTE";
-                const email = a.type === "CUSTOMER_NOTIFIED" && a.body ? a : null;
-                const isOpen = openEmail === a.id;
-                return (
-                  <li key={a.id} className="ml-5 pb-4 last:pb-0">
-                    <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white ${meta.dot}`} />
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-semibold ${isNote ? "text-slate-400" : (meta.color ?? "text-slate-700")}`}>
-                        {meta.label}
-                      </span>
-                      {a.notified && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
-                          <Send className="w-2.5 h-2.5" /> {translateUi("Notified ")}</span>
-                      )}
-                      {email && a.status && a.status !== "SENT" && (
-                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5">
-                          {a.status === "LOGGED" ? translateUi("not sent (dev)") : a.status.toLowerCase()}
-                        </span>
-                      )}
-                      <span className="text-[11px] text-slate-400">{relativeTime(a.createdAt)}</span>
-                    </div>
-                    {a.message && (
-                      <p className={`text-xs mt-0.5 leading-relaxed ${isNote ? "text-slate-400 italic" : "text-slate-500"}`}>
-                        {a.message}
-                      </p>
-                    )}
-                    {email && (
-                      <div className="mt-1">
-                        <button
-                          type="button"
-                          onClick={() => setOpenEmail(isOpen ? null : a.id)}
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-700 hover:text-matcha-900 cursor-pointer"
-                        >
-                          <Mail className="w-3 h-3" /> {isOpen ? translateUi("Hide email") : translateUi("View email")}
-                        </button>
-                        {isOpen && (
-                          <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                            <p className="text-[11px] text-slate-400">
-                              {translateUi("To ")}<span className="font-medium text-slate-600">{order.customerEmail}</span>
-                              {email.channel ? ` · ${email.channel.toLowerCase()}` : ""}
-                            </p>
-                            {email.subject && <p className="font-semibold text-slate-800 mt-1">{email.subject}</p>}
-                            <pre className="mt-1.5 whitespace-pre-wrap font-sans leading-relaxed text-slate-600">{email.body}</pre>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-          <div className="flex gap-2 border-t border-slate-100 pt-3">
-            <textarea
-              rows={2}
-              placeholder={translateUi("Add an internal note…")}
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && e.metaKey && submitNote()}
-              className={`${inputCls} resize-none flex-1`}
-            />
-            <button
-              disabled={busy || !noteText.trim()}
-              onClick={submitNote}
-              className="self-end px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-            >
-              {translateUi("Add note ")}</button>
-          </div>
-        </Card>
+      </div>
       </div>
 
       {/* ── Modals ────────────────────────────────────────────────────────────── */}
@@ -920,8 +963,8 @@ function CopyValue({ value, onCopy }: { value: string; onCopy: () => void }) {
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">{children}</div>;
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm p-4 sm:p-5 min-w-0 ${className}`}>{children}</div>;
 }
 
 function SectionHeader({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -935,9 +978,9 @@ function SectionHeader({ children, className = "" }: { children: React.ReactNode
 function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   return (
-    <div className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-slate-500">{typeof label === "string" ? translateUi(label) : label}</span>
-      <span className="text-slate-800 text-right">{value}</span>
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-slate-500 shrink-0">{typeof label === "string" ? translateUi(label) : label}</span>
+      <span className="text-slate-800 text-right min-w-0 break-words">{value}</span>
     </div>
   );
 }
@@ -985,7 +1028,7 @@ function Modal({ title, icon, children, onClose, wide = false }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}>
       <div
-        className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full p-6 max-h-[90dvh] overflow-y-auto ${wide ? "max-w-lg" : "max-w-md"}`}
+        className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto ${wide ? "max-w-lg" : "max-w-md"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">

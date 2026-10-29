@@ -185,6 +185,9 @@ class ShopManager {
                 || salon.features().stream().noneMatch(f -> f.feature() == net.samitkumar.multi_tenant_salon.salon.SalonFeature.WEBSHOP)) return Optional.empty();
         return jdbcClient.sql("SELECT product_id FROM product_handle WHERE salon_id=:salon AND handle=:handle AND product_id IS NOT NULL")
                 .param("salon", salonId).param("handle", handle).query(Long.class).optional()
+                // A product's own handle is authoritative if its reservation row is missing.
+                .or(() -> jdbcClient.sql("SELECT id FROM product WHERE salon_id=:salon AND handle=:handle")
+                        .param("salon", salonId).param("handle", handle).query(Long.class).optional())
                 .flatMap(id -> getProduct(salonId, id, true)).filter(p -> !p.variants().isEmpty());
     }
 
