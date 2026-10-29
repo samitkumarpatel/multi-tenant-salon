@@ -41,7 +41,8 @@ locals {
   # the same Container Apps environment, so auth reaches api by app name over the
   # internal network — no public DNS, no TLS cert, no bind_custom_domains
   # dependency. App name = "${var.name}-${local.environment}-<service key>".
-  api_internal_url = "http://salon-saas-mix-api"
+  api_internal_url  = "http://salon-saas-mix-api"
+  auth_internal_url = "http://salon-saas-mix-auth"
 
   # CORS allow-list for the api: every real frontend origin + the tenant
   # wildcard (which also covers what "public." would have been).
@@ -62,6 +63,13 @@ resource "azurerm_resource_group" "shared" {
   name     = var.azure_resource_group
   location = var.azure_location
   tags     = local.common_tags
+}
+
+# Shared only by the API and authorization service. Both fail closed when this
+# key is absent; keeping it in Terraform also prevents drift between revisions.
+resource "random_password" "client_management" {
+  length  = 64
+  special = false
 }
 
 # ── 1. DNS zone — Cloudflare (authoritative) ────────────────────────────────
@@ -230,6 +238,7 @@ module "backend" {
           # SPRING_SECURITY_OAUTH2_AUTHORIZATIONSERVER_ISSUER). Only the JWKS key
           # fetch is pulled onto the internal network (Spring uses jwk-set-uri for
           # keys + issuer-uri for `iss` validation, no discovery round-trip).
+          AUTHZ_INTERNAL_URL                                    = local.auth_internal_url
           OAUTH2_ISSUER_URI                                     = "https://${local.auth_host}"
           SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI = "http://salon-saas-mix-auth/oauth2/jwks"
         }
@@ -237,9 +246,10 @@ module "backend" {
       # Container App secrets — replaces the chart's mailjet-secret + anthropic-secret
       # envFrom. SPRING_DATASOURCE_PASSWORD is added by the backend stack.
       secret_env = merge({
-        MAILJET_API_KEY    = var.mailjet_api_key
-        MAILJET_API_SECRET = var.mailjet_api_secret
-        ANTHROPIC_API_KEY  = var.anthropic_api_key
+        MAILJET_API_KEY           = var.mailjet_api_key
+        MAILJET_API_SECRET        = var.mailjet_api_secret
+        ANTHROPIC_API_KEY         = var.anthropic_api_key
+        CLIENT_MANAGEMENT_API_KEY = random_password.client_management.result
         # Stripe Connect — platform key + Connect webhook signing secret.
         STRIPE_SECRET_KEY     = var.stripe_secret_key
         STRIPE_WEBHOOK_SECRET = var.stripe_webhook_secret
@@ -281,8 +291,9 @@ module "backend" {
       # SPRING_DATASOURCE_PASSWORD is added by the backend stack (authz_sessions
       # database, same admin credentials as api's).
       secret_env = {
-        MAILJET_API_KEY    = var.mailjet_api_key
-        MAILJET_API_SECRET = var.mailjet_api_secret
+        MAILJET_API_KEY           = var.mailjet_api_key
+        MAILJET_API_SECRET        = var.mailjet_api_secret
+        CLIENT_MANAGEMENT_API_KEY = random_password.client_management.result
       }
       ingress = {
         external_enabled = true

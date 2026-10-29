@@ -565,9 +565,11 @@ the API reserves for staff JWTs.
 | `POST /api/salon/{salonId}/account/bookings/{id}/cancel` | Header `X-Customer-Session`. Cancel one of **their own** appointments → the updated booking (`CANCELLED`); repeating it is a no-op. Needs `selfService.allowCancel`, status `PENDING`/`CONFIRMED`, a start at least `cancelNoticeHours` away, and not paid online (`paymentStatus` `PAID` — nothing here refunds a card payment, so the salon does it). `404` for anyone else's booking, `409` with the reason otherwise. Emails the customer and salon like an owner cancellation |
 | `POST /api/salon/{salonId}/account/bookings/{id}/reschedule` | `{ appointmentDate, startTime, staffId? }` → the moved booking, status kept. Same ownership/status rules with `allowReschedule` / `rescheduleNoticeHours` (paid appointments may be moved). The time must be a free slot from the public `GET /api/salon/{salonId}/booking/slots` (salon hours, closures, staff schedule, no overlap) and in the future; the overlap is re-checked under the staff/day lock. `409` if it was just taken |
 | `GET /api/salon/{salonId}/account/ratings` | Header `X-Customer-Session`. The customer's `COMPLETED` visits with `submitted`, `salonFeedback`, `staffFeedback` and the salon's `reply`/`repliedAt` |
-| `POST /api/salon/{salonId}/account/ratings` | `{ bookingId, salonRating, staffRating, salonFeedback?, staffFeedback? }` (stars 1-5, each feedback max 1000 chars) → `204`. One review per visit, first submission wins, never editable; `400` if not theirs / not completed / already rated |
-| `GET /api/salon-admin/{salonId}/ratings` | Owner. Ratings with `salonFeedback`, `staffFeedback`, `reply`, `repliedAt` (read-only) |
-| `PUT /api/salon-admin/{salonId}/ratings/{bookingId}/reply` | Owner. `{ reply }` → `204`. The only write on a review; customer feedback cannot be edited or deleted |
+| `POST /api/salon/{salonId}/account/ratings` | `{ bookingId, salonRating?, staffRating?, salonFeedback?, staffFeedback?, publicConsent? }` (stars 1-5, each feedback max 1000 chars) → `204`. One review per visit, first submission wins, never editable; `400` if not theirs / not completed / already rated |
+| `GET /api/salon-admin/{salonId}/ratings` | Owner. Ratings with `salonFeedback`, `staffFeedback`, `reply`, `repliedAt`, `publicConsent`, `publicHidden` (customer words read-only) |
+| `PUT /api/salon-admin/{salonId}/ratings/{bookingId}/reply` | Owner. `{ reply }` → `204`. Replies remain private; customer feedback cannot be edited or deleted |
+| `GET /api/salon/{salonId}/ratings/public?target=salon&page=1&size=20` | Public scores and consented comments. `target=stylist` supports optional `staffId`. Returns `{ items, count, average, distribution, page, size, totalPages, totalItems }`; each item has nullable `rating`, optional `comment`, `staffId`, `staffName`, `date`, `verifiedVisit`. Names of customers and salon replies never appear. `count` is rated entries; `totalItems` also includes public text-only reviews. Hidden comments disappear but stars still count. |
+| `PUT /api/salon-admin/{salonId}/ratings/{bookingId}/visibility` and `PUT …/feedback/{feedbackId}/visibility` | Owner. `{ hidden: true/false }` → `204`. Hides/restores only consented written comments; cannot grant consent or change stars. `404` for no consent or no matching review. |
 | `GET /api/salon-staff/{staffId}/ratings` | Staff portal, own record only (`403` otherwise). Read-only, includes `reply` |
 | `GET /api/salon/{salonId}/loyalty` | Public. Programme rules + active rewards for the website (`enabled=false` unless the salon has `LOYALTY_PROGRAM` and the owner switched it on). Never customer data |
 | `GET /api/salon/{salonId}/account/loyalty` | Header `X-Customer-Session`. `{ enabled, balance, program, rewards, history (latest 100), redemptions }` |
@@ -3317,3 +3319,9 @@ lowercase ASCII/IDNA. Invalid input is `400`; an existing hostname/salon connect
 or disabled website is `409`; unconfigured provider operations return `503`.
 Unverified claims expire after seven days; disconnected claims stay reserved until
 provider cleanup succeeds. GET and DELETE remain usable while provisioning is disabled.
+
+Written feedback is private by default. New submissions through `/api/salon/{salonId}/feedback`,
+`/api/public/rating/{token}`, and `/api/salon/{salonId}/account/ratings` accept optional boolean
+`publicConsent` (omitted/null/false means private). Explicit `true` permits publication of the salon
+and stylist comments without the customer's name. Existing feedback stays private; owner visibility
+controls cannot override consent. Replies remain private.

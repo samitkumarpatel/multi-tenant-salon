@@ -184,6 +184,7 @@ spring:
         - classpath:db/V33__rating_feedback_and_till_desk.sql
         - classpath:db/V34__website_footer_links.sql
         - classpath:db/V35__feedback_sources_and_public_feedback.sql
+        - classpath:db/V36__public_review_consent.sql
   modulith:
     events:
       jdbc:

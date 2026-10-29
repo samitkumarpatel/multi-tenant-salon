@@ -6,6 +6,7 @@ import {
 import { apiFetch, API_BASE } from "./api";
 import { ApiError, friendlyMessage } from "./apiError";
 import { formatDate, formatPrice } from "./constants";
+import { PublicReviewConsent } from "./Feedback";
 import { SiteFooter, SiteHeader } from "./SiteChrome";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont } from "./theme";
@@ -421,9 +422,15 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
     { key: "bookings" as const, label: translateUi("Appointments"), count: account.bookings.length, on: features.includes("BOOKING") },
     { key: "orders" as const, label: translateUi("Orders"), count: account.orders.length, on: features.includes("WEBSHOP") },
     { key: "memberships" as const, label: translateUi("Membership"), count: account.memberships.length, on: features.includes("MEMBERSHIP") },
-    { key: "loyalty" as const, label: translateUi("Loyalty"), count: 0, on: features.includes("LOYALTY_PROGRAM") },
+    { key: "loyalty" as const, label: translateUi("Points"), count: 0, on: features.includes("LOYALTY_PROGRAM") },
   ].filter((t) => t.on || t.count > 0);
-  const [tab, setTab] = useState<Tab>(() => (tabs.find((t) => t.key === "bookings" && t.count > 0) ?? tabs.find((t) => t.count > 0) ?? tabs[0])?.key ?? "bookings");
+  const [tab, setTab] = useState<Tab>(() => {
+    // The URL survives sign-in, so loyalty links also select Points after authentication.
+    const requested = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab");
+    const requestedKey = requested === "points" ? "loyalty" : requested;
+    return (tabs.find((t) => t.key === requestedKey) ?? tabs.find((t) => t.key === "bookings" && t.count > 0)
+      ?? tabs.find((t) => t.count > 0) ?? tabs[0])?.key ?? "bookings";
+  });
   const name = account.profile.name;
 
   return (
@@ -732,6 +739,7 @@ function CustomerBookingRating({ salon, theme, tone, booking, option, token, err
   const [salonRating, setSalonRating] = useState(0);
   const [staffRating, setStaffRating] = useState(0);
   const [salonFeedback, setSalonFeedback] = useState("");
+  const [publicConsent, setPublicConsent] = useState(false);
   const [staffFeedback, setStaffFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -739,7 +747,7 @@ function CustomerBookingRating({ salon, theme, tone, booking, option, token, err
     setBusy(true); setSubmitError("");
     try {
       await apiFetch<void>(`${API_BASE}/api/salon/${salon.id}/account/ratings`, {
-        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating: salonRating || null, staffRating: staffRating || null, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null }),
+        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating: salonRating || null, staffRating: staffRating || null, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null, publicConsent }),
       });
       onSubmitted(booking.id, { salon: salonFeedback.trim() || null, staff: staffFeedback.trim() || null });
     } catch (e) { setSubmitError(friendlyMessage(e)); }
@@ -768,6 +776,7 @@ function CustomerBookingRating({ salon, theme, tone, booking, option, token, err
         <textarea value={field.value} onChange={(e) => field.set(e.target.value)} maxLength={1000} rows={3}
           className="mt-1 w-full rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: tone.border, color: tone.text, backgroundColor: "transparent" }} />
       </label>)}
+    <div className="mt-3" style={{ color: tone.sub }}><PublicReviewConsent checked={publicConsent} onChange={setPublicConsent} /></div>
     {(error || submitError) && <p role="alert" className="mt-2 text-xs text-red-600">{submitError || error}</p>}
     <button type="button" disabled={busy || (!salonRating && !staffRating && !salonFeedback.trim() && !staffFeedback.trim())} onClick={submit}
       className="mt-3 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"

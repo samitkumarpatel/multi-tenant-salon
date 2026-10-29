@@ -8,10 +8,10 @@ import { fontStack, isLightColor } from "./theme";
 import type { Salon, StaffMember, WebsiteTheme } from "./types";
 import type { SalonPolicy } from "./SalonPolicyLinks";
 
-type PublicScore = { rating: number; staffId: number | null; staffName: string | null; date: string; verifiedVisit: boolean };
-type ScorePage = { items: PublicScore[]; count: number; average: number | null; distribution: Record<string, number>; page: number; size: number; totalPages: number };
+type PublicScore = { rating: number | null; comment?: string; staffId: number | null; staffName: string | null; date: string; verifiedVisit: boolean };
+type ScorePage = { items: PublicScore[]; count: number; average: number | null; distribution: Record<string, number>; page: number; size: number; totalPages: number; totalItems: number };
 
-/** Public star history. The endpoint never returns customer identities, comments or replies. */
+/** Public scores and consented comments; customer names and replies remain private. */
 export function PublicRatingsView({ salon, staff, theme, policies = [], getPagePath, onNavigate, initialStaffId }: {
   salon: Salon; staff: StaffMember[]; theme: WebsiteTheme; policies?: SalonPolicy[];
   getPagePath: (page: string) => string; onNavigate: (page: string | null) => void; initialStaffId?: string | null;
@@ -43,8 +43,8 @@ export function PublicRatingsView({ salon, staff, theme, policies = [], getPageP
   return <div className="min-h-[100dvh] flex flex-col" style={{ backgroundColor: theme.heroBg, fontFamily: fontStack(theme.fontFamily), color: text }}>
     <SiteHeader salon={salon} theme={theme} current="ratings" onBack={() => onNavigate(null)} getPagePath={getPagePath} onNavigate={onNavigate} />
     <main className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-12 [overflow-wrap:anywhere]">
-      <h1 className="text-3xl font-bold tracking-tight">{t("Customer ratings")}</h1>
-      <p className="mt-2 text-sm" style={{ color: sub }}>{t("Explore star ratings for the salon and its stylists. Written feedback and replies stay private.")}</p>
+      <h1 className="text-3xl font-bold tracking-tight">{t("Reviews")}</h1>
+      <p className="mt-2 text-sm" style={{ color: sub }}>{t("Explore ratings and reviews for the salon and its stylists. Written reviews appear only with customer permission.")}</p>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-semibold">{t("Rating type")}
           <select value={target} onChange={(e) => { setTarget(e.target.value); setStaffId(""); setPage(1); }} className="mt-1.5 min-h-11 w-full min-w-0 cursor-pointer rounded-xl border bg-white px-3 text-sm text-slate-900" style={{ borderColor: panel.borderColor }}>
@@ -70,14 +70,15 @@ export function PublicRatingsView({ salon, staff, theme, policies = [], getPageP
             <span className="w-6 shrink-0">{score} ★</span><div className="h-2 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: panel.borderColor }}><div className="h-full rounded-full bg-amber-400" style={{ width: `${result.count ? 100 * (result.distribution[score] ?? 0) / result.count : 0}%` }} /></div><span className="w-10 shrink-0 text-right tabular-nums">{result.distribution[score] ?? 0}</span>
           </div>)}</div>
         </section>
-        {result.count === 0 ? <p className="py-12 text-center text-sm" style={{ color: sub }}>{t("No ratings yet.")}</p> : <>
-          <p className="mb-3 mt-6 text-xs" style={{ color: sub }}>{t("Newest ratings first")}</p>
+        {result.totalItems === 0 ? <p className="py-12 text-center text-sm" style={{ color: sub }}>{t("No reviews yet")}</p> : <>
+          <p className="mb-3 mt-6 text-xs" style={{ color: sub }}>{t("Newest reviews first")}</p>
           <div className="grid gap-3 sm:grid-cols-2">{result.items.map((score, index) => <article key={`${result.page}-${index}`} className="min-w-0 rounded-xl border p-4" style={panel}>
-            <div className="flex flex-wrap items-center justify-between gap-2"><p className="tracking-widest text-amber-500" aria-label={`${score.rating} ${t("stars")}`}>{"★".repeat(score.rating)}{"☆".repeat(5 - score.rating)}</p><time className="text-xs" dateTime={score.date} style={{ color: sub }}>{new Date(`${score.date}T00:00:00`).toLocaleDateString(locale)}</time></div>
+            <div className="flex flex-wrap items-center justify-between gap-2">{score.rating != null && <p className="tracking-widest text-amber-500" aria-label={`${score.rating} ${t("stars")}`}>{"★".repeat(score.rating)}{"☆".repeat(5 - score.rating)}</p>}<time className="text-xs" dateTime={score.date} style={{ color: sub }}>{new Date(`${score.date}T00:00:00`).toLocaleDateString(locale)}</time></div>
+            {score.comment && <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{score.comment}</p>}
             {score.staffName && <p className="mt-2 text-sm font-semibold">{t("Stylist")}: {score.staffName}</p>}
             <p className="mt-2 text-xs" style={{ color: sub }}>{t(score.verifiedVisit ? "Completed visit" : "General feedback")}</p>
           </article>)}</div>
-          {result.totalPages > 1 && <nav aria-label={t("Ratings pages")} className="mt-6 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+          {result.totalPages > 1 && <nav aria-label={t("Review pages")} className="mt-6 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             <button type="button" disabled={result.page === 1} onClick={() => setPage(result.page - 1)} className="min-h-11 cursor-pointer rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-40" style={panel}>{t("Previous")}</button>
             <span className="text-center text-xs tabular-nums">{result.page} / {result.totalPages}</span>
             <button type="button" disabled={result.page >= result.totalPages} onClick={() => setPage(result.page + 1)} className="min-h-11 cursor-pointer rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-40" style={panel}>{t("Next")}</button>

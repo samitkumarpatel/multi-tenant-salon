@@ -74,7 +74,7 @@ class CustomerAccountController {
         return new SessionView(session.token(), session.email(), session.expiresAt());
     }
 
-    record SubmitRatingRequest(Long bookingId, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {}
+    record SubmitRatingRequest(Long bookingId, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback, Boolean publicConsent) {}
 
     @GetMapping("/ratings")
     List<CustomerRatingOption> ratingOptions(@PathVariable String salonId,
@@ -89,7 +89,7 @@ class CustomerAccountController {
             @RequestBody SubmitRatingRequest request) {
         var id = salonApi.resolveId(salonId);
         var email = auth.requireEmail(id, token);
-        return ratings.submitCustomerReview(id, email, request.bookingId(), request.salonRating(), request.staffRating(), request.salonFeedback(), request.staffFeedback())
+        return ratings.submitCustomerReview(id, email, request.bookingId(), request.salonRating(), request.staffRating(), request.salonFeedback(), request.staffFeedback(), Boolean.TRUE.equals(request.publicConsent()))
                 ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build();
     }
 

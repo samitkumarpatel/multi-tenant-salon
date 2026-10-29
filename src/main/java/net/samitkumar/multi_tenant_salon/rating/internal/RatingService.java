@@ -72,19 +72,19 @@ class RatingService implements RatingApi {
 
     @Override
     @Transactional
-    public boolean submitReview(String token, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {
+    public boolean submitReview(String token, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback, boolean publicConsent) {
         if (!validRating(salonRating) || !validRating(staffRating) || (salonRating == null && staffRating == null && cleanText(salonFeedback) == null && cleanText(staffFeedback) == null)) return false;
         String tokenHash = hash(token);
         return jdbc.sql("""
-                INSERT INTO booking_review (booking_id, salon_id, staff_id, salon_rating, staff_rating, salon_feedback, staff_feedback, source)
-                SELECT i.booking_id, i.salon_id, i.staff_id, :salonRating, :staffRating, :salonFeedback, :staffFeedback, 'NOTIFICATION'
+                INSERT INTO booking_review (booking_id, salon_id, staff_id, salon_rating, staff_rating, salon_feedback, staff_feedback, source, public_consent)
+                SELECT i.booking_id, i.salon_id, i.staff_id, :salonRating, :staffRating, :salonFeedback, :staffFeedback, 'NOTIFICATION', :publicConsent
                 FROM rating_invitation i
                 JOIN booking b ON b.id = i.booking_id AND b.status = 'COMPLETED'
                 WHERE i.token_hash = :tokenHash AND i.expires_at > now()
                   AND lower(b.customer_email) NOT LIKE '%@anonymized.invalid'
                 ON CONFLICT (booking_id) DO NOTHING
                 """)
-                .param("salonRating", salonRating).param("staffRating", staffRating).param("salonFeedback", cleanText(salonFeedback)).param("staffFeedback", cleanText(staffFeedback))
+                .param("publicConsent", publicConsent).param("salonRating", salonRating).param("staffRating", staffRating).param("salonFeedback", cleanText(salonFeedback)).param("staffFeedback", cleanText(staffFeedback))
                 .param("tokenHash", tokenHash).update() == 1;
     }
 
@@ -113,7 +113,7 @@ class RatingService implements RatingApi {
                 SELECT * FROM (
                     SELECT b.id AS booking_id,b.customer_name,si.name AS service_name,sm.name AS staff_name,
                            b.appointment_date,r.salon_rating,r.staff_rating,r.submitted_at,r.salon_feedback,r.staff_feedback,r.reply,r.replied_at,
-                           NULL::bigint AS feedback_id,r.source,r.staff_id
+                           NULL::bigint AS feedback_id,r.source,r.staff_id,r.public_consent,r.public_hidden
                     FROM booking_review r
                     JOIN booking b ON b.id=r.booking_id
                     LEFT JOIN service_item si ON si.id=b.service_id
@@ -122,7 +122,7 @@ class RatingService implements RatingApi {
                     UNION ALL
                     SELECT NULL::bigint,f.customer_name,NULL::text,sm.name,NULL::date,
                            f.salon_rating,f.staff_rating,f.submitted_at,f.salon_feedback,f.staff_feedback,f.reply,f.replied_at,
-                           f.id,f.source,f.staff_id
+                           f.id,f.source,f.staff_id,f.public_consent,f.public_hidden
                     FROM customer_feedback f LEFT JOIN staff_member sm ON sm.id=f.staff_id
                     WHERE f.salon_id=:salonId
                 ) reviews
@@ -134,7 +134,7 @@ class RatingService implements RatingApi {
                 rs.getDate("appointment_date") == null ? null : rs.getDate("appointment_date").toLocalDate(),
                 rs.getObject("salon_rating", Integer.class), rs.getObject("staff_rating", Integer.class), rs.getTimestamp("submitted_at").toInstant(),
                 rs.getString("salon_feedback"), rs.getString("staff_feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")),
-                rs.getObject("feedback_id", Long.class), rs.getString("source"))).list();
+                rs.getObject("feedback_id", Long.class), rs.getString("source"), rs.getBoolean("public_consent"), rs.getBoolean("public_hidden"))).list();
     }
 
     @Override
@@ -154,15 +154,15 @@ class RatingService implements RatingApi {
 
     @Override
     @Transactional
-    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {
+    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback, boolean publicConsent) {
         if (!validRating(salonRating) || !validRating(staffRating) || (salonRating == null && staffRating == null && cleanText(salonFeedback) == null && cleanText(staffFeedback) == null)) return false;
         return jdbc.sql("""
-                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating,salon_feedback,staff_feedback,source)
-                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating,:salonFeedback,:staffFeedback,'CUSTOMER_ACCOUNT' FROM booking b
+                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating,salon_feedback,staff_feedback,source,public_consent)
+                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating,:salonFeedback,:staffFeedback,'CUSTOMER_ACCOUNT',:publicConsent FROM booking b
                 WHERE b.id=:bookingId AND b.salon_id=:salonId AND lower(b.customer_email)=:email AND b.status='COMPLETED'
                 ON CONFLICT (booking_id) DO NOTHING
                 """).param("bookingId", bookingId).param("salonId", salonId).param("email", customerEmail)
-                .param("salonRating", salonRating).param("staffRating", staffRating).param("salonFeedback", cleanText(salonFeedback)).param("staffFeedback", cleanText(staffFeedback)).update() == 1;
+                .param("publicConsent", publicConsent).param("salonRating", salonRating).param("staffRating", staffRating).param("salonFeedback", cleanText(salonFeedback)).param("staffFeedback", cleanText(staffFeedback)).update() == 1;
     }
 
     @Override

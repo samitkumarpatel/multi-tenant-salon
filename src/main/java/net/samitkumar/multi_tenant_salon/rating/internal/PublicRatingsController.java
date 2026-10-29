@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Public scores only. Customer identities, written feedback and replies stay on private endpoints. */
+/** Public scores and explicitly consented comments. Identities and replies remain private. */
 @RestController
 class PublicRatingsController {
     private final JdbcClient jdbc;
@@ -25,16 +25,17 @@ class PublicRatingsController {
         this.salons = salons;
     }
 
-    record Score(int rating, Long staffId, String staffName, LocalDate date, boolean verifiedVisit) {}
-    record Page(List<Score> items, long count, Double average, Map<Integer, Long> distribution, int page, int size, long totalPages) {}
+    record Score(Integer rating, Long staffId, String staffName, LocalDate date, boolean verifiedVisit,
+                 @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String comment) {}
+    record Page(List<Score> items, long count, Double average, Map<Integer, Long> distribution, int page, int size, long totalPages, long totalItems) {}
 
     private static final String SCORES = """
             FROM (
                 SELECT salon_id, staff_id, salon_rating, staff_rating, submitted_at, true verified_visit,
-                       booking_id sort_id, 0 sort_source FROM booking_review
+                       booking_id sort_id, 0 sort_source, public_consent, public_hidden, salon_feedback, staff_feedback FROM booking_review
                 UNION ALL
                 SELECT salon_id, staff_id, salon_rating, staff_rating, submitted_at, false verified_visit,
-                       id sort_id, 1 sort_source FROM customer_feedback
+                       id sort_id, 1 sort_source, public_consent, public_hidden, salon_feedback, staff_feedback FROM customer_feedback
             ) r
             """;
 
@@ -62,16 +63,23 @@ class PublicRatingsController {
         long count = distribution.values().stream().mapToLong(Long::longValue).sum();
         long weighted = distribution.entrySet().stream().mapToLong(entry -> entry.getKey() * entry.getValue()).sum();
         Double average = count == 0 ? null : Math.round(10.0 * weighted / count) / 10.0;
-        long totalPages = Math.max(1L, (count + size - 1) / size);
+        var feedbackColumn = target.equals("salon") ? "salon_feedback" : "staff_feedback";
+        var publicComment = "CASE WHEN r.public_consent AND NOT r.public_hidden THEN r." + feedbackColumn + " ELSE NULL END";
+        var entriesWhere = " WHERE r.salon_id=:salon AND (r." + column + " IS NOT NULL OR " + publicComment + " IS NOT NULL)"
+                + (staffId == null ? "" : " AND r.staff_id=:staff");
+        var totalQuery = jdbc.sql("SELECT count(*) " + SCORES + entriesWhere).param("salon", id);
+        if (staffId != null) totalQuery = totalQuery.param("staff", staffId);
+        long totalItems = totalQuery.query(Long.class).single();
+        long totalPages = Math.max(1L, (totalItems + size - 1) / size);
         int currentPage = (int) Math.min(page, totalPages);
-        var query = jdbc.sql("SELECT r." + column + " rating,r.staff_id,sm.name staff_name,r.submitted_at,r.verified_visit "
-                        + SCORES + " LEFT JOIN staff_member sm ON sm.id=r.staff_id AND sm.salon_id=r.salon_id" + where
+        var query = jdbc.sql("SELECT r." + column + " rating,r.staff_id,sm.name staff_name,r.submitted_at,r.verified_visit," + publicComment + " public_comment "
+                        + SCORES + " LEFT JOIN staff_member sm ON sm.id=r.staff_id AND sm.salon_id=r.salon_id" + entriesWhere
                         + " ORDER BY r.submitted_at DESC,r.sort_source DESC,r.sort_id DESC LIMIT :limit OFFSET :offset")
                 .param("salon", id).param("limit", size).param("offset", (long) (currentPage - 1) * size);
         if (staffId != null) query = query.param("staff", staffId);
-        var items = query.query((rs, row) -> new Score(rs.getInt("rating"), rs.getObject("staff_id", Long.class),
+        var items = query.query((rs, row) -> new Score(rs.getObject("rating", Integer.class), rs.getObject("staff_id", Long.class),
                 rs.getString("staff_name"), rs.getTimestamp("submitted_at").toLocalDateTime().toLocalDate(),
-                rs.getBoolean("verified_visit"))).list();
-        return new Page(items, count, average, distribution, currentPage, size, totalPages);
+                rs.getBoolean("verified_visit"), rs.getString("public_comment"))).list();
+        return new Page(items, count, average, distribution, currentPage, size, totalPages, totalItems);
     }
 }

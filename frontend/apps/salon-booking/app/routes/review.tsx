@@ -2,7 +2,7 @@ import { useI18n } from "@salon/i18n";
 import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { apiFetch, API_BASE, FeedbackStars, ApiError } from "@salon/ui-website";
+import { apiFetch, API_BASE, FeedbackStars, PublicReviewConsent, ApiError } from "@salon/ui-website";
 
 type ReviewTarget = {
   salonName: string;
@@ -40,6 +40,7 @@ export default function ReviewPage() {
   const [staffRating, setStaffRating] = useState(0);
   const [salonFeedback, setSalonFeedback] = useState("");
   const [staffFeedback, setStaffFeedback] = useState("");
+  const [publicConsent, setPublicConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +52,7 @@ export default function ReviewPage() {
     try {
       await apiFetch<void>(`${API_BASE}/api/public/rating/${encodeURIComponent(token)}`, {
         method: "POST",
-        body: JSON.stringify({ salonRating: salonRating || null, staffRating: staffRating || null, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null }),
+        body: JSON.stringify({ salonRating: salonRating || null, staffRating: staffRating || null, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null, publicConsent }),
       });
       setSubmitted(true);
     } catch {
@@ -76,13 +77,14 @@ export default function ReviewPage() {
           <>
             <h1 className="text-xl font-bold text-slate-900">{translateUi("How was your visit?")}</h1>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">{translateUi("Rate your experience at ")}{target.salonName} {translateUi("and with ")}{target.staffName}.</p>
-            <p className="mt-3 text-xs leading-5 text-slate-500">{translateUi("Rate the salon, your stylist, or both. You can send just stars or written feedback. Written feedback and replies are private.")}</p>
+            <p className="mt-3 text-xs leading-5 text-slate-500">{translateUi("Rate the salon, your stylist, or both. You can send just stars or written feedback. Written feedback is private unless you choose to share it publicly. Replies stay private.")}</p>
             <div className="mt-7 space-y-6">
               <FeedbackStars label={`Your experience at ${target.salonName}`} value={salonRating} onChange={setSalonRating} />
               <FeedbackInput label={`Anything to tell ${target.salonName}? (optional)`} value={salonFeedback} onChange={setSalonFeedback} />
               <FeedbackStars label={`Your experience with ${target.staffName}`} value={staffRating} onChange={setStaffRating} />
               <FeedbackInput label={`Anything to tell ${target.staffName}? (optional)`} value={staffFeedback} onChange={setStaffFeedback} />
             </div>
+            <div className="mt-5 text-slate-700"><PublicReviewConsent checked={publicConsent} onChange={setPublicConsent} /></div>
             {error && <p role="alert" className="mt-4 text-sm text-red-600">{error}</p>}
             <button type="button" disabled={submitting || (!salonRating && !staffRating && !salonFeedback.trim() && !staffFeedback.trim())} onClick={submit}
               className="mt-7 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">

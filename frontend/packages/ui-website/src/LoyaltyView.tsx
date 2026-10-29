@@ -37,7 +37,9 @@ export function LoyaltyView({ salon, theme, policies = [], getPagePath, onNaviga
   const accentText = contrastText(theme.accentColor);
   const program = rules?.program;
   const go = (page: string | null) => (e: React.MouseEvent) => { if (onNavigate) { e.preventDefault(); onNavigate(page); } };
-  const accountHref = getPagePath ? getPagePath("account") : "/account";
+  const accountUrl = new URL(getPagePath ? getPagePath("account") : "/account", "https://salon.invalid");
+  accountUrl.searchParams.set("tab", "points");
+  const accountHref = `${accountUrl.pathname}${accountUrl.search}${accountUrl.hash}`;
   const bookHref = getPagePath ? getPagePath("book") : "/book";
 
   return (
@@ -91,7 +93,7 @@ export function LoyaltyView({ salon, theme, policies = [], getPagePath, onNaviga
               </section>
 
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <a href={accountHref} onClick={go("account")} className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline hover:opacity-90"
+                <a href={accountHref} className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline hover:opacity-90"
                   style={{ backgroundColor: theme.accentColor, color: accentText }}>{translateUi("See my points")} <ArrowRight className="w-4 h-4" /></a>
                 {salon.features?.includes("BOOKING") && (
                   <a href={bookHref} onClick={go("book")} className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline hover:opacity-80 border"

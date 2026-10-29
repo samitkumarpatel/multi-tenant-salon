@@ -120,6 +120,21 @@ PGPASSWORD=$(terraform output -raw database_password) \
   psql "host=salon-saas-mix-psql.postgres.database.azure.com user=postgres dbname=salon sslmode=require"
 ```
 
+## Developer API clients
+
+The API and auth services receive the same generated `CLIENT_MANAGEMENT_API_KEY`
+as a Container App secret. It is also stored in Key Vault as
+`client-management-api-key`; do not put it in frontend configuration or logs.
+`AUTHZ_INTERNAL_URL=http://salon-saas-mix-auth` sends client-management calls
+from API to auth inside the Container Apps environment. The public OIDC issuer
+remains `https://auth.salonsaas.org` for token validation.
+
+If **Salon admin → Developer** returns HTTP 503 for listing or creating clients,
+check that both services have the shared secret reference and API has the internal
+URL. The API deliberately returns 503 when the key is missing. Terraform changes
+to these settings require applying this environment; the image-only deployment
+workflow does not add environment variables or secrets.
+
 ## Media storage
 
 `salonsaasmixmedia` — a `StorageV2` / Standard LRS account with one container,

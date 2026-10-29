@@ -31,7 +31,7 @@ class PublicFeedbackController {
     record Settings(boolean publicWebsiteEnabled) {}
     record Submission(@Size(max = 120) String customerName, Long staffId, Integer salonRating, Integer staffRating,
                       @Size(max = 1000) String salonFeedback, @Size(max = 1000) String staffFeedback, String source,
-                      @Size(max = 200) String website) {}
+                      @Size(max = 200) String website, Boolean publicConsent) {}
     record Receipt(String token) {}
     record Feedback(Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback, String reply, Instant repliedAt) {}
     record Reply(@Size(max = 1000) String reply) {}
@@ -70,12 +70,12 @@ class PublicFeedbackController {
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         jdbc.sql("""
-                INSERT INTO customer_feedback(salon_id,staff_id,customer_name,salon_rating,staff_rating,salon_feedback,staff_feedback,source,receipt_hash)
-                VALUES (:salon,:staff,:name,:salonRating,:staffRating,:salonFeedback,:staffFeedback,:source,:receipt)
+                INSERT INTO customer_feedback(salon_id,staff_id,customer_name,salon_rating,staff_rating,salon_feedback,staff_feedback,source,receipt_hash,public_consent)
+                VALUES (:salon,:staff,:name,:salonRating,:staffRating,:salonFeedback,:staffFeedback,:source,:receipt,:publicConsent)
                 """).param("salon", id).param("staff", body.staffId()).param("name", text(body.customerName()))
                 .param("salonRating", body.salonRating()).param("staffRating", body.staffRating())
                 .param("salonFeedback", text(body.salonFeedback())).param("staffFeedback", text(body.staffFeedback()))
-                .param("source", source).param("receipt", hash(token)).update();
+                .param("source", source).param("receipt", hash(token)).param("publicConsent", Boolean.TRUE.equals(body.publicConsent())).update();
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(new Receipt(token));
     }
 

@@ -149,4 +149,54 @@ class PublicFeedbackIntegrationTest {
         client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isNotFound();
     }
 
+    @Test void onlyConsentedCommentsArePublicAndOwnerCanHideAndRestoreThem() {
+        submit(Map.of("salonRating", 1, "salonFeedback", "Keep this private", "publicConsent", false));
+        submit(Map.of("customerName", "Private Name", "staffId", staffId, "salonRating", 5,
+                "salonFeedback", "Public salon comment", "staffFeedback", "Public stylist comment", "publicConsent", true));
+        var review = ratings.getBookingRatings(salonId, null).stream().filter(BookingRating::publicConsent).findFirst().orElseThrow();
+        long id = review.feedbackId();
+        client.put().uri(adminPath + "/feedback/" + id + "/reply").header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("reply", "Private reply")).exchange().expectStatus().isNoContent();
+        var response = client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(2).jsonPath("$.average").isEqualTo(3.0)
+                .jsonPath("$.items[0].comment").isEqualTo("Public salon comment")
+                .jsonPath("$.items[1].comment").doesNotExist().returnResult().getResponseBody();
+        assertThat(new String(response, java.nio.charset.StandardCharsets.UTF_8))
+                .doesNotContain("Keep this private", "Private Name", "Private reply", "Public stylist comment", "customerName", "receipt");
+        client.get().uri(publicPath + "/ratings/public?target=stylist&staffId=" + staffId).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(0).jsonPath("$.totalItems").isEqualTo(1)
+                .jsonPath("$.items[0].comment").isEqualTo("Public stylist comment");
+        var visibility = adminPath + "/feedback/" + id + "/visibility";
+        client.put().uri(visibility).contentType(MediaType.APPLICATION_JSON).body(Map.of("hidden", true)).exchange().expectStatus().isUnauthorized();
+        client.put().uri(visibility).header("Authorization", "Bearer stranger").contentType(MediaType.APPLICATION_JSON).body(Map.of("hidden", true))
+                .exchange().expectStatus().isForbidden();
+        client.put().uri("/api/salon-admin/" + otherSalon + "/feedback/" + id + "/visibility").header("Authorization", "Bearer owner")
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("hidden", true)).exchange().expectStatus().isNotFound();
+        client.put().uri(visibility).header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON).body(Map.of())
+                .exchange().expectStatus().isBadRequest();
+        client.put().uri(visibility).header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON).body(Map.of("hidden", true))
+                .exchange().expectStatus().isNoContent();
+        client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(2).jsonPath("$.average").isEqualTo(3.0).jsonPath("$.items[0].comment").doesNotExist();
+        client.get().uri(publicPath + "/ratings/public?target=stylist").exchange().expectStatus().isOk().expectBody().jsonPath("$.totalItems").isEqualTo(0);
+        client.put().uri(visibility).header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON).body(Map.of("hidden", false))
+                .exchange().expectStatus().isNoContent();
+        client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.items[0].comment").isEqualTo("Public salon comment");
+        long privateId = ratings.getBookingRatings(salonId, null).stream().filter(r -> !r.publicConsent()).findFirst().orElseThrow().feedbackId();
+        client.put().uri(adminPath + "/feedback/" + privateId + "/visibility").header("Authorization", "Bearer owner").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("hidden", false)).exchange().expectStatus().isNotFound();
+        assertThat(ratings.getBookingRatings(salonId, null).stream().filter(r -> r.feedbackId() == id).findFirst().orElseThrow().salonFeedback())
+                .isEqualTo("Public salon comment");
+    }
+
+    @Test void consentedTextOnlyReviewsArePaginatedWithoutCountingAsZeroStars() {
+        for (int i = 0; i < 3; i++) submit(Map.of("salonFeedback", "Public text " + i, "publicConsent", true));
+        submit(Map.of("salonFeedback", "Private text"));
+        client.get().uri(publicPath + "/ratings/public?size=2&page=2").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(0).jsonPath("$.average").isEmpty().jsonPath("$.totalItems").isEqualTo(3)
+                .jsonPath("$.totalPages").isEqualTo(2).jsonPath("$.items.length()").isEqualTo(1)
+                .jsonPath("$.items[0].rating").isEmpty().jsonPath("$.items[0].comment").isEqualTo("Public text 0");
+    }
+
 }

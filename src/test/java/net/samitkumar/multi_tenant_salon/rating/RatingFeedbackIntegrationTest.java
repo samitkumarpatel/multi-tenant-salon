@@ -123,4 +123,38 @@ class RatingFeedbackIntegrationTest {
                 .jsonPath("$.items[0].salonFeedback").doesNotExist().jsonPath("$.items[0].reply").doesNotExist();
     }
 
+    @Test void notificationConsentPublishesOnlyMatchingTextAndCanBeModerated() {
+        var token = ratings.issueInvitation(bookingId, salonId, staffId);
+        client.post().uri("/api/public/rating/" + token).contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("salonRating", 5, "salonFeedback", "Shared salon review", "staffFeedback", "Shared stylist review", "publicConsent", true))
+                .exchange().expectStatus().isNoContent();
+        client.get().uri("/api/salon/" + salonId + "/ratings/public").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.items[0].comment").isEqualTo("Shared salon review").jsonPath("$.items[0].verifiedVisit").isEqualTo(true)
+                .jsonPath("$.items[0].customerName").doesNotExist();
+        client.get().uri("/api/salon/" + salonId + "/ratings/public?target=stylist").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.items[0].comment").isEqualTo("Shared stylist review").jsonPath("$.count").isEqualTo(0);
+        client.put().uri("/api/salon-admin/" + salonId + "/ratings/" + bookingId + "/visibility").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("hidden", true)).exchange().expectStatus().isNoContent();
+        client.get().uri("/api/salon/" + salonId + "/ratings/public").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(1).jsonPath("$.items[0].comment").doesNotExist();
+        assertThat(ratings.getBookingRatings(salonId, null).getFirst().publicHidden()).isTrue();
+    }
+
+    @Test void accountConsentIsStoredAndPublished() {
+        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, null, 4, null, "Public account review", true)).isTrue();
+        client.get().uri("/api/salon/" + salonId + "/ratings/public?target=stylist").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.items[0].comment").isEqualTo("Public account review").jsonPath("$.items[0].rating").isEqualTo(4);
+        assertThat(ratings.getBookingRatings(salonId, null).getFirst().publicConsent()).isTrue();
+    }
+
+    @Test void olderNotificationClientsDefaultToPrivateWithoutConsentField() {
+        var token = ratings.issueInvitation(bookingId, salonId, staffId);
+        client.post().uri("/api/public/rating/" + token).contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("salonRating", 5, "salonFeedback", "Private legacy client note"))
+                .exchange().expectStatus().isNoContent();
+        assertThat(ratings.getBookingRatings(salonId, null).getFirst().publicConsent()).isFalse();
+        client.get().uri("/api/salon/" + salonId + "/ratings/public").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.items[0].comment").doesNotExist();
+    }
+
 }

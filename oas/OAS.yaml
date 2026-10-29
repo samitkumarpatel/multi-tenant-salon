@@ -4928,13 +4928,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [bookingId, salonRating, staffRating]
+              required: [bookingId]
               properties:
                 bookingId: { type: integer, format: int64 }
-                salonRating: { type: integer, minimum: 1, maximum: 5 }
-                staffRating: { type: integer, minimum: 1, maximum: 5 }
+                salonRating: { type: integer, minimum: 1, maximum: 5, nullable: true }
+                staffRating: { type: integer, minimum: 1, maximum: 5, nullable: true }
                 salonFeedback: { type: string, maxLength: 1000, nullable: true }
                 staffFeedback: { type: string, maxLength: 1000, nullable: true }
+                publicConsent: { type: boolean, default: false, description: Publish the salon and stylist comments anonymously only when explicitly true. }
       responses:
         "204":
           description: Saved
@@ -4949,7 +4950,7 @@ paths:
     get:
       tags: [Ratings]
       summary: Customer ratings and feedback for the salon
-      description: Newest first (max 500). Read-only; each row carries `salonFeedback` and `staffFeedback` (the customer's words), and `reply` / `repliedAt` (the owner's answer).
+      description: Newest first. Each row carries private feedback and replies, plus publicConsent and publicHidden. Customer words and consent are read-only.
       operationId: adminListRatings
       responses:
         "200":
@@ -4963,7 +4964,7 @@ paths:
       tags: [Ratings]
       summary: Reply to a review
       description: >
-        Sets or replaces the owner's reply (trimmed, max 1000 chars). This is the only write on a review: the customer's
+        Sets or replaces the owner's reply (trimmed, max 1000 chars). Replies remain private. The customer's
         ratings and feedback can be neither edited nor deleted by the salon.
       operationId: adminReplyToRating
       requestBody:
@@ -4980,6 +4981,61 @@ paths:
           description: Saved
         "400":
           description: Blank reply or no such review
+
+  /api/salon/{salonId}/ratings/public:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+    get:
+      tags: [Ratings]
+      summary: Public ratings and consented written reviews
+      description: >
+        Comments are returned only with explicit customer consent and when not hidden by the salon.
+        Customer identities and replies never appear. Count, average and distribution cover stars only;
+        totalItems and pagination also include consented text-only reviews. Hiding text never removes stars.
+      operationId: publicReviews
+      parameters:
+        - { in: query, name: target, schema: { type: string, enum: [salon, stylist], default: salon } }
+        - { in: query, name: staffId, description: Only allowed with target=stylist., schema: { type: integer, minimum: 1 } }
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+        - { in: query, name: size, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        "200":
+          description: Page of scores and optional comments
+        "400":
+          description: Invalid target, staff filter or pagination
+        "404":
+          description: Unknown or disabled salon
+
+  /api/salon-admin/{salonId}/{kind}/{reviewId}/visibility:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: kind, required: true, schema: { type: string, enum: [ratings, feedback] } }
+      - { in: path, name: reviewId, required: true, description: Booking ID for ratings or feedback ID for feedback., schema: { type: integer, format: int64 } }
+    put:
+      tags: [Ratings]
+      summary: Hide or restore a consented written review
+      description: Changes only public comment visibility. Cannot grant consent, edit comments, expose replies or change star totals.
+      operationId: adminReviewVisibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hidden]
+              properties:
+                hidden: { type: boolean }
+      responses:
+        "204":
+          description: Visibility saved
+        "400":
+          description: Missing or invalid hidden flag
+        "401":
+          description: Authentication required
+        "403":
+          description: No permission for this salon
+        "404":
+          description: No matching review with customer consent
 
   /api/salon-staff/{staffId}/ratings:
     parameters:

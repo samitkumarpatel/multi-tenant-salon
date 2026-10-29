@@ -1,11 +1,11 @@
 ---
 title: "Customer Ratings & Reviews"
-description: "Collect private feedback and star ratings, control website links, and reply to customers."
+description: "Collect ratings and optional public reviews, moderate comments, and reply privately to customers."
 ---
 
 Customers can rate the salon, a specific stylist, or both. They can send stars from 1 to 5,
-written feedback, or both. Written feedback and salon replies are private; stars contribute to
-the public salon and stylist averages. An unrated category does not count as a zero.
+written feedback, or both. Written feedback is private by default. Customers can opt in to publish their comments anonymously;
+salon replies always stay private. Stars contribute to the public salon and stylist averages. An unrated category does not count as a zero.
 
 ## After a completed appointment
 
@@ -58,3 +58,19 @@ send an additional email notification.
 
 Staff can read feedback attributed to them and the salon's replies in their own staff portal.
 They cannot reply through the staff portal or access another stylist's feedback.
+
+## Public reviews
+
+**View reviews** opens the existing `/ratings` page, with salon and stylist filters, star averages,
+and written reviews. Every new feedback form (website, email invitation, and My account) offers an
+unchecked **Allow my written review to appear publicly** option. This applies to both the salon and
+stylist comments. Public reviews do not show the customer's name or the salon's private reply.
+Customers should avoid including personal details in comments they choose to publish.
+
+Existing feedback stays private. Only new submissions with explicit permission can display public
+comments. Comments without stars can appear as reviews; they do not count as zero-star ratings.
+
+In **Salon admin → Feedback ratings**, expand a review and choose **Hide written review** to remove
+its comments from the public page, or **Show written review** to restore them. Star ratings still
+count toward public totals. These controls cannot publish feedback without the customer's consent,
+change what the customer wrote, or remove it from the private inbox.

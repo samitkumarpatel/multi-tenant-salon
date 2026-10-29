@@ -18,7 +18,7 @@ class RatingController {
         this.salons = salons;
     }
 
-    record SubmitRatingRequest(Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {}
+    record SubmitRatingRequest(Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback, Boolean publicConsent) {}
     record ReplyRequest(String reply) {}
 
     @GetMapping("/api/public/rating/{token}")
@@ -29,7 +29,7 @@ class RatingController {
 
     @PostMapping("/api/public/rating/{token}")
     ResponseEntity<Void> submit(@PathVariable String token, @RequestBody SubmitRatingRequest request) {
-        return ratings.submitReview(token, request.salonRating(), request.staffRating(), request.salonFeedback(), request.staffFeedback())
+        return ratings.submitReview(token, request.salonRating(), request.staffRating(), request.salonFeedback(), request.staffFeedback(), Boolean.TRUE.equals(request.publicConsent()))
                 ? ResponseEntity.noContent().build() : ResponseEntity.badRequest().build();
     }
 
