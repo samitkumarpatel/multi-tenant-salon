@@ -63,5 +63,6 @@ export {
   useCart, readCart, addToCart, setCartQty, removeFromCart, clearCart, cartCount, cartSubtotal,
 } from "./shopCart";
 
-export { FeedbackProvider, FeedbackLink, FeedbackView, FeedbackStars } from "./Feedback";
+export { FeedbackProvider, FeedbackLink, FeedbackView, FeedbackStars, RatingsLink } from "./Feedback";
+export { PublicRatingsView } from "./PublicRatingsView";
 export type { FeedbackSettings } from "./Feedback";

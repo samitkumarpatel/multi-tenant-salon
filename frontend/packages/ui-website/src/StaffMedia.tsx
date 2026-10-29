@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, Play, Film, X, CalendarCheck, Quote, Images, Star } from "lucide-react";
 import { isVideoUrl, STAFF_ROLE_LABEL, CATEGORY_LABEL } from "./constants";
-import { FeedbackLink } from "./Feedback";
+import { FeedbackLink, RatingsLink } from "./Feedback";
 import type { StaffMember, WebsiteTheme } from "./types";
 
 /** The staff member's profile avatar, falling back to the first non-video item
@@ -165,8 +165,9 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
               <p className="text-base font-bold leading-tight text-slate-900">{member.name}</p>
               <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</p>
               <StaffRating member={member} className="mt-1 text-xs text-slate-700" />
-              <div>
+              <div className="flex flex-wrap gap-x-4">
                 <FeedbackLink staffId={member.id} color={theme.accentColor} className="mt-1" />
+                <RatingsLink staffId={member.id} color={theme.accentColor} className="mt-1" />
               </div>
               {member.specializations && member.specializations.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">

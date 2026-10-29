@@ -1,4 +1,4 @@
-import { FeedbackLink } from "./Feedback";
+import { FeedbackLink, RatingsLink } from "./Feedback";
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -955,7 +955,10 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                   </a>
                 )}
               </div>
-              <FeedbackLink color={hero.sub} className="mt-2" />
+              <div className="mt-2 flex flex-wrap gap-x-5">
+                <FeedbackLink color={hero.sub} />
+                <RatingsLink color={hero.sub} />
+              </div>
             </div>
 
             {/* Quick-info card */}

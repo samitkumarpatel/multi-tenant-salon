@@ -114,4 +114,39 @@ class PublicFeedbackIntegrationTest {
         for (int i = 0; i < 10; i++) client.post().uri(publicPath + "/feedback").contentType(MediaType.APPLICATION_JSON).body(Map.of("salonRating", 0)).exchange();
         client.post().uri(publicPath + "/feedback").contentType(MediaType.APPLICATION_JSON).body(Map.of("salonRating", 5)).exchange().expectStatus().isEqualTo(429);
     }
+    @Test void publicStarHistoryIsPaginatedAndNeverExposesPrivateContent() {
+        for (int i = 0; i < 25; i++) {
+            jdbc.update("INSERT INTO customer_feedback(salon_id,staff_id,customer_name,salon_rating,staff_rating,salon_feedback,staff_feedback,reply,source,receipt_hash,submitted_at) VALUES (?,?, 'Private Customer',?,?, 'Private salon note','Private staff note','Private reply','PUBLIC_WEBSITE',?,?)",
+                    salonId, staffId, i % 5 + 1, i % 5 + 1, UUID.randomUUID().toString(), java.sql.Timestamp.from(Instant.parse("2026-10-01T10:00:00Z").plusSeconds(i)));
+        }
+        jdbc.update("INSERT INTO customer_feedback(salon_id,salon_feedback,source,receipt_hash) VALUES (?,'Private text without stars','PUBLIC_WEBSITE',?)", salonId, UUID.randomUUID().toString());
+        jdbc.update("INSERT INTO customer_feedback(salon_id,salon_rating,source,receipt_hash) VALUES (?,5,'PUBLIC_WEBSITE',?)", otherSalon, UUID.randomUUID().toString());
+        var first = client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.count").isEqualTo(25).jsonPath("$.average").isEqualTo(3.0)
+                .jsonPath("$.distribution['5']").isEqualTo(5).jsonPath("$.items.length()").isEqualTo(20)
+                .jsonPath("$.items[0].rating").isEqualTo(5).jsonPath("$.items[0].staffName").isEqualTo("Stylist")
+                .jsonPath("$.items[0].verifiedVisit").isEqualTo(false).returnResult().getResponseBody();
+        assertThat(new String(first, java.nio.charset.StandardCharsets.UTF_8))
+                .doesNotContain("Private", "customerName", "salonFeedback", "staffFeedback", "reply", "receipt", "bookingId", "source");
+        client.get().uri(publicPath + "/ratings/public?page=2").exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.page").isEqualTo(2).jsonPath("$.items.length()").isEqualTo(5).jsonPath("$.totalPages").isEqualTo(2);
+        client.get().uri(publicPath + "/ratings/public?target=stylist&staffId=" + staffId).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(25).jsonPath("$.average").isEqualTo(3.0);
+        client.get().uri(publicPath + "/ratings/public?target=stylist&staffId=" + (staffId + 99999)).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.count").isEqualTo(0).jsonPath("$.items.length()").isEqualTo(0);
+        client.get().uri("/api/salon/" + otherSalon + "/ratings/public").exchange().expectStatus().isOk().expectBody().jsonPath("$.count").isEqualTo(1);
+        client.get().uri(publicPath + "/ratings/public?page=999").exchange().expectStatus().isOk().expectBody().jsonPath("$.page").isEqualTo(2);
+        jdbc.update("INSERT INTO feedback_settings(salon_id,public_website_enabled) VALUES (?,false)", salonId);
+        client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isOk().expectBody().jsonPath("$.count").isEqualTo(25);
+    }
+
+    @Test void publicHistoryValidatesPagingAndDoesNotShowDisabledSalons() {
+        for (String query : List.of("page=0", "size=51", "size=0", "target=invalid", "staffId=1", "target=stylist&staffId=-1")) {
+            client.get().uri(publicPath + "/ratings/public?" + query).exchange().expectStatus().isBadRequest();
+        }
+        client.get().uri("/api/salon/" + UUID.randomUUID() + "/ratings/public").exchange().expectStatus().isNotFound();
+        jdbc.update("UPDATE salon SET status='DISABLED' WHERE id=?", salonId);
+        client.get().uri(publicPath + "/ratings/public").exchange().expectStatus().isNotFound();
+    }
+
 }

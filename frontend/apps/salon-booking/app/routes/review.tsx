@@ -85,7 +85,7 @@ export default function ReviewPage() {
             </div>
             {error && <p role="alert" className="mt-4 text-sm text-red-600">{error}</p>}
             <button type="button" disabled={submitting || (!salonRating && !staffRating && !salonFeedback.trim() && !staffFeedback.trim())} onClick={submit}
-              className="mt-7 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+              className="mt-7 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
               {submitting ? translateUi("Submitting…") : translateUi("Submit ratings")}
             </button>
           </>

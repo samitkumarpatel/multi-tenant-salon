@@ -1,6 +1,6 @@
 import { useI18n } from "@salon/i18n";
-import React, { useEffect, useId, useState } from "react";
-import { ArrowLeft, BadgeCheck, Check, ChevronDown, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { ArrowLeft, BadgeCheck, Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { friendlyMessage } from "./apiError";
@@ -180,12 +180,12 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
           <p className="text-center text-sm py-16" style={{ color: sub }}>{translateUi("There are no membership plans available right now — check back soon.")}</p>
         )}
         {plans.length > 0 && (
-          <div className={`grid items-start gap-4 sm:gap-5 ${plans.length === 1 ? "max-w-sm mx-auto" : plans.length === 2 ? "sm:grid-cols-2 max-w-3xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+          <PlanList count={plans.length} color={text} border={cardBorder}>
             {plans.map((plan) => (
               <PlanCard key={plan.id} plan={plan} theme={theme} text={text} sub={sub} cardBg={cardBg} cardBorder={cardBorder}
                 accentText={accentText} onlineSignup={catalog!.onlineSignup} onJoin={() => setJoining(plan)} />
             ))}
-          </div>
+          </PlanList>
         )}
         {catalog && plans.length > 0 && !catalog.onlineSignup && (contact?.phone || contact?.email) && (
           <p className="mt-6 text-center text-sm" style={{ color: sub }}>
@@ -223,6 +223,51 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
   );
 }
 
+function PlanList({ count, color, border, children }: { count: number; color: string; border: string; children: React.ReactNode }) {
+  const { t } = useI18n();
+  const rail = useRef<HTMLDivElement>(null);
+  const railId = useId();
+  const [edges, setEdges] = useState({ previous: false, next: false });
+  const carousel = count > 3;
+  const updateEdges = () => {
+    const element = rail.current;
+    if (element) setEdges({ previous: element.scrollLeft > 2, next: element.scrollLeft + element.clientWidth < element.scrollWidth - 2 });
+  };
+  useEffect(() => {
+    if (!carousel || !rail.current) return;
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(rail.current);
+    updateEdges();
+    return () => observer.disconnect();
+  }, [carousel, count]);
+  function scroll(direction: number) {
+    const element = rail.current;
+    if (!element) return;
+    const cardWidth = element.firstElementChild?.getBoundingClientRect().width ?? element.clientWidth;
+    element.scrollBy({ left: direction * (cardWidth + 16), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  }
+  return <div>
+    {carousel && <div className="mb-3 flex items-center justify-between gap-3" style={{ color }}>
+      <p className="text-xs">{t("Scroll to explore plans")}</p>
+      <div className="flex shrink-0 gap-2">
+        {[{ direction: -1, enabled: edges.previous, label: "Previous plans", Icon: ChevronLeft }, { direction: 1, enabled: edges.next, label: "Next plans", Icon: ChevronRight }].map(({ direction, enabled, label, Icon }) => (
+          <button key={direction} type="button" aria-label={t(label)} aria-controls={railId} disabled={!enabled} onClick={() => scroll(direction)}
+            className="flex size-11 cursor-pointer items-center justify-center rounded-full border transition-opacity hover:opacity-75 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-30" style={{ borderColor: border }}>
+            <Icon aria-hidden="true" className="size-4" />
+          </button>
+        ))}
+      </div>
+    </div>}
+    <div ref={rail} id={railId} onScroll={carousel ? updateEdges : undefined} role={carousel ? "region" : undefined} aria-label={carousel ? t("Membership plans") : undefined} tabIndex={carousel ? 0 : undefined}
+      onKeyDown={carousel ? (event) => { if (event.target === event.currentTarget && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); scroll(event.key === "ArrowLeft" ? -1 : 1); } } : undefined}
+      className={carousel
+        ? "grid grid-flow-col auto-cols-[88%] items-start gap-4 overflow-x-auto overscroll-x-contain snap-x snap-mandatory scroll-px-1 px-1 py-1 pb-4 sm:auto-cols-[calc((100%_-_1rem)/2)] lg:auto-cols-[calc((100%_-_2rem)/3)] focus-visible:outline-2 focus-visible:outline-offset-2"
+        : `grid items-start gap-4 sm:gap-5 ${count === 1 ? "max-w-sm mx-auto" : count === 2 ? "sm:grid-cols-2 max-w-3xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+      {children}
+    </div>
+  </div>;
+}
+
 function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onlineSignup, onJoin }: {
   plan: MembershipPlan; theme: WebsiteTheme; text: string; sub: string; cardBg: string; cardBorder: string;
   accentText: string; onlineSignup: boolean; onJoin: () => void;
@@ -230,10 +275,12 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
   const { t: translateUi, locale: uiLocale } = useI18n();
   const benefits = membershipBenefits(plan, translateUi);
   const worth = plan.includedValue && plan.includedValue > plan.price ? plan.includedValue : null;
+  const priceAmount = new Intl.NumberFormat(uiLocale, { style: "currency", currency: plan.currency, minimumFractionDigits: 0 })
+    .formatToParts(plan.price).filter((part) => part.type !== "currency" && part.type !== "literal").map((part) => part.value).join("");
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   return (
-    <article className="min-w-0 relative rounded-2xl p-4 sm:p-5 flex flex-col transition-shadow hover:shadow-lg"
+    <article className="min-w-0 relative snap-start rounded-2xl p-4 sm:p-5 flex flex-col transition-shadow hover:shadow-lg"
       style={{ backgroundColor: cardBg, border: `1px solid ${plan.highlighted ? theme.accentColor : cardBorder}` }}>
       <div className="min-h-6 mb-3">
         {plan.highlighted && (
@@ -244,10 +291,10 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
         )}
       </div>
       <h3 className="min-h-12 text-base font-bold leading-6 break-words" style={{ color: text }}>{plan.name}</h3>
-      <div className="mt-2 min-h-24">
-        <p className="flex flex-col gap-1" style={{ color: text }}>
-          <span className="text-2xl xl:text-3xl font-bold tracking-tight tabular-nums break-words">{formatPrice(plan.price, plan.currency, uiLocale)}</span>
-          <span className="text-xs" style={{ color: sub }}>{translateUi(PER[plan.billingInterval])}</span>
+      <div className="mt-2 min-h-20">
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1" style={{ color: text }}>
+          <span className="text-2xl xl:text-3xl font-bold tracking-tight tabular-nums break-words">{priceAmount}</span>
+          <span className="text-xs whitespace-nowrap" style={{ color: sub }}>{plan.currency.toLowerCase()} {translateUi(PER[plan.billingInterval])}</span>
         </p>
         {plan.signupFee ? (
           <p className="text-xs mt-1" style={{ color: sub }}>

@@ -2,7 +2,7 @@ import { useOutletContext, useLocation, useNavigate } from "react-router";
 import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
 import {
-  FeedbackLink, FeedbackView, SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks, policiesForSurface,
+  FeedbackLink, FeedbackView, RatingsLink, PublicRatingsView, SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks, policiesForSurface,
   CustomerAccountView, hasCustomerAccount, siteAccountLinks,
 } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
@@ -18,6 +18,13 @@ export default function PublicWebsitePage() {
 
   const activePage = location.pathname.slice(1) || undefined;
   const search = navigationSearch(location.search);
+
+  if (activePage === "ratings") {
+    return <PublicRatingsView salon={data.salon} staff={data.staff} theme={data.theme} policies={data.websitePolicies}
+      initialStaffId={new URLSearchParams(location.search).get("staff")}
+      getPagePath={(page) => `/${page}${search}`}
+      onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)} />;
+  }
 
   if (activePage === "feedback") {
     const query = new URLSearchParams(location.search);
@@ -120,6 +127,7 @@ export default function PublicWebsitePage() {
             {data.salon.contact?.phone && <a href={`tel:${data.salon.contact.phone}`} className="hover:underline">{data.salon.contact.phone}</a>}
             {data.salon.contact?.email && <a href={`mailto:${data.salon.contact.email}`} className="hover:underline">{translateUi("Contact us")}</a>}
             <FeedbackLink />
+            <RatingsLink />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[11px] text-slate-500">© {new Date().getFullYear()} {data.salon.name}</p>

@@ -112,4 +112,15 @@ class RatingFeedbackIntegrationTest {
         client.put().uri("/api/salon-admin/{s}/ratings/{b}", salonId, bookingId).contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("feedback", "edited")).exchange().expectStatus().is4xxClientError();
     }
+    @Test
+    void publicHistoryIncludesVerifiedBookingStarsWithoutPrivateFeedback() {
+        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, 5, 4, "Private salon words", "Private stylist words")).isTrue();
+        assertThat(ratings.replyToReview(salonId, bookingId, "Private answer")).isTrue();
+        client.get().uri("/api/salon/" + salonId + "/ratings/public?target=stylist&staffId=" + staffId)
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.count").isEqualTo(1)
+                .jsonPath("$.items[0].rating").isEqualTo(4).jsonPath("$.items[0].verifiedVisit").isEqualTo(true)
+                .jsonPath("$.items[0].staffName").isEqualTo("Sam Stylist")
+                .jsonPath("$.items[0].salonFeedback").doesNotExist().jsonPath("$.items[0].reply").doesNotExist();
+    }
+
 }
