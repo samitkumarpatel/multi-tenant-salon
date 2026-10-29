@@ -252,7 +252,7 @@ class NotificationService {
 
         var sms = "Hi " + event.customerName() + ": we received your booking request (#" + event.bookingId() + ") for "
                 + formattedDateTime(event) + " at " + event.startTime().format(TIME_FMT) + ". " + statusLine + " — " + event.salonName();
-        sendBookingCustomerMessage(event.customerEmail(), event.customerPhone(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html), sms);
+        sendBookingCustomerMessage(event.customerEmail(), event.customerPhone(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html), withAccountText(event.salonId(), sms));
     }
 
     void notifyBookingPaymentLink(BookingPaymentLinkEvent event) {
@@ -282,7 +282,7 @@ class NotificationService {
                 HtmlUtils.htmlEscape(when), HtmlUtils.htmlEscape(event.paymentUrl()), price, HtmlUtils.htmlEscape(event.paymentUrl()),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html));
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html));
     }
 
     void notifyBookingStatusChanged(BookingStatusChangedEvent event) {
@@ -326,8 +326,8 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, reviewUrl == null ? withFeedbackText(event.salonId(), text) : text,
-                reviewUrl == null ? withFeedbackHtml(event.salonId(), html) : layout(event.salonName(), html));
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text, reviewUrl == null),
+                withCustomerHtml(event.salonId(), html, reviewUrl == null));
     }
 
     void notifyPosReceipt(PosReceiptRequestedEvent event) {
@@ -371,7 +371,7 @@ class NotificationService {
                 humanize(event.paymentMethod()), HtmlUtils.htmlEscape(total),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureHtml(event.salonName()));
         sendEmail(event.customerEmail(), event.customerName(), subject,
-                withFeedbackText(event.salonId(), text.toString()), withFeedbackHtml(event.salonId(), html));
+                withCustomerText(event.salonId(), text.toString()), withCustomerHtml(event.salonId(), html));
     }
 
     void notifyBookingRescheduled(BookingRescheduledEvent event) {
@@ -396,7 +396,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html));
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html));
     }
 
     // ── Bookings — staff-facing ──────────────────────────────────────────────
@@ -580,7 +580,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -619,7 +619,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -643,7 +643,7 @@ class NotificationService {
                 """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -707,7 +707,7 @@ class NotificationService {
         var qr = new MailjetAttachment("image/png", "membership-" + event.memberCode() + ".png", MEMBER_QR_CID,
                 Base64.getEncoder().encodeToString(QrCodes.png(event.memberCode(), 440)));
 
-        var status = dispatch(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html), List.of(qr));
+        var status = dispatch(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html), List.of(qr));
         acknowledge(event.customerEmail(), subject, text, status,
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
@@ -741,7 +741,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
 
@@ -769,7 +769,7 @@ class NotificationService {
                 """.formatted(event.points(), HtmlUtils.htmlEscape(event.rewardName()), event.code(), event.balanceAfter(),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), "", subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), "", subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
                 new NotificationContext(event.salonId(), "LOYALTY", String.valueOf(event.redemptionId())));
     }
 
@@ -807,7 +807,7 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
 
@@ -845,7 +845,8 @@ class NotificationService {
             // Local development has no Mailjet, and there is no other way to read the code.
             log.info("[NOTIFICATION] Mailjet not configured — sign-in code for {} at salon {} is {}", event.email(), event.salonId(), event.code());
         }
-        sendEmail(event.email(), null, subject, text, html);
+        sendEmail(event.email(), null, subject, withCustomerText(event.salonId(), text, false),
+                withCustomerHtml(event.salonId(), html, false));
     }
 
     private static String intervalLabel(BillingInterval interval) {
@@ -881,22 +882,52 @@ class NotificationService {
     private String feedbackUrl(UUID salonId) {
         if (salonId == null) return null;
         return salonApi.findById(salonId)
-                .map(salon -> bookingAppUrl + "/" + salon.id() + "/feedback?source=NOTIFICATION").orElse(null);
+                .map(salon -> bookingAppUrl.replaceAll("/+$", "") + "/" + salon.id() + "/feedback?source=NOTIFICATION").orElse(null);
     }
 
-    /** Appended to every customer-facing email so there is always a way to leave feedback. */
-    private String withFeedbackText(UUID salonId, String text) {
-        var url = feedbackUrl(salonId);
-        return url == null ? text : text + "\n\nShare your feedback about the salon or your stylist:\n" + url + "\n";
+    /** Matches the booking app account route: active salon with at least one customer account feature. */
+    private String accountUrl(UUID salonId) {
+        if (salonId == null) return null;
+        return salonApi.findById(salonId)
+                .filter(salon -> salon.status() != Salon.SalonStatus.DISABLED)
+                .filter(salon -> salon.features().stream().anyMatch(ref -> switch (ref.feature()) {
+                    case BOOKING, WEBSHOP, MEMBERSHIP, LOYALTY_PROGRAM -> true;
+                    default -> false;
+                }))
+                .map(salon -> bookingAppUrl.replaceAll("/+$", "") + "/" + salon.id() + "/account").orElse(null);
     }
 
-    /** Customer emails: the salon's name in the header, the message in a card, the feedback link below it. */
-    private String withFeedbackHtml(UUID salonId, String html) {
-        var url = feedbackUrl(salonId);
+    private String withAccountText(UUID salonId, String text) {
+        var url = accountUrl(salonId);
+        return url == null ? text : text + "\n\nManage your customer account:\n" + url + "\n";
+    }
+
+    /** Every customer email links the account; dedicated review and sign-in emails omit general feedback. */
+    private String withCustomerText(UUID salonId, String text) {
+        return withCustomerText(salonId, text, true);
+    }
+
+    private String withCustomerText(UUID salonId, String text, boolean includeFeedback) {
+        var url = includeFeedback ? feedbackUrl(salonId) : null;
+        var body = withAccountText(salonId, text);
+        return url == null ? body : body + "\n\nShare your feedback about the salon or your stylist:\n" + url + "\n";
+    }
+
+    private String withCustomerHtml(UUID salonId, String html) {
+        return withCustomerHtml(salonId, html, true);
+    }
+
+    /** Customer emails share salon branding and account access, alongside the optional feedback link. */
+    private String withCustomerHtml(UUID salonId, String html, boolean includeFeedback) {
+        var url = includeFeedback ? feedbackUrl(salonId) : null;
+        var account = accountUrl(salonId);
         var brand = salonId == null ? null : salonApi.findById(salonId).map(Salon::name).orElse(null);
-        var feedback = url == null ? "" : "<p style=\"margin:24px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b\">"
+        var accountLink = account == null ? "" : "<p style=\"margin:24px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b\">"
+                + "<a href=\"" + HtmlUtils.htmlEscape(account) + "\" style=\"color:#0f172a;font-weight:600\">Manage your customer account</a>"
+                + " — sign in to view your bookings, orders, memberships and rewards.</p>";
+        var feedback = url == null ? "" : "<p style=\"margin:16px 0 0;font-size:13px;color:#64748b\">"
                 + "Tell us how we're doing — <a href=\"" + HtmlUtils.htmlEscape(url) + "\" style=\"color:#0f172a;font-weight:600\">leave feedback about the salon or your stylist</a>.</p>";
-        return layout(brand, html + feedback);
+        return layout(brand, html + accountLink + feedback);
     }
 
     private static final String LAYOUT_MARKER = "<!--salon-layout-->";

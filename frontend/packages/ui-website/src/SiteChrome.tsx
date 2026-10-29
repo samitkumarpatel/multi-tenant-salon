@@ -23,10 +23,8 @@ export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
   LOYALTY_PROGRAM: { label: "Loyalty",    path: "loyalty" },
 };
 
-/** Menus that can put a link in the website footer. The feature pages (book, shop, membership, loyalty) are reached from the header, so only the account link remains. */
-export const FOOTER_LINK_MENUS: { key: string; feature?: string; label: string; page: string }[] = [
-  { key: "ACCOUNT",                                     label: "My account", page: "account" },
-];
+/** Footer menu links. Feature pages and customer accounts are reached from the header. */
+export const FOOTER_LINK_MENUS: { key: string; feature?: string; label: string; page: string }[] = [];
 
 /** The footer links the visitor sees: one per menu the salon has, unless the owner switched it off. */
 export function footerMenuLinks(salon: Salon, theme: WebsiteTheme, getPagePath?: (page: string) => string, current?: string) {

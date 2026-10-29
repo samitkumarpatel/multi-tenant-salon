@@ -4,6 +4,7 @@ import net.samitkumar.multi_tenant_salon.booking.BookingStatus;
 import net.samitkumar.multi_tenant_salon.booking.BookingStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
+import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +31,7 @@ class FeedbackNotificationTest {
         mailjet = mock(MailjetClient.class);
         var salons = mock(SalonApi.class);
         var salon = mock(Salon.class);
+        when(salon.features()).thenReturn(List.of(new Salon.SalonFeatureRef(SalonFeature.WEBSHOP)));
         when(salon.id()).thenReturn(salonId); when(salon.name()).thenReturn("Feedback salon");
         when(salons.findById(salonId)).thenReturn(Optional.of(salon));
         when(mailjet.send(any())).thenReturn(Map.of());
@@ -55,7 +58,7 @@ class FeedbackNotificationTest {
         var request = ArgumentCaptor.forClass(MailjetRequest.class);
         verify(mailjet).send(request.capture());
         var message = request.getValue().messages().getFirst();
-        assertThat(message.textPart()).contains("https://book.example.test/" + salonId + "/feedback?source=NOTIFICATION").doesNotContain("/account");
+        assertThat(message.textPart()).contains("https://book.example.test/" + salonId + "/feedback?source=NOTIFICATION").contains("https://book.example.test/" + salonId + "/account");
         assertThat(message.htmlPart()).contains("/feedback?source=NOTIFICATION");
     }
 }

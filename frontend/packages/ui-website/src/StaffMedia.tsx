@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, Play, Film, X, CalendarCheck, Quote, Images, Star } from "lucide-react";
 import { isVideoUrl, STAFF_ROLE_LABEL, CATEGORY_LABEL } from "./constants";
+import { FeedbackLink } from "./Feedback";
 import type { StaffMember, WebsiteTheme } from "./types";
 
 /** The staff member's profile avatar, falling back to the first non-video item
@@ -147,7 +148,7 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
           role="dialog"
           aria-modal="true"
           aria-label={`${member.name} — profile`}
-          className="flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
+          className="flex w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl [overflow-wrap:anywhere] sm:max-w-lg sm:rounded-2xl"
           style={{ maxHeight: "90dvh", animation: "sw-sheet .22s cubic-bezier(0.16,1,0.3,1)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -164,6 +165,9 @@ export function StaffSpotlight({ member, theme, accentText, hasBooking, onBook, 
               <p className="text-base font-bold leading-tight text-slate-900">{member.name}</p>
               <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{translateUi(STAFF_ROLE_LABEL[member.role] ?? member.role)}</p>
               <StaffRating member={member} className="mt-1 text-xs text-slate-700" />
+              <div>
+                <FeedbackLink staffId={member.id} color={theme.accentColor} className="mt-1" />
+              </div>
               {member.specializations && member.specializations.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {member.specializations.map((s) => (

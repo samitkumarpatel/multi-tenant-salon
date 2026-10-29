@@ -1,6 +1,6 @@
 import { useI18n } from "@salon/i18n";
-import React, { useEffect, useState } from "react";
-import { ArrowLeft, BadgeCheck, Check, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
+import React, { useEffect, useId, useState } from "react";
+import { ArrowLeft, BadgeCheck, Check, ChevronDown, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { friendlyMessage } from "./apiError";
@@ -27,7 +27,6 @@ const PER: Record<MembershipBillingInterval, string> = { MONTHLY: "/ month", QUA
 const COVERS: Record<MembershipBillingInterval, string> = { MONTHLY: "one month", QUARTERLY: "3 months", YEARLY: "one year" };
 const PERIOD: Record<MembershipBillingInterval, string> = { MONTHLY: "a month", QUARTERLY: "every 3 months", YEARLY: "a year" };
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const DESCRIPTION_PREVIEW_CHARS = 100;
 
 type Translate = (s: string, v?: Record<string, string | number>) => string;
 
@@ -181,7 +180,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
           <p className="text-center text-sm py-16" style={{ color: sub }}>{translateUi("There are no membership plans available right now — check back soon.")}</p>
         )}
         {plans.length > 0 && (
-          <div className={`grid gap-5 ${plans.length === 1 ? "max-w-sm mx-auto" : plans.length === 2 ? "sm:grid-cols-2 max-w-3xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+          <div className={`grid items-start gap-4 sm:gap-5 ${plans.length === 1 ? "max-w-sm mx-auto" : plans.length === 2 ? "sm:grid-cols-2 max-w-3xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
             {plans.map((plan) => (
               <PlanCard key={plan.id} plan={plan} theme={theme} text={text} sub={sub} cardBg={cardBg} cardBorder={cardBorder}
                 accentText={accentText} onlineSignup={catalog!.onlineSignup} onJoin={() => setJoining(plan)} />
@@ -231,70 +230,87 @@ function PlanCard({ plan, theme, text, sub, cardBg, cardBorder, accentText, onli
   const { t: translateUi, locale: uiLocale } = useI18n();
   const benefits = membershipBenefits(plan, translateUi);
   const worth = plan.includedValue && plan.includedValue > plan.price ? plan.includedValue : null;
-  // Long descriptions crowd the price and perks: show two lines and let the visitor expand.
-  const longDescription = (plan.description?.length ?? 0) > DESCRIPTION_PREVIEW_CHARS;
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   return (
-    <article className="relative rounded-2xl p-6 flex flex-col"
-      style={{ backgroundColor: cardBg, border: plan.highlighted ? `2px solid ${theme.accentColor}` : `1px solid ${cardBorder}`,
-        boxShadow: plan.highlighted ? `0 12px 32px -12px ${theme.accentColor}55` : undefined }}>
-      {plan.highlighted && (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
-          style={{ backgroundColor: theme.accentColor, color: accentText }}>
-          <Star className="w-3 h-3" /> {translateUi("Most popular")}
-        </span>
-      )}
-      <h3 className="text-lg font-bold" style={{ color: text }}>{plan.name}</h3>
-      <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5" style={{ color: text }}>
-        <span className="text-3xl font-black tabular-nums">{formatPrice(plan.price, plan.currency, uiLocale)}</span>
-        <span className="text-sm whitespace-nowrap" style={{ color: sub }}>{translateUi(PER[plan.billingInterval])}</span>
-      </p>
-      {plan.signupFee ? (
-        <p className="text-xs mt-1" style={{ color: sub }}>
-          {translateUi("+ {fee} one-time sign-up fee", { fee: formatPrice(plan.signupFee, plan.currency, uiLocale) })}
+    <article className="min-w-0 relative rounded-2xl p-4 sm:p-5 flex flex-col transition-shadow hover:shadow-lg"
+      style={{ backgroundColor: cardBg, border: `1px solid ${plan.highlighted ? theme.accentColor : cardBorder}` }}>
+      <div className="min-h-6 mb-3">
+        {plan.highlighted && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
+            style={{ backgroundColor: theme.accentColor, color: accentText }}>
+            <Star aria-hidden="true" className="w-3 h-3 shrink-0" /> {translateUi("Most popular")}
+          </span>
+        )}
+      </div>
+      <h3 className="min-h-12 text-base font-bold leading-6 break-words" style={{ color: text }}>{plan.name}</h3>
+      <div className="mt-2 min-h-24">
+        <p className="flex flex-col gap-1" style={{ color: text }}>
+          <span className="text-2xl xl:text-3xl font-bold tracking-tight tabular-nums break-words">{formatPrice(plan.price, plan.currency, uiLocale)}</span>
+          <span className="text-xs" style={{ color: sub }}>{translateUi(PER[plan.billingInterval])}</span>
         </p>
-      ) : null}
-      {worth && (
-        <p className="text-xs font-semibold mt-1" style={{ color: theme.accentColor }}>
-          {translateUi("Includes {value} of treatments", { value: formatPrice(worth, plan.currency, uiLocale) })}
-        </p>
-      )}
-      {plan.description && (
-        <div className="mt-3 text-sm leading-relaxed" style={{ color: sub }}>
-          <p className={longDescription && !expanded ? "line-clamp-2" : undefined}>{plan.description}</p>
-          {longDescription && (
-            <button type="button" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}
-              className="mt-1 text-xs font-semibold underline-offset-2 hover:underline cursor-pointer" style={{ color: text }}>
-              {expanded ? translateUi("Show less") : translateUi("Show more")}
-            </button>
+        {plan.signupFee ? (
+          <p className="text-xs mt-1" style={{ color: sub }}>
+            {translateUi("+ {fee} one-time sign-up fee", { fee: formatPrice(plan.signupFee, plan.currency, uiLocale) })}
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-4 min-h-26">
+        {!expanded && benefits.length > 0 && (
+          <ul className="space-y-2">
+            {benefits.slice(0, 2).map((benefit, index) => (
+              <li key={index} className="flex items-start gap-2 text-sm leading-relaxed" style={{ color: text }}>
+                <Check aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5" style={{ color: theme.accentColor }} />
+                <span className="min-w-0 line-clamp-2 break-words">{benefit}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div id={detailsId} hidden={!expanded} className="space-y-4">
+          {plan.description && <p className="text-sm leading-relaxed whitespace-pre-line break-words" style={{ color: sub }}>{plan.description}</p>}
+          {benefits.length > 0 && (
+            <ul className="space-y-2">
+              {benefits.map((benefit, index) => (
+                <li key={index} className="flex items-start gap-2 text-sm leading-relaxed" style={{ color: text }}>
+                  <Check aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5" style={{ color: theme.accentColor }} />
+                  <span className="min-w-0 break-words">{benefit}</span>
+                </li>
+              ))}
+            </ul>
           )}
+          {worth && (
+            <p className="text-xs font-semibold" style={{ color: theme.accentColor }}>
+              {translateUi("Includes {value} of treatments", { value: formatPrice(worth, plan.currency, uiLocale) })}
+            </p>
+          )}
+          <p className="text-xs leading-relaxed" style={{ color: sub }}>
+            {translateUi("Covers {period}. Before it ends we'll email you a link to renew — nothing is charged automatically.", {
+              period: translateUi(COVERS[plan.billingInterval]),
+            })}
+          </p>
         </div>
-      )}
-      {benefits.length > 0 && (
-        <ul className="mt-4 space-y-2">
-          {benefits.map((b, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm" style={{ color: text }}>
-              <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: theme.accentColor }} /> <span>{b}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      </div>
       {plan.spotsLeft != null && !plan.soldOut && plan.spotsLeft <= 5 && (
         <p className="mt-4 text-xs font-semibold" style={{ color: theme.accentColor }}>
           {translateUi("Only {count} spots left", { count: plan.spotsLeft })}
         </p>
       )}
-      {onlineSignup && (
-        <div className="mt-auto pt-5">
-          <button onClick={onJoin} disabled={plan.soldOut} aria-label={translateUi("Join {plan}", { plan: plan.name })}
-            className="w-full text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            style={plan.highlighted || plan.soldOut
-              ? { backgroundColor: theme.accentColor, color: accentText }
-              : { backgroundColor: "transparent", color: text, border: `1.5px solid ${theme.accentColor}` }}>
+      {!onlineSignup && plan.soldOut && <p className="mt-3 text-xs font-semibold" style={{ color: sub }}>{translateUi("Fully booked")}</p>}
+      <div className="mt-auto pt-4">
+        <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-controls={detailsId}
+          className="w-full min-h-11 flex items-center justify-between gap-2 border-t text-xs font-semibold text-left cursor-pointer hover:opacity-75 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
+          style={{ color: text, borderColor: cardBorder }}>
+          {expanded ? translateUi("Show less") : translateUi("View details")}
+          <ChevronDown aria-hidden="true" className={`w-4 h-4 shrink-0 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {onlineSignup && (
+          <button type="button" onClick={onJoin} disabled={plan.soldOut} aria-label={translateUi("Join {plan}", { plan: plan.name })}
+            className="mt-2 w-full min-h-11 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: theme.accentColor, color: accentText }}>
             {plan.soldOut ? translateUi("Fully booked") : translateUi("Join")}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </article>
   );
 }

@@ -955,6 +955,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                   </a>
                 )}
               </div>
+              <FeedbackLink color={hero.sub} className="mt-2" />
             </div>
 
             {/* Quick-info card */}
@@ -1221,7 +1222,6 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                                 <span className="text-slate-400">{translateUi("No reviews yet")}</span>
                               )}
                             </div>
-                            <FeedbackLink staffId={m.id} color={theme.accentColor} />
                             {photos + videos > 0 ? (
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
                                 {photos > 0 && <span className="inline-flex items-center gap-0.5"><Images className="w-2.5 h-2.5" />{photos}</span>}
@@ -1310,7 +1310,6 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                                 ) : (
                                   <p className="mt-0.5 text-[10px] text-slate-400">{translateUi("No reviews yet")}</p>
                                 )}
-                                <FeedbackLink staffId={m.id} color={theme.accentColor} />
                                 {hint && (
                                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
                                     {workMedia.length > 0
