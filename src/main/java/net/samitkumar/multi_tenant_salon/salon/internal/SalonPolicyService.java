@@ -64,7 +64,7 @@ class SalonPolicyService {
     }
 
     private SalonPolicy template(String key, String title, String en, String da, String sv, String nb, String fr, String de) {
-        return new SalonPolicy(key, title, true, true, true, "DEFAULT", "en",
+        return new SalonPolicy(key, title, true, true, true, false, false, false, "DEFAULT", "en",
                 Map.of("en", en, "da", da, "sv", sv, "nb", nb, "fr", fr, "de", de));
     }
 
@@ -79,7 +79,7 @@ class SalonPolicyService {
             // Refresh untouched built-in copy as the starter wording improves, while preserving
             // each salon's title, visibility selections and any text marked CUSTOM.
             var current = policy.source().equals("DEFAULT") && defaultByKey.containsKey(policy.key())
-                    ? new SalonPolicy(policy.key(), policy.title(), policy.enabled(), policy.website(), policy.booking(),
+                    ? new SalonPolicy(policy.key(), policy.title(), policy.enabled(), policy.website(), policy.booking(), policy.membership(), policy.shop(), policy.loyalty(),
                     policy.source(), defaultByKey.get(policy.key()).defaultLanguage(), defaultByKey.get(policy.key()).translations())
                     : policy;
             result.put(current.key(), current);
@@ -88,10 +88,16 @@ class SalonPolicyService {
     }
 
     List<SalonPolicy> published(UUID salonId, String placement) {
-        String field = "website".equals(placement) ? "website" : "booking";
         return jdbc.sql("SELECT published_document FROM salon_policy_document WHERE salon_id = :id AND published_document IS NOT NULL")
                 .param("id", salonId).query(String.class).list().stream().map(this::decode)
-                .filter(policy -> policy.enabled() && ("website".equals(field) ? policy.website() : policy.booking()))
+                .filter(policy -> policy.enabled() && switch (placement) {
+                    case "website" -> policy.website();
+                    case "booking" -> policy.booking();
+                    case "membership" -> policy.membership();
+                    case "shop" -> policy.shop();
+                    case "loyalty" -> policy.loyalty();
+                    default -> false;
+                })
                 .toList();
     }
 

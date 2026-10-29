@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { AlertCircle, Check, FileText, Globe2, Upload } from "lucide-react";
+import { AlertCircle, Check, FileText, Globe2, ShoppingBag, Heart, BadgeCheck, Plus, Upload } from "lucide-react";
 import { ADMIN_API, apiFetch, resolveSalonUUID } from "~/lib/api";
 
 type Policy = {
@@ -10,10 +10,21 @@ type Policy = {
   enabled: boolean;
   website: boolean;
   booking: boolean;
+  membership: boolean;
+  shop: boolean;
+  loyalty: boolean;
   source: "DEFAULT" | "CUSTOM";
   defaultLanguage: string;
   translations: Record<string, string>;
 };
+
+const PLACEMENTS = [
+  { key: "website", label: "Public website", description: "Show a policy link on your salon website.", icon: Globe2 },
+  { key: "booking", label: "Booking page", description: "Show a policy link during online booking.", icon: FileText },
+  { key: "membership", label: "Membership page", description: "Show a policy link on your membership page and sign-up form.", icon: BadgeCheck },
+  { key: "shop", label: "Shop page", description: "Show a policy link in your shop and checkout.", icon: ShoppingBag },
+  { key: "loyalty", label: "Loyalty page", description: "Show a policy link on your loyalty page.", icon: Heart },
+] as const;
 
 const LANGUAGES = [
   ["en", "English"], ["da", "Dansk"], ["sv", "Svenska"],
@@ -40,6 +51,7 @@ function PolicyEditor({ salonId, policies: initial }: Awaited<ReturnType<typeof 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selected = policies.find(({ key }) => key === selectedKey);
+  const selectedPlacements = PLACEMENTS.filter(({ key }) => selected?.[key]);
   const dirty = JSON.stringify(policies) !== JSON.stringify(saved);
 
   function updateSelected(update: Partial<Policy>) {
@@ -54,7 +66,7 @@ function PolicyEditor({ salonId, policies: initial }: Awaited<ReturnType<typeof 
 
   function addCustomPolicy() {
     const key = `custom-${crypto.randomUUID()}`;
-    const policy: Policy = { key, title: "Custom policy", enabled: false, website: false, booking: false, source: "CUSTOM", defaultLanguage: "en", translations: { en: "" } };
+    const policy: Policy = { key, title: "Custom policy", enabled: false, website: false, booking: false, membership: false, shop: false, loyalty: false, source: "CUSTOM", defaultLanguage: "en", translations: { en: "" } };
     setPolicies((current) => [...current, policy]);
     setSelectedKey(key);
     setLanguage("en");
@@ -87,12 +99,18 @@ function PolicyEditor({ salonId, policies: initial }: Awaited<ReturnType<typeof 
   return <main className="max-w-6xl space-y-5">
     <header>
       <div className="flex items-center gap-2"><FileText className="h-5 w-5 text-matcha-700" /><h1 className="text-xl font-bold text-slate-900">Legal policies</h1></div>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">All standard policy links start enabled on your website and booking page. Turn off either placement for a policy whenever you like, edit the suggested text, then publish your changes.</p>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">All standard policy links start enabled on your website and booking page. Choose where each policy appears, including your membership, shop and loyalty pages, edit the suggested text, then publish your changes.</p>
     </header>
 
     <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex items-center justify-between gap-2 px-2 pb-2"><h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Policy library</h2><button type="button" onClick={addCustomPolicy} className="text-xs font-semibold text-matcha-800 hover:underline">Add policy</button></div>
+        <div className="space-y-3 px-2 pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Policy library</h2>
+          <button type="button" onClick={addCustomPolicy} className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-matcha-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-matcha-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-600 focus-visible:ring-offset-2">
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            Add policy
+          </button>
+        </div>
         <div className="space-y-1">{policies.map((policy) => <button key={policy.key} type="button" onClick={() => setSelectedKey(policy.key)} className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm ${policy.key === selectedKey ? "bg-matcha-50 font-semibold text-matcha-900" : "text-slate-700 hover:bg-slate-50"}`}>
           <span>{policy.title}</span>{policy.enabled && <Check className="h-4 w-4 text-matcha-700" />}
         </button>)}</div>
@@ -102,25 +120,23 @@ function PolicyEditor({ salonId, policies: initial }: Awaited<ReturnType<typeof 
       {selected ? <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
           <div><p className="text-xs font-medium uppercase tracking-wide text-slate-500">{selected.source === "DEFAULT" ? "Default template" : "Salon text"}</p><h2 className="mt-1 text-lg font-semibold text-slate-900">{selected.title}</h2></div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${selected.website || selected.booking ? "bg-matcha-50 text-matcha-900" : "bg-slate-100 text-slate-600"}`}>
-            {selected.website && selected.booking ? "Selected for both pages" : selected.website ? "Website selected" : selected.booking ? "Booking selected" : "Hidden from customers"}
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${selectedPlacements.length ? "bg-matcha-50 text-matcha-900" : "bg-slate-100 text-slate-600"}`}>
+            {selectedPlacements.length ? `Selected for ${selectedPlacements.length} ${selectedPlacements.length === 1 ? "page" : "pages"}` : "Hidden from customers"}
           </span>
         </div>
 
         <fieldset className="border-b border-slate-100 py-4">
           <legend className="text-sm font-semibold text-slate-800">Where should this policy appear?</legend>
-          <p className="mt-1 text-sm text-slate-500">Select one or both customer pages. Clear both to hide this policy.</p>
+          <p className="mt-1 text-sm text-slate-500">Select the customer pages where this policy should appear. Clear all to hide this policy.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className={`flex min-h-[76px] cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${selected.website ? "border-matcha-300 bg-matcha-50/60" : "border-slate-200 hover:bg-slate-50"}`}>
-              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-matcha-700" checked={selected.website} onChange={(e) => updateSelected({ website: e.target.checked, enabled: e.target.checked || selected.booking })} />
-              <Globe2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-              <span><span className="block text-sm font-medium text-slate-800">Public website</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Show a policy link on your salon website.</span></span>
-            </label>
-            <label className={`flex min-h-[76px] cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${selected.booking ? "border-matcha-300 bg-matcha-50/60" : "border-slate-200 hover:bg-slate-50"}`}>
-              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-matcha-700" checked={selected.booking} onChange={(e) => updateSelected({ booking: e.target.checked, enabled: e.target.checked || selected.website })} />
-              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-              <span><span className="block text-sm font-medium text-slate-800">Booking page</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Show a policy link during online booking.</span></span>
-            </label>
+            {PLACEMENTS.map(({ key, label, description, icon: Icon }) => <label key={key} className={`flex min-h-[76px] cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${selected[key] ? "border-matcha-300 bg-matcha-50/60" : "border-slate-200 hover:bg-slate-50"}`}>
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-matcha-700" checked={!!selected[key]} onChange={(e) => {
+                const updated = { ...selected, [key]: e.target.checked };
+                updateSelected({ [key]: e.target.checked, enabled: PLACEMENTS.some(({ key: placement }) => updated[placement]) });
+              }} />
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+              <span><span className="block text-sm font-medium text-slate-800">{label}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{description}</span></span>
+            </label>)}
           </div>
         </fieldset>
 

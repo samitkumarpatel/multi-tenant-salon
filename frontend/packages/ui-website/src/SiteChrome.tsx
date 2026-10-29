@@ -402,8 +402,8 @@ export function SiteFooter({
   const accentText = contrastText(theme.accentColor);
   const isScrollable = useIsScrollable();
   const hasBooking = salon.features?.includes("BOOKING");
-  // Each surface shows its own policies: booking and refunds on the booking page, refunds and sales in the web-shop, the rest on the website.
-  const surface: PolicySurface = current === "book" || standalone ? "booking" : current === "shop" ? "webshop" : "website";
+  const surface: PolicySurface = current === "book" || standalone ? "booking"
+    : current === "shop" || current === "membership" || current === "loyalty" ? current : "website";
   policies = policiesForSurface(policies, surface);
   // The slim booking-page footer below has no hours column, so don't fetch for it.
   const holidays   = useSalonHolidays(current === "book" ? undefined : salon.id);

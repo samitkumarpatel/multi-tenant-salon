@@ -43,7 +43,7 @@ export default function PublicWebsitePage() {
         <ShopView
           salon={data.salon}
           theme={theme}
-          policies={data.websitePolicies}
+          policies={data.shopPolicies}
           getPagePath={(page) => `/${page}${search}`}
           onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
         />
@@ -56,7 +56,7 @@ export default function PublicWebsitePage() {
         <MembershipView
           salon={data.salon}
           theme={theme}
-          policies={data.websitePolicies}
+          policies={data.membershipPolicies}
           getPagePath={(page) => `/${page}${search}`}
           onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
         />
@@ -69,7 +69,7 @@ export default function PublicWebsitePage() {
         <LoyaltyView
           salon={data.salon}
           theme={theme}
-          policies={data.websitePolicies}
+          policies={data.loyaltyPolicies}
           getPagePath={(page) => `/${page}${search}`}
           onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}
         />
@@ -132,6 +132,9 @@ export default function PublicWebsitePage() {
       theme={data.theme}
       websitePolicies={data.websitePolicies}
       bookingPolicies={data.bookingPolicies}
+      membershipPolicies={data.membershipPolicies}
+      shopPolicies={data.shopPolicies}
+      loyaltyPolicies={data.loyaltyPolicies}
       activePage={activePage}
       getPagePath={(page) => `/${page}${search}`}
       onNavigate={(page) => navigate(page ? `/${page}${search}` : `/${search}`)}

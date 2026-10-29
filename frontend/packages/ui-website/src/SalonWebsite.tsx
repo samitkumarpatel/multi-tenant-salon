@@ -613,6 +613,9 @@ export interface SalonWebsiteProps {
   theme: WebsiteTheme;
   websitePolicies?: SalonPolicy[];
   bookingPolicies?: SalonPolicy[];
+  membershipPolicies?: SalonPolicy[];
+  shopPolicies?: SalonPolicy[];
+  loyaltyPolicies?: SalonPolicy[];
   /** Current page key: "book" | "shop" | "membership" | "loyalty" | undefined (home) */
   activePage?: string;
   /** Navigate to a page ("book", "shop", etc.) or null to go home */
@@ -621,7 +624,7 @@ export interface SalonWebsiteProps {
   getPagePath?: (page: string) => string;
 }
 
-export function SalonWebsite({ salon, staff, services, theme: themeProp, websitePolicies = [], bookingPolicies = [], activePage, onNavigate, getPagePath }: SalonWebsiteProps) {
+export function SalonWebsite({ salon, staff, services, theme: themeProp, websitePolicies = [], bookingPolicies = [], membershipPolicies = [], shopPolicies = [], loyaltyPolicies = [], activePage, onNavigate, getPagePath }: SalonWebsiteProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const theme = { ...DEFAULT_THEME, ...themeProp };
   const bookUrl = getPagePath ? getPagePath("book") : "/book";
@@ -770,7 +773,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
       <ShopView
         salon={salon}
         theme={theme}
-        policies={websitePolicies}
+        policies={shopPolicies}
         getPagePath={getPagePath}
         onNavigate={(page) => onNavigate?.(page)}
       />
@@ -782,7 +785,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
       <MembershipView
         salon={salon}
         theme={theme}
-        policies={websitePolicies}
+        policies={membershipPolicies}
         getPagePath={getPagePath}
         onNavigate={(page) => onNavigate?.(page)}
       />
@@ -804,7 +807,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   }
 
   if (currentPage === "loyalty" && featurePages.some((fp) => fp.path === "loyalty")) {
-    return <LoyaltyView salon={salon} theme={theme} policies={websitePolicies} getPagePath={getPagePath} onNavigate={(page) => onNavigate?.(page)} />;
+    return <LoyaltyView salon={salon} theme={theme} policies={loyaltyPolicies} getPagePath={getPagePath} onNavigate={(page) => onNavigate?.(page)} />;
   }
 
   const featureViewKey = featurePages.some((fp) => fp.path === currentPage) && FEATURE_VIEWS[currentPage] ? currentPage : null;

@@ -16,6 +16,9 @@ record SalonPolicy(
         boolean enabled,
         boolean website,
         boolean booking,
+        Boolean membership,
+        Boolean shop,
+        Boolean loyalty,
         @NotBlank String source,
         @NotBlank String defaultLanguage,
         @NotNull Map<String, @Size(max = 30000) String> translations) {
@@ -24,6 +27,10 @@ record SalonPolicy(
     private static final Pattern KEY = Pattern.compile("[a-z0-9][a-z0-9-]{0,79}");
 
     SalonPolicy {
+        // Older saved documents and clients omit the additional placements.
+        membership = Boolean.TRUE.equals(membership);
+        shop = Boolean.TRUE.equals(shop);
+        loyalty = Boolean.TRUE.equals(loyalty);
         if (key == null || !KEY.matcher(key).matches() || title == null || title.isBlank() || title.length() > 120
                 || !Set.of("DEFAULT", "CUSTOM").contains(source)
                 || defaultLanguage == null || !LANGUAGES.contains(defaultLanguage)

@@ -35,7 +35,7 @@ class SalonPolicyController {
     @GetMapping("/api/salon/{salonId}/policies")
     org.springframework.http.ResponseEntity<List<SalonPolicy>> publicPolicies(@PathVariable String salonId,
             @RequestParam(defaultValue = "website") String placement) {
-        if (!List.of("website", "booking").contains(placement)) {
+        if (!List.of("website", "booking", "membership", "shop", "loyalty").contains(placement)) {
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Unknown policy placement.");
         }
         return org.springframework.http.ResponseEntity.ok().cacheControl(CacheControl.noStore())

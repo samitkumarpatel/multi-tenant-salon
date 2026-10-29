@@ -81,11 +81,62 @@ class SalonPolicyIntegrationTest {
         client.get().uri(publicPath + "?placement=booking").exchange().expectStatus().isOk()
                 .expectBody().json("[]");
 
+        // Existing documents without the new placement fields keep them disabled.
+        for (String placement : List.of("membership", "shop", "loyalty")) {
+            client.get().uri(publicPath + "?placement=" + placement).exchange().expectStatus().isOk()
+                    .expectBody().json("[]");
+        }
+
         UUID anotherSalon = UUID.randomUUID();
         jdbc.update("INSERT INTO salon(id, name, handler, created_at) VALUES (?, 'Other policy salon', ?, now())",
                 anotherSalon, "policy-" + anotherSalon);
         client.get().uri("/api/salon/" + anotherSalon + "/policies?placement=website").exchange()
                 .expectStatus().isOk().expectBody().json("[]");
+    }
+
+    @Test void publishesEachNewPlacementIndependentlyAndPreservesSelectionsInTheEditor() {
+        String publicPath = "/api/salon/" + salonId + "/policies";
+        for (String placement : List.of("membership", "shop", "loyalty")) {
+            var document = new java.util.HashMap<String, Object>(policy());
+            document.put("key", "custom-" + placement);
+            document.put("website", false);
+            document.put(placement, true);
+            client.put().uri(adminPath).header("Authorization", "Bearer owner")
+                    .contentType(MediaType.APPLICATION_JSON).body(List.of(document)).exchange().expectStatus().isOk();
+            client.get().uri(publicPath + "?placement=" + placement).exchange().expectStatus().isOk()
+                    .expectBody().json("[]");
+        }
+        // DEFAULT documents are refreshed by the editor without losing their placements.
+        var template = new java.util.HashMap<String, Object>(policy());
+        template.put("source", "DEFAULT");
+        template.put("website", false);
+        template.put("membership", true);
+        template.put("shop", true);
+        template.put("loyalty", true);
+        client.put().uri(adminPath).header("Authorization", "Bearer owner")
+                .contentType(MediaType.APPLICATION_JSON).body(List.of(template)).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$[0].membership").isEqualTo(true)
+                .jsonPath("$[0].shop").isEqualTo(true).jsonPath("$[0].loyalty").isEqualTo(true);
+        client.post().uri(adminPath + "/publish").header("Authorization", "Bearer owner")
+                .exchange().expectStatus().isOk();
+        for (String placement : List.of("membership", "shop", "loyalty")) {
+            client.get().uri(publicPath + "?placement=" + placement).exchange().expectStatus().isOk()
+                    .expectBody().jsonPath("$.length()").isEqualTo(2)
+                    .jsonPath("$[?(@.key == 'custom-" + placement + "')]." + placement).isEqualTo(List.of(true));
+        }
+        for (String placement : List.of("website", "booking")) {
+            client.get().uri(publicPath + "?placement=" + placement).exchange().expectStatus().isOk()
+                    .expectBody().json("[]");
+        }
+        template.put("enabled", false);
+        client.put().uri(adminPath).header("Authorization", "Bearer owner")
+                .contentType(MediaType.APPLICATION_JSON).body(List.of(template)).exchange().expectStatus().isOk();
+        client.post().uri(adminPath + "/publish").header("Authorization", "Bearer owner")
+                .exchange().expectStatus().isOk();
+        for (String placement : List.of("membership", "shop", "loyalty")) {
+            client.get().uri(publicPath + "?placement=" + placement).exchange().expectStatus().isOk()
+                    .expectBody().jsonPath("$.length()").isEqualTo(1);
+        }
     }
 
     @Test void validatesPlacementAndRestrictsDraftManagementToSalonOwners() {

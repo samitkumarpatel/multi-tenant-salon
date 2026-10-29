@@ -9,7 +9,7 @@ import { friendlyMessage } from "./apiError";
 import { DEFAULT_PRODUCT_EMOJI, formatPrice } from "./constants";
 import { SiteHeader, SiteFooter } from "./SiteChrome";
 import { CustomerAccountDrawer, siteAccountLinks } from "./CustomerAccount";
-import { SalonPolicyLinks, type SalonPolicy } from "./SalonPolicyLinks";
+import { SalonPolicyLinks, policiesForSurface, type SalonPolicy } from "./SalonPolicyLinks";
 import { contrastText, fontStack, isLightColor, loadGoogleFont, shade } from "./theme";
 import { useCart } from "./shopCart";
 import { useWishlist } from "./shopWishlist";
@@ -1281,9 +1281,6 @@ type Fulfilment = "SHIP" | "COLLECT";
 /** Field ids in on-screen order — the first invalid one gets focus when the customer tries to pay. */
 const CHECKOUT_FIELDS = ["customerName", "customerEmail", "line1", "city", "country", "shippingMethod"] as const;
 
-/** The policies the checkout links to — the ones that govern a purchase. */
-const CHECKOUT_POLICY_KEYS = ["refunds", "sales"];
-
 type ShippingQuoteState =
   | { status: "idle" | "loading" | "error" }
   | { status: "ready"; quote: ShopShippingQuote };
@@ -1535,7 +1532,7 @@ function CheckoutForm({
 
   const salonAddress = [salon.location?.address, salon.location?.city].filter(Boolean).join(", ");
   const total = formatPrice(subtotal + shippingCost, currency, uiLocale);
-  const checkoutPolicies = policies.filter((p) => CHECKOUT_POLICY_KEYS.includes(p.key));
+  const checkoutPolicies = policiesForSurface(policies, "shop");
   const deliveryTypeLabel = (o: ShopShippingOption) =>
     o.deliveryType === "PICKUP_POINT" ? translateUi("Pickup point")
       : o.deliveryType === "BUSINESS" ? translateUi("Business address")

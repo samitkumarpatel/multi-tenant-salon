@@ -8,6 +8,9 @@ export interface SalonPolicy {
   enabled: boolean;
   website: boolean;
   booking: boolean;
+  membership?: boolean;
+  shop?: boolean;
+  loyalty?: boolean;
   source: "DEFAULT" | "CUSTOM";
   defaultLanguage: string;
   translations: Record<string, string>;
@@ -22,16 +25,11 @@ const POLICY_LABELS: Record<string, Record<string, string>> = {
   sales: { en: "Sales Policy", da: "Salgspolitik", sv: "Försäljningspolicy", nb: "Salgsvilkår", fr: "Politique de vente", de: "Verkaufsrichtlinie" },
 };
 
-export type PolicySurface = "website" | "booking" | "webshop";
+export type PolicySurface = "website" | "booking" | "membership" | "shop" | "loyalty";
 
-/** Built-in policies that belong to one surface only; the rest (privacy, cookies, terms) are website policies. */
-const SURFACE_KEYS: Record<PolicySurface, string[]> = { website: [], booking: ["booking", "refunds"], webshop: ["sales", "refunds"] };
-const SURFACE_ONLY_KEYS = new Set(Object.values(SURFACE_KEYS).flat());
-
-/** The policies a surface's footer links to. Owner-created (custom) policies stay wherever the owner placed them. */
+/** Respect the salon owner's published placement choices for every policy. */
 export function policiesForSurface(policies: SalonPolicy[] = [], surface: PolicySurface): SalonPolicy[] {
-  if (surface === "website") return policies.filter((p) => !SURFACE_ONLY_KEYS.has(p.key));
-  return policies.filter((p) => SURFACE_KEYS[surface].includes(p.key));
+  return policies.filter((policy) => policy.enabled && policy[surface]);
 }
 
 /**
