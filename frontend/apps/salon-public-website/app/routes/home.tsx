@@ -2,7 +2,7 @@ import { useOutletContext, useLocation, useNavigate } from "react-router";
 import { useI18n } from "@salon/i18n";
 import { ArrowUp } from "lucide-react";
 import {
-  SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks, policiesForSurface,
+  FeedbackLink, FeedbackView, SalonWebsite, GenerativeUIWebsite, BookingWizard, ShopView, MembershipView, LoyaltyView, SalonPolicyLinks, policiesForSurface,
   CustomerAccountView, hasCustomerAccount, siteAccountLinks,
 } from "@salon/ui-website";
 import type { TenantData } from "./website-shell";
@@ -18,6 +18,13 @@ export default function PublicWebsitePage() {
 
   const activePage = location.pathname.slice(1) || undefined;
   const search = navigationSearch(location.search);
+
+  if (activePage === "feedback") {
+    const query = new URLSearchParams(location.search);
+    const source = ["WEBSITE_FOOTER", "WEBSITE_STYLIST"].includes(query.get("source") ?? "") ? query.get("source")! : "PUBLIC_WEBSITE";
+    return <FeedbackView salon={data.salon} staff={data.staff} theme={data.theme} enabled={data.feedbackSettings.publicWebsiteEnabled}
+      source={source} initialStaffId={query.get("staff")} onBack={() => navigate(`/${search}`)} />;
+  }
 
   if (data.theme.websiteType === "GENERATIVE_UI") {
     const { theme } = data;
@@ -109,11 +116,16 @@ export default function PublicWebsitePage() {
           />
         </div>
         <footer className="w-full px-5 py-4 sm:max-w-3xl lg:max-w-5xl 2xl:max-w-7xl sm:mx-auto">
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-600">
+            {data.salon.contact?.phone && <a href={`tel:${data.salon.contact.phone}`} className="hover:underline">{data.salon.contact.phone}</a>}
+            {data.salon.contact?.email && <a href={`mailto:${data.salon.contact.email}`} className="hover:underline">{translateUi("Contact us")}</a>}
+            <FeedbackLink />
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[11px] text-slate-500">© {new Date().getFullYear()} {data.salon.name}</p>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-3">
               <SalonPolicyLinks policies={policiesForSurface(data.websitePolicies, "website")} color="#64748B" salonName={data.salon.name} />
-              {hasCustomerAccount(data.salon) && <a href={`/account${search}`} className="text-[11px] font-semibold hover:underline" style={{ color: theme.accentColor }}>{translateUi("Rate your visit")}</a>}
+              {hasCustomerAccount(data.salon) && <a href={`/account${search}`} className="text-[11px] font-semibold hover:underline" style={{ color: theme.accentColor }}>{translateUi("My account")}</a>}
               <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:opacity-75">
                 {translateUi("Back to top ")}<ArrowUp className="h-3 w-3" />
               </button>

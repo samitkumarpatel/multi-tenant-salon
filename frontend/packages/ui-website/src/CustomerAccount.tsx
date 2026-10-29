@@ -739,7 +739,7 @@ function CustomerBookingRating({ salon, theme, tone, booking, option, token, err
     setBusy(true); setSubmitError("");
     try {
       await apiFetch<void>(`${API_BASE}/api/salon/${salon.id}/account/ratings`, {
-        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating, staffRating, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null }),
+        method: "POST", headers: jsonHeaders(token), body: JSON.stringify({ bookingId: booking.id, salonRating: salonRating || null, staffRating: staffRating || null, salonFeedback: salonFeedback.trim() || null, staffFeedback: staffFeedback.trim() || null }),
       });
       onSubmitted(booking.id, { salon: salonFeedback.trim() || null, staff: staffFeedback.trim() || null });
     } catch (e) { setSubmitError(friendlyMessage(e)); }
@@ -769,7 +769,7 @@ function CustomerBookingRating({ salon, theme, tone, booking, option, token, err
           className="mt-1 w-full rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: tone.border, color: tone.text, backgroundColor: "transparent" }} />
       </label>)}
     {(error || submitError) && <p role="alert" className="mt-2 text-xs text-red-600">{submitError || error}</p>}
-    <button type="button" disabled={busy || salonRating < 1 || staffRating < 1} onClick={submit}
+    <button type="button" disabled={busy || (!salonRating && !staffRating && !salonFeedback.trim() && !staffFeedback.trim())} onClick={submit}
       className="mt-3 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
       style={{ backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) }}>{busy ? translateUi("Submitting…") : translateUi("Send feedback")}</button>
   </div>;

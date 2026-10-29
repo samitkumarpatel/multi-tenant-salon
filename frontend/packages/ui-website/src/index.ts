@@ -62,3 +62,6 @@ export type { ShopViewProps } from "./ShopView";
 export {
   useCart, readCart, addToCart, setCartQty, removeFromCart, clearCart, cartCount, cartSubtotal,
 } from "./shopCart";
+
+export { FeedbackProvider, FeedbackLink, FeedbackView, FeedbackStars } from "./Feedback";
+export type { FeedbackSettings } from "./Feedback";

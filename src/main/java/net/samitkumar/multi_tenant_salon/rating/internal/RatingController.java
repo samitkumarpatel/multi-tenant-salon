@@ -18,7 +18,7 @@ class RatingController {
         this.salons = salons;
     }
 
-    record SubmitRatingRequest(int salonRating, int staffRating, String salonFeedback, String staffFeedback) {}
+    record SubmitRatingRequest(Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {}
     record ReplyRequest(String reply) {}
 
     @GetMapping("/api/public/rating/{token}")

@@ -1,3 +1,4 @@
+import { FeedbackLink } from "./Feedback";
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -1220,10 +1221,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                                 <span className="text-slate-400">{translateUi("No reviews yet")}</span>
                               )}
                             </div>
-                            {hasCustomerAccount(salon) && getPagePath && (
-                              <a href={`${getPagePath("account")}${getPagePath("account").includes("?") ? "&" : "?"}staff=${m.id}`} onClick={(e) => e.stopPropagation()}
-                                className="text-[10px] font-semibold no-underline hover:underline" style={{ color: theme.accentColor }}>{translateUi("Rate this stylist")}</a>
-                            )}
+                            <FeedbackLink staffId={m.id} color={theme.accentColor} />
                             {photos + videos > 0 ? (
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
                                 {photos > 0 && <span className="inline-flex items-center gap-0.5"><Images className="w-2.5 h-2.5" />{photos}</span>}
@@ -1312,10 +1310,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                                 ) : (
                                   <p className="mt-0.5 text-[10px] text-slate-400">{translateUi("No reviews yet")}</p>
                                 )}
-                                {hasCustomerAccount(salon) && getPagePath && (
-                                  <a href={`${getPagePath("account")}${getPagePath("account").includes("?") ? "&" : "?"}staff=${m.id}`} onClick={(e) => e.stopPropagation()}
-                                    className="mt-0.5 inline-block text-[10px] font-semibold no-underline hover:underline" style={{ color: theme.accentColor }}>{translateUi("Rate this stylist")}</a>
-                                )}
+                                <FeedbackLink staffId={m.id} color={theme.accentColor} />
                                 {hint && (
                                   <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
                                     {workMedia.length > 0
@@ -1400,7 +1395,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer id="contact" className="mt-auto scroll-mt-16" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
         <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
-          <div className="grid grid-cols-2 items-stretch gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 items-stretch gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
             {/* Left column: brand (desktop only) + find us + social — mobile shows just find us, then social below a divider */}
             <div className="min-w-0 flex flex-col justify-between lg:contents">
@@ -1415,31 +1410,34 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 <SocialLinksRow contact={salon.contact} color={footerText} />
               </div>
 
-              {salon.location && (salon.location.address || salon.location.city) && (
-                <div className="min-w-0 lg:order-3">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                    <MapPin className="w-3.5 h-3.5" /> {translateUi("Find us ")}</h3>
-                  <address className="not-italic flex flex-col gap-0.5 text-xs">
-                    {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
-                    {(salon.location.zipCode || salon.location.city) && (
-                      <p style={{ color: footerDim }}>{[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}{salon.location.state ? `, ${salon.location.state}` : ""}</p>
+              <div className="min-w-0 [overflow-wrap:anywhere] empty:hidden lg:order-3 lg:max-w-xs">
+                {salon.location && (salon.location.address || salon.location.city) && (
+                  <div>
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
+                      <MapPin className="w-3.5 h-3.5" /> {translateUi("Find us ")}</h3>
+                    <address className="not-italic flex flex-col gap-0.5 text-xs">
+                      {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
+                      {(salon.location.zipCode || salon.location.city) && (
+                        <p style={{ color: footerDim }}>{[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}{salon.location.state ? `, ${salon.location.state}` : ""}</p>
+                      )}
+                      {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
+                    </address>
+                    {salon.location.address && (
+                      <span className="mt-2 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
+                        {translateUi("Open in Maps ")}<ChevronRight className="w-3 h-3" />
+                        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">{translateUi("soon")}</span>
+                      </span>
                     )}
-                    {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
-                  </address>
-                  {salon.location.address && (
-                    <span className="mt-2 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
-                      {translateUi("Open in Maps ")}<ChevronRight className="w-3 h-3" />
-                      <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">{translateUi("soon")}</span>
-                    </span>
-                  )}
-                  {salon.showBusinessId && salon.businessRegistrationId && (
-                    <p className="text-[11px] mt-3" style={{ color: footerDim }}>{salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</p>
-                  )}
-                  <div className="lg:hidden pt-3">
-                    <SocialLinksRow contact={salon.contact} color={footerText} />
+                    {salon.showBusinessId && salon.businessRegistrationId && (
+                      <p className="text-[11px] mt-3" style={{ color: footerDim }}>{salon.businessIdLabel ?? "Reg. No."} {salon.businessRegistrationId}</p>
+                    )}
+                    <div className="lg:hidden pt-3">
+                      <SocialLinksRow contact={salon.contact} color={footerText} />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                <FeedbackLink color={footerText} className="mt-3" />
+              </div>
             </div>
 
             {/* Right column: opening hours, matched in width to the left column and stretched to its height */}

@@ -1,3 +1,4 @@
+import { FeedbackLink } from "./Feedback";
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import React from "react";
 import {
@@ -24,7 +25,7 @@ export const FEATURE_NAV: Record<string, { label: string; path: string }> = {
 
 /** Menus that can put a link in the website footer. The feature pages (book, shop, membership, loyalty) are reached from the header, so only the account link remains. */
 export const FOOTER_LINK_MENUS: { key: string; feature?: string; label: string; page: string }[] = [
-  { key: "ACCOUNT",                                     label: "Rate your visit & leave feedback", page: "account" },
+  { key: "ACCOUNT",                                     label: "My account", page: "account" },
 ];
 
 /** The footer links the visitor sees: one per menu the salon has, unless the owner switched it off. */
@@ -449,6 +450,7 @@ export function SiteFooter({
           </div>
           {standalone ? (
             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+              <FeedbackLink color={theme.accentColor} />
               <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
               {salon.contact?.phone && (
                 <a
@@ -468,6 +470,7 @@ export function SiteFooter({
                 style={{ color: theme.accentColor }}
               >
                 <ArrowLeft className="w-3 h-3" /> {translateUi("Back to website ")}</button>
+              <FeedbackLink color={theme.accentColor} />
               <SalonPolicyLinks policies={policies} color={footerDim} salonName={salon.name} />
             </div>
           )}
@@ -479,7 +482,7 @@ export function SiteFooter({
   return (
     <footer className="mt-auto" style={{ backgroundColor: footerBg, color: footerText, ...(footerIsLight ? { borderTop: "1px solid #E2E8F0" } : {}) }}>
       <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
-        <div className="grid grid-cols-2 items-start gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 items-start gap-x-4 gap-y-8 sm:gap-x-8 lg:flex lg:items-start lg:justify-between lg:gap-12">
 
           {/* Left column: brand (desktop only) + find us + social — mirrors the home-page
               footer (SalonWebsite.tsx). Contact details are intentionally not repeated here. */}
@@ -501,31 +504,34 @@ export function SiteFooter({
               )}
             </div>
 
-            {salon.location && (salon.location.address || salon.location.city) && (
-              <div className="min-w-0 lg:order-4">
-                <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
-                  <MapPin className="w-3.5 h-3.5" /> {translateUi("Find us ")}</h3>
-                <address className="not-italic flex flex-col gap-0.5 text-xs">
-                  {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
-                  {(salon.location.zipCode || salon.location.city) && (
-                    <p style={{ color: footerDim }}>
-                      {[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}
-                      {salon.location.state ? `, ${salon.location.state}` : ""}
-                    </p>
+            <div className="min-w-0 [overflow-wrap:anywhere] empty:hidden lg:order-4 lg:max-w-xs">
+              {salon.location && (salon.location.address || salon.location.city) && (
+                <div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: footerDim }}>
+                    <MapPin className="w-3.5 h-3.5" /> {translateUi("Find us ")}</h3>
+                  <address className="not-italic flex flex-col gap-0.5 text-xs">
+                    {salon.location.address && <p className="font-semibold" style={{ color: footerBright }}>{salon.location.address}</p>}
+                    {(salon.location.zipCode || salon.location.city) && (
+                      <p style={{ color: footerDim }}>
+                        {[salon.location.zipCode, salon.location.city].filter(Boolean).join(" ")}
+                        {salon.location.state ? `, ${salon.location.state}` : ""}
+                      </p>
+                    )}
+                    {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
+                  </address>
+                  {salon.location.address && (
+                    <span className="mt-3 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
+                      {translateUi("Open in Maps ")}<ChevronRight className="w-3 h-3" />
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">{translateUi("soon")}</span>
+                    </span>
                   )}
-                  {salon.location.country && <p style={{ color: footerDim }}>{salon.location.country}</p>}
-                </address>
-                {salon.location.address && (
-                  <span className="mt-3 inline-flex items-center flex-wrap gap-1.5 text-xs font-semibold select-none opacity-40 cursor-not-allowed" style={{ color: theme.accentColor }}>
-                    {translateUi("Open in Maps ")}<ChevronRight className="w-3 h-3" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border border-current">{translateUi("soon")}</span>
-                  </span>
-                )}
-                <div className="lg:hidden pt-3">
-                  <SocialLinksRow contact={salon.contact} color={footerText} />
+                  <div className="lg:hidden pt-3">
+                    <SocialLinksRow contact={salon.contact} color={footerText} />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              <FeedbackLink color={footerText} className="mt-3" />
+            </div>
           </div>
 
           {/* Right column: opening hours, matched in width to the left column and stretched to its height */}

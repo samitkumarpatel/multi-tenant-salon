@@ -44,6 +44,9 @@ class BookingNotificationDeliveryTests {
     @Autowired
     EventCapture eventCapture;
 
+    @Autowired
+    net.samitkumar.multi_tenant_salon.rating.RatingApi ratings;
+
     RestTestClient client;
     UUID salonId;
     String serviceId;
@@ -151,6 +154,15 @@ class BookingNotificationDeliveryTests {
                 .expectStatus().isOk();
 
         assertThat(eventCapture.statusChangedTo(Long.valueOf(bookingId), BookingStatus.COMPLETED)).isTrue();
+        var completed = eventCapture.completed(Long.valueOf(bookingId));
+        assertThat(completed).hasSize(1);
+        String token = completed.getFirst().reviewToken();
+        assertThat(token).isNotBlank();
+        assertThat(ratings.findReviewTarget(token)).isNotNull();
+        client.post().uri("/api/salon-admin/{salonId}/booking/{bookingId}/complete", salonId, bookingId)
+                .exchange().expectStatus().isOk();
+        assertThat(eventCapture.completed(Long.valueOf(bookingId))).hasSize(1);
+        assertThat(ratings.submitReview(token, 5, null, null, null)).isTrue();
     }
 
     @Test
@@ -220,6 +232,12 @@ class BookingNotificationDeliveryTests {
         @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
         void onRescheduled(BookingRescheduledEvent event) {
             events.add(event);
+        }
+
+        List<BookingStatusChangedEvent> completed(Long bookingId) {
+            return events.stream().filter(e -> e instanceof BookingStatusChangedEvent changed
+                    && changed.bookingId().equals(bookingId) && changed.newStatus() == BookingStatus.COMPLETED)
+                    .map(e -> (BookingStatusChangedEvent) e).toList();
         }
 
         boolean statusChangedTo(Long bookingId, BookingStatus status) {

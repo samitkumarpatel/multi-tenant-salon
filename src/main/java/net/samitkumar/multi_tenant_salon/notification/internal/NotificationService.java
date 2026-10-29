@@ -326,7 +326,8 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withFeedbackText(event.salonId(), text), withFeedbackHtml(event.salonId(), html));
+        sendEmail(event.customerEmail(), event.customerName(), subject, reviewUrl == null ? withFeedbackText(event.salonId(), text) : text,
+                reviewUrl == null ? withFeedbackHtml(event.salonId(), html) : layout(event.salonName(), html));
     }
 
     void notifyPosReceipt(PosReceiptRequestedEvent event) {
@@ -875,13 +876,12 @@ class NotificationService {
     }
 
     /**
-     * The salon website's account page, where a customer signs in with their email and rates or writes feedback
-     * on any completed visit. Null when the salon can't be found, so the footer is simply left out.
+     * The direct feedback page, usable even when the salon has no public website. Null when the salon can't be found, so the footer is simply left out.
      */
     private String feedbackUrl(UUID salonId) {
         if (salonId == null) return null;
-        return salonApi.findById(salonId).map(Salon::handler).filter(StringUtils::hasText)
-                .map(handler -> websiteUrl(handler) + "/account").orElse(null);
+        return salonApi.findById(salonId)
+                .map(salon -> bookingAppUrl + "/" + salon.id() + "/feedback?source=NOTIFICATION").orElse(null);
     }
 
     /** Appended to every customer-facing email so there is always a way to leave feedback. */

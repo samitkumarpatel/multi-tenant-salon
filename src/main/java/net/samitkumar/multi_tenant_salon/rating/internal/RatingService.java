@@ -72,12 +72,12 @@ class RatingService implements RatingApi {
 
     @Override
     @Transactional
-    public boolean submitReview(String token, int salonRating, int staffRating, String salonFeedback, String staffFeedback) {
-        if (salonRating < 1 || salonRating > 5 || staffRating < 1 || staffRating > 5) return false;
+    public boolean submitReview(String token, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {
+        if (!validRating(salonRating) || !validRating(staffRating) || (salonRating == null && staffRating == null && cleanText(salonFeedback) == null && cleanText(staffFeedback) == null)) return false;
         String tokenHash = hash(token);
         return jdbc.sql("""
-                INSERT INTO booking_review (booking_id, salon_id, staff_id, salon_rating, staff_rating, salon_feedback, staff_feedback)
-                SELECT i.booking_id, i.salon_id, i.staff_id, :salonRating, :staffRating, :salonFeedback, :staffFeedback
+                INSERT INTO booking_review (booking_id, salon_id, staff_id, salon_rating, staff_rating, salon_feedback, staff_feedback, source)
+                SELECT i.booking_id, i.salon_id, i.staff_id, :salonRating, :staffRating, :salonFeedback, :staffFeedback, 'NOTIFICATION'
                 FROM rating_invitation i
                 JOIN booking b ON b.id = i.booking_id AND b.status = 'COMPLETED'
                 WHERE i.token_hash = :tokenHash AND i.expires_at > now()
@@ -91,13 +91,15 @@ class RatingService implements RatingApi {
     @Override
     public SalonRatings getRatings(UUID salonId) {
         RatingSummary salon = jdbc.sql("""
-                SELECT AVG(salon_rating)::double precision AS average, COUNT(*) AS count
-                FROM booking_review WHERE salon_id = :salonId
+                SELECT AVG(salon_rating)::double precision AS average, COUNT(salon_rating) AS count
+                FROM (SELECT salon_rating,staff_rating,staff_id FROM booking_review WHERE salon_id=:salonId
+                      UNION ALL SELECT salon_rating,staff_rating,staff_id FROM customer_feedback WHERE salon_id=:salonId) reviews
                 """).param("salonId", salonId).query((rs, row) -> summary(rs.getObject("average", Double.class), rs.getLong("count"))).single();
         Map<Long, RatingSummary> staff = new HashMap<>();
         jdbc.sql("""
-                SELECT staff_id, AVG(staff_rating)::double precision AS average, COUNT(*) AS count
-                FROM booking_review WHERE salon_id = :salonId GROUP BY staff_id
+                SELECT staff_id, AVG(staff_rating)::double precision AS average, COUNT(staff_rating) AS count
+                FROM (SELECT salon_rating,staff_rating,staff_id FROM booking_review WHERE salon_id=:salonId
+                      UNION ALL SELECT salon_rating,staff_rating,staff_id FROM customer_feedback WHERE salon_id=:salonId) reviews WHERE staff_id IS NOT NULL AND staff_rating IS NOT NULL GROUP BY staff_id
                 """).param("salonId", salonId).query((rs, row) -> {
                     staff.put(rs.getLong("staff_id"), summary(rs.getObject("average", Double.class), rs.getLong("count")));
                     return 1;
@@ -108,23 +110,31 @@ class RatingService implements RatingApi {
     @Override
     public java.util.List<BookingRating> getBookingRatings(UUID salonId, Long staffId) {
         var sql = """
-                SELECT b.id AS booking_id,b.customer_name,si.name AS service_name,sm.name AS staff_name,
-                       b.appointment_date,r.salon_rating,r.staff_rating,r.submitted_at,r.salon_feedback,r.staff_feedback,r.reply,r.replied_at
-                FROM booking_review r
-                JOIN booking b ON b.id=r.booking_id
-                JOIN service_item si ON si.id=b.service_id
-                JOIN staff_member sm ON sm.id=r.staff_id
-                WHERE r.salon_id=:salonId
-                """ + (staffId == null ? "" : " AND r.staff_id=:staffId ") + """
-                ORDER BY r.submitted_at DESC,r.booking_id DESC LIMIT 500
-                """;
+                SELECT * FROM (
+                    SELECT b.id AS booking_id,b.customer_name,si.name AS service_name,sm.name AS staff_name,
+                           b.appointment_date,r.salon_rating,r.staff_rating,r.submitted_at,r.salon_feedback,r.staff_feedback,r.reply,r.replied_at,
+                           NULL::bigint AS feedback_id,r.source,r.staff_id
+                    FROM booking_review r
+                    JOIN booking b ON b.id=r.booking_id
+                    LEFT JOIN service_item si ON si.id=b.service_id
+                    LEFT JOIN staff_member sm ON sm.id=r.staff_id
+                    WHERE r.salon_id=:salonId
+                    UNION ALL
+                    SELECT NULL::bigint,f.customer_name,NULL::text,sm.name,NULL::date,
+                           f.salon_rating,f.staff_rating,f.submitted_at,f.salon_feedback,f.staff_feedback,f.reply,f.replied_at,
+                           f.id,f.source,f.staff_id
+                    FROM customer_feedback f LEFT JOIN staff_member sm ON sm.id=f.staff_id
+                    WHERE f.salon_id=:salonId
+                ) reviews
+                """ + (staffId == null ? "" : " WHERE staff_id=:staffId ") + " ORDER BY submitted_at DESC,booking_id DESC,feedback_id DESC";
         var query = jdbc.sql(sql).param("salonId", salonId);
         if (staffId != null) query = query.param("staffId", staffId);
-        return query
-                .query((rs, row) -> new BookingRating(rs.getLong("booking_id"), rs.getString("customer_name"),
-                        rs.getString("service_name"), rs.getString("staff_name"), rs.getDate("appointment_date").toLocalDate(),
-                        rs.getInt("salon_rating"), rs.getInt("staff_rating"), rs.getTimestamp("submitted_at").toInstant(),
-                        rs.getString("salon_feedback"), rs.getString("staff_feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")))).list();
+        return query.query((rs, row) -> new BookingRating(rs.getObject("booking_id", Long.class), rs.getString("customer_name"),
+                rs.getString("service_name"), rs.getString("staff_name"),
+                rs.getDate("appointment_date") == null ? null : rs.getDate("appointment_date").toLocalDate(),
+                rs.getObject("salon_rating", Integer.class), rs.getObject("staff_rating", Integer.class), rs.getTimestamp("submitted_at").toInstant(),
+                rs.getString("salon_feedback"), rs.getString("staff_feedback"), rs.getString("reply"), instant(rs.getTimestamp("replied_at")),
+                rs.getObject("feedback_id", Long.class), rs.getString("source"))).list();
     }
 
     @Override
@@ -144,11 +154,11 @@ class RatingService implements RatingApi {
 
     @Override
     @Transactional
-    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, int salonRating, int staffRating, String salonFeedback, String staffFeedback) {
-        if (salonRating < 1 || salonRating > 5 || staffRating < 1 || staffRating > 5) return false;
+    public boolean submitCustomerReview(UUID salonId, String customerEmail, Long bookingId, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {
+        if (!validRating(salonRating) || !validRating(staffRating) || (salonRating == null && staffRating == null && cleanText(salonFeedback) == null && cleanText(staffFeedback) == null)) return false;
         return jdbc.sql("""
-                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating,salon_feedback,staff_feedback)
-                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating,:salonFeedback,:staffFeedback FROM booking b
+                INSERT INTO booking_review (booking_id,salon_id,staff_id,salon_rating,staff_rating,salon_feedback,staff_feedback,source)
+                SELECT b.id,b.salon_id,b.staff_id,:salonRating,:staffRating,:salonFeedback,:staffFeedback,'CUSTOMER_ACCOUNT' FROM booking b
                 WHERE b.id=:bookingId AND b.salon_id=:salonId AND lower(b.customer_email)=:email AND b.status='COMPLETED'
                 ON CONFLICT (booking_id) DO NOTHING
                 """).param("bookingId", bookingId).param("salonId", salonId).param("email", customerEmail)
@@ -163,6 +173,8 @@ class RatingService implements RatingApi {
         return jdbc.sql("UPDATE booking_review SET reply=:reply, replied_at=now() WHERE salon_id=:salonId AND booking_id=:bookingId")
                 .param("reply", text).param("salonId", salonId).param("bookingId", bookingId).update() == 1;
     }
+
+    static boolean validRating(Integer rating) { return rating == null || (rating >= 1 && rating <= 5); }
 
     /** Trims and caps free text; blank becomes null. */
     private static String cleanText(String text) {

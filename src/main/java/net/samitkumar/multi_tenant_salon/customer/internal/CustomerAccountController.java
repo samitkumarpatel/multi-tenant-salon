@@ -74,7 +74,7 @@ class CustomerAccountController {
         return new SessionView(session.token(), session.email(), session.expiresAt());
     }
 
-    record SubmitRatingRequest(Long bookingId, int salonRating, int staffRating, String salonFeedback, String staffFeedback) {}
+    record SubmitRatingRequest(Long bookingId, Integer salonRating, Integer staffRating, String salonFeedback, String staffFeedback) {}
 
     @GetMapping("/ratings")
     List<CustomerRatingOption> ratingOptions(@PathVariable String salonId,

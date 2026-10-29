@@ -1,55 +1,60 @@
 ---
 title: "Customer Ratings & Reviews"
-description: "How customers rate your salon and staff after an appointment, and where you can see the results."
+description: "Collect private feedback and star ratings, control website links, and reply to customers."
 ---
 
-After a customer's appointment is finished, they get a chance to rate their experience. Here's
-how it works and where to find the results.
+Customers can rate the salon, a specific stylist, or both. They can send stars from 1 to 5,
+written feedback, or both. Written feedback and salon replies are private; stars contribute to
+the public salon and stylist averages. An unrated category does not count as a zero.
 
-## How a customer leaves a review
+## After a completed appointment
 
-<Steps>
-<Step>
-Once you (or your team) mark a booking as **completed**, and the customer left an email address
-when booking, they automatically receive an email letting them know their appointment is marked
-complete. That same email includes a line asking "How was your visit?" with a link to rate the
-salon and their stylist.
-</Step>
-<Step>
-The customer clicks that link and is taken to a simple review page showing your salon's name and
-the name of the staff member who served them.
-</Step>
-<Step>
-They give two separate star ratings (from 1 to 5): one for the **salon** overall, and one for the
-**staff member** who did the work.
-</Step>
-</Steps>
+When a booking is marked **Completed**, a customer with an email address receives a notification
+with a personal review link. It identifies the salon and the stylist from that appointment,
+expires after 30 days, and accepts one submission per appointment. Marking a booking completed
+again does not send another invitation. Actual email sending requires the notification provider
+to be configured.
 
-<Callout type="info">
-The review link is personal to that one appointment and expires after 30 days. A customer can
-only submit one review per appointment — the link simply shows that they've already reviewed it
-if they try to use it again.
-</Callout>
+Customers can also leave feedback on completed appointments in **My account** and read the
+salon's reply there. Completed-visit reviews are tagged **Notification** or **Customer account**
+according to where they were submitted.
 
-## Where you see the ratings
+## Website feedback
 
-Your salon's ratings are shown on your salon's public-facing rating summary, which includes:
+The public website has a compact **Leave feedback** link near the footer's contact details. Stylist
+cards also offer **Rate this stylist**, which opens the feedback form with that stylist selected.
+These links work without account sign-in or an online booking, so walk-in customers can leave
+feedback too. The same footer link appears on the shop, membership, loyalty, and account pages.
 
-- An overall **salon rating** — the average score (out of 5) across every review your salon has
-  received, plus how many reviews that's based on.
-- A **rating per staff member** — the average score and review count for each individual staff
-  member, based only on the reviews where they were the assigned staff member for that booking.
+In **Salon admin → Feedback ratings**, use **Public website feedback** to enable or disable these
+website links. Turning it off also blocks website submissions through an already-open form.
+It does not disable completed-visit email links, notification feedback, or account reviews.
 
-If a staff member or your salon has no reviews yet, no average is shown (there's nothing to
-average) — only once reviews start coming in will a score appear.
+General feedback is tagged **Website footer**, **Stylist card**, **Public website**, or
+**Notification**. These source tags describe entry points; general feedback is not proof of a
+completed appointment. Older feedback is labelled **Earlier feedback (source unknown)**.
 
-## Things to keep in mind
+After sending general feedback, customers can return to the feedback page in the same browser
+to see their submission and the salon's reply. This uses a private receipt saved on that browser;
+clearing browser storage removes access to that receipt. General feedback is not automatically
+attached to an account.
 
-- A review is only ever requested for a **completed** booking with a customer email on file — if
-  a booking has no email, or is cancelled instead of completed, no review invitation is sent for
-  it.
-- Ratings are always tied to a specific completed appointment and the staff member assigned to
-  it — a customer can't leave a general, unattached review.
-- Each completed appointment can only generate one review invitation and one submitted review,
-  so your rating numbers reflect actual completed visits rather than repeat voting on the same
-  appointment.
+## Other invitations
+
+Customer emails, including fulfilled-order updates and requested till receipts, contain a direct
+feedback link. The form works on the booking app even if the salon has no public website.
+Booking-completion emails use the appointment's personal review link instead.
+
+## Reading and replying
+
+Open **Salon admin → Feedback ratings** to see feedback from every source. Filter by stylist,
+source, or reply status, or search by customer name and service. Entries distinguish **Completed
+visit** reviews from **General feedback**. The list includes all entries, with pages of 25.
+
+Use **Reply** to send a private salon response, or **Edit reply** to correct it. Customer stars
+and feedback cannot be edited through this screen. Customers read completed-visit replies in
+My account and general-feedback replies through their private browser receipt. Replies do not
+send an additional email notification.
+
+Staff can read feedback attributed to them and the salon's replies in their own staff portal.
+They cannot reply through the staff portal or access another stylist's feedback.

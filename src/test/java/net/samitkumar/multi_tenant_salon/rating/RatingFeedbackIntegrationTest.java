@@ -49,6 +49,28 @@ class RatingFeedbackIntegrationTest {
     }
 
     @Test
+    void notificationAndAccountReviewsKeepTheirSourceAndAllowOneScoreOrTextOnly() {
+        var token = ratings.issueInvitation(bookingId, salonId, staffId);
+        assertThat(ratings.findReviewTarget(token).submitted()).isFalse();
+        assertThat(ratings.submitReview(token, null, 5, null, null)).isTrue();
+        assertThat(ratings.submitReview(token, 1, null, null, null)).isFalse();
+        assertThat(ratings.getBookingRatings(salonId, null)).singleElement().satisfies(review -> {
+            assertThat(review.source()).isEqualTo("NOTIFICATION");
+            assertThat(review.staffRating()).isEqualTo(5);
+            assertThat(review.salonRating()).isNull();
+        });
+        assertThat(ratings.getRatings(salonId).salon().count()).isZero();
+        assertThat(ratings.getRatings(salonId).staff().get(staffId).count()).isEqualTo(1);
+    }
+
+    @Test
+    void accountAcceptsFeedbackWithoutStarsAndRejectsEmptySubmission() {
+        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, null, null, "  ", null)).isFalse();
+        assertThat(ratings.submitCustomerReview(salonId, "eve@example.com", bookingId, null, null, "A private note", null)).isTrue();
+        assertThat(ratings.getBookingRatings(salonId, null)).singleElement().satisfies(review -> assertThat(review.source()).isEqualTo("CUSTOMER_ACCOUNT"));
+    }
+
+    @Test
     void feedbackIsKeptAndOwnerReplyNeverRewritesIt() {
         assertThat(ratings.getCustomerRatingOptions(salonId, "eve@example.com")).singleElement()
                 .satisfies(option -> assertThat(option.submitted()).isFalse());

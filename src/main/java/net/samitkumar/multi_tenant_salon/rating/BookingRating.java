@@ -3,6 +3,6 @@ package net.samitkumar.multi_tenant_salon.rating;
 import java.time.Instant;
 import java.time.LocalDate;
 
-public record BookingRating(long bookingId, String customerName, String serviceName, String staffName,
-                            LocalDate appointmentDate, int salonRating, int staffRating, Instant submittedAt,
-                            String salonFeedback, String staffFeedback, String reply, Instant repliedAt) {}
+public record BookingRating(Long bookingId, String customerName, String serviceName, String staffName,
+                            LocalDate appointmentDate, Integer salonRating, Integer staffRating, Instant submittedAt,
+                            String salonFeedback, String staffFeedback, String reply, Instant repliedAt, Long feedbackId, String source) {}

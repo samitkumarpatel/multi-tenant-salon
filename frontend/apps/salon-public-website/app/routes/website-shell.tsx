@@ -2,9 +2,10 @@ import type { SalonLanguages, LanguagePolicy } from "@salon/i18n";
 import { useEffect } from "react";
 import { Outlet, useLoaderData, useLocation } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
-import { SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE, isNotFoundError } from "@salon/ui-website";
-import type { Salon, StaffMember, ServiceItem, WebsiteTheme, SalonPolicy } from "@salon/ui-website";
+import { FeedbackProvider, SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE, isNotFoundError } from "@salon/ui-website";
+import type { Salon, StaffMember, ServiceItem, WebsiteTheme, SalonPolicy, FeedbackSettings } from "@salon/ui-website";
 import { AnalyticsTracker } from "../components/AnalyticsTracker";
+import { navigationSearch } from "../lib/navigation-search";
 import { tenantHost } from "../lib/tenant-host";
 
 function initials(name: string) {
@@ -30,6 +31,7 @@ function buildFaviconHref(name: string, bgColor: string): string {
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 export type TenantData = {
+  feedbackSettings: FeedbackSettings;
   salon: Salon;
   staff: StaffMember[];
   services: ServiceItem[];
@@ -57,7 +59,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     if (salon.status === "DISABLED") {
       return { status: "disabled", salonName: salon.name };
     }
-    const [staff, services, theme, preferredDomain, ratings, languages, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies] = await Promise.all([
+    const [staff, services, theme, preferredDomain, ratings, languages, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings] = await Promise.all([
       apiFetch<StaffMember[]>(`${API_BASE}/api/salon/${salon.id}/staff`).catch((): StaffMember[] => []),
       apiFetch<ServiceItem[]>(`${API_BASE}/api/salon/${salon.id}/services`).catch((): ServiceItem[] => []),
       apiFetch<WebsiteTheme>(`${API_BASE}/api/salon/${salon.id}/website`).catch((): WebsiteTheme => DEFAULT_THEME),
@@ -69,6 +71,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
       apiFetch<SalonPolicy[]>(`${API_BASE}/api/salon/${salon.id}/policies?placement=membership`).catch((): SalonPolicy[] => []),
       apiFetch<SalonPolicy[]>(`${API_BASE}/api/salon/${salon.id}/policies?placement=shop`).catch((): SalonPolicy[] => []),
       apiFetch<SalonPolicy[]>(`${API_BASE}/api/salon/${salon.id}/policies?placement=loyalty`).catch((): SalonPolicy[] => []),
+      apiFetch<FeedbackSettings>(`${API_BASE}/api/salon/${salon.id}/feedback-settings`).catch(() => ({ publicWebsiteEnabled: false })),
     ]);
     const resolvedTheme = { ...DEFAULT_THEME, ...theme };
     if (!salon.features?.includes("STATIC_WEBSITE")) {
@@ -77,7 +80,7 @@ export async function clientLoader({ request }: ClientLoaderFunctionArgs): Promi
     const canonicalOrigin = preferredDomain?.hostname ? `https://${preferredDomain.hostname}` : new URL(request.url).origin;
     const ratedStaff = staff.map((member) => ({ ...member, rating: ratings?.staff[String(member.id)]?.average ?? undefined, reviewCount: ratings?.staff[String(member.id)]?.count ?? 0 }));
     const ratedSalon = { ...salon, rating: ratings?.salon.average ?? undefined, ratingCount: ratings?.salon.count ?? 0 };
-    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, canonicalOrigin, languagePolicy: languages.website, languageScope: String(salon.id) };
+    return { status: "ok", salon: ratedSalon, staff: ratedStaff, services, theme: resolvedTheme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings, canonicalOrigin, languagePolicy: languages.website, languageScope: String(salon.id) };
   } catch (err) {
     return { status: isNotFoundError(err) ? "not_found" : "error" };
   }
@@ -127,11 +130,11 @@ export default function WebsiteShell() {
   if (data.status === "not_found") return <SalonErrorPage is404 />;
   if (data.status === "error") return <SalonErrorPage is404={false} />;
 
-  const { salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies } = data;
+  const { salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } = data;
   return (
     <>
-      <AnalyticsTracker salonId={String(salon.id)} enabled={salon.features?.includes("ANALYTICS") ?? false} />
-      <Outlet context={{ salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies } satisfies TenantData} />
+      {location.pathname !== "/feedback" && <AnalyticsTracker salonId={String(salon.id)} enabled={salon.features?.includes("ANALYTICS") ?? false} />}
+      <FeedbackProvider enabled={feedbackSettings.publicWebsiteEnabled} getPagePath={(page) => `/${page}${navigationSearch(location.search)}`}><Outlet context={{ salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } satisfies TenantData} /></FeedbackProvider>
     </>
   );
 }
