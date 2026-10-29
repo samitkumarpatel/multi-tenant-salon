@@ -87,6 +87,12 @@ class ShopCustomerController {
         return shop.listProducts(salonApi.resolveId(salonId), true, brandId, categoryId);
     }
 
+    @GetMapping("/products/by-handle/{handle}")
+    ResponseEntity<ProductView> getProductByHandle(@PathVariable String salonId, @PathVariable String handle) {
+        return shop.getProductByHandle(salonApi.resolveId(salonId), handle)
+                .map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/products/{productId}")
     ResponseEntity<ProductView> getProduct(@PathVariable String salonId, @PathVariable Long productId) {
         return shop.getProduct(salonApi.resolveId(salonId), productId, true)

@@ -296,6 +296,7 @@ export interface ShopProduct {
   categoryId?: number | null;
   categoryName?: string | null;
   name: string;
+  handle: string;
   description?: string | null;
   /** Cover image — always mirrors `images[0]`. */
   imageUrl?: string | null;

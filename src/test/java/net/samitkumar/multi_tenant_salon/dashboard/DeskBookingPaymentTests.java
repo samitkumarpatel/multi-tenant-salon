@@ -231,7 +231,7 @@ class DeskBookingPaymentTests {
     void sellingMoreThanIsInStockNamesTheProduct() {
         jdbcTemplate.update("INSERT INTO salon_feature (salon_id, feature) VALUES (?, 'WEBSHOP')", salonId);
         var productId = jdbcTemplate.queryForObject("""
-                INSERT INTO product (salon_id, name, active, created_at) VALUES (?, 'Argan Oil Serum', true, now())
+                INSERT INTO product (salon_id, name, handle, active, created_at) VALUES (?, 'Argan Oil Serum', 'argan-oil-serum', true, now())
                 RETURNING id""", Long.class, salonId);
         var variantId = jdbcTemplate.queryForObject("""
                 INSERT INTO product_variant (product_id, salon_id, label, price, currency, quantity_on_hand, active)

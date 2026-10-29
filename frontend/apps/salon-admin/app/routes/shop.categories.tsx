@@ -107,6 +107,15 @@ export default function ShopCategories() {
 
   return (
     <>
+      {categories.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <button
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
+            onClick={openAdd}
+          >
+            <Plus className="w-4 h-4" /> {translateUi("Add Category ")}</button>
+        </div>
+      )}
       {categories.length === 0 ? (
         <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
           <div className="w-10 h-10 rounded-xl bg-matcha-50 border border-matcha-100 flex items-center justify-center mx-auto mb-3">
@@ -153,13 +162,7 @@ export default function ShopCategories() {
               </div>
             </div>
           ))}
-          <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
-            <button
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
-              onClick={openAdd}
-            >
-              <Plus className="w-4 h-4" /> {translateUi("Add Category ")}</button>
-          </div>
+
         </div>
       )}
 

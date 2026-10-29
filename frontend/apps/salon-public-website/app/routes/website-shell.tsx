@@ -31,6 +31,7 @@ function buildFaviconHref(name: string, bgColor: string): string {
 const SALON_DOMAIN = import.meta.env.VITE_SALON_DOMAIN || "salonsaas.org";
 
 export type TenantData = {
+  canonicalOrigin: string;
   feedbackSettings: FeedbackSettings;
   salon: Salon;
   staff: StaffMember[];
@@ -130,11 +131,11 @@ export default function WebsiteShell() {
   if (data.status === "not_found") return <SalonErrorPage is404 />;
   if (data.status === "error") return <SalonErrorPage is404={false} />;
 
-  const { salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } = data;
+  const { salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings, canonicalOrigin } = data;
   return (
     <>
       {location.pathname !== "/feedback" && <AnalyticsTracker salonId={String(salon.id)} enabled={salon.features?.includes("ANALYTICS") ?? false} />}
-      <FeedbackProvider enabled={feedbackSettings.publicWebsiteEnabled} getPagePath={(page) => `/${page}${navigationSearch(location.search)}`}><Outlet context={{ salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } satisfies TenantData} /></FeedbackProvider>
+      <FeedbackProvider enabled={feedbackSettings.publicWebsiteEnabled} getPagePath={(page) => `/${page}${navigationSearch(location.search)}`}><Outlet context={{ canonicalOrigin, salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } satisfies TenantData} /></FeedbackProvider>
     </>
   );
 }

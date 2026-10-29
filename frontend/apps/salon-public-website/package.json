@@ -6,9 +6,10 @@
     "test:navigation": "node --experimental-strip-types --test tests/navigation-search.test.mjs",
     "test:domains": "node --experimental-strip-types --test tests/tenant-host.test.mjs",
     "dev": "react-router dev",
-    "build": "react-router build",
+    "build": "react-router build && node scripts/build-worker.mjs",
     "preview": "npx serve build/client",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "test:products": "node --experimental-strip-types --test tests/product-seo.test.mjs"
   },
   "dependencies": {
     "@salon/ui-website": "*",

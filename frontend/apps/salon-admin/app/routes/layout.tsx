@@ -11,6 +11,8 @@ import { AppLogo, SessionBadge, Toast, useToast } from "@salon/ui-shared";
 import { Tooltip } from "~/components/Tooltip";
 import { ADMIN_API, CUSTOMER_API, apiFetch, cacheSalonUUID } from "~/lib/api";
 import { SALON_DOMAIN, helpUrl } from "~/lib/config";
+import { SHOP_SECTIONS, shopNavigation } from "~/lib/shopNavigation";
+import type { ShopOrdersPage } from "~/lib/shopOrders";
 import type { Salon, LayoutContext, WebsiteMode } from "~/lib/types";
 
 // Pages whose edits can change the onboarding flags (pendingServices / pendingStaff /
@@ -111,7 +113,7 @@ const WEBSITE_SECTIONS = [
 
 /** Expandable sidebar groups. Only one is open at a time (accordion), so moving between groups
  *  animates a single collapse/expand instead of two competing ones. */
-type SidebarGroup = "booking" | "website";
+type SidebarGroup = "booking" | "website" | "shop";
 
 const BOOKING_SECTIONS = [
   { key: "appointments", label: "Appointments" },
@@ -466,8 +468,10 @@ export default function Layout() {
   const isPreview = Boolean(useMatch("/:salonId/website-preview"));
   const isBookings = Boolean(useMatch("/:salonId/booking"));
   const isWebsite = Boolean(useMatch("/:salonId/website"));
+  const currentShop = shopNavigation(location.pathname);
+  const isShop = currentShop !== null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const routeGroup: SidebarGroup | null = isBookings ? "booking" : isWebsite ? "website" : null;
+  const routeGroup: SidebarGroup | null = isBookings ? "booking" : isWebsite ? "website" : isShop ? "shop" : null;
   const [openGroup, setOpenGroup] = useState<SidebarGroup | null>(routeGroup);
   // Follow the route *during render* (not in an effect) so a navigation never paints a frame with
   // the previous group's open state and then corrects it — that one-frame flip made the menu jumpy.
@@ -476,6 +480,18 @@ export default function Layout() {
     setLastRouteGroup(routeGroup);
     setOpenGroup(routeGroup);
   }
+  const [shopOrderBadge, setShopOrderBadge] = useState<{ salonId: Salon["id"]; count: number } | null>(null);
+  const shopSalonId = salon?.id;
+  const pendingShopOrders = shopOrderBadge?.salonId === shopSalonId ? shopOrderBadge.count : 0;
+  const hasShop = salon?.features?.includes("WEBSHOP") ?? false;
+  useEffect(() => {
+    if (!shopSalonId || !hasShop || openGroup !== "shop") return;
+    const controller = new AbortController();
+    apiFetch<ShopOrdersPage>(`${ADMIN_API}/${shopSalonId}/shop/orders?size=1`, { signal: controller.signal })
+      .then((page) => { if (!controller.signal.aborted) setShopOrderBadge({ salonId: shopSalonId, count: page.statusCounts?.NEW ?? 0 }); })
+      .catch(() => { /* A badge failure must not block navigation. */ });
+    return () => controller.abort();
+  }, [shopSalonId, hasShop, openGroup, location.pathname]);
   const [websiteCoachSeen, setWebsiteCoachSeen] = useState(
     () => Boolean(salon && localStorage.getItem(`website-style-hint-seen:${salon.id}`))
   );
@@ -750,6 +766,29 @@ export default function Layout() {
                             onClick={() => setSidebarOpen(false)}
                           >
                             {translateUi(section.label)}
+                          </SidebarSubLink>
+                        ))}
+                      </SidebarSubmenu>
+                    </div>
+                  ) : f.key === "WEBSHOP" ? (
+                    <div key={f.key}>
+                      <Tooltip content={f.hint}>
+                        <SidebarGroupHeader
+                          controls="shop-navigation"
+                          icon={f.icon}
+                          label={f.label}
+                          active={isShop}
+                          expanded={openGroup === "shop"}
+                          onClick={() => setOpenGroup((open) => open === "shop" ? null : "shop")}
+                        />
+                      </Tooltip>
+                      <SidebarSubmenu id="shop-navigation" expanded={openGroup === "shop"}>
+                        {SHOP_SECTIONS.map((section) => (
+                          <SidebarSubLink key={section.key} to={`/${salonId}/shop/${section.key}`}
+                            active={isShop && currentShop?.section === section.key}
+                            onClick={() => { setOpenGroup("shop"); setSidebarOpen(false); }}>
+                            <span className="flex-1">{translateUi(section.label)}</span>
+                            {section.key === "orders" && pendingShopOrders > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{pendingShopOrders}</span>}
                           </SidebarSubLink>
                         ))}
                       </SidebarSubmenu>

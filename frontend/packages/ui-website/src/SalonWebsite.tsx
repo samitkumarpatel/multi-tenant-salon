@@ -623,9 +623,10 @@ export interface SalonWebsiteProps {
   onNavigate?: (page: string | null) => void;
   /** Build the href for a given page key */
   getPagePath?: (page: string) => string;
+  getProductPath?: (product: import("./types").ShopProduct) => string;
 }
 
-export function SalonWebsite({ salon, staff, services, theme: themeProp, websitePolicies = [], bookingPolicies = [], membershipPolicies = [], shopPolicies = [], loyaltyPolicies = [], activePage, onNavigate, getPagePath }: SalonWebsiteProps) {
+export function SalonWebsite({ salon, staff, services, theme: themeProp, websitePolicies = [], bookingPolicies = [], membershipPolicies = [], shopPolicies = [], loyaltyPolicies = [], activePage, onNavigate, getPagePath, getProductPath }: SalonWebsiteProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const theme = { ...DEFAULT_THEME, ...themeProp };
   const bookUrl = getPagePath ? getPagePath("book") : "/book";
@@ -772,6 +773,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   if (currentPage === "shop" && salon.features?.includes("WEBSHOP")) {
     return (
       <ShopView
+        getProductPath={getProductPath}
         salon={salon}
         theme={theme}
         policies={shopPolicies}

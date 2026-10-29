@@ -522,9 +522,9 @@ export default function Services() {
             {services.length} {translateUi("service")}{services.length !== 1 ? translateUi("s") : ""}
           </p>
 
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-200">
             {services.map((sv) => (
-              <div key={sv.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
+              <div key={sv.id} className="admin-striped-row flex items-center gap-4 px-4 py-3 transition-colors group">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-slate-900 truncate">{sv.name}</span>

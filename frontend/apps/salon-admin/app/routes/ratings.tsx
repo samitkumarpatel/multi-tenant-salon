@@ -149,8 +149,8 @@ export default function RatingsPage() {
     </div>}
     {loading ? <p className="py-12 text-center text-sm text-slate-500" role="status">{t("Loading ratings…")}</p> : error ? <p className="rounded-xl border border-red-200 bg-white p-5 text-sm text-red-700" role="alert">{error}</p> : !filtered.length ?
       <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">{ratings.length ? t("No ratings match these filters.") : t("No customer ratings received yet.")}</p> :
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="divide-y divide-slate-100">
-        {visible.map((rating) => <details key={ratingKey(rating)} className="group">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="divide-y divide-slate-200">
+        {visible.map((rating) => <details key={ratingKey(rating)} className="admin-striped-row group transition-colors">
           <summary className="list-none cursor-pointer p-4 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-matcha-600 sm:px-5 [&::-webkit-details-marker]:hidden">
           <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0"><p className="font-semibold text-slate-800">{rating.customerName || t("Customer")}</p><p className="mt-0.5 text-xs text-slate-500">{[rating.serviceName, rating.staffName, rating.appointmentDate ? new Date(`${rating.appointmentDate}T00:00:00`).toLocaleDateString() : new Date(rating.submittedAt).toLocaleDateString()].filter(Boolean).join(" · ")}</p></div>
@@ -163,7 +163,7 @@ export default function RatingsPage() {
             <span className={rating.reply ? "text-slate-500" : "text-amber-700"}>{t(rating.reply ? "Replied" : "Needs reply")}</span>
           </div>
           </summary>
-          <div className="border-t border-slate-100 bg-slate-50/40 p-4 sm:px-5">
+          <div className="border-t border-slate-200 p-4 sm:px-5">
           {rating.salonFeedback && <p className="mt-2 whitespace-pre-line text-sm text-slate-600"><span className="text-xs font-semibold not-italic text-slate-500">{t("About the salon")}: </span><span className="italic">“{rating.salonFeedback}”</span></p>}
           {rating.staffFeedback && <p className="mt-1.5 whitespace-pre-line text-sm text-slate-600"><span className="text-xs font-semibold not-italic text-slate-500">{t("About {name}", { name: rating.staffName })}: </span><span className="italic">“{rating.staffFeedback}”</span></p>}
           <ReviewVisibility salonId={salon.id} rating={rating} onSaved={(key, hidden) => {

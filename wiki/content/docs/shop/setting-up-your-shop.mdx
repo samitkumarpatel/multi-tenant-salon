@@ -14,8 +14,10 @@ building out your shop's catalog from scratch, in the order it makes sense to se
 
 ## The building blocks of your shop
 
-The Shop section has its own row of tabs: **Products**, **Brands**, **Categories**, **Inventory**,
-**Orders**, **Refunds**, and **Payments**. Your shop is organized into a few simple pieces:
+Expand **Shop** in the sidebar to open **Orders**, **Products**, **Inventory**, or **Shipping methods**.
+Products has **Products**, **Brands**, and **Categories** tabs. Orders has **Orders**, **Returns**,
+**Refunds**, and **Credit Notes** tabs. **Payments** stays in the main sidebar because it serves
+the whole salon. Your shop is organized into a few simple pieces:
 
 - **Brands** — the manufacturers or labels you carry (e.g. "Kerastase", "OPI").
 - **Categories** — how you group products for browsing (e.g. "Hair Care", "Nail Polish").
@@ -36,7 +38,7 @@ adding a product to create one.
 
 <Steps>
   <Step>
-    Go to the **Shop** section of your admin dashboard, then open the **Brands** tab.
+    Go to **Shop → Products**, then open the **Brands** tab.
   </Step>
   <Step>
     Click **Add Brand**. A window opens with a **Name** field (required) and a **Description**
@@ -58,7 +60,7 @@ removing a brand doesn't touch its products, it simply clears their brand field.
 
 <Steps>
   <Step>
-    Open the **Categories** tab under Shop.
+    Open **Shop → Products → Categories**.
   </Step>
   <Step>
     Click **Add Category**. Fill in a **Name** (required — e.g. "Hair Care" or "Gift Sets") and
@@ -78,7 +80,7 @@ it unchanged.
 
 <Steps>
   <Step>
-    Open the **Products** tab (this is the first tab you land on in the Shop section) and click
+    Open **Shop → Products** and click
     **Add Product**.
   </Step>
   <Step>
@@ -155,5 +157,27 @@ every variant from one screen.
 ## Online payment for the shop
 
 If you want customers to pay online at checkout (rather than paying when they collect their
-order), that's configured once for your salon in the **Payments** tab of the Shop section, the
+order), that's configured once for your salon in the **Payments** page in the main sidebar, the
 same place you set up online payments for bookings and memberships.
+
+## Product links and handles
+
+Every product receives a readable address, for example
+`https://your-salon.salonsaas.org/shop/products/repair-shampoo`. Customers can open,
+share, bookmark, or refresh that page, select a size, and add it to their cart.
+
+The **Product handle** field in Add/Edit Product controls the last part of this
+address. Leave it empty when adding a product to generate it from the name.
+Use lowercase letters, numbers, and single hyphens. If a generated name is
+already reserved in your salon, a suffix is added automatically. The same handle
+can be used by a different salon.
+
+Changing a product's display name keeps its address. Explicitly changing its
+handle redirects old links to the new address. Previous handles remain reserved,
+even after deletion. Existing products receive handles automatically when the
+backend is updated. Product and variant IDs, existing orders, and stock counts
+are preserved.
+
+Public product pages include search and social-sharing metadata. Unpublished
+products cannot be opened publicly. Products that are out of stock keep their
+pages, with availability shown to customers and search engines.

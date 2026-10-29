@@ -2758,6 +2758,24 @@ paths:
                 items:
                   $ref: "#/components/schemas/ShopProduct"
 
+  /api/salon/{salonId}/shop/products/by-handle/{handle}:
+    parameters:
+      - $ref: "#/components/parameters/SalonId"
+      - { in: path, name: handle, required: true, schema: { type: string, maxLength: 100 } }
+    get:
+      tags: [Shop]
+      summary: Resolve an active product by current or previous handle
+      description: Tenant-scoped. Requires an enabled salon with WEBSHOP and an active product with active variants. Returns the current canonical handle even for an old handle; out-of-stock products remain visible.
+      operationId: getShopProductByHandle
+      responses:
+        "200":
+          description: Public product with canonical handle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopProduct" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/salon/{salonId}/shop/products/{productId}:
     parameters:
       - $ref: "#/components/parameters/SalonId"
@@ -8417,6 +8435,7 @@ components:
         categoryId: { type: integer, format: int64, nullable: true }
         categoryName: { type: string, nullable: true }
         name: { type: string }
+        handle: { type: string, maxLength: 100, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", description: "Stable tenant-scoped product URL handle." }
         description: { type: string, nullable: true }
         imageUrl: { type: string, nullable: true, description: "Cover image — always mirrors images[0]." }
         images:
@@ -8463,6 +8482,7 @@ components:
         brandId: { type: integer, format: int64, nullable: true }
         categoryId: { type: integer, format: int64, nullable: true }
         name: { type: string }
+        handle: { type: string, nullable: true, maxLength: 100, description: "Omitted/blank generates on create and preserves on update. Explicit handles use lowercase letters, digits and single hyphens. Reserved handles return 409; previous handles remain reserved and redirect." }
         description: { type: string, nullable: true }
         imageUrl: { type: string, nullable: true, description: "Legacy single-image field. Ignored when `images` is provided." }
         images:

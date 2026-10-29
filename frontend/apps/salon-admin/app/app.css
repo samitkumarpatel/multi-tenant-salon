@@ -3,6 +3,20 @@
 @source "../../../packages/ui-shared/src";
 @source "../../../packages/ui-website/src";
 
+/* Shared zebra rows for the staff, services, customers and feedback lists. */
+.admin-striped-row:nth-child(odd) {
+  background-color: var(--color-white);
+}
+.admin-striped-row:nth-child(even) {
+  background-color: var(--color-slate-100);
+}
+.admin-striped-row:nth-child(odd):hover {
+  background-color: var(--color-slate-50);
+}
+.admin-striped-row:nth-child(even):hover {
+  background-color: var(--color-slate-200);
+}
+
 /* Tailwind Preflight resets buttons and selects to the default cursor. Keep every
    interactive control visibly clickable, with a clear disabled state. */
 .admin-shell :is(a, button, summary, select, [role="button"], input[type="checkbox"], input[type="radio"]) {

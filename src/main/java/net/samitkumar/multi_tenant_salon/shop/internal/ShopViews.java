@@ -19,7 +19,7 @@ final class ShopViews {
 
     record ProductView(
             Long id, UUID salonId, Long brandId, String brandName, Long categoryId, String categoryName,
-            String name, String description, String imageUrl, List<String> images,
+            String name, String handle, String description, String imageUrl, List<String> images,
             boolean active, Instant createdAt, List<ProductVariant> variants
     ) {}
 

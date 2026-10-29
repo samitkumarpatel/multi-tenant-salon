@@ -6,7 +6,8 @@
     "dev": "react-router dev --force",
     "build": "react-router build",
     "preview": "npx serve build/client",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "test:shop-navigation": "node --experimental-strip-types --test tests/shop-navigation.test.mjs"
   },
   "dependencies": {
     "@react-router/node": "^7.18.0",

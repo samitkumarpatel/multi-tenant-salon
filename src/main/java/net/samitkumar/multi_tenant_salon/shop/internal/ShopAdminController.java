@@ -49,7 +49,7 @@ class ShopAdminController {
     record CategoryRequest(String name, String description, Boolean active) {}
 
     record ProductRequest(Long brandId, Long categoryId, String name, String description,
-                          String imageUrl, List<String> images, Boolean active, List<VariantSpec> variants) {}
+                          String imageUrl, List<String> images, Boolean active, List<VariantSpec> variants, String handle) {}
 
     record InventoryRequest(Integer quantityOnHand, Integer reorderLevel) {}
 
@@ -136,7 +136,7 @@ class ShopAdminController {
     @PostMapping("/products")
     ResponseEntity<ProductView> addProduct(@PathVariable String salonId, @RequestBody ProductRequest req) {
         var product = shop.addProduct(salonApi.resolveId(salonId), req.brandId(), req.categoryId(), req.name(),
-                req.description(), req.imageUrl(), req.images(), req.variants());
+                req.description(), req.imageUrl(), req.images(), req.variants(), req.handle());
         return created(product, product.id());
     }
 
@@ -145,7 +145,7 @@ class ShopAdminController {
                                               @RequestBody ProductRequest req) {
         return shop.updateProduct(salonApi.resolveId(salonId), productId, req.brandId(), req.categoryId(),
                         req.name(), req.description(), req.imageUrl(), req.images(),
-                        req.active() == null || req.active(), req.variants())
+                        req.active() == null || req.active(), req.variants(), req.handle())
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

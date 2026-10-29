@@ -84,7 +84,11 @@ export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WE
   const [token, setToken] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const storageKey = `salon-feedback-receipt:${salon.id}`;
-  useEffect(() => { try { setToken(localStorage.getItem(storageKey) ?? ""); } catch { /* Storage is optional. */ } }, [storageKey]);
+  useEffect(() => {
+    // A stylist link starts a new submission rather than reopening the last receipt.
+    if (initialStaffId) return;
+    try { setToken(localStorage.getItem(storageKey) ?? ""); } catch { /* Storage is optional. */ }
+  }, [storageKey, initialStaffId]);
   useEffect(() => {
     if (!token) return;
     apiFetch<Receipt>(`${API_BASE}/api/salon/${salon.id}/feedback/${encodeURIComponent(token)}`)

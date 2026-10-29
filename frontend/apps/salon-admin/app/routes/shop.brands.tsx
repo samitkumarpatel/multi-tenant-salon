@@ -108,6 +108,15 @@ export default function ShopBrands() {
 
   return (
     <>
+      {brands.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <button
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
+            onClick={openAdd}
+          >
+            <Plus className="w-4 h-4" /> {translateUi("Add Brand ")}</button>
+        </div>
+      )}
       {brands.length === 0 ? (
         <EmptyState onAdd={openAdd} />
       ) : (
@@ -147,13 +156,7 @@ export default function ShopBrands() {
               </div>
             </div>
           ))}
-          <div className="flex justify-end px-4 py-3 bg-slate-50/60 border-t border-slate-100">
-            <button
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-matcha-600 text-white text-sm font-medium hover:bg-matcha-700 cursor-pointer"
-              onClick={openAdd}
-            >
-              <Plus className="w-4 h-4" /> {translateUi("Add Brand ")}</button>
-          </div>
+
         </div>
       )}
 

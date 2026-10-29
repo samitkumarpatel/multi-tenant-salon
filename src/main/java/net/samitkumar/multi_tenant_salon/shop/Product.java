@@ -26,6 +26,7 @@ public record Product(
         Long brandId,
         Long categoryId,
         String name,
+        String handle,
         String description,
         String imageUrl,
         boolean active,

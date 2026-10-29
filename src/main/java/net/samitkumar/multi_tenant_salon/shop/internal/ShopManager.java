@@ -170,12 +170,65 @@ class ShopManager {
                     return new ProductView(p.id(), p.salonId(),
                             p.brandId(), p.brandId() == null ? null : brandNames.get(p.brandId()),
                             p.categoryId(), p.categoryId() == null ? null : categoryNames.get(p.categoryId()),
-                            p.name(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), visible);
+                            p.name(), p.handle(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), visible);
                 })
                 .filter(pv -> !activeOnly || !pv.variants().isEmpty())
                 .filter(pv -> brandId == null || Objects.equals(pv.brandId(), brandId))
                 .filter(pv -> categoryId == null || Objects.equals(pv.categoryId(), categoryId))
                 .toList();
+    }
+
+    /** Lookup includes old handles; callers redirect to the returned canonical handle. */
+    Optional<ProductView> getProductByHandle(UUID salonId, String handle) {
+        var salon = salonApi.findById(salonId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (salon.status() == net.samitkumar.multi_tenant_salon.salon.Salon.SalonStatus.DISABLED
+                || salon.features().stream().noneMatch(f -> f.feature() == net.samitkumar.multi_tenant_salon.salon.SalonFeature.WEBSHOP)) return Optional.empty();
+        return jdbcClient.sql("SELECT product_id FROM product_handle WHERE salon_id=:salon AND handle=:handle AND product_id IS NOT NULL")
+                .param("salon", salonId).param("handle", handle).query(Long.class).optional()
+                .flatMap(id -> getProduct(salonId, id, true)).filter(p -> !p.variants().isEmpty());
+    }
+
+    private void lockHandleNamespace(UUID salonId) {
+        jdbcClient.sql("SELECT id FROM salon WHERE id=:salon FOR UPDATE").param("salon", salonId).query(UUID.class)
+                .optional().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    private String assignHandle(UUID salonId, Long productId, String name, String requested) {
+        // Serialize allocation per tenant; a preflight existence check alone races on duplicate names.
+        lockHandleNamespace(salonId);
+        boolean automatic = requested == null || requested.isBlank();
+        String base = automatic ? productHandle(name) : requested.trim();
+        if (!base.matches("[a-z0-9]+(?:-[a-z0-9]+)*") || base.length() > 100)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use up to 100 lowercase letters, numbers and single hyphens for the product handle.");
+        String candidate = base;
+        int suffix = 1;
+        while (handleReserved(salonId, candidate, productId)) {
+            if (!automatic) throw new ResponseStatusException(HttpStatus.CONFLICT, "This product handle is already reserved. Choose another handle.");
+            candidate = base + "-" + (++suffix);
+        }
+        return candidate;
+    }
+
+    private boolean handleReserved(UUID salonId, String handle, Long productId) {
+        return jdbcClient.sql("""
+                SELECT EXISTS(SELECT 1 FROM product_handle WHERE salon_id=:salon AND handle=:handle
+                              AND (product_id IS NULL OR product_id<>:product))
+                    OR EXISTS(SELECT 1 FROM product WHERE salon_id=:salon AND handle=:handle AND id<>:product)
+                """).param("salon", salonId).param("handle", handle).param("product", productId == null ? -1L : productId)
+                .query(Boolean.class).single();
+    }
+
+    private void reserveHandle(Product product) {
+        jdbcClient.sql("INSERT INTO product_handle(salon_id,handle,product_id) VALUES (:salon,:handle,:product) ON CONFLICT DO NOTHING")
+                .param("salon", product.salonId()).param("handle", product.handle()).param("product", product.id()).update();
+    }
+
+    static String productHandle(String name) {
+        var normalized = java.text.Normalizer.normalize(name.toLowerCase(Locale.ROOT)
+                .replace("æ", "ae").replace("œ", "oe").replace("ø", "o").replace("ß", "ss"), java.text.Normalizer.Form.NFKD)
+                .replaceAll("\\p{M}+", "").replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        normalized = normalized.substring(0, Math.min(80, normalized.length())).replaceAll("-$", "");
+        return normalized.isEmpty() ? "product" : normalized;
     }
 
     List<Brand> listPublicBrands(UUID salonId) {
@@ -198,16 +251,18 @@ class ShopManager {
 
     @Transactional
     ProductView addProduct(UUID salonId, Long brandId, Long categoryId, String name, String description,
-                           String imageUrl, List<String> images, List<VariantSpec> variants) {
+                           String imageUrl, List<String> images, List<VariantSpec> variants, String requestedHandle) {
         requireText(name, "Product name is required");
         validateBrandCategory(salonId, brandId, categoryId);
         // Validate the options before anything is written.
         newVariants(null, salonId, variants == null ? List.of() : variants, false);
         var gallery = resolveImages(imageUrl, images);
         var cover = gallery.isEmpty() ? null : gallery.get(0);
-        var product = productRepo.save(new Product(null, salonId, brandId, categoryId, name.trim(),
+        var handle = assignHandle(salonId, null, name, requestedHandle);
+        var product = productRepo.save(new Product(null, salonId, brandId, categoryId, name.trim(), handle,
                 description, cover, true, Instant.now(),
                 gallery.stream().map(Product.ProductImage::new).toList()));
+        reserveHandle(product);
         var saved = newVariants(product.id(), salonId, variants == null ? List.of() : variants, true).stream()
                 .map(variantRepo::save)
                 .toList();
@@ -218,18 +273,21 @@ class ShopManager {
     @Transactional
     Optional<ProductView> updateProduct(UUID salonId, Long productId, Long brandId, Long categoryId,
                                         String name, String description, String imageUrl, List<String> images,
-                                        boolean active, List<VariantSpec> variants) {
+                                        boolean active, List<VariantSpec> variants, String requestedHandle) {
         requireText(name, "Product name is required");
         validateBrandCategory(salonId, brandId, categoryId);
+        lockHandleNamespace(salonId);
         var specs = variants == null ? List.<VariantSpec>of() : variants;
         var built = newVariants(productId, salonId, specs, true);
         return productRepo.findByIdAndSalonId(productId, salonId).map(existing -> {
             var gallery = resolveImages(imageUrl, images);
             var cover = gallery.isEmpty() ? null : gallery.get(0);
-            var updated = productRepo.save(new Product(existing.id(), salonId, brandId, categoryId, name.trim(),
+            var handle = requestedHandle == null || requestedHandle.isBlank() ? existing.handle() : assignHandle(salonId, productId, name, requestedHandle);
+            var updated = productRepo.save(new Product(existing.id(), salonId, brandId, categoryId, name.trim(), handle,
                     description, cover, active, existing.createdAt(),
                     gallery.stream().map(Product.ProductImage::new).toList()));
 
+            reserveHandle(updated);
             var keepIds = specs.stream().map(VariantSpec::id).filter(Objects::nonNull).collect(Collectors.toSet());
             variantRepo.findByProductId(productId).stream()
                     .filter(v -> !keepIds.contains(v.id()))
@@ -970,7 +1028,7 @@ class ShopManager {
         String categoryName = p.categoryId() == null ? null
                 : categoryRepo.findById(p.categoryId()).map(Category::name).orElse(null);
         return new ProductView(p.id(), p.salonId(), p.brandId(), brandName, p.categoryId(), categoryName,
-                p.name(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), variants);
+                p.name(), p.handle(), p.description(), p.imageUrl(), imagesOf(p), p.active(), p.createdAt(), variants);
     }
 
     private static List<String> imagesOf(Product p) {

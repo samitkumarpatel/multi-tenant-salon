@@ -820,6 +820,85 @@ class ShopModuleTests {
                 .expectBody().jsonPath("$.configured").isEqualTo(true).jsonPath("$.options.length()").isEqualTo(0);
     }
 
+
+    @Test void productHandlesAreStableTenantScopedAndKeepOldLinksReserved() {
+        jdbcTemplate.update("INSERT INTO salon_feature(salon_id,salon_key,feature) VALUES (?,0,'WEBSHOP')", salonId);
+        var first = createHandledProduct("Repair Shampoo");
+        long id = jsonLong(first, "$.id");
+        long variant = jsonLong(first, "$.variants[0].id");
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(new String(first), "$.handle")).isEqualTo("repair-shampoo");
+        var second = createHandledProduct("Repair Shampoo");
+        assertThat(com.jayway.jsonpath.JsonPath.<String>read(new String(second), "$.handle")).isEqualTo("repair-shampoo-2");
+        client.get().uri(customerBase() + "/products/by-handle/repair-shampoo").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.id").isEqualTo(id);
+        client.put().uri(adminBase() + "/products/" + id).contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("name", "New Display Name", "variants", java.util.List.of(java.util.Map.of("id", variant, "price", 12, "quantityOnHand", 3, "weightGrams", 100))))
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.handle").isEqualTo("repair-shampoo")
+                .jsonPath("$.variants[0].id").isEqualTo(variant);
+        client.put().uri(adminBase() + "/products/" + id).contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("name", "New Display Name", "handle", "premium-repair", "variants", java.util.List.of(java.util.Map.of("id", variant, "price", 12, "quantityOnHand", 0, "weightGrams", 100))))
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.handle").isEqualTo("premium-repair");
+        // Out-of-stock products remain public, and aliases return the current canonical handle.
+        client.get().uri(customerBase() + "/products/by-handle/repair-shampoo").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.handle").isEqualTo("premium-repair").jsonPath("$.variants[0].quantityOnHand").isEqualTo(0);
+        client.post().uri(adminBase() + "/products").contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("name", "Other", "handle", "repair-shampoo"))
+                .exchange().expectStatus().isEqualTo(409);
+        client.delete().uri(adminBase() + "/products/" + id).exchange().expectStatus().isNoContent();
+        client.get().uri(customerBase() + "/products/by-handle/repair-shampoo").exchange().expectStatus().isNotFound();
+        client.post().uri(adminBase() + "/products").contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("name", "Replacement", "handle", "premium-repair"))
+                .exchange().expectStatus().isEqualTo(409);
+        UUID other = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO salon(id,name,handler,owner_email,created_at) VALUES (?,'Other',?,'owner@other.test',now())", other, "handle-"+other);
+        client.post().uri("/api/salon-admin/"+other+"/shop/products").contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("name", "Repair Shampoo", "handle", "repair-shampoo"))
+                .exchange().expectStatus().isCreated().expectBody().jsonPath("$.handle").isEqualTo("repair-shampoo");
+    }
+
+    @Test void handleLookupHidesUnpublishedProductsAndValidatesInput() {
+        jdbcTemplate.update("INSERT INTO salon_feature(salon_id,salon_key,feature) VALUES (?,0,'WEBSHOP')", salonId);
+        var body = createHandledProduct("Crème Æ Ø Å");
+        long id = jsonLong(body,"$.id");
+        client.get().uri(customerBase()+"/products/by-handle/creme-ae-o-a").exchange().expectStatus().isOk();
+        client.get().uri(customerBase()+"/products/by-handle/missing").exchange().expectStatus().isNotFound();
+        for (String handle : java.util.List.of("UPPER", "with spaces", "two--hyphens", "x".repeat(101), "../bad")) {
+            client.post().uri(adminBase()+"/products").contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("name","Invalid", "handle",handle)).exchange().expectStatus().isBadRequest();
+        }
+        jdbcTemplate.update("UPDATE product_variant SET active=false WHERE product_id=?", id);
+        client.get().uri(customerBase()+"/products/by-handle/creme-ae-o-a").exchange().expectStatus().isNotFound();
+        jdbcTemplate.update("UPDATE product_variant SET active=true WHERE product_id=?", id);
+        jdbcTemplate.update("UPDATE product SET active=false WHERE id=?", id);
+        client.get().uri(customerBase()+"/products/by-handle/creme-ae-o-a").exchange().expectStatus().isNotFound();
+        jdbcTemplate.update("UPDATE product SET active=true WHERE id=?", id);
+        jdbcTemplate.update("DELETE FROM salon_feature WHERE salon_id=?",salonId);
+        client.get().uri(customerBase()+"/products/by-handle/creme-ae-o-a").exchange().expectStatus().isNotFound();
+        jdbcTemplate.update("INSERT INTO salon_feature(salon_id,salon_key,feature) VALUES (?,0,'WEBSHOP')", salonId);
+        jdbcTemplate.update("UPDATE salon SET status='DISABLED' WHERE id=?",salonId);
+        client.get().uri(customerBase()+"/products/by-handle/creme-ae-o-a").exchange().expectStatus().isNotFound();
+    }
+
+    @Test void legacyHandleBackfillIsDeterministicAndIdempotent() {
+        jdbcTemplate.execute("ALTER TABLE product ALTER COLUMN handle DROP NOT NULL");
+        for (String name : java.util.List.of("Repair Shampoo", "Repair Shampoo", "Repair Shampoo 2", "!!!")) {
+            jdbcTemplate.update("INSERT INTO product(salon_id,name,active,created_at) VALUES (?,?,true,now())",salonId,name);
+        }
+        var migration = new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource("db/V37__product_handles.sql"));
+        migration.execute(jdbcTemplate.getDataSource());
+        var handles = jdbcTemplate.queryForList("SELECT handle FROM product WHERE salon_id=? ORDER BY id",String.class,salonId);
+        assertThat(handles).containsExactly("repair-shampoo", "repair-shampoo-2", "repair-shampoo-2-2", "product");
+        migration.execute(jdbcTemplate.getDataSource());
+        assertThat(jdbcTemplate.queryForList("SELECT handle FROM product WHERE salon_id=? ORDER BY id",String.class,salonId)).isEqualTo(handles);
+    }
+
+    private byte[] createHandledProduct(String name) {
+        return client.post().uri(adminBase()+"/products").contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("name",name,"variants",java.util.List.of(java.util.Map.of("price",12,"quantityOnHand",3,"weightGrams",100))))
+                .exchange().expectStatus().isCreated().expectBody().returnResult().getResponseBody();
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     private static long jsonLong(byte[] body, String jsonPath) {

@@ -193,9 +193,9 @@ export default function Customers() {
           {shown.length === 0 ? (
             <p className="px-4 py-8 text-center text-xs text-slate-400">{translateUi("No customers match your search.")}</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-slate-200">
               {shown.map((c) => (
-                <li key={c.id} className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                <li key={c.id} className="admin-striped-row group flex items-center gap-3 px-4 py-3 transition-colors">
                   <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => setModal({ kind: "view", id: c.id })}>
                     <span className="block text-sm font-semibold text-slate-900 truncate">{c.name}</span>
                     <span className="block text-xs text-slate-400 truncate">{[c.email, c.phone].filter(Boolean).join(" · ")}</span>
@@ -304,7 +304,7 @@ export default function Customers() {
 
               <HistorySection title={translateUi("Bookings")} empty={translateUi("No bookings")} count={detail.history.bookings.length}>
                 {detail.history.bookings.map((b) => (
-                  <li key={b.id} className="flex justify-between gap-3 py-1.5 text-xs">
+                  <li key={b.id} className="admin-striped-row flex justify-between gap-3 px-2 py-1.5 text-xs">
                     <span className="text-slate-700 truncate">
                       {fmtDate(b.appointmentDate, uiLocale)} {b.startTime?.slice(0, 5)} · {b.serviceName ?? "—"}{b.staffName ? ` · ${b.staffName}` : ""}
                     </span>
@@ -315,7 +315,7 @@ export default function Customers() {
 
               <HistorySection title={translateUi("Orders")} empty={translateUi("No orders")} count={detail.history.orders.length}>
                 {detail.history.orders.map((o) => (
-                  <li key={o.id} className="flex justify-between gap-3 py-1.5 text-xs">
+                  <li key={o.id} className="admin-striped-row flex justify-between gap-3 px-2 py-1.5 text-xs">
                     <Link to={`../shop/orders/${o.id}`} className="text-matcha-700 hover:underline truncate">
                       {o.orderNumber} · {fmtDate(o.createdAt, uiLocale)}
                     </Link>
@@ -326,7 +326,7 @@ export default function Customers() {
 
               <HistorySection title={translateUi("Memberships")} empty={translateUi("No memberships")} count={detail.history.memberships.length}>
                 {detail.history.memberships.map((m) => (
-                  <li key={m.id} className="flex justify-between gap-3 py-1.5 text-xs">
+                  <li key={m.id} className="admin-striped-row flex justify-between gap-3 px-2 py-1.5 text-xs">
                     <Link to={`../membership/members/${m.id}`} className="text-matcha-700 hover:underline truncate">{m.planName}</Link>
                     <span className="text-slate-400 shrink-0">{m.status}{m.currentPeriodEnd ? ` · ${fmtDate(m.currentPeriodEnd, uiLocale)}` : ""}</span>
                   </li>
@@ -359,7 +359,7 @@ function HistorySection({ title, empty, count, children }: { title: string; empt
   return (
     <div>
       <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">{title} ({count})</h3>
-      {count === 0 ? <p className="text-xs text-slate-400">{empty}</p> : <ul className="divide-y divide-slate-100 max-h-48 overflow-y-auto">{children}</ul>}
+      {count === 0 ? <p className="text-xs text-slate-400">{empty}</p> : <ul className="divide-y divide-slate-200 max-h-48 overflow-y-auto">{children}</ul>}
     </div>
   );
 }

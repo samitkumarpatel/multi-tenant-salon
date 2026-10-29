@@ -66,3 +66,6 @@ export {
 export { FeedbackProvider, FeedbackLink, FeedbackView, FeedbackStars, PublicReviewConsent, RatingsLink } from "./Feedback";
 export { PublicRatingsView } from "./PublicRatingsView";
 export type { FeedbackSettings } from "./Feedback";
+
+export { ProductDetailModal } from "./ShopView";
+export { productPath, productDescription, productStructuredData, jsonLd, suggestProductHandle } from "./productSeo";

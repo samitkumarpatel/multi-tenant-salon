@@ -3,6 +3,15 @@ import type { Language } from "./languages";
 // English source messages are stable keys and the fallback for missing translations.
 // Columns: English | Danish | Swedish | Norwegian Bokmål | French | German.
 const rows = `
+Breadcrumb|Brødkrummesti|Brödsmulor|Brødsmulesti|Fil d’Ariane|Brotkrümelnavigation
+View webshop|Se webshop|Visa webbutik|Se nettbutikk|Voir la boutique|Webshop ansehen
+Product navigation|Produktnavigation|Produktnavigering|Produktnavigasjon|Navigation des produits|Produktnavigation
+Order navigation|Ordrenavigation|Ordernavigering|Ordrenavigasjon|Navigation des commandes|Bestellnavigation
+Product handle|Produktets URL-navn|Produktens URL-namn|Produktets URL-navn|Identifiant URL du produit|URL-Kennung des Produkts
+Generated from product name|Genereres fra produktnavnet|Genereras från produktnamnet|Genereres fra produktnavnet|Généré à partir du nom du produit|Wird aus dem Produktnamen erstellt
+Use lowercase letters, numbers and hyphens. Renaming the product keeps its URL; changing this handle redirects previous links.|Brug små bogstaver, tal og bindestreger. Ændring af produktnavnet bevarer URL'en; ændring af dette URL-navn omdirigerer tidligere links.|Använd små bokstäver, siffror och bindestreck. Produktens URL behålls när namnet ändras; ändring av detta URL-namn omdirigerar tidigare länkar.|Bruk små bokstaver, tall og bindestreker. Produktets URL beholdes når navnet endres; endring av dette URL-navnet videresender tidligere lenker.|Utilisez des minuscules, des chiffres et des tirets. Renommer le produit conserve son URL ; modifier cet identifiant redirige les anciens liens.|Verwenden Sie Kleinbuchstaben, Zahlen und Bindestriche. Eine Namensänderung behält die URL bei; eine Änderung dieser Kennung leitet alte Links weiter.
+Product not found|Produktet blev ikke fundet|Produkten hittades inte|Produktet ble ikke funnet|Produit introuvable|Produkt nicht gefunden
+This product is no longer available.|Dette produkt er ikke længere tilgængeligt.|Den här produkten är inte längre tillgänglig.|Dette produktet er ikke lenger tilgjengelig.|Ce produit n’est plus disponible.|Dieses Produkt ist nicht mehr verfügbar.
 Points|Point|Poäng|Poeng|Points|Punkte
 View reviews|Se anmeldelser|Visa recensioner|Se anmeldelser|Voir les avis|Rezensionen ansehen
 Allow my written review to appear publicly|Tillad, at min skriftlige anmeldelse vises offentligt|Tillåt att min skriftliga recension visas offentligt|Tillat at min skriftlige anmeldelse vises offentlig|Autoriser la publication de mon avis écrit|Meine schriftliche Rezension darf öffentlich angezeigt werden

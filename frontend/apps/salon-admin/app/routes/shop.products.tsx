@@ -6,6 +6,7 @@ import type { ClientLoaderFunctionArgs } from "react-router";
 import { AlertTriangle, ImagePlus, LayoutGrid, List, Package, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ADMIN_API, COUNTRIES_API, apiFetch, apiFetchCached, resolveSalonUUID, uploadToPresignedUrl } from "~/lib/api";
 import { formatPrice } from "~/lib/constants";
+import { suggestProductHandle } from "@salon/ui-website";
 import { Toast, useToast } from "@salon/ui-shared";
 import { Modal, ModalActions } from "~/components/ShopModal";
 import type { Country, ShopBrand, ShopCategory, ShopProduct } from "~/lib/types";
@@ -61,6 +62,7 @@ interface GalleryItem {
 
 interface ProductForm {
   name: string;
+  handle: string;
   description: string;
   brandId: string;
   categoryId: string;
@@ -94,7 +96,7 @@ const blankVariant = (currency = "USD"): VariantRow => ({
 });
 
 const blankForm = (currency = "USD"): ProductForm => ({
-  name: "", description: "", brandId: "", categoryId: "", gallery: [], active: true, currency,
+  name: "", handle: "", description: "", brandId: "", categoryId: "", gallery: [], active: true, currency,
   variants: [blankVariant(currency)],
 });
 
@@ -172,6 +174,7 @@ function toRows(p: ShopProduct): VariantRow[] {
 function buildPayload(f: ProductForm) {
   return {
     name: f.name.trim(),
+    handle: f.handle.trim() || null,
     description: f.description || null,
     brandId: f.brandId ? Number(f.brandId) : null,
     categoryId: f.categoryId ? Number(f.categoryId) : null,
@@ -271,6 +274,7 @@ export default function ShopProducts() {
     setF({
       currency: p.variants[0]?.currency ?? salonCurrency,
       name: p.name,
+      handle: p.handle,
       description: p.description ?? "",
       brandId: p.brandId != null ? String(p.brandId) : "",
       categoryId: p.categoryId != null ? String(p.categoryId) : "",
@@ -724,6 +728,14 @@ export default function ShopProducts() {
                 value={f.name}
                 onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={fieldLabel} htmlFor="product-handle">{translateUi("Product handle")}</label>
+              <input id="product-handle" className={inputCls} value={f.handle} maxLength={100}
+                placeholder={translateUi("Generated from product name")}
+                onChange={(e) => setF((p) => ({ ...p, handle: e.target.value }))} />
+              <p className="mt-1 text-xs text-slate-500">/shop/products/{f.handle || suggestProductHandle(f.name)}</p>
+              <p className="mt-1 text-xs text-slate-500">{translateUi("Use lowercase letters, numbers and hyphens. Renaming the product keeps its URL; changing this handle redirects previous links.")}</p>
             </div>
             <div className="sm:col-span-2">
               <label className={fieldLabel}>{translateUi("Description")}</label>

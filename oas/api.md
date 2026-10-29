@@ -2383,7 +2383,7 @@ variants are returned.
 
 ```json
 {
-  "id": 12, "name": "Nourishing Shampoo", "description": "For dry hair",
+  "id": 12, "name": "Nourishing Shampoo", "handle": "nourishing-shampoo", "description": "For dry hair",
   "brandId": 3, "brandName": "Kerastase", "categoryId": 1, "categoryName": "Hair Care",
   "imageUrl": "http://localhost:8080/api/media/photos/uploads/product/12/a.jpg",
   "images": [
@@ -2401,6 +2401,20 @@ variants are returned.
 ### Get a product
 
 `GET /api/salon/{salonId}/shop/products/{productId}` → `200` / `404`.
+
+`GET /api/salon/{salonId}/shop/products/by-handle/{handle}` → `200` / `404`.
+Lookup is scoped to the resolved salon, requires an enabled salon with WEBSHOP,
+and returns only active products with active variants. Previous handles resolve
+to the same product with its current `handle`; the public website redirects them
+permanently. Out-of-stock products remain public.
+
+Product create/update requests accept optional `handle` (up to 100 lowercase
+letters/digits separated by single hyphens). Omitted/blank on create generates a
+handle with a collision suffix if needed. Omitted/blank on update keeps it.
+Explicitly reserved handles return 409; invalid handles return 400. Changing only
+the product name does not change its handle. Handle history remains reserved,
+including after a product is deleted. Numeric ID endpoints are unchanged.
+
 
 ### Checkout options
 

@@ -22,13 +22,15 @@ export interface ShopViewProps {
   policies?: SalonPolicy[];
   /** Build the href for a page key (for the header's other nav links). */
   getPagePath?: (page: string) => string;
+  /** Enable dedicated product pages on surfaces which provide that route. */
+  getProductPath?: (product: ShopProduct) => string;
   /** Navigate to another page key, or null to return to the home page. */
   onNavigate?: (page: string | null) => void;
 }
 
 type Step = "browse" | "checkout" | "done";
 
-export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, onNavigate }: ShopViewProps) {
+export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, getProductPath, onNavigate }: ShopViewProps) {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const theme = themeProp;
   const fontStackCss = fontStack(theme.fontFamily);
@@ -71,6 +73,7 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    if (params.get("cart") === "1") setCartOpen(true);
     if (params.get("payment") !== "success") return;
     try {
       const pending = window.sessionStorage.getItem(`shop-pending-order:${salon.id}`);
@@ -499,6 +502,7 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
         >
           {filteredProducts.map((product) => (
             <ProductCard
+              href={getProductPath?.(product)}
               key={product.id}
               product={product}
               theme={theme}
@@ -728,13 +732,14 @@ function FilterSelect({
 // ── Product card ─────────────────────────────────────────────────────────────
 
 function ProductCard({
-  product, theme, selectedVariantId, onSelectVariant, onExpand, onAdd, compact = false, wished = false, onToggleWish,
+  product, theme, selectedVariantId, onSelectVariant, onExpand, onAdd, compact = false, wished = false, onToggleWish, href,
 }: {
   product: ShopProduct;
   theme: WebsiteTheme;
   selectedVariantId?: number;
   onSelectVariant: (variantId: number) => void;
   onExpand: () => void;
+  href?: string;
   onAdd: (variant: ShopVariant) => void;
   compact?: boolean;
   wished?: boolean;
@@ -775,8 +780,9 @@ function ProductCard({
         className="relative w-full aspect-[3/4] overflow-hidden rounded-t-2xl isolate"
         style={{ backgroundColor: imgBg }}
       >
-        <button
-          onClick={onExpand}
+        <a
+          href={href ?? "#"}
+          onClick={(e) => { if (!href) { e.preventDefault(); onExpand(); } }}
           className="absolute inset-0 flex items-center justify-center cursor-pointer"
           aria-label={`View ${product.name} details`}
         >
@@ -796,7 +802,7 @@ function ProductCard({
               {DEFAULT_PRODUCT_EMOJI}
             </span>
           )}
-        </button>
+        </a>
 
         {/* Sold / out-of-stock badge */}
         {allSold && (
@@ -831,7 +837,7 @@ function ProductCard({
       {/* Info — brand/name/category click opens detail; pills and add-to-cart stay interactive */}
       <div className={`flex flex-col flex-1 ${compact ? "p-2.5 gap-1" : "p-4 gap-2"}`} style={{ backgroundColor: cardBg, opacity: allSold ? 0.55 : 1 }}>
         {/* Brand */}
-        <button onClick={onExpand} className="text-left cursor-pointer">
+        <a href={href ?? "#"} onClick={(e) => { if (!href) { e.preventDefault(); onExpand(); } }} className="text-left cursor-pointer no-underline">
           {product.brandName && (
             <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
               {product.brandName}
@@ -853,7 +859,7 @@ function ProductCard({
               {product.categoryName}
             </span>
           )}
-        </button>
+        </a>
 
         {/* Variant pills */}
         {product.variants.length > 1 && !compact && (
@@ -915,8 +921,8 @@ function ProductCard({
 
 // ── Product detail modal ──────────────────────────────────────────────────────
 
-function ProductDetailModal({
-  product, theme, selectedVariantId, onSelectVariant, onAdd, onClose,
+export function ProductDetailModal({
+  product, theme, selectedVariantId, onSelectVariant, onAdd, onClose, inline = false,
 }: {
   product: ShopProduct;
   theme: WebsiteTheme;
@@ -924,8 +930,10 @@ function ProductDetailModal({
   onSelectVariant: (variantId: number) => void;
   onAdd: (variant: ShopVariant) => void;
   onClose: () => void;
+  inline?: boolean;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
+  const Heading = inline ? "h1" : "h2";
   const heroLight = isLightColor(theme.heroBg);
   const accentText = contrastText(theme.accentColor);
   const sub = heroLight ? "#475569" : "#94A3B8";
@@ -950,33 +958,36 @@ function ProductDetailModal({
 
   // Close on Escape
   useEffect(() => {
+    if (inline) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, inline]);
 
   // Lock scroll while open
   useEffect(() => {
+    if (inline) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
-  }, []);
+  }, [inline]);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"
+      className={inline ? "w-full" : "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"}
       style={{ fontFamily: fontStack(theme.fontFamily) }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      {!inline && <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />}
 
       {/* Panel */}
       <div
-        className="relative w-full sm:max-w-2xl max-h-[92dvh] sm:max-h-[88dvh] rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl"
+        className={inline ? "relative w-full rounded-2xl overflow-hidden flex flex-col" : "relative w-full sm:max-w-2xl max-h-[92dvh] sm:max-h-[88dvh] rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl"}
         style={{ backgroundColor: panelBg, border: `1px solid ${border}` }}
       >
         {/* Close button */}
         <button
+          hidden={inline}
           onClick={onClose}
           className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
           style={{ backgroundColor: heroLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.12)", color: sub }}
@@ -1058,9 +1069,9 @@ function ProductDetailModal({
             )}
 
             {/* Name */}
-            <h2 className="text-xl font-black leading-tight" style={{ color: theme.heroTextColor }}>
+            <Heading className="text-xl font-black leading-tight" style={{ color: theme.heroTextColor }}>
               {product.name}
-            </h2>
+            </Heading>
 
             {/* Category */}
             {product.categoryName && (

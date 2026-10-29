@@ -932,9 +932,9 @@ export default function Staff() {
             {staff.length} {translateUi("staff member")}{staff.length !== 1 ? translateUi("s") : ""}
           </p>
 
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-100">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm divide-y divide-slate-200">
             {staff.map((m) => (
-              <div key={m.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group">
+              <div key={m.id} className="admin-striped-row flex items-center gap-4 px-4 py-3 transition-colors group">
 
                 <div className="relative w-8 h-8 shrink-0">
                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
