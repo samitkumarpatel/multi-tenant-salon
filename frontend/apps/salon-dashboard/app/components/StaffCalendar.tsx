@@ -10,7 +10,8 @@ import {
   withAlpha, type StaffScheduleData,
 } from "~/lib/calendar";
 
-type CalendarView = "day" | "week" | "month";
+type CalendarView = "day" | "week" | "month" | "list";
+type ListPeriod = "all" | "day" | "week" | "month" | "year";
 type DayLayout = "overall" | "stylist";
 
 const HOUR_H = 56;
@@ -77,6 +78,24 @@ const isClosedDay = (restriction: string | null | undefined) =>
 const canMove = (booking: Booking) =>
   (booking.status === "PENDING" || booking.status === "CONFIRMED") && !isTimeInPast(booking.appointmentDate, booking.endTime);
 
+function isoWeekParts(dateKey: string) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  const weekday = date.getDay() || 7;
+  date.setDate(date.getDate() + 4 - weekday);
+  const year = date.getFullYear();
+  const firstThursday = new Date(year, 0, 4, 12);
+  const firstWeekday = firstThursday.getDay() || 7;
+  firstThursday.setDate(firstThursday.getDate() + 4 - firstWeekday);
+  return { year, week: Math.ceil((date.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1 };
+}
+
+function isoWeekMonday(year: number, week: number) {
+  const jan4 = new Date(year, 0, 4, 12);
+  const weekday = jan4.getDay() || 7;
+  jan4.setDate(jan4.getDate() - weekday + 1 + (week - 1) * 7);
+  return localDateKey(jan4);
+}
+
 export function StaffCalendar(props: StaffCalendarProps) {
   const { bookings, staff, services, operatingHours, closures, holidays, schedules, bookingAdvanceDays, colorOverrides,
     searchParams, setSearchParams, onNew, onSelect, onMove, onColorChange } = props;
@@ -100,7 +119,8 @@ export function StaffCalendar(props: StaffCalendarProps) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const view: CalendarView = (["day", "week", "month"] as const).find((v) => v === searchParams.get("cal")) ?? "day";
+  const view: CalendarView = (["day", "week", "month", "list"] as const).find((v) => v === searchParams.get("cal")) ?? "day";
+  const listPeriod: ListPeriod = (["all", "day", "week", "month", "year"] as const).find((period) => period === searchParams.get("listBy")) ?? "all";
   const requestedDate = searchParams.get("date");
   const selectedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : localDateKey();
   const selectedDay = parseDate(selectedDate);
@@ -148,6 +168,20 @@ export function StaffCalendar(props: StaffCalendarProps) {
       && !hidden.has(booking.staffId)
       && (prefs.showCancelled || booking.status !== "CANCELLED"));
   }, [bookings, rangeDates, hidden, prefs.showCancelled]);
+  const listVisible = useMemo(() => {
+    const selectedWeek = isoWeekParts(selectedDate);
+    const monday = isoWeekMonday(selectedWeek.year, selectedWeek.week);
+    const nextMonday = localDateKey(addDays(parseDate(monday), 7));
+    return bookings.filter((booking) => {
+      if (hidden.has(booking.staffId) || (!prefs.showCancelled && booking.status === "CANCELLED")) return false;
+      const date = booking.appointmentDate;
+      if (listPeriod === "day") return date === selectedDate;
+      if (listPeriod === "week") return date >= monday && date < nextMonday;
+      if (listPeriod === "month") return date.startsWith(selectedDate.slice(0, 7));
+      if (listPeriod === "year") return date.startsWith(selectedDate.slice(0, 4));
+      return true;
+    }).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
+  }, [bookings, hidden, prefs.showCancelled, listPeriod, selectedDate]);
 
   const restrictions = useMemo(() => new Map(rangeDates.map((date) =>
     [date, restrictionFor(date, operatingHours, closures, holidays, bookingAdvanceDays)])),
@@ -166,8 +200,16 @@ export function StaffCalendar(props: StaffCalendarProps) {
       open = Math.min(open, toMinutes(booking.startTime));
       close = Math.max(close, toMinutes(booking.endTime));
     }
-    return { gridStart: Math.floor(open / 60) * 60, gridEnd: Math.min(24 * 60, Math.ceil(close / 60) * 60) };
+    // Keep the grid edges on the configured salon hours (including half hours),
+    // rather than rounding out to whole hours. Existing appointments outside
+    // those hours still expand the grid so they remain visible.
+    return { gridStart: Math.max(0, open), gridEnd: Math.min(24 * 60, close) };
   }, [rangeDates, operatingHours, visible]);
+  const hourTicks = useMemo(() => {
+    const firstHour = Math.ceil(gridStart / 60) * 60;
+    return Array.from({ length: Math.max(0, Math.ceil((gridEnd - firstHour) / 60)) }, (_, index) => firstHour + index * 60)
+      .filter((minutes) => minutes < gridEnd);
+  }, [gridStart, gridEnd]);
 
   // Bring the working day into view: now when looking at today, otherwise the first appointment.
   useEffect(() => {
@@ -237,11 +279,11 @@ export function StaffCalendar(props: StaffCalendarProps) {
     ? prettyDate(selectedDay, { weekday: "long", day: "numeric", month: "long" })
     : view === "week"
       ? `${prettyDate(weekStart, { day: "numeric", month: "short" })} – ${prettyDate(addDays(weekStart, 6), { day: "numeric", month: "short", year: "numeric" })}`
-      : prettyDate(selectedDay, { month: "long", year: "numeric" });
-  const countable = visible.filter((b) => b.status !== "CANCELLED").length;
+      : view === "month" ? prettyDate(selectedDay, { month: "long", year: "numeric" }) : translateUi("All appointments");
+  const countable = (view === "list" ? listVisible : visible).filter((b) => b.status !== "CANCELLED").length;
   const counts = new Map<number, number>();
-  for (const booking of bookings) {
-    if (booking.status === "CANCELLED" || !rangeDates.includes(booking.appointmentDate)) continue;
+  for (const booking of view === "list" ? listVisible : bookings) {
+    if (booking.status === "CANCELLED" || (view !== "list" && !rangeDates.includes(booking.appointmentDate))) continue;
     counts.set(booking.staffId, (counts.get(booking.staffId) ?? 0) + 1);
   }
 
@@ -259,15 +301,43 @@ export function StaffCalendar(props: StaffCalendarProps) {
         <h2 className="text-sm font-bold capitalize text-slate-800">{title}</h2>
         <p className="text-xs text-slate-400">{countable} {countable === 1 ? translateUi("appointment") : translateUi("appointments")}</p>
       </div>
-      <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Calendar view")}>
-        {(["day", "week", "month"] as const).map((option) => <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} className={segment(view === option)}>
-          {option === "day" ? translateUi("Day") : option === "week" ? translateUi("Week") : translateUi("Month")}</button>)}
+      <div className="flex flex-wrap rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Calendar view")}>
+        {(["day", "week", "month", "list"] as const).map((option) => <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} className={segment(view === option)}>
+          {option === "day" ? translateUi("Day") : option === "week" ? translateUi("Week") : option === "month" ? translateUi("Month") : translateUi("List")}</button>)}
       </div>
       {view === "day" && <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label={translateUi("Booking calendar layout")}>
         <button type="button" onClick={() => setPrefs({ ...prefs, layout: "overall" })} aria-pressed={prefs.layout === "overall"} className={segment(prefs.layout === "overall")}>{translateUi("Overall")}</button>
         <button type="button" onClick={() => setPrefs({ ...prefs, layout: "stylist" })} aria-pressed={prefs.layout === "stylist"} className={segment(prefs.layout === "stylist")}>{translateUi("By Stylist")}</button>
       </div>}
-      <input type="date" value={selectedDate} onChange={(event) => event.target.value && chooseDate(event.target.value)} aria-label={translateUi("Choose date")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />
+      {view === "list" ? <>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+          {translateUi("Filter by")}
+          <select value={listPeriod} onChange={(event) => setParams((params) => params.set("listBy", event.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none focus:border-matcha-500">
+            <option value="all">{translateUi("All")}</option>
+            <option value="day">{translateUi("Day")}</option>
+            <option value="week">{translateUi("Week number")}</option>
+            <option value="month">{translateUi("Month")}</option>
+            <option value="year">{translateUi("Year")}</option>
+          </select>
+        </label>
+        {listPeriod === "day" && <input type="date" value={selectedDate} onChange={(event) => event.target.value && chooseDate(event.target.value)} aria-label={translateUi("Choose date")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />}
+        {listPeriod === "week" && <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600">{translateUi("Week number")}<input type="number" min={1} max={53} value={isoWeekParts(selectedDate).week} onChange={(event) => {
+            const week = Math.max(1, Math.min(53, Number(event.target.value) || 1));
+            const year = isoWeekParts(selectedDate).year;
+            chooseDate(isoWeekMonday(year, week));
+          }} className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold" /></label>
+          <label className="flex items-center gap-1.5 text-xs text-slate-600">{translateUi("Year")}<input type="number" min={2000} max={2100} value={isoWeekParts(selectedDate).year} onChange={(event) => {
+            const year = Math.max(2000, Math.min(2100, Number(event.target.value) || new Date().getFullYear()));
+            chooseDate(isoWeekMonday(year, isoWeekParts(selectedDate).week));
+          }} className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold" /></label>
+        </div>}
+        {listPeriod === "month" && <input type="month" value={selectedDate.slice(0, 7)} onChange={(event) => event.target.value && chooseDate(`${event.target.value}-01`)} aria-label={translateUi("Month")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600" />}
+        {listPeriod === "year" && <label className="flex items-center gap-1.5 text-xs text-slate-600">{translateUi("Year")}<input type="number" min={2000} max={2100} value={Number(selectedDate.slice(0, 4))} onChange={(event) => {
+          const year = Math.max(2000, Math.min(2100, Number(event.target.value) || new Date().getFullYear()));
+          chooseDate(`${year}-01-01`);
+        }} className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold" /></label>}
+      </> : <input type="date" value={selectedDate} onChange={(event) => event.target.value && chooseDate(event.target.value)} aria-label={translateUi("Choose date")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-matcha-500" />}
       <button type="button" onClick={() => setExpanded((current) => !current)} aria-label={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} title={expanded ? translateUi("Exit expanded calendar") : translateUi("Expand calendar")} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50">{expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>
     </div>
 
@@ -298,7 +368,25 @@ export function StaffCalendar(props: StaffCalendarProps) {
     {dayRestriction && <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-3"><XCircle className="h-4 w-4 shrink-0 text-amber-500" /><div><p className="text-xs font-semibold text-amber-800">{dayRestriction}</p><p className="text-[11px] text-amber-600">{translateUi("Existing appointments are shown; new appointments cannot be added for this date.")}</p></div></div>}
     {moveError && <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700"><span>{moveError}</span><button type="button" onClick={() => setMoveError(null)} className="font-semibold underline">{translateUi("Dismiss")}</button></div>}
 
-    {view === "month"
+    {view === "list" ? <div className={`${expanded ? "min-h-0 flex-1" : "max-h-[72vh]"} overflow-auto`}>
+      {listVisible.length === 0 ? <p className="px-4 py-12 text-center text-sm text-slate-400">{translateUi("No appointments in this period.")}</p>
+        : <><div className="hidden grid-cols-1 gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:gap-4">
+          <span>{translateUi("Customer")}</span><span>{translateUi("Appointment")}</span><span>{translateUi("Staff")}</span><span>{translateUi("Status")}</span>
+        </div><ul className="divide-y divide-slate-100">
+          {listVisible.map((booking) => {
+            const staffMember = staffMap.get(booking.staffId);
+            const color = colorOf(booking.staffId);
+            return <li key={booking.id}>
+              <button type="button" onClick={() => onSelect(booking)} className="grid w-full grid-cols-1 gap-2 px-4 py-3 text-left transition-colors hover:bg-matcha-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-matcha-500 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+                <span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-800">{booking.customerName}</span><span className="block truncate text-xs text-slate-500">{serviceMap.get(booking.serviceId) ?? translateUi("Service")}</span></span>
+                <span className="text-xs text-slate-600">{prettyDate(parseDate(booking.appointmentDate), { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · {booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)}</span>
+                <span className="flex min-w-0 items-center gap-2 text-xs text-slate-600"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} /><span className="truncate">{staffMember?.name ?? "—"}</span></span>
+                <span className={`w-fit rounded-full px-2 py-1 text-[10px] font-semibold ${booking.status === "CONFIRMED" ? "bg-green-50 text-green-700" : booking.status === "PENDING" ? "bg-amber-50 text-amber-700" : booking.status === "CANCELLED" ? "bg-slate-100 text-slate-500" : "bg-blue-50 text-blue-700"}`}>{translateUi(booking.status)}</span>
+              </button>
+            </li>;
+          })}
+        </ul></>}
+    </div> : view === "month"
       ? <MonthGrid gridStart={monthGridStart} monthIndex={selectedDay.getMonth()} today={today} bookings={visible} restrictions={restrictions} colorOf={colorOf}
           serviceMap={serviceMap} onOpenDay={openDay} onSelect={onSelect} expanded={expanded} />
       : <div ref={scrollRef} className={`${expanded ? "min-h-0 flex-1" : "max-h-[72vh]"} overflow-auto`}>
@@ -308,7 +396,8 @@ export function StaffCalendar(props: StaffCalendarProps) {
               <div className="sticky left-0 top-0 z-30 h-12 border-b border-r border-slate-200 bg-slate-50" />
               {columns.map((column) => <div key={column.key} className="sticky top-0 z-20 flex h-12 items-center justify-center border-b border-r border-slate-200 bg-slate-50 px-2">{column.label}</div>)}
               <div className="sticky left-0 z-10 border-r border-slate-200 bg-white" style={{ height: ((gridEnd - gridStart) / 60) * HOUR_H }}>
-                {Array.from({ length: (gridEnd - gridStart) / 60 }, (_, i) => <div key={i} className="absolute right-2 -translate-y-2 text-[10px] font-medium tabular-nums text-slate-400" style={{ top: i * HOUR_H + (i === 0 ? 8 : 0) }}>{formatTime(gridStart + i * 60)}</div>)}
+                {gridStart % 60 !== 0 && <div className="absolute right-2 top-2 -translate-y-2 text-[10px] font-medium tabular-nums text-slate-400">{formatTime(gridStart)}</div>}
+                {hourTicks.map((minutes) => <div key={minutes} className="absolute right-2 -translate-y-2 text-[10px] font-medium tabular-nums text-slate-400" style={{ top: ((minutes - gridStart) / 60) * HOUR_H }}>{formatTime(minutes)}</div>)}
               </div>
               {columns.map((column) => {
                 const lanes = layoutLanes(column.bookings);
@@ -354,7 +443,7 @@ export function StaffCalendar(props: StaffCalendarProps) {
                     const duration = toMinutes(drag.booking.endTime) - toMinutes(drag.booking.startTime);
                     void dropOn(column, minutesFromPointer(event, event.currentTarget, duration, drag.grab));
                   }}>
-                  {Array.from({ length: (gridEnd - gridStart) / 60 }, (_, i) => <div key={i} className="pointer-events-none absolute inset-x-0 border-t border-slate-100" style={{ top: i * HOUR_H }}><div className="absolute inset-x-0 border-t border-dashed border-slate-50" style={{ top: HOUR_H / 2 }} /></div>)}
+                  {hourTicks.map((minutes) => <div key={minutes} className="pointer-events-none absolute inset-x-0 border-t border-slate-100" style={{ top: ((minutes - gridStart) / 60) * HOUR_H }}><div className="absolute inset-x-0 border-t border-dashed border-slate-50" style={{ top: HOUR_H / 2 }} /></div>)}
                   {shade.map(([from, to, kind], i) => <div key={i} className={`pointer-events-none absolute inset-x-0 ${kind === "closed" ? "bg-slate-100/80" : "bg-[repeating-linear-gradient(135deg,transparent,transparent_6px,rgba(148,163,184,0.18)_6px,rgba(148,163,184,0.18)_7px)]"}`} style={{ top: pos(from), height: pos(to) - pos(from) }} title={kind === "closed" ? translateUi("Salon closed") : translateUi("Not working")} />)}
                   {pastUntil > gridStart && <div className="pointer-events-none absolute inset-x-0 bg-slate-50/60" style={{ top: 0, height: pos(pastUntil) }} />}
                   {hover?.key === column.key && !drag && bookable(column.date, formatTime(hover.minutes), column.staff) && <div className="pointer-events-none absolute inset-x-1 flex items-center rounded bg-matcha-50 px-2 text-[10px] font-semibold text-matcha-700" style={{ top: pos(hover.minutes), height: (SNAP_CLICK / 60) * HOUR_H }}>+ {translateUi("Book at ")}{formatTime(hover.minutes)}</div>}

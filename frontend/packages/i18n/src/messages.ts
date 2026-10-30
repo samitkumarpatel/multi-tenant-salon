@@ -4,6 +4,10 @@ import type { Language } from "./languages";
 // Columns: English | Danish | Swedish | Norwegian Bokmål | French | German.
 const rows = `
 Email preview is unavailable for this activity.|E-mailforhåndsvisning er ikke tilgængelig for denne aktivitet.|Förhandsvisning av e-post är inte tillgänglig för denna aktivitet.|Forhåndsvisning av e-post er ikke tilgjengelig for denne aktiviteten.|L’aperçu de l’e-mail n’est pas disponible pour cette activité.|Für diese Aktivität ist keine E-Mail-Vorschau verfügbar.
+All appointments|Alle aftaler|Alla bokningar|Alle avtaler|Tous les rendez-vous|Alle Termine
+Filter by|Filtrer efter|Filtrera efter|Filtrer etter|Filtrer par|Filtern nach
+Week number|Ugenummer|Veckonummer|Ukenummer|Numéro de semaine|Kalenderwoche
+No appointments in this period.|Ingen aftaler i denne periode.|Inga bokningar under den här perioden.|Ingen avtaler i denne perioden.|Aucun rendez-vous pour cette période.|Keine Termine in diesem Zeitraum.
 Could not load communication history. Order details are still available.|Kommunikationshistorikken kunne ikke indlæses. Ordredetaljerne er stadig tilgængelige.|Kommunikationshistoriken kunde inte läsas in. Orderinformationen är fortfarande tillgänglig.|Kommunikasjonshistorikken kunne ikke lastes. Ordredetaljene er fortsatt tilgjengelige.|Impossible de charger l’historique des communications. Les détails de la commande restent disponibles.|Der Kommunikationsverlauf konnte nicht geladen werden. Die Bestelldetails sind weiterhin verfügbar.
 Loading payment history…|Indlæser betalingshistorik…|Läser in betalningshistorik…|Laster betalingshistorikk…|Chargement de l’historique des paiements…|Zahlungsverlauf wird geladen…
 Payment history is currently unavailable.|Betalingshistorikken er ikke tilgængelig i øjeblikket.|Betalningshistoriken är inte tillgänglig just nu.|Betalingshistorikken er ikke tilgjengelig for øyeblikket.|L’historique des paiements est actuellement indisponible.|Der Zahlungsverlauf ist derzeit nicht verfügbar.
