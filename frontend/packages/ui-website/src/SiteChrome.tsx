@@ -340,7 +340,6 @@ export function SiteHeader({
             )}
             {current === "shop" && onCartOpen ? (
               <>
-                <AccountButton theme={theme} onClick={onAvatarOpen} />
                 <button
                   onClick={onCartOpen}
                   className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
@@ -372,12 +371,12 @@ export function SiteHeader({
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 {translateUi("Book now ")}</a>
             ) : null}
-            {current !== "shop" && current !== "account" && hasCustomerAccount(salon) && (onAvatarOpen || onNavigate || getPagePath) && (
+            <LanguageSelector compact />
+            {current !== "account" && hasCustomerAccount(salon) && (onAvatarOpen || onNavigate || getPagePath) && (
               <AccountButton theme={theme}
                 href={getPagePath ? getPagePath("account") : undefined}
                 onClick={onAvatarOpen ?? (onNavigate ? () => onNavigate("account") : undefined)} />
             )}
-            <LanguageSelector compact />
           </div>
         </div>
       )}

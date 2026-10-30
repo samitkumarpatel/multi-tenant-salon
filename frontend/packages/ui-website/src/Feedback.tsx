@@ -1,17 +1,28 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent, MouseEvent, ReactNode } from "react";
 import { MessageSquare, Star } from "lucide-react";
 import { useI18n } from "@salon/i18n";
 import { apiFetch, API_BASE } from "./api";
 import { friendlyMessage } from "./apiError";
 import { feedbackHref } from "./feedbackHref";
-import { contrastText } from "./theme";
+import { contrastText, fontStack, loadGoogleFont } from "./theme";
+import { SiteHeader, SiteFooter } from "./SiteChrome";
+import type { SalonPolicy } from "./SalonPolicyLinks";
 import type { Salon, StaffMember, WebsiteTheme } from "./types";
 
 export type FeedbackSettings = { publicWebsiteEnabled: boolean };
-const FeedbackContext = createContext<{ enabled: boolean; getPagePath: (page: string) => string } | null>(null);
-export function FeedbackProvider({ enabled, getPagePath, children }: { enabled: boolean; getPagePath: (page: string) => string; children: ReactNode }) {
-  return <FeedbackContext.Provider value={{ enabled, getPagePath }}>{children}</FeedbackContext.Provider>;
+type FeedbackNavigation = { enabled: boolean; getPagePath: (page: string) => string; onNavigate?: (href: string) => void };
+const FeedbackContext = createContext<FeedbackNavigation | null>(null);
+export function FeedbackProvider({ enabled, getPagePath, onNavigate, children }: FeedbackNavigation & { children: ReactNode }) {
+  return <FeedbackContext.Provider value={{ enabled, getPagePath, onNavigate }}>{children}</FeedbackContext.Provider>;
+}
+
+function navigateFeedback(event: MouseEvent<HTMLAnchorElement>, context: FeedbackNavigation, href: string) {
+  event.stopPropagation();
+  if (context.onNavigate && !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    context.onNavigate(href);
+  }
 }
 
 /** Browsing public stars is available even when the salon closes general feedback submissions. */
@@ -21,7 +32,8 @@ export function RatingsLink({ staffId, color, className = "" }: { staffId?: stri
   if (!context) return null;
   const url = new URL(context.getPagePath("ratings"), "https://salon.invalid");
   if (staffId != null) url.searchParams.set("staff", String(staffId));
-  return <a href={`${url.pathname}${url.search}`} onClick={(event) => event.stopPropagation()} style={{ color }}
+  const href = `${url.pathname}${url.search}`;
+  return <a href={href} onClick={(event) => navigateFeedback(event, context, href)} style={{ color }}
     className={`inline-flex min-h-11 min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-sm text-xs font-semibold hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 ${className}`}>
     <Star aria-hidden="true" className="size-4 shrink-0" />{t("View reviews")}
   </a>;
@@ -34,7 +46,7 @@ export function FeedbackLink({ staffId, color, className = "" }: { staffId?: str
   if (!context?.enabled) return null;
   const path = context.getPagePath("feedback");
   const href = feedbackHref(path, staffId);
-  return <a href={href} onClick={(event) => event.stopPropagation()} style={{ color }}
+  return <a href={href} onClick={(event) => navigateFeedback(event, context, href)} style={{ color }}
     className={`inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-sm text-left text-xs font-semibold no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2 ${className}`}>
     <MessageSquare aria-hidden="true" className="size-4 shrink-0" />
     <span className="min-w-0 [overflow-wrap:anywhere]">{t(staffId ? "Rate this stylist" : "Leave feedback")}</span>
@@ -67,8 +79,9 @@ export function FeedbackStars({ label, value, onChange }: { label: string; value
 }
 
 type Receipt = { salonRating: number | null; staffRating: number | null; salonFeedback: string | null; staffFeedback: string | null; reply: string | null; repliedAt: string | null };
-export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WEBSITE", initialStaffId, onBack }: {
+export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WEBSITE", initialStaffId, onBack, policies = [], getPagePath, onNavigate }: {
   salon: Salon; staff: StaffMember[]; theme: WebsiteTheme; enabled: boolean; source?: string; initialStaffId?: string | null; onBack: () => void;
+  policies?: SalonPolicy[]; getPagePath?: (page: string) => string; onNavigate?: (page: string) => void;
 }) {
   const { t } = useI18n();
   const [staffId, setStaffId] = useState(initialStaffId ?? "");
@@ -84,6 +97,7 @@ export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WE
   const [token, setToken] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const storageKey = `salon-feedback-receipt:${salon.id}`;
+  useEffect(() => { loadGoogleFont(theme.fontFamily); }, [theme.fontFamily]);
   useEffect(() => {
     // A stylist link starts a new submission rather than reopening the last receipt.
     if (initialStaffId) return;
@@ -110,8 +124,10 @@ export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WE
   }
   const canSubmit = !!(salonRating || (staffId && staffRating) || salonFeedback.trim() || (staffId && staffFeedback.trim()));
   const inputClass = "mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400";
-  return <main className="min-h-[80dvh] bg-slate-50 px-4 py-8 sm:py-12"><div className="mx-auto max-w-xl">
-    <button type="button" onClick={onBack} className="mb-5 cursor-pointer text-sm font-semibold text-slate-600 hover:underline">← {t("Back")}</button>
+  return <div className="min-h-[100dvh] flex flex-col" style={{ backgroundColor: theme.heroBg, fontFamily: fontStack(theme.fontFamily) }}>
+    {getPagePath && <SiteHeader salon={salon} theme={theme} current="feedback" onBack={onBack} getPagePath={getPagePath} onNavigate={onNavigate} />}
+    <main className="flex-1 px-4 py-8 sm:py-12"><div className="mx-auto max-w-xl">
+    {!getPagePath && <button type="button" onClick={onBack} className="mb-5 cursor-pointer text-sm font-semibold text-slate-600 hover:underline">← {t("Back")}</button>}
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
       <p className="text-sm font-semibold" style={{ color: theme.accentColor }}>{salon.name}</p>
       <h1 className="mt-2 text-2xl font-bold text-slate-900">{t(receipt ? "Thank you for your feedback" : "How was your experience?")}</h1>
@@ -136,5 +152,7 @@ export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WE
       </form>}
       {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
     </section>
-  </div></main>;
+    </div></main>
+    {getPagePath && <SiteFooter salon={salon} theme={theme} current="feedback" onBack={onBack} getPagePath={getPagePath} policies={policies} />}
+  </div>;
 }

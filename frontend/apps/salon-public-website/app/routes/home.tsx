@@ -30,6 +30,8 @@ export default function PublicWebsitePage() {
     const query = new URLSearchParams(location.search);
     const source = ["WEBSITE_FOOTER", "WEBSITE_STYLIST"].includes(query.get("source") ?? "") ? query.get("source")! : "PUBLIC_WEBSITE";
     return <FeedbackView salon={data.salon} staff={data.staff} theme={data.theme} enabled={data.feedbackSettings.publicWebsiteEnabled}
+      policies={data.websitePolicies} getPagePath={(page) => `/${page}${search}`}
+      onNavigate={(page) => navigate(`/${page}${search}`)}
       source={source} initialStaffId={query.get("staff")} onBack={() => navigate(`/${search}`)} />;
   }
 

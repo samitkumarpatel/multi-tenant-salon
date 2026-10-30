@@ -1,6 +1,6 @@
 import { useI18n } from "@salon/i18n";
 import React, { useEffect, useId, useRef, useState } from "react";
-import { ArrowLeft, BadgeCheck, Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Mail, Phone, QrCode, Star, X } from "lucide-react";
 import { apiFetch, API_BASE } from "./api";
 import { beginCheckout, StripeCheckoutPanel, type CheckoutInstructions, type CheckoutResult } from "./StripeCheckout";
 import { friendlyMessage } from "./apiError";
@@ -103,6 +103,16 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
 
   const goHome = () => onNavigate?.(null);
   const contact = salon.contact;
+  const accountUrl = new URL(getPagePath ? getPagePath("account") : "/account", "https://salon.invalid");
+  accountUrl.searchParams.set("tab", "memberships");
+  const accountHref = `${accountUrl.pathname}${accountUrl.search}${accountUrl.hash}`;
+  const manageMembershipLink = (
+    <a href={accountHref}
+      className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{ backgroundColor: theme.accentColor, color: accentText }}>
+      {translateUi("Manage my membership")} <ArrowRight aria-hidden="true" className="w-4 h-4" />
+    </a>
+  );
 
   const shell = (body: React.ReactNode) => (
     <div className="min-h-[100dvh] flex flex-col" style={{ fontFamily: fontStackCss, backgroundColor: theme.heroBg }}>
@@ -132,11 +142,14 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
           <QrCode className="w-4 h-4 shrink-0" />
           {translateUi("Your membership QR code is on its way to your email — show it at your next visit.")}
         </p>
-        <button onClick={() => { clearReturn(); goHome(); }}
-          className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
-          style={{ backgroundColor: theme.accentColor, color: accentText }}>
-          <ArrowLeft className="w-4 h-4" /> {translateUi("Back to {salon}", { salon: salon.name })}
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {manageMembershipLink}
+          <button onClick={() => { clearReturn(); goHome(); }}
+            className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+            style={{ backgroundColor: theme.accentColor, color: accentText }}>
+            <ArrowLeft className="w-4 h-4" /> {translateUi("Back to {salon}", { salon: salon.name })}
+          </button>
+        </div>
       </div>,
     );
   }
@@ -160,6 +173,7 @@ export function MembershipView({ salon, theme, policies = [], getPagePath, onNav
         <p className="mt-3 text-sm sm:text-base max-w-xl mx-auto" style={{ color: sub }}>
           {translateUi("Regular treatments, member prices and perks at {salon}.", { salon: salon.name })}
         </p>
+        <div className="mt-6">{manageMembershipLink}</div>
       </section>
 
       {returned === "cancel" && (

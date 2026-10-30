@@ -1,6 +1,6 @@
 import type { SalonLanguages, LanguagePolicy } from "@salon/i18n";
 import { useEffect } from "react";
-import { Outlet, useLoaderData, useLocation } from "react-router";
+import { Outlet, useLoaderData, useLocation, useNavigate } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { FeedbackProvider, SalonErrorPage, SalonDisabledPage, DEFAULT_THEME, apiFetch, API_BASE, isNotFoundError } from "@salon/ui-website";
 import type { Salon, StaffMember, ServiceItem, WebsiteTheme, SalonPolicy, FeedbackSettings } from "@salon/ui-website";
@@ -104,6 +104,7 @@ export function shouldRevalidate({
 export default function WebsiteShell() {
   const data = useLoaderData<typeof clientLoader>();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (data.status !== "ok") return;
@@ -135,7 +136,7 @@ export default function WebsiteShell() {
   return (
     <>
       {location.pathname !== "/feedback" && <AnalyticsTracker salonId={String(salon.id)} enabled={salon.features?.includes("ANALYTICS") ?? false} />}
-      <FeedbackProvider enabled={feedbackSettings.publicWebsiteEnabled} getPagePath={(page) => `/${page}${navigationSearch(location.search)}`}><Outlet context={{ canonicalOrigin, salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } satisfies TenantData} /></FeedbackProvider>
+      <FeedbackProvider enabled={feedbackSettings.publicWebsiteEnabled} getPagePath={(page) => `/${page}${navigationSearch(location.search)}`} onNavigate={(href) => navigate(href)}><Outlet context={{ canonicalOrigin, salon, staff, services, theme, websitePolicies, bookingPolicies, membershipPolicies, shopPolicies, loyaltyPolicies, feedbackSettings } satisfies TenantData} /></FeedbackProvider>
     </>
   );
 }
