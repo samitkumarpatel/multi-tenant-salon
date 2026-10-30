@@ -25,6 +25,9 @@ import net.samitkumar.multi_tenant_salon.salon.SalonDisabledEvent;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.salon.SalonUpdatedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderCustomerNotifiedEvent;
+import net.samitkumar.multi_tenant_salon.shop.ShopCommunicationApi;
+import net.samitkumar.multi_tenant_salon.shop.OrderCommunicationQueuedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderMessageRequestedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
@@ -72,6 +75,7 @@ class NotificationService {
     private final MailjetClient mailjetClient;
     private final ApplicationEventPublisher eventPublisher;
     private final SalonApi salonApi;
+    private final ShopCommunicationApi orderCommunications;
 
     @Value("${spring.application.notification.mailjet.sender:noreply@salonsaas.org}")
     private String sender;
@@ -93,10 +97,11 @@ class NotificationService {
     @Value("${spring.application.notification.help-url:https://help.salonsaas.org}")
     private String helpUrl;
 
-    NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher, SalonApi salonApi) {
+    NotificationService(MailjetClient mailjetClient, ApplicationEventPublisher eventPublisher, SalonApi salonApi, ShopCommunicationApi orderCommunications) {
         this.mailjetClient = mailjetClient;
         this.eventPublisher = eventPublisher;
         this.salonApi = salonApi;
+        this.orderCommunications = orderCommunications;
     }
 
     // ── Salon lifecycle ──────────────────────────────────────────────────────
@@ -580,7 +585,9 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.ORDERS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.ORDERS)),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -619,7 +626,9 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.ORDERS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.ORDERS)),
                 NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
     }
 
@@ -643,8 +652,44 @@ class NotificationService {
                 """.formatted(event.customerName(), body, event.productName(), event.orderNumber(),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
-                NotificationContext.shopOrder(event.salonId(), event.orderNumber()));
+        sendEmail(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.ORDERS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.ORDERS)),
+                NotificationContext.shopOrder(event.salonId(), event.orderNumber()).forLine(event.activityId()));
+    }
+
+    void notifyOrderMessage(OrderMessageRequestedEvent event) {
+        var subject = salonSubject(event.salonName(), "Update on your order — " + event.orderNumber());
+        var text = "Hi " + event.customerName() + ",\n\n" + event.message() + "\n\nOrder: " + event.orderNumber() + "\n" + teamSignatureText(event.salonName());
+        var html = "<p>Hi " + HtmlUtils.htmlEscape(event.customerName()) + ",</p><p style=\"white-space:pre-wrap\">"
+                + HtmlUtils.htmlEscape(event.message()) + "</p><p>Order: " + HtmlUtils.htmlEscape(event.orderNumber()) + "</p>" + teamSignatureHtml(event.salonName());
+        orderCommunications.queue(event.salonId(), event.orderNumber(), new ShopCommunicationApi.Message(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.ORDERS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.ORDERS)), event.activityId()), event.skipped());
+    }
+
+    void skipOrderEmail(UUID salonId, String orderNumber, String recipient, String subject) {
+        orderCommunications.queue(salonId, orderNumber, new ShopCommunicationApi.Message(recipient, "", subject,
+                "This update was skipped because the customer requested important updates only.", null), true);
+    }
+
+    void deliverOrderCommunication(OrderCommunicationQueuedEvent event) {
+        var claim = orderCommunications.claim(event.salonId(), event.communicationId(), event.generation());
+        if (claim == null) return;
+        var message = claim.message();
+        try {
+            var outcome = dispatch(message.recipient(), message.recipientName(), message.subject(), message.text(), message.html());
+            var reason = switch (outcome) {
+                case FAILED -> "Email could not be sent. Check the recipient address and email provider configuration.";
+                case LOGGED -> "Email provider is not configured. No email was sent.";
+                case SENT -> null;
+            };
+            orderCommunications.finish(event.salonId(), event.communicationId(), claim.attemptId(), outcome.name(), reason, false);
+        } catch (NotificationDeliveryException e) {
+            boolean retry = orderCommunications.finish(event.salonId(), event.communicationId(), claim.attemptId(), "FAILED",
+                    "Email provider was temporarily unavailable. Delivery is unconfirmed.", true);
+            if (retry) throw e;
+        }
     }
 
     // ── Memberships — customer-facing ─────────────────────────────────────────
@@ -707,7 +752,9 @@ class NotificationService {
         var qr = new MailjetAttachment("image/png", "membership-" + event.memberCode() + ".png", MEMBER_QR_CID,
                 Base64.getEncoder().encodeToString(QrCodes.png(event.memberCode(), 440)));
 
-        var status = dispatch(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html), List.of(qr));
+        var status = dispatch(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.MEMBERSHIPS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.MEMBERSHIPS)), List.of(qr));
         acknowledge(event.customerEmail(), subject, text, status,
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
@@ -741,7 +788,9 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.MEMBERSHIPS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.MEMBERSHIPS)),
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
 
@@ -769,7 +818,9 @@ class NotificationService {
                 """.formatted(event.points(), HtmlUtils.htmlEscape(event.rewardName()), event.code(), event.balanceAfter(),
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()), teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), "", subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), "", subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.POINTS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.POINTS)),
                 new NotificationContext(event.salonId(), "LOYALTY", String.valueOf(event.redemptionId())));
     }
 
@@ -807,7 +858,9 @@ class NotificationService {
                 salonContactHtml(event.salonName(), event.salonPhone(), event.salonEmail()),
                 teamSignatureHtml(event.salonName()));
 
-        sendEmail(event.customerEmail(), event.customerName(), subject, withCustomerText(event.salonId(), text), withCustomerHtml(event.salonId(), html),
+        sendEmail(event.customerEmail(), event.customerName(), subject,
+                withCustomerText(event.salonId(), withAccountActionText(event.salonId(), text, AccountDestination.MEMBERSHIPS)),
+                withCustomerHtml(event.salonId(), withAccountActionHtml(event.salonId(), html, AccountDestination.MEMBERSHIPS)),
                 NotificationContext.membership(event.salonId(), event.subscriptionId()));
     }
 
@@ -885,7 +938,7 @@ class NotificationService {
                 .map(salon -> bookingAppUrl.replaceAll("/+$", "") + "/" + salon.id() + "/feedback?source=NOTIFICATION").orElse(null);
     }
 
-    /** Matches the booking app account route: active salon with at least one customer account feature. */
+    /** Prefer the salon website; salons without a website use the booking app account route. */
     private String accountUrl(UUID salonId) {
         if (salonId == null) return null;
         return salonApi.findById(salonId)
@@ -894,7 +947,37 @@ class NotificationService {
                     case BOOKING, WEBSHOP, MEMBERSHIP, LOYALTY_PROGRAM -> true;
                     default -> false;
                 }))
-                .map(salon -> bookingAppUrl.replaceAll("/+$", "") + "/" + salon.id() + "/account").orElse(null);
+                .map(salon -> salon.features().stream().anyMatch(ref -> ref.feature() == SalonFeature.STATIC_WEBSITE)
+                        && StringUtils.hasText(salon.handler())
+                        ? websiteUrl(salon.handler()) + "/account"
+                        : bookingAppUrl.replaceAll("/+$", "") + "/" + salon.id() + "/account").orElse(null);
+    }
+
+    private enum AccountDestination {
+        ORDERS("orders", "View my orders"),
+        MEMBERSHIPS("memberships", "Manage my membership"),
+        POINTS("points", "See my points");
+
+        final String tab;
+        final String label;
+
+        AccountDestination(String tab, String label) {
+            this.tab = tab;
+            this.label = label;
+        }
+    }
+
+    private String withAccountActionText(UUID salonId, String text, AccountDestination destination) {
+        var account = accountUrl(salonId);
+        return account == null ? text : text + "\n\n" + destination.label + ":\n" + account + "?tab=" + destination.tab + "\n";
+    }
+
+    private String withAccountActionHtml(UUID salonId, String html, AccountDestination destination) {
+        var account = accountUrl(salonId);
+        if (account == null) return html;
+        return html + "<p><a href=\"" + HtmlUtils.htmlEscape(account + "?tab=" + destination.tab)
+                + "\" style=\"display:inline-block;padding:10px 18px;border-radius:8px;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:600\">"
+                + destination.label + "</a></p>";
     }
 
     private String withAccountText(UUID salonId, String text) {
@@ -1044,6 +1127,11 @@ class NotificationService {
      */
     private void sendEmail(String toEmail, String toName, String subject, String textBody, String htmlBody,
                            NotificationContext ctx) {
+        if (ctx != null && NotificationContext.TYPE_SHOP_ORDER.equals(ctx.relatedType())) {
+            orderCommunications.queue(ctx.salonId(), ctx.relatedRef(),
+                    new ShopCommunicationApi.Message(toEmail, toName, subject, textBody, htmlBody, null, ctx.sourceLineActivityId()), false);
+            return;
+        }
         var status = dispatch(toEmail, toName, subject, textBody, htmlBody);
         acknowledge(toEmail, subject, textBody, status, ctx);
     }
@@ -1078,7 +1166,13 @@ class NotificationService {
                     List.of(new MailjetEmail(toEmail, toName)),
                     subject, textBody, framed, inlined)));
             var result = mailjetClient.send(request);
-            log.info("[NOTIFICATION] Sent '{}' to {} <{}> — result: {}", subject, toName, toEmail, result);
+            // Mailjet may return HTTP 200 while rejecting an individual message.
+            if (result.get("Messages") instanceof List<?> messages && messages.stream().anyMatch(message ->
+                    message instanceof java.util.Map<?, ?> details && "error".equalsIgnoreCase(String.valueOf(details.get("Status"))))) {
+                log.error("[NOTIFICATION] Mailjet rejected a message in a successful HTTP response. subject='{}'", subject);
+                return DispatchStatus.FAILED;
+            }
+            log.info("[NOTIFICATION] Email accepted by provider. subject='{}' to={} <{}>", subject, toName, toEmail);
             return DispatchStatus.SENT;
         } catch (RestClientResponseException e) {
             var code = e.getStatusCode();

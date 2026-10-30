@@ -187,6 +187,7 @@ spring:
         - classpath:db/V36__public_review_consent.sql
         - classpath:db/V37__product_handles.sql
         - classpath:db/V38__repair_product_handles.sql
+        - classpath:db/V39__order_communications.sql
   modulith:
     events:
       jdbc:

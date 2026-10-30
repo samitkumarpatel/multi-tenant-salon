@@ -3,6 +3,7 @@ package net.samitkumar.multi_tenant_salon.shop.internal;
 import net.samitkumar.multi_tenant_salon.media.MediaService;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.shop.Brand;
+import net.samitkumar.multi_tenant_salon.shop.ShopCommunicationApi;
 import net.samitkumar.multi_tenant_salon.shop.Category;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
 import net.samitkumar.multi_tenant_salon.shop.ShippingMethod;
@@ -31,15 +32,30 @@ import java.util.Optional;
 class ShopAdminController {
 
     private final ShopManager shop;
+    private final ShopCommunicationApi communications;
     private final SalonApi salonApi;
     private final MediaService mediaApi;
     private final ShippingMethodService shipping;
 
-    ShopAdminController(ShopManager shop, SalonApi salonApi, Optional<MediaService> mediaApi, ShippingMethodService shipping) {
+    ShopAdminController(ShopManager shop, SalonApi salonApi, Optional<MediaService> mediaApi, ShippingMethodService shipping, ShopCommunicationApi communications) {
         this.shop = shop;
+        this.communications = communications;
         this.salonApi = salonApi;
         this.mediaApi = mediaApi.orElse(null);
         this.shipping = shipping;
+    }
+
+    @GetMapping("/orders/{orderId}/communications")
+    List<ShopCommunicationApi.Communication> communications(@PathVariable String salonId, @PathVariable Long orderId) {
+        return communications.list(salonApi.resolveId(salonId), orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/communications/{communicationId}/retry")
+    List<ShopCommunicationApi.Communication> retryCommunication(@PathVariable String salonId, @PathVariable Long orderId,
+                                                               @PathVariable Long communicationId) {
+        var id = salonApi.resolveId(salonId);
+        communications.retry(id, orderId, communicationId);
+        return communications.list(id, orderId);
     }
 
     // ── request bodies ───────────────────────────────────────────────────────

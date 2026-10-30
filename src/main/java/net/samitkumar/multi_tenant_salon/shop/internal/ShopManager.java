@@ -10,6 +10,7 @@ import net.samitkumar.multi_tenant_salon.shop.OrderLineActivity;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityType;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderMessageRequestedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.shop.PaymentStatus;
@@ -684,13 +685,13 @@ class ShopManager {
         if (line == null) return Optional.empty();
 
         var text = message.apply(line);
-        activityRepo.save(new OrderLineActivity(null, lineId, salonId, type, text, actor, Instant.now()));
+        var lineActivity = activityRepo.save(new OrderLineActivity(null, lineId, salonId, type, text, actor, Instant.now()));
 
         if (emitEvent) {
             var contact = salonContact(salonId);
             eventPublisher.publishEvent(new OrderLineActivityAddedEvent(orderId, salonId, order.orderNumber(), lineId,
                     line.productName(), type, text, order.customerName(), order.customerEmail(),
-                    contact.name(), contact.email()));
+                    contact.name(), contact.email(), lineActivity.id()));
         }
         return getOrder(salonId, orderId);
     }
@@ -715,11 +716,14 @@ class ShopManager {
                 shouldNotify = false;
             }
         }
-        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, shouldNotify,
+        var activity = orderActivityRepo.save(new ShopOrderActivity(null, orderId, salonId, type, message, actor, false,
                 null, null, null, null, Instant.now()));
-        if (shouldNotify) {
-            log.info("[NOTIFICATION] To: {} | Phone: {} | Type: {} | Message: {}",
-                    customerEmail, customerPhone != null ? customerPhone : "—", type, message);
+        // Status emails have their own template. Shipping transitions publish that status event too.
+        if (notify && !"STATUS_CHANGED".equals(type) && !"SHIPMENT_CREATED".equals(type)) {
+            var order = orderRepo.findByIdAndSalonId(orderId, salonId).orElseThrow();
+            var contact = salonContact(salonId);
+            eventPublisher.publishEvent(new OrderMessageRequestedEvent(salonId, orderId, activity.id(), order.orderNumber(),
+                    order.customerName(), order.customerEmail(), message, contact.name(), !shouldNotify));
         }
         return activity;
     }
@@ -738,14 +742,15 @@ class ShopManager {
         log.info("[ShopManager] Recorded customer notification for order {} ({}, {})", orderNumber, channel, status);
     }
 
+    @Transactional
     Optional<OrderView> sendInvoice(UUID salonId, Long orderId) {
         var order = orderRepo.findByIdAndSalonId(orderId, salonId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
         var invoiceNumber = "INV-" + order.orderNumber();
         recordOrderActivity(orderId, salonId, "INVOICE_SENT",
-                "Invoice " + invoiceNumber + " issued and sent to " + order.customerEmail(),
+                "Invoice reference " + invoiceNumber + " issued for order " + order.orderNumber(),
                 "admin", true, order.customerEmail(), order.customerPhone());
-        log.info("[ShopManager] Invoice sent for orderId={}", orderId);
+        log.info("[ShopManager] Invoice notification requested for orderId={}", orderId);
         return getOrder(salonId, orderId);
     }
 

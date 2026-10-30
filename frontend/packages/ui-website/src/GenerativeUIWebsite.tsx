@@ -1670,12 +1670,6 @@ export function GenerativeUIWebsite({
             {thinking ? translateUi("Thinking…") : isOpenNow(salon) ? translateUi("Open now · AI Assistant") : translateUi("AI Assistant · Online")}
           </p>
         </div>
-        {!isBooking && hasCustomerAccount(salon) && (getPagePath || onNavigate) && (
-          <AccountButton theme={theme} headerBg={topBg}
-            href={getPagePath ? getPagePath("account") : undefined}
-            onClick={onNavigate ? () => onNavigate("account") : undefined} />
-        )}
-        <LanguageSelector compact />
         <button
           type="button"
           onClick={() => setMcpDetailsOpen(true)}
@@ -1696,6 +1690,12 @@ export function GenerativeUIWebsite({
           >
             <SquarePen className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{translateUi("Clear chat ")}</span></button>
+        )}
+        <LanguageSelector compact />
+        {!isBooking && hasCustomerAccount(salon) && (getPagePath || onNavigate) && (
+          <AccountButton theme={theme} headerBg={topBg}
+            href={getPagePath ? getPagePath("account") : undefined}
+            onClick={onNavigate ? () => onNavigate("account") : undefined} />
         )}
       </div>
     </div>

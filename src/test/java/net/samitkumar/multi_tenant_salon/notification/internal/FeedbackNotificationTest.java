@@ -6,6 +6,8 @@ import net.samitkumar.multi_tenant_salon.salon.Salon;
 import net.samitkumar.multi_tenant_salon.salon.SalonApi;
 import net.samitkumar.multi_tenant_salon.salon.SalonFeature;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
+import net.samitkumar.multi_tenant_salon.shop.ShopCommunicationApi;
+import net.samitkumar.multi_tenant_salon.shop.OrderCommunicationQueuedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +37,15 @@ class FeedbackNotificationTest {
         when(salon.id()).thenReturn(salonId); when(salon.name()).thenReturn("Feedback salon");
         when(salons.findById(salonId)).thenReturn(Optional.of(salon));
         when(mailjet.send(any())).thenReturn(Map.of());
-        notifications = new NotificationService(mailjet, mock(ApplicationEventPublisher.class), salons);
+        var communications = mock(ShopCommunicationApi.class);
+        notifications = new NotificationService(mailjet, mock(ApplicationEventPublisher.class), salons, communications);
+        // Simulate dispatch of the durable message after the queue transaction commits.
+        org.mockito.Mockito.doAnswer(invocation -> {
+            ShopCommunicationApi.Message message = invocation.getArgument(2);
+            when(communications.claim(salonId, 1L, 0)).thenReturn(new ShopCommunicationApi.Claimed(1L, message));
+            notifications.deliverOrderCommunication(new OrderCommunicationQueuedEvent(salonId, 1L, 0));
+            return null;
+        }).when(communications).queue(any(), any(), any(), org.mockito.ArgumentMatchers.eq(false));
         ReflectionTestUtils.setField(notifications, "apiKey", "test-key");
         ReflectionTestUtils.setField(notifications, "bookingAppUrl", "https://book.example.test");
         ReflectionTestUtils.setField(notifications, "sender", "salon@example.test");

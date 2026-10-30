@@ -6,7 +6,15 @@ import java.util.UUID;
  * Links a dispatched notification back to the business entity it concerns, so it can be
  * persisted to {@code notification_log} and surfaced later (e.g. an order's Activity view).
  */
-record NotificationContext(UUID salonId, String relatedType, String relatedRef) {
+record NotificationContext(UUID salonId, String relatedType, String relatedRef, Long sourceLineActivityId) {
+    NotificationContext(UUID salonId, String relatedType, String relatedRef) {
+        this(salonId, relatedType, relatedRef, null);
+    }
+
+    NotificationContext forLine(Long activityId) {
+        return new NotificationContext(salonId, relatedType, relatedRef, activityId);
+    }
+
 
     static final String TYPE_SHOP_ORDER = "SHOP_ORDER";
     static final String TYPE_MEMBERSHIP = "MEMBERSHIP";

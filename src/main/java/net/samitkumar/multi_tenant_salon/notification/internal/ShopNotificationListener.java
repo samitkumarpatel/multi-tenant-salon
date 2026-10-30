@@ -3,6 +3,8 @@ package net.samitkumar.multi_tenant_salon.notification.internal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.samitkumar.multi_tenant_salon.shop.CommunicationPreference;
+import net.samitkumar.multi_tenant_salon.shop.OrderCommunicationQueuedEvent;
+import net.samitkumar.multi_tenant_salon.shop.OrderMessageRequestedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityType;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
@@ -19,9 +21,20 @@ class ShopNotificationListener {
     private final NotificationService notificationService;
 
     @ApplicationModuleListener
+    void onCommunicationQueued(OrderCommunicationQueuedEvent event) {
+        notificationService.deliverOrderCommunication(event);
+    }
+
+    @ApplicationModuleListener
+    void onOrderMessageRequested(OrderMessageRequestedEvent event) {
+        notificationService.notifyOrderMessage(event);
+    }
+
+    @ApplicationModuleListener
     void onOrderPlaced(OrderPlacedEvent event) {
         if (event.communicationPreference() == CommunicationPreference.IMPORTANT_ONLY) {
             log.info("[NOTIFICATION] Skipping order placed email for {} (IMPORTANT_ONLY preference)", event.orderNumber());
+            notificationService.skipOrderEmail(event.salonId(), event.orderNumber(), event.customerEmail(), "Order confirmation skipped");
             return;
         }
         log.info("[NOTIFICATION → CUSTOMER] Order {} placed — notifying {} <{}>",
@@ -35,6 +48,7 @@ class ShopNotificationListener {
                 && event.newStatus() != OrderStatus.SHIPPED) {
             log.info("[NOTIFICATION] Skipping status email for {} (IMPORTANT_ONLY, status={})",
                     event.orderNumber(), event.newStatus());
+            notificationService.skipOrderEmail(event.salonId(), event.orderNumber(), event.customerEmail(), "Order status update skipped");
             return;
         }
         log.info("[NOTIFICATION → CUSTOMER] Order {} status changed to {} — notifying {} <{}>",

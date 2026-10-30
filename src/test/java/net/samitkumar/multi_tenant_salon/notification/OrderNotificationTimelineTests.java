@@ -89,7 +89,7 @@ class OrderNotificationTimelineTests {
         assertThat(placed.get("channel")).isEqualTo("EMAIL");
         assertThat((String) placed.get("subject")).contains("Order received");
         assertThat((String) placed.get("body")).contains("Alex Doe").contains("We've received order");
-        assertThat(placed.get("notified")).isEqualTo(Boolean.TRUE);
+        assertThat(placed.get("notified")).isEqualTo(Boolean.FALSE);
 
         // A status change sends (and records) a second customer email.
         client.post().uri(adminBase() + "/orders/" + orderId + "/status")
@@ -105,7 +105,7 @@ class OrderNotificationTimelineTests {
      *  {@code subjectFragment} appears, then returns it. */
     private Map<String, Object> awaitActivity(long orderId, String subjectFragment) {
         return await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(250))
-                .until(() -> findNotifiedActivity(orderId, subjectFragment), a -> a != null);
+                .until(() -> findNotifiedActivity(orderId, subjectFragment), a -> a != null && "LOGGED".equals(a.get("status")));
     }
 
     @SuppressWarnings("unchecked")

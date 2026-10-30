@@ -99,10 +99,11 @@ export function FeedbackView({ salon, staff, theme, enabled, source = "PUBLIC_WE
   const storageKey = `salon-feedback-receipt:${salon.id}`;
   useEffect(() => { loadGoogleFont(theme.fontFamily); }, [theme.fontFamily]);
   useEffect(() => {
-    // A stylist link starts a new submission rather than reopening the last receipt.
-    if (initialStaffId) return;
+    // "Leave feedback" and stylist links start a new experience. Only a direct return
+    // to the feedback page restores the saved receipt to check the salon's reply.
+    if (initialStaffId || source === "WEBSITE_FOOTER" || source === "WEBSITE_STYLIST") return;
     try { setToken(localStorage.getItem(storageKey) ?? ""); } catch { /* Storage is optional. */ }
-  }, [storageKey, initialStaffId]);
+  }, [storageKey, initialStaffId, source]);
   useEffect(() => {
     if (!token) return;
     apiFetch<Receipt>(`${API_BASE}/api/salon/${salon.id}/feedback/${encodeURIComponent(token)}`)

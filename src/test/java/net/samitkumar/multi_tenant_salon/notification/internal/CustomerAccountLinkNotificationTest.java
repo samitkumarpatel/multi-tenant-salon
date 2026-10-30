@@ -21,6 +21,8 @@ import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityAddedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderLineActivityType;
 import net.samitkumar.multi_tenant_salon.shop.OrderPlacedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatus;
+import net.samitkumar.multi_tenant_salon.shop.ShopCommunicationApi;
+import net.samitkumar.multi_tenant_salon.shop.OrderCommunicationQueuedEvent;
 import net.samitkumar.multi_tenant_salon.shop.OrderStatusChangedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffOnboardedEvent;
 import net.samitkumar.multi_tenant_salon.staff.StaffRole;
@@ -74,7 +76,15 @@ class CustomerAccountLinkNotificationTest {
         // No website feature or domain is needed for the booking app's account route.
         when(salons.findById(salonId)).thenReturn(Optional.of(salon));
         when(mailjet.send(any())).thenReturn(Map.of());
-        notifications = new NotificationService(mailjet, mock(ApplicationEventPublisher.class), salons);
+        var communications = mock(ShopCommunicationApi.class);
+        notifications = new NotificationService(mailjet, mock(ApplicationEventPublisher.class), salons, communications);
+        // Simulate dispatch of the durable message after the queue transaction commits.
+        org.mockito.Mockito.doAnswer(invocation -> {
+            ShopCommunicationApi.Message message = invocation.getArgument(2);
+            when(communications.claim(salonId, 1L, 0)).thenReturn(new ShopCommunicationApi.Claimed(1L, message));
+            notifications.deliverOrderCommunication(new OrderCommunicationQueuedEvent(salonId, 1L, 0));
+            return null;
+        }).when(communications).queue(any(), any(), any(), org.mockito.ArgumentMatchers.eq(false));
         ReflectionTestUtils.setField(notifications, "apiKey", "test-key");
         ReflectionTestUtils.setField(notifications, "bookingAppUrl", "https://book.example.test/");
         ReflectionTestUtils.setField(notifications, "salonDomain", "example.test");
@@ -90,7 +100,7 @@ class CustomerAccountLinkNotificationTest {
         sendCustomerNotification(type);
         var message = sentMessage();
         var accountUrl = "https://book.example.test/" + salonId + "/account";
-        assertThat(message.textPart()).containsOnlyOnce(accountUrl).contains("Manage your customer account:");
+        assertThat(message.textPart()).containsOnlyOnce(accountUrl + "\n").contains("Manage your customer account:");
         assertThat(message.htmlPart()).containsOnlyOnce("href=\"" + accountUrl + "\"")
                 .contains("Manage your customer account").doesNotContain("/null/account", "//" + salonId);
         assertThat(message.to()).extracting(MailjetEmail::email).containsExactly("customer@example.test");
@@ -102,6 +112,49 @@ class CustomerAccountLinkNotificationTest {
             assertThat(message.textPart()).contains("123456").doesNotContain("/feedback?");
             assertThat(message.htmlPart()).contains("123456").doesNotContain("/feedback?");
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"order", "order-status", "order-line", "membership-WELCOME", "membership-RENEWED",
+            "membership-RESEND", "membership-cancelled", "membership-renewal", "membership-expired", "loyalty"})
+    void contextualActionsSelectTheMatchingAccountTabWithBookingFallback(String type) {
+        sendCustomerNotification(type);
+        assertContextualAction(type, "https://book.example.test/" + salonId + "/account");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"order", "order-status", "order-line", "membership-WELCOME", "membership-RENEWED",
+            "membership-RESEND", "membership-cancelled", "membership-renewal", "membership-expired", "loyalty"})
+    void websiteSalonsLinkTheirOwnAccountAndSelectTheMatchingTab(String type) {
+        when(salon.handler()).thenReturn("glow");
+        when(salon.features()).thenReturn(List.of(new Salon.SalonFeatureRef(SalonFeature.STATIC_WEBSITE),
+                new Salon.SalonFeatureRef(SalonFeature.WEBSHOP), new Salon.SalonFeatureRef(SalonFeature.MEMBERSHIP),
+                new Salon.SalonFeatureRef(SalonFeature.LOYALTY_PROGRAM)));
+        sendCustomerNotification(type);
+        assertContextualAction(type, "https://glow.example.test/account");
+    }
+
+    private void assertContextualAction(String type, String accountUrl) {
+        var message = sentMessage();
+        var tab = type.startsWith("order") ? "orders" : type.startsWith("membership") ? "memberships" : "points";
+        var label = type.startsWith("order") ? "View my orders" : type.startsWith("membership") ? "Manage my membership" : "See my points";
+        assertThat(message.textPart()).contains(label + ":\n" + accountUrl + "?tab=" + tab)
+                .contains("Manage your customer account:\n" + accountUrl + "\n");
+        assertThat(message.htmlPart()).contains("href=\"" + accountUrl + "?tab=" + tab + "\"", ">" + label + "</a>",
+                "href=\"" + accountUrl + "\"");
+        if (type.equals("membership-renewal") || type.equals("membership-expired")) {
+            assertThat(message.textPart()).contains("/membership?renew=renew-token");
+            assertThat(message.htmlPart()).contains("/membership?renew=renew-token");
+        }
+    }
+
+    @Test
+    void disabledSalonDoesNotLinkAnyAccountAction() {
+        when(salon.status()).thenReturn(Salon.SalonStatus.DISABLED);
+        sendCustomerNotification("order");
+        var message = sentMessage();
+        assertThat(message.textPart()).doesNotContain("/account", "View my orders");
+        assertThat(message.htmlPart()).doesNotContain("/account", "View my orders");
     }
 
     @Test

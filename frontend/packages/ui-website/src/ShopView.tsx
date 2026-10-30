@@ -39,6 +39,15 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
   const sub = heroLight ? "#475569" : "#94A3B8";
   const cardBg = heroLight ? "rgba(15,23,42,0.04)" : "rgba(255,255,255,0.06)";
   const cardBorder = heroLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.12)";
+  const accountUrl = new URL(getPagePath ? getPagePath("account") : "/account", "https://salon.invalid");
+  accountUrl.searchParams.set("tab", "orders");
+  const ordersHref = `${accountUrl.pathname}${accountUrl.search}${accountUrl.hash}`;
+  const ordersLink = (
+    <a href={ordersHref} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold no-underline hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{ color: theme.heroTextColor }}>
+      <ShoppingBag aria-hidden="true" className="size-4 shrink-0" />{translateUi("View my orders")}
+    </a>
+  );
 
   const salonKey = String(salon.id);
   const cart = useCart(salonKey);
@@ -262,13 +271,16 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
             <span>{formatPrice(placed.total ?? placed.subtotal, placed.currency, uiLocale)}</span>
           </div>
         </div>
-        <button
-          onClick={backToShop}
-          className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
-          style={{ backgroundColor: theme.accentColor, color: accentText }}
-        >
-          <ArrowLeft className="w-4 h-4" /> {translateUi("Back to shop")}
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {ordersLink}
+          <button
+            onClick={backToShop}
+            className="inline-flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+            style={{ backgroundColor: theme.accentColor, color: accentText }}
+          >
+            <ArrowLeft className="w-4 h-4" /> {translateUi("Back to shop")}
+          </button>
+        </div>
       </div>,
     );
   }
@@ -306,6 +318,10 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
 
   return shell(
     <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 py-6">
+      <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+        <p className="text-xs" style={{ color: sub }}>{translateUi("Already ordered? View your orders and updates.")}</p>
+        {ordersLink}
+      </div>
       {/* Filter bar — stacked full-width fields on mobile, one inline segmented row on sm+.
           Uses an in-DOM custom dropdown (FilterSelect), not a native <select>: a native
           popup ignores a phone's / DevTools' viewport and anchors to the window origin. */}

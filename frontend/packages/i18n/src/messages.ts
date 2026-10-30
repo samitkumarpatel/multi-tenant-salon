@@ -3,6 +3,33 @@ import type { Language } from "./languages";
 // English source messages are stable keys and the fallback for missing translations.
 // Columns: English | Danish | Swedish | Norwegian Bokmål | French | German.
 const rows = `
+SMS not configured|SMS er ikke konfigureret|SMS är inte konfigurerat|SMS er ikke konfigurert|SMS non configurés|SMS nicht konfiguriert
+Email not configured|E-mail er ikke konfigureret|E-post är inte konfigurerad|E-post er ikke konfigurert|E-mail non configuré|E-Mail nicht konfiguriert
+Communication details|Kommunikationsdetaljer|Kommunikationsdetaljer|Kommunikasjonsdetaljer|Détails de la communication|Kommunikationsdetails
+Customer communication|Kundekommunikation|Kundkommunikation|Kundekommunikasjon|Communication client|Kundenkommunikation
+Notification requested|Besked anmodet|Meddelande begärt|Varsel forespurt|Notification demandée|Benachrichtigung angefordert
+Sending attempts|Afsendelsesforsøg|Sändningsförsök|Sendeforsøk|Tentatives d’envoi|Sendeversuche
+Retry email|Send e-mail igen|Skicka e-post igen|Send e-post på nytt|Réessayer l’envoi de l’e-mail|E-Mail erneut senden
+Confirm email retry|Bekræft genafsendelse|Bekräfta omsändning|Bekreft ny sending|Confirmer le nouvel envoi|Erneutes Senden bestätigen
+Retry this saved email to {recipient}?|Send denne gemte e-mail igen til {recipient}?|Skicka detta sparade e-postmeddelande igen till {recipient}?|Sende denne lagrede e-posten på nytt til {recipient}?|Renvoyer cet e-mail enregistré à {recipient} ?|Diese gespeicherte E-Mail erneut an {recipient} senden?
+Email retry queued|Genafsendelse af e-mail er sat i kø|Omsändning av e-post har köats|Ny sending av e-post er lagt i kø|Nouvel envoi de l’e-mail en attente|Erneutes Senden der E-Mail eingereiht
+Email preview|Forhåndsvisning af e-mail|Förhandsvisning av e-post|Forhåndsvisning av e-post|Aperçu de l’e-mail|E-Mail-Vorschau
+Queued|I kø|Köad|I kø|En attente|In der Warteschlange
+Sending|Sender|Skickar|Sender|Envoi en cours|Wird gesendet
+Accepted by email provider|Accepteret af e-mailudbyder|Accepterat av e-postleverantör|Akseptert av e-postleverandør|Accepté par le fournisseur d’e-mail|Vom E-Mail-Anbieter angenommen
+Automatic retry pending|Automatisk genforsøg afventer|Automatiskt nytt försök väntar|Automatisk nytt forsøk venter|Nouvelle tentative automatique en attente|Automatischer Wiederholungsversuch ausstehend
+Failed|Mislykkedes|Misslyckades|Mislyktes|Échec|Fehlgeschlagen
+Skipped|Sprunget over|Överhoppat|Hoppet over|Ignoré|Übersprungen
+Channel|Kanal|Kanal|Kanal|Canal|Kanal
+Recipient|Modtager|Mottagare|Mottaker|Destinataire|Empfänger
+Updated|Opdateret|Uppdaterad|Oppdatert|Mis à jour|Aktualisiert
+Not recorded|Ikke registreret|Inte registrerat|Ikke registrert|Non enregistré|Nicht aufgezeichnet
+The message content was not saved for this activity.|Beskedens indhold blev ikke gemt for denne aktivitet.|Meddelandets innehåll sparades inte för denna aktivitet.|Meldingsinnholdet ble ikke lagret for denne aktiviteten.|Le contenu du message n’a pas été enregistré pour cette activité.|Der Nachrichteninhalt wurde für diese Aktivität nicht gespeichert.
+Could not refresh communication status.|Kunne ikke opdatere kommunikationsstatus.|Kunde inte uppdatera kommunikationsstatus.|Kunne ikke oppdatere kommunikasjonsstatus.|Impossible d’actualiser le statut de la communication.|Der Kommunikationsstatus konnte nicht aktualisiert werden.
+View my orders|Se mine ordrer|Visa mina beställningar|Se mine bestillinger|Voir mes commandes|Meine Bestellungen ansehen
+Already ordered? View your orders and updates.|Har du allerede bestilt? Se dine ordrer og opdateringer.|Har du redan beställt? Se dina beställningar och uppdateringar.|Har du allerede bestilt? Se bestillingene dine og oppdateringer.|Vous avez déjà commandé ? Consultez vos commandes et leurs mises à jour.|Bereits bestellt? Sehen Sie Ihre Bestellungen und aktuelle Informationen an.
+Manage my membership|Administrer mit medlemskab|Hantera mitt medlemskap|Administrer medlemskapet mitt|Gérer mon abonnement|Meine Mitgliedschaft verwalten
+See my points|Se mine point|Se mina poäng|Se poengene mine|Voir mes points|Meine Punkte ansehen
 Breadcrumb|Brødkrummesti|Brödsmulor|Brødsmulesti|Fil d’Ariane|Brotkrümelnavigation
 View webshop|Se webshop|Visa webbutik|Se nettbutikk|Voir la boutique|Webshop ansehen
 Product navigation|Produktnavigation|Produktnavigering|Produktnavigasjon|Navigation des produits|Produktnavigation

@@ -861,11 +861,6 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
                 {translateUi("Book now ")}</a>
             )}
-            {hasCustomerAccount(salon) && (
-              <AccountButton theme={theme} href={getPagePath ? getPagePath("account") : "/account"}
-                onClick={onNavigate ? () => onNavigate("account") : undefined} />
-            )}
-            <LanguageSelector compact />
             {featurePages.length > 0 && (
               <button
                 type="button"
@@ -876,6 +871,11 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
               >
                 {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
+            )}
+            <LanguageSelector compact />
+            {hasCustomerAccount(salon) && (
+              <AccountButton theme={theme} href={getPagePath ? getPagePath("account") : "/account"}
+                onClick={onNavigate ? () => onNavigate("account") : undefined} />
             )}
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useI18n } from "@salon/i18n";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useOutletContext, useParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import {
@@ -27,15 +27,28 @@ type PaymentAttempt = {
   createdAt: string; updatedAt: string;
 };
 
+type Communication = {
+  id: number; activityId: number; sourceActivityId: number | null; sourceLineActivityId: number | null; channel: string; recipient: string | null; subject: string | null;
+  body: string | null; htmlBody: string | null; status: string; failureReason: string | null;
+  attempts: number; generation: number; createdAt: string; updatedAt: string;
+  history: { id: number; generation: number; status: string; failureReason: string | null; startedAt: string; finishedAt: string | null }[];
+};
+
+const COMMUNICATION_STATUS: Record<string, string> = {
+  QUEUED: "Queued", SENDING: "Sending", SENT: "Accepted by email provider", FAILED: "Failed",
+  RETRYING: "Automatic retry pending", LOGGED: "Email not configured", SKIPPED: "Skipped",
+};
+
 export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const [order, payments] = await Promise.all([
+  const [order, payments, communications] = await Promise.all([
     apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`),
     // No Stripe account (or no card payment) simply means no attempts — never a broken page.
     apiFetch<PaymentAttempt[]>(`${ADMIN_API}/${sid}/payments/transactions?area=SHOP&reference=${params.orderId}&limit=20`)
       .catch((): PaymentAttempt[] => []),
+    apiFetch<Communication[]>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}/communications`),
   ]);
-  return { sid, order, payments };
+  return { sid, order, payments, communications };
 }
 
 const PAYMENT_STATUS: Record<ShopPaymentStatus, { label: string; style: string }> = {
@@ -113,7 +126,7 @@ type ModalKind =
 export default function ShopOrderDetail() {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<ShopOutletContext>();
-  const { sid, order: init, payments } = useLoaderData<typeof clientLoader>();
+  const { sid, order: init, payments, communications: initialCommunications } = useLoaderData<typeof clientLoader>();
   const { salonId } = useParams<{ salonId: string }>();
   const [order, setOrder] = useState<ShopOrder>(init);
   const [busy, setBusy] = useState(false);
@@ -127,7 +140,37 @@ export default function ShopOrderDetail() {
   const [refundReason, setRefundReason] = useState("");
   const [noteText, setNoteText] = useState("");
   const [returnReason, setReturnReason] = useState("");
-  const [openEmail, setOpenEmail] = useState<number | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<ShopOrderActivity | null>(null);
+  const [communications, setCommunications] = useState(initialCommunications);
+  const [communicationError, setCommunicationError] = useState("");
+  const selectedCommunication = communications.find((c) => c.activityId === selectedActivity?.id || c.sourceActivityId === selectedActivity?.id
+    || (selectedActivity && selectedActivity.id < 0 && c.sourceLineActivityId === -selectedActivity.id));
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function refresh() {
+      try {
+        if (document.visibilityState === "visible") {
+          const [nextOrder, messages] = await Promise.all([
+            apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${init.id}`),
+            apiFetch<Communication[]>(`${ADMIN_API}/${sid}/shop/orders/${init.id}/communications`),
+          ]);
+          if (!cancelled) { setOrder(nextOrder); setCommunications(messages); setCommunicationError(""); }
+        }
+      } catch { if (!cancelled) setCommunicationError(translateUi("Could not refresh communication status.")); }
+      if (!cancelled) timer = setTimeout(refresh, 5000);
+    }
+    timer = setTimeout(refresh, 2000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [sid, init.id, translateUi]);
+
+  async function retryCommunication(message: Communication) {
+    await apiAction(
+      () => apiFetch<Communication[]>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/communications/${message.id}/retry`, { method: "POST" }),
+      setCommunications, translateUi("Email retry queued"),
+    );
+  }
   const [lineNote, setLineNote] = useState("");
 
   function copy(value: string, what: string) {
@@ -166,7 +209,7 @@ export default function ShopOrderDetail() {
   async function sendInvoice() {
     await apiAction(
       () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/invoice`, { method: "POST" }),
-      updateOrder, "Invoice sent — customer notified",
+      updateOrder, "Invoice notification queued",
     );
   }
 
@@ -177,7 +220,7 @@ export default function ShopOrderDetail() {
         () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/notify`, {
           method: "POST", body: JSON.stringify({ message: notifyMsg }),
         }),
-        updateOrder, "Customer notified",
+        updateOrder, "Customer message queued",
       );
     } else if (modal?.kind === "notify-line") {
       await apiAction(
@@ -185,7 +228,7 @@ export default function ShopOrderDetail() {
           `${ADMIN_API}/${sid}/shop/orders/${order.id}/lines/${modal.lineId}/notify`,
           { method: "POST", body: JSON.stringify({ message: notifyMsg }) },
         ),
-        updateOrder, "Customer notified",
+        updateOrder, "Customer message queued",
       );
     }
     closeModal(); setNotifyMsg("");
@@ -208,7 +251,7 @@ export default function ShopOrderDetail() {
       () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/shipping`, {
         method: "POST", body: JSON.stringify({ carrier: trackingCarrier, trackingNumber }),
       }),
-      updateOrder, "Shipping saved — customer notified",
+      updateOrder, "Shipping saved — update queued",
     );
     closeModal();
   }
@@ -220,7 +263,7 @@ export default function ShopOrderDetail() {
       () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds`, {
         method: "POST", body: JSON.stringify({ amount, reason: refundReason }),
       }),
-      updateOrder, "Refund initiated — customer notified",
+      updateOrder, "Refund initiated — update queued",
     );
     setRefundAmount(""); setRefundReason("");
   }
@@ -242,7 +285,7 @@ export default function ShopOrderDetail() {
   async function rejectRefund() {
     await apiAction(
       () => apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${order.id}/refunds/reject`, { method: "POST" }),
-      updateOrder, "Refund rejected — customer notified",
+      updateOrder, "Refund rejected — update queued",
     );
   }
 
@@ -400,7 +443,15 @@ export default function ShopOrderDetail() {
                         ? <StickyNote className="w-3 h-3 mt-0.5 shrink-0 text-slate-400" />
                         : <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 text-blue-400" />}
                       <span className="min-w-0">
-                        <span className="font-medium text-slate-600">{translateUi(LINE_ACTIVITY_LABEL[a.type] ?? a.type)}</span>
+                        {a.type === "USER_NOTIFIED" ? <button type="button" className="cursor-pointer font-semibold text-matcha-700 underline decoration-dotted underline-offset-4"
+                          onClick={() => {
+                            const communication = communications.find((c) => c.sourceLineActivityId === a.id);
+                            setSelectedActivity(activities.find((entry) => entry.id === communication?.activityId) ?? {
+                              id: -a.id, orderId: order.id, type: "CUSTOMER_NOTIFIED", message: a.message,
+                              notified: false, createdAt: a.createdAt,
+                            });
+                          }}>{translateUi("Customer communication")}</button>
+                          : <span className="font-medium text-slate-600">{translateUi(LINE_ACTIVITY_LABEL[a.type] ?? a.type)}</span>}
                         {a.message ? <span> — {a.message}</span> : null}
                         <span className="text-slate-400"> · {relativeTime(a.createdAt)}{a.actor ? ` · ${a.actor}` : ""}</span>
                       </span>
@@ -526,6 +577,8 @@ export default function ShopOrderDetail() {
         {/* ── Activity timeline ─────────────────────────────────────────────── */}
         <Card className="order-7 xl:order-none">
           <SectionHeader>{translateUi("Activity")}</SectionHeader>
+          <p className="mb-3 text-xs text-slate-500">{translateUi("SMS not configured")}</p>
+          {communicationError && <p role="status" className="mb-3 text-xs text-amber-700">{communicationError}</p>}
           {activities.length === 0 ? (
             <p className="text-xs text-slate-400 pb-1">{translateUi("No activity yet.")}</p>
           ) : (
@@ -533,24 +586,26 @@ export default function ShopOrderDetail() {
               {activities.map((a) => {
                 const meta = ACTIVITY_META[a.type] ?? { label: a.type, dot: "bg-slate-300" };
                 const isNote = a.type === "WORK_NOTE";
-                const email = a.type === "CUSTOMER_NOTIFIED" && a.body ? a : null;
-                const isOpen = openEmail === a.id;
+                const communication = communications.find((c) => (c.activityId === a.id || c.sourceActivityId === a.id));
+                const isCommunication = !!communication || a.type === "CUSTOMER_NOTIFIED" || a.notified || a.type === "INVOICE_SENT";
+                const status = communication?.status ?? a.status;
                 return (
                   <li key={a.id} className="ml-5 pb-4 last:pb-0">
                     <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white ${meta.dot}`} />
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-semibold ${isNote ? "text-slate-400" : (meta.color ?? "text-slate-700")}`}>
-                        {meta.label}
-                      </span>
-                      {a.notified && (
+                      {isCommunication ? <button type="button" onClick={() => setSelectedActivity(a)}
+                        className="min-h-8 cursor-pointer text-left text-xs font-semibold text-matcha-700 underline decoration-dotted underline-offset-4 hover:text-matcha-900">
+                        {translateUi(a.type === "CUSTOMER_NOTIFIED" ? "Customer communication" : meta.label)}
+                      </button> : <span className={`text-xs font-semibold ${isNote ? "text-slate-400" : (meta.color ?? "text-slate-700")}`}>
+                        {translateUi(meta.label)}
+                      </span>}
+                      {a.notified && !status && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
-                          <Send className="w-2.5 h-2.5" /> {translateUi("Notified ")}</span>
+                          <Send className="w-2.5 h-2.5" /> {translateUi("Notification requested")}</span>
                       )}
-                      {email && a.status && a.status !== "SENT" && (
-                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5">
-                          {a.status === "LOGGED" ? translateUi("not sent (dev)") : a.status.toLowerCase()}
-                        </span>
-                      )}
+                      {status && <span className={`text-[10px] font-medium rounded-full px-1.5 py-0.5 ${status === "FAILED" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                        {translateUi(COMMUNICATION_STATUS[status] ?? status)}
+                      </span>}
                       <span className="text-[11px] text-slate-400">{relativeTime(a.createdAt)}</span>
                     </div>
                     {a.message && (
@@ -558,27 +613,7 @@ export default function ShopOrderDetail() {
                         {a.message}
                       </p>
                     )}
-                    {email && (
-                      <div className="mt-1">
-                        <button
-                          type="button"
-                          onClick={() => setOpenEmail(isOpen ? null : a.id)}
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-matcha-700 hover:text-matcha-900 cursor-pointer"
-                        >
-                          <Mail className="w-3 h-3" /> {isOpen ? translateUi("Hide email") : translateUi("View email")}
-                        </button>
-                        {isOpen && (
-                          <div className="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                            <p className="text-[11px] text-slate-400">
-                              {translateUi("To ")}<span className="font-medium text-slate-600">{order.customerEmail}</span>
-                              {email.channel ? ` · ${email.channel.toLowerCase()}` : ""}
-                            </p>
-                            {email.subject && <p className="font-semibold text-slate-800 mt-1">{email.subject}</p>}
-                            <pre className="mt-1.5 whitespace-pre-wrap font-sans leading-relaxed text-slate-600">{email.body}</pre>
-                          </div>
-                        )}
-                      </div>
-                    )}
+
                   </li>
                 );
               })}
@@ -757,6 +792,9 @@ export default function ShopOrderDetail() {
 
       </div>
       </div>
+
+      {selectedActivity && <CommunicationDetails activity={selectedActivity} message={selectedCommunication}
+        busy={busy} onClose={() => setSelectedActivity(null)} onRetry={retryCommunication} />}
 
       {/* ── Modals ────────────────────────────────────────────────────────────── */}
 
@@ -1069,4 +1107,59 @@ function ModalSave({ label, icon, disabled, onClick }: {
       {icon} {translateUi(label)}
     </button>
   );
+}
+
+function CommunicationDetails({ activity, message, busy, onClose, onRetry }: {
+  activity: ShopOrderActivity; message?: Communication; busy: boolean; onClose: () => void;
+  onRetry: (message: Communication) => Promise<void>;
+}) {
+  const { t, locale } = useI18n();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [confirmRetry, setConfirmRetry] = useState(false);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+  const status = message?.status ?? activity.status;
+  const body = message?.body ?? activity.body;
+  const date = (value: string) => new Date(value).toLocaleString(locale);
+  return <dialog ref={dialog} onCancel={onClose} aria-labelledby="communication-title"
+    className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-full max-w-2xl overflow-y-auto border-0 bg-white p-5 shadow-xl backdrop:bg-slate-900/40 sm:p-7">
+    <div className="mb-5 flex items-center justify-between gap-3">
+      <h2 id="communication-title" className="text-lg font-bold text-slate-900">{t("Communication details")}</h2>
+      <button type="button" onClick={onClose} aria-label={t("Close")} className="flex size-11 cursor-pointer items-center justify-center rounded-lg hover:bg-slate-100"><X className="size-5" /></button>
+    </div>
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm text-slate-700">
+      <dt>{t("Channel")}</dt><dd>{message?.channel ?? activity.channel ?? t("Not recorded")}</dd>
+      <dt>{t("Recipient")}</dt><dd className="break-all">{message?.recipient ?? t("Not recorded")}</dd>
+      <dt>{t("Status")}</dt><dd>{status ? t(COMMUNICATION_STATUS[status] ?? status) : t("Not recorded")}</dd>
+      <dt>{t("Created")}</dt><dd>{date(message?.createdAt ?? activity.createdAt)}</dd>
+      {message && <><dt>{t("Updated")}</dt><dd>{date(message.updatedAt)}</dd></>}
+    </dl>
+    <p className="mt-4 text-xs text-slate-500">{t("SMS not configured")}</p>
+    {message?.failureReason && <p role="status" className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t(message.failureReason)}</p>}
+    <h3 className="mt-6 font-semibold text-slate-900">{message?.subject ?? activity.subject ?? activity.message}</h3>
+    {body ? <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-relaxed text-slate-700">{body}</pre>
+      : <p className="mt-3 text-sm text-slate-500">{t("The message content was not saved for this activity.")}</p>}
+    {message?.htmlBody && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-matcha-700">{t("Email preview")}</summary>
+      <iframe title={t("Email preview")} sandbox="" referrerPolicy="no-referrer" className="mt-3 h-96 w-full rounded-lg border border-slate-200"
+        srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">${message.htmlBody}`} />
+    </details>}
+    {message && message.history.length > 0 && <section className="mt-6">
+      <h3 className="font-semibold text-slate-900">{t("Sending attempts")}</h3>
+      <ol className="mt-3 space-y-3 text-sm">{message.history.map((attempt, index) => <li key={attempt.id} className="rounded-lg border border-slate-200 p-3">
+        <p className="font-medium">{index + 1}. {t(COMMUNICATION_STATUS[attempt.status] ?? attempt.status)}</p>
+        <p className="mt-1 text-xs text-slate-500">{date(attempt.startedAt)}{attempt.finishedAt ? ` — ${date(attempt.finishedAt)}` : ""}</p>
+        {attempt.failureReason && <p className="mt-1 text-xs text-amber-800">{t(attempt.failureReason)}</p>}
+      </li>)}</ol>
+    </section>}
+    {message?.status === "FAILED" && message.channel === "EMAIL" && message.recipient && message.body && <div className="mt-6 border-t border-slate-200 pt-4">
+      {confirmRetry && <p className="mb-3 break-words text-sm text-slate-700">{t("Retry this saved email to {recipient}?", { recipient: message.recipient })}</p>}
+      <button type="button" disabled={busy} onClick={() => { if (confirmRetry) void onRetry(message); else setConfirmRetry(true); }}
+        className="min-h-11 cursor-pointer rounded-lg bg-matcha-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+        {t(confirmRetry ? "Confirm email retry" : "Retry email")}
+      </button>
+    </div>}
+  </dialog>;
 }
