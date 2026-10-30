@@ -76,7 +76,7 @@ export function LanguageSelector({ compact = false, floating = false }: { compac
       right: floating ? 16 : undefined, zIndex: floating ? 1000 : undefined, display: "inline-block",
       width: "fit-content", fontFamily: "system-ui, sans-serif" }}>
       <summary aria-label={`${t("Language")}: ${englishNames[locale]}`} title={`${t("Language")}: ${englishNames[locale]}`}
-        style={{ listStyle: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 36, padding: "0 8px",
+        style={{ listStyle: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, minWidth: 44, padding: "0 8px",
           border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer", fontSize: 13 }}>
         <span aria-hidden="true">{flags[locale]}</span><span>{locale.toUpperCase()}</span>
       </summary>
@@ -90,7 +90,7 @@ export function LanguageSelector({ compact = false, floating = false }: { compac
           const selected = locale === code;
           return <button key={code} type="button" aria-pressed={selected}
             onClick={(event) => { setLanguage(code); event.currentTarget.closest("details")?.removeAttribute("open"); }}
-            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 42, padding: "6px 9px",
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 9px",
               border: 0, borderRadius: 5, background: selected ? "#f1f5f9" : "transparent", color: "#334155",
               textAlign: "left", cursor: "pointer", fontSize: 13 }}>
             <span aria-hidden="true" style={{ fontSize: 15 }}>{flags[code]}</span>

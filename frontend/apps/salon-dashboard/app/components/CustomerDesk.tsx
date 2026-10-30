@@ -15,18 +15,19 @@ type Detail = { customer: DeskCustomer; history: History };
 
 const inputCls = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-matcha-500 focus:ring-2 focus:ring-matcha-500/10";
 
-/** Searches the salon's customer list as the user types; empty until they have typed two characters. */
+/** Searches the salon's customer list as the user types; empty until they have typed a character. */
 function useCustomerSearch(sid: string, query: string) {
   const [results, setResults] = useState<DeskCustomer[]>([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) { setResults([]); setLoading(false); return; }
+    if (q.length < 1) { setResults([]); setLoading(false); return; }
     const controller = new AbortController();
+    setResults([]);
     setLoading(true);
     const timer = setTimeout(() => {
       apiFetch<CustomerPage>(`${ADMIN_API}/${sid}/customers?q=${encodeURIComponent(q)}&size=8`, { signal: controller.signal })
-        .then((page) => setResults(page.content)).catch(() => { if (!controller.signal.aborted) setResults([]); })
+        .then((page) => { if (!controller.signal.aborted) setResults(page.content); }).catch(() => { if (!controller.signal.aborted) setResults([]); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
@@ -52,7 +53,7 @@ export function CustomerSuggest({ sid, onPick, placeholder, className = "" }: {
     <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
     <input className={`${inputCls} pl-9`} aria-label={t("Find an existing customer")} placeholder={placeholder ?? t("Find an existing customer")}
       value={query} onChange={(e) => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
-    {open && query.trim().length >= 2 && <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+    {open && query.trim().length >= 1 && <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
       {loading && <li className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500"><Loader2 className="size-3.5 animate-spin" />{t("Searching…")}</li>}
       {!loading && !results.length && <li className="px-3 py-2 text-xs text-slate-500">{t("No customer found.")}</li>}
       {results.map((customer) => <li key={customer.id}>
@@ -81,7 +82,7 @@ export function CustomerDesk({ sid, notify }: { sid: string; notify: Notify }) {
     setLoading(true);
     const timer = setTimeout(() => {
       apiFetch<CustomerPage>(`${base}?size=50${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""}`, { signal: controller.signal })
-        .then((page) => setList(page.content)).catch(() => { if (!controller.signal.aborted) notify(t("Could not load customers."), "error"); })
+        .then((page) => { if (!controller.signal.aborted) setList(page.content); }).catch(() => { if (!controller.signal.aborted) notify(t("Could not load customers."), "error"); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, query ? 250 : 0);
     return () => { clearTimeout(timer); controller.abort(); };

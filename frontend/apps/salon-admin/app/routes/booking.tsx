@@ -1,6 +1,7 @@
 import { useI18n } from "@salon/i18n";
+import { searchBookings } from "@salon/ui-shared/booking-search";
 import { GuideLink } from "~/components/GuideLink";
-import { createContext, useCallback, useContext, useMemo, useState, useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, useEffect, useRef, useDeferredValue } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
 import {
@@ -1106,7 +1107,10 @@ function BookingsPanel({
   const [expanded, setExpanded]             = useState(false);
   const [refreshing, setRefreshing]         = useState(false);
   const [searchQuery, setSearchQuery]     = useState("");
-  const [searchResults, setSearchResults] = useState<Booking[] | null>(null); // null = no search run yet
+  const deferredSearch = useDeferredValue(searchQuery);
+  const searchResults = useMemo(() => searchQuery.trim()
+    ? searchBookings(allBookings, deferredSearch, allBookings.length).results : null,
+  [allBookings, deferredSearch, searchQuery]);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const { calStart, calEnd } = deriveCalBounds(operatingHours);
@@ -1163,33 +1167,17 @@ function BookingsPanel({
     gridRef.current.scrollTop = todayVisible ? Math.max(0, nowY - 120) : 0;
   }, [viewDate, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Search by booking ID (e.g. "#42" from a notification), customer email, or phone number.
-  function runBookingSearch() {
-    const q = searchQuery.trim();
-    if (!q) { setSearchResults(null); return; }
-
-    // A pure numeric query (with an optional leading #) is an exact booking ID — jump
-    // straight into it rather than showing a one-row results list.
-    if (/^#?\d+$/.test(q)) {
-      const found = allBookings.find((b) => b.id === Number(q.replace(/^#/, "")));
-      if (found) {
-        setViewMode("day");
-        setViewDate(found.appointmentDate);
-        setSelected(found);
-        setSearchQuery("");
-        setSearchResults(null);
-        return;
-      }
-    }
-
-    const qLower  = q.toLowerCase();
-    const qDigits = q.replace(/\D/g, "");
-    const matches = allBookings.filter((b) =>
-      b.customerEmail?.toLowerCase().includes(qLower) ||
-      (qDigits.length >= 4 && b.customerPhone?.replace(/\D/g, "").includes(qDigits))
-    ).sort((a, b) => `${b.appointmentDate}${b.startTime}`.localeCompare(`${a.appointmentDate}${a.startTime}`));
-
-    setSearchResults(matches);
+  // Typing only shows matches. Enter still opens an exact booking number, without
+  // surprising users with a dialog while they are partway through typing the ID.
+  function openBookingSearchResult() {
+    const query = searchQuery.trim();
+    if (!/^#?\d+$/.test(query)) return;
+    const found = allBookings.find((booking) => booking.id === Number(query.replace(/^#/, "")));
+    if (!found) return;
+    setViewMode("day");
+    setViewDate(found.appointmentDate);
+    setSelected(found);
+    setSearchQuery("");
   }
 
   function go(offset: number) {
@@ -1414,34 +1402,31 @@ function BookingsPanel({
         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 focus-within:border-matcha-400 focus-within:ring-2 focus-within:ring-matcha-500/10 transition-colors">
           <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <input
-            type="text"
+            type="search"
+            aria-label={translateUi("Search appointments")}
             value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); if (!e.target.value.trim()) setSearchResults(null); }}
-            onKeyDown={(e) => { if (e.key === "Enter") runBookingSearch(); }}
-            placeholder={translateUi("Find booking by ID, customer email, or phone — e.g. #42 or jane@example.com")}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") openBookingSearchResult(); else if (e.key === "Escape") setSearchQuery(""); }}
+            placeholder={translateUi("Search by customer name, booking number, email or phone")}
             className="flex-1 min-w-0 text-sm outline-none placeholder:text-slate-400"
           />
           {searchQuery && (
-            <button onClick={() => { setSearchQuery(""); setSearchResults(null); }}
+            <button onClick={() => setSearchQuery("")}
               className="text-slate-300 hover:text-slate-500 cursor-pointer shrink-0" aria-label={translateUi("Clear search")}>
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-          {searchQuery && (
-            <button onClick={runBookingSearch}
-              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-white hover:bg-slate-900 cursor-pointer shrink-0">
-              {translateUi("Go ")}</button>
-          )}
+
         </div>
       </div>
 
       {/* ── Search results (replaces the calendar/list views while a search is active) ── */}
       {searchResults !== null && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-500 px-1">
+          <p role="status" aria-live="polite" className="text-xs font-semibold text-slate-500 px-1">
             {searchResults.length === 0
-              ? `No bookings match "${searchQuery}".`
-              : `${searchResults.length} booking${searchResults.length === 1 ? "" : "s"} found for "${searchQuery}"`}
+              ? translateUi("No appointments match “{query}”.", { query: searchQuery.trim() })
+              : translateUi("{count} found", { count: searchResults.length })}
           </p>
           {searchResults.length > 0 && (
             <div className="space-y-2">

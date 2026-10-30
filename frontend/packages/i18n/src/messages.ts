@@ -3,6 +3,13 @@ import type { Language } from "./languages";
 // English source messages are stable keys and the fallback for missing translations.
 // Columns: English | Danish | Swedish | Norwegian Bokmål | French | German.
 const rows = `
+Could not load communication history. Order details are still available.|Kommunikationshistorikken kunne ikke indlæses. Ordredetaljerne er stadig tilgængelige.|Kommunikationshistoriken kunde inte läsas in. Orderinformationen är fortfarande tillgänglig.|Kommunikasjonshistorikken kunne ikke lastes. Ordredetaljene er fortsatt tilgjengelige.|Impossible de charger l’historique des communications. Les détails de la commande restent disponibles.|Der Kommunikationsverlauf konnte nicht geladen werden. Die Bestelldetails sind weiterhin verfügbar.
+Loading payment history…|Indlæser betalingshistorik…|Läser in betalningshistorik…|Laster betalingshistorikk…|Chargement de l’historique des paiements…|Zahlungsverlauf wird geladen…
+Payment history is currently unavailable.|Betalingshistorikken er ikke tilgængelig i øjeblikket.|Betalningshistoriken är inte tillgänglig just nu.|Betalingshistorikken er ikke tilgjengelig for øyeblikket.|L’historique des paiements est actuellement indisponible.|Der Zahlungsverlauf ist derzeit nicht verfügbar.
+Decrease quantity|Reducer antal|Minska antal|Reduser antall|Réduire la quantité|Menge verringern
+Increase quantity|Øg antal|Öka antal|Øk antall|Augmenter la quantité|Menge erhöhen
+Remove from cart|Fjern fra kurv|Ta bort från varukorgen|Fjern fra handlekurven|Retirer du panier|Aus dem Warenkorb entfernen
+Your place for|Dit sted for|Din plats för|Ditt sted for|Votre adresse pour|Ihr Ort für
 SMS not configured|SMS er ikke konfigureret|SMS är inte konfigurerat|SMS er ikke konfigurert|SMS non configurés|SMS nicht konfiguriert
 Email not configured|E-mail er ikke konfigureret|E-post är inte konfigurerad|E-post er ikke konfigurert|E-mail non configuré|E-Mail nicht konfiguriert
 Communication details|Kommunikationsdetaljer|Kommunikationsdetaljer|Kommunikasjonsdetaljer|Détails de la communication|Kommunikationsdetails

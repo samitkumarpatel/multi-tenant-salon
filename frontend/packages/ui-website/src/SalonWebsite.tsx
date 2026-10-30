@@ -709,7 +709,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
   const rotatingWords = (() => {
     const catWords = grouped
       .filter(([cat]) => cat !== "OTHER")
-      .map(([cat]) => (CATEGORY_LABEL[cat] ?? cat).toLowerCase());
+      .map(([cat]) => translateUi(CATEGORY_LABEL[cat] ?? cat).toLocaleLowerCase(uiLocale));
     if (catWords.length > 0) return catWords;
     // Fall back to comma-separated description terms (e.g. "Haircut, Coloring, Facial and more")
     return activeServices
@@ -831,9 +831,9 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 backdrop-blur-md border-b" style={{ backgroundColor: `${headerBg}CC`, borderColor: headerBorder }}>
-        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4 sm:gap-6">
-          <div className="flex items-center gap-8 min-w-0">
-            <a href="#top" className="flex items-center gap-2 no-underline group min-w-0">
+        <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-6">
+          <div className="flex items-center gap-5 min-w-0">
+            <a href="#top" className="flex min-h-11 items-center gap-2 no-underline group min-w-0">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity" style={{ backgroundColor: theme.logoBgColor }}>
                 <span className="text-[10px] font-bold leading-none" style={{ color: contrastText(theme.logoBgColor) }}>{initials(salon.name)}</span>
               </div>
@@ -843,23 +843,23 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 style={{ color: headerText }}>{salon.name}</span>
             </a>
             {featurePages.length > 0 && (
-              <nav className="hidden md:flex shrink-0 items-center gap-6 text-sm">
+              <nav className="hidden lg:flex shrink-0 items-center gap-5 text-sm">
                 {featurePages.map((fp) => (
-                  <a key={fp.path} href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`} className="no-underline transition-colors font-medium text-slate-500 hover:text-slate-900" onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}>{translateUi(fp.label)}</a>
+                  <a key={fp.path} href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`} className="inline-flex min-h-11 items-center no-underline transition-colors font-medium text-slate-500 hover:text-slate-900" onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}>{translateUi(fp.label)}</a>
                 ))}
               </nav>
             )}
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className={`hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${open ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            <span className={`hidden xl:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${open ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
               {open && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
               {open ? translateUi("Open now") : translateUi("Closed")}
             </span>
             {hasBooking && (
-              <a href={bookUrl} data-track="nav-book-now" className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
+              <a href={bookUrl} data-track="nav-book-now" aria-label={translateUi("Book now")} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 text-xs font-semibold px-3 sm:px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
-                {translateUi("Book now ")}</a>
+                <CalendarCheck aria-hidden="true" className="size-4 sm:hidden" /><span className="hidden sm:inline">{translateUi("Book now ")}</span></a>
             )}
             {featurePages.length > 0 && (
               <button
@@ -867,7 +867,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 aria-label={mobileNavOpen ? translateUi("Close menu") : translateUi("Open menu")}
                 aria-expanded={mobileNavOpen}
                 onClick={() => setMobileNavOpen((v) => !v)}
-                className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -880,12 +880,12 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
           </div>
         </div>
         {featurePages.length > 0 && mobileNavOpen && (
-          <nav className="md:hidden border-t px-4 sm:px-6 py-2 flex flex-col" style={{ borderColor: headerBorder, backgroundColor: headerBg }}>
+          <nav className="lg:hidden border-t px-4 sm:px-6 py-2 flex flex-col" style={{ borderColor: headerBorder, backgroundColor: headerBg }}>
             {featurePages.map((fp) => (
               <a
                 key={fp.path}
                 href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`}
-                className="no-underline transition-colors font-medium text-sm text-slate-500 hover:text-slate-900 py-2.5"
+                className="no-underline transition-colors font-medium text-sm text-slate-500 hover:text-slate-900 min-h-11 py-2.5"
                 onClick={(e) => { setMobileNavOpen(false); if (onNavigate) { e.preventDefault(); onNavigate(fp.path); } }}
               >
                 {translateUi(fp.label)}
@@ -1458,7 +1458,7 @@ export function SalonWebsite({ salon, staff, services, theme: themeProp, website
                 </a>
               ))}
               {isScrollable && (
-                <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
+                <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="min-h-11 text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
                   {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
                 </button>
               )}

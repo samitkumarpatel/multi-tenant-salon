@@ -5,7 +5,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./booking-search": "./src/bookingSearch.ts",
+    "./live-search": "./src/useLiveSearch.ts"
   },
   "dependencies": {
     "@salon/ui-website": "*",

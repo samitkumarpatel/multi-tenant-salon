@@ -39,16 +39,12 @@ const COMMUNICATION_STATUS: Record<string, string> = {
   RETRYING: "Automatic retry pending", LOGGED: "Email not configured", SKIPPED: "Skipped",
 };
 
-export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
   const sid = await resolveSalonUUID(params.salonId!);
-  const [order, payments, communications] = await Promise.all([
-    apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`),
-    // No Stripe account (or no card payment) simply means no attempts — never a broken page.
-    apiFetch<PaymentAttempt[]>(`${ADMIN_API}/${sid}/payments/transactions?area=SHOP&reference=${params.orderId}&limit=20`)
-      .catch((): PaymentAttempt[] => []),
-    apiFetch<Communication[]>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}/communications`),
-  ]);
-  return { sid, order, payments, communications };
+  // Only the order is required to open this page. Supporting histories load after
+  // rendering so an unavailable or older endpoint cannot break order expansion.
+  const order = await apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${params.orderId}`, { signal: request.signal });
+  return { sid, order };
 }
 
 const PAYMENT_STATUS: Record<ShopPaymentStatus, { label: string; style: string }> = {
@@ -124,9 +120,14 @@ type ModalKind =
   | { kind: "create-return" };
 
 export default function ShopOrderDetail() {
+  const { sid, order } = useLoaderData<typeof clientLoader>();
+  return <ShopOrderDetailContent key={`${sid}:${order.id}`} />;
+}
+
+function ShopOrderDetailContent() {
   const { t: translateUi, locale: uiLocale } = useI18n();
   const { salon } = useOutletContext<ShopOutletContext>();
-  const { sid, order: init, payments, communications: initialCommunications } = useLoaderData<typeof clientLoader>();
+  const { sid, order: init } = useLoaderData<typeof clientLoader>();
   const { salonId } = useParams<{ salonId: string }>();
   const [order, setOrder] = useState<ShopOrder>(init);
   const [busy, setBusy] = useState(false);
@@ -141,28 +142,51 @@ export default function ShopOrderDetail() {
   const [noteText, setNoteText] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [selectedActivity, setSelectedActivity] = useState<ShopOrderActivity | null>(null);
-  const [communications, setCommunications] = useState(initialCommunications);
+  const [payments, setPayments] = useState<PaymentAttempt[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [paymentsError, setPaymentsError] = useState(false);
+  const [communications, setCommunications] = useState<Communication[]>([]);
   const [communicationError, setCommunicationError] = useState("");
   const selectedCommunication = communications.find((c) => c.activityId === selectedActivity?.id || c.sourceActivityId === selectedActivity?.id
     || (selectedActivity && selectedActivity.id < 0 && c.sourceLineActivityId === -selectedActivity.id));
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    apiFetch<PaymentAttempt[]>(`${ADMIN_API}/${sid}/payments/transactions?area=SHOP&reference=${init.id}&limit=20`, { signal: controller.signal })
+      .then((attempts) => {
+        if (!Array.isArray(attempts)) throw new Error("Invalid payment history response");
+        if (!controller.signal.aborted) setPayments(attempts);
+      })
+      .catch(() => { if (!controller.signal.aborted) setPaymentsError(true); })
+      .finally(() => { if (!controller.signal.aborted) setPaymentsLoading(false); });
+    return () => controller.abort();
+  }, [sid, init.id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
-    async function refresh() {
-      try {
-        if (document.visibilityState === "visible") {
-          const [nextOrder, messages] = await Promise.all([
-            apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${init.id}`),
-            apiFetch<Communication[]>(`${ADMIN_API}/${sid}/shop/orders/${init.id}/communications`),
-          ]);
-          if (!cancelled) { setOrder(nextOrder); setCommunications(messages); setCommunicationError(""); }
-        }
-      } catch { if (!cancelled) setCommunicationError(translateUi("Could not refresh communication status.")); }
-      if (!cancelled) timer = setTimeout(refresh, 5000);
+    async function refresh(initial = false) {
+      if (controller.signal.aborted) return;
+      if (document.visibilityState === "visible") {
+        // Refresh independently: a failed history request must not prevent the
+        // order's status and activity from updating either.
+        const messages = apiFetch<Communication[]>(`${ADMIN_API}/${sid}/shop/orders/${init.id}/communications`, { signal: controller.signal })
+          .then((messages) => {
+            if (!Array.isArray(messages)) throw new Error("Invalid communication history response");
+            if (!controller.signal.aborted) { setCommunications(messages); setCommunicationError(""); }
+          })
+          .catch(() => {
+            if (!controller.signal.aborted) setCommunicationError(translateUi("Could not load communication history. Order details are still available."));
+          });
+        const details = initial ? Promise.resolve() : apiFetch<ShopOrder>(`${ADMIN_API}/${sid}/shop/orders/${init.id}`, { signal: controller.signal })
+          .then((nextOrder) => { if (!controller.signal.aborted) setOrder(nextOrder); })
+          .catch(() => { /* Keep the last order while a background refresh is unavailable. */ });
+        await Promise.all([messages, details]);
+      }
+      if (!controller.signal.aborted) timer = setTimeout(() => { void refresh(); }, 5000);
     }
-    timer = setTimeout(refresh, 2000);
-    return () => { cancelled = true; clearTimeout(timer); };
+    void refresh(true);
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [sid, init.id, translateUi]);
 
   async function retryCommunication(message: Communication) {
@@ -496,8 +520,9 @@ export default function ShopOrderDetail() {
                 {translateUi(PAYMENT_STATUS[order.paymentStatus]?.label ?? order.paymentStatus)}
               </span>} />
             <Row label={translateUi("Method")} value={
-              payments.length === 0
-                ? translateUi("No card payment recorded")
+              paymentsLoading ? translateUi("Loading payment history…")
+                : paymentsError ? translateUi("Payment history is currently unavailable.")
+                : payments.length === 0 ? translateUi("No card payment recorded")
                 : payments[0].channel === "TERMINAL" ? translateUi("Card reader in the salon") : translateUi("Card — online checkout (Stripe)")} />
             <Row label={translateUi("Order total")} value={formatPrice(order.total ?? order.subtotal, order.currency, uiLocale)} />
             {payments.some((p) => p.amountRefunded > 0) && (

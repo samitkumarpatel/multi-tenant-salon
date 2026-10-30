@@ -459,7 +459,7 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
                 type="button"
                 onClick={() => setDensity(option)}
                 aria-pressed={density === option}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${option === "compact" ? "border-l" : ""}`}
+                className={`min-h-11 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${option === "compact" ? "border-l" : ""}`}
                 style={{
                   borderColor: cardBorder,
                   backgroundColor: density === option ? theme.accentColor : "transparent",
@@ -513,7 +513,7 @@ export function ShopView({ salon, theme: themeProp, policies = [], getPagePath, 
       {!loading && !loadError && filteredProducts.length > 0 && (
         <div
           className={`grid transition-opacity duration-200 ${
-            density === "compact" ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+            density === "compact" ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
           } ${filterLoading ? "opacity-50 pointer-events-none" : ""}`}
         >
           {filteredProducts.map((product) => (
@@ -838,7 +838,7 @@ function ProductCard({
             aria-pressed={wished}
             aria-label={wished ? `Remove ${product.name} from favourites` : `Save ${product.name} to favourites`}
             title={wished ? translateUi("Remove from favourites") : translateUi("Save to favourites")}
-            className={`absolute top-2.5 right-2.5 flex items-center justify-center rounded-full transition-colors cursor-pointer ${compact ? "w-7 h-7" : "w-8 h-8"}`}
+            className={`absolute top-2.5 right-2.5 flex items-center justify-center rounded-full transition-colors cursor-pointer w-11 h-11`}
             style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.55)" }}
           >
             <Heart
@@ -889,7 +889,7 @@ function ProductCard({
                   onClick={() => !soldOut && onSelectVariant(v.id)}
                   disabled={soldOut}
                   title={soldOut ? translateUi("Out of stock") : v.label || "Standard"}
-                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all cursor-pointer disabled:cursor-not-allowed"
+                  className="min-h-11 min-w-11 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all cursor-pointer disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: isSelected ? theme.accentColor : `${theme.accentColor}15`,
                     color: isSelected ? accentText : theme.heroTextColor,
@@ -906,8 +906,8 @@ function ProductCard({
         )}
 
         {/* Price + add-to-cart */}
-        <div className={`mt-auto flex items-center justify-between gap-2 border-t ${compact ? "pt-2" : "pt-3"}`} style={{ borderColor: cardBorder }}>
-          <div className="flex flex-col">
+        <div className={`mt-auto flex flex-wrap items-center justify-between gap-2 border-t ${compact ? "pt-2" : "pt-3"}`} style={{ borderColor: cardBorder }}>
+          <div className="min-w-0 flex flex-col">
             {hasCompareAt && !compact && (
               <span className="text-[11px] line-through" style={{ color: sub }}>
                 {formatPrice(variant!.compareAtPrice!, variant!.currency, uiLocale)}
@@ -923,8 +923,9 @@ function ProductCard({
           <button
             disabled={outOfStock}
             onClick={() => variant && onAdd(variant)}
-            className={`rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 shrink-0 ${compact ? "w-7 h-7" : "w-9 h-9"}`}
+            className={`rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 shrink-0 ml-auto w-11 h-11`}
             style={{ backgroundColor: `${theme.accentColor}18`, color: theme.accentColor, border: `1.5px solid ${theme.accentColor}44` }}
+            aria-label={outOfStock ? translateUi("Out of stock") : translateUi("Add to cart")}
             title={outOfStock ? translateUi("Out of stock") : translateUi("Add to cart")}
           >
             <ShoppingBag className={compact ? "w-3.5 h-3.5" : "w-4 h-4"} />
@@ -1005,7 +1006,7 @@ export function ProductDetailModal({
         <button
           hidden={inline}
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+          className="absolute top-4 right-4 z-10 w-11 h-11 rounded-full flex items-center justify-center cursor-pointer"
           style={{ backgroundColor: heroLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.12)", color: sub }}
           aria-label={translateUi("Close")}
         >
@@ -1037,7 +1038,7 @@ export function ProductDetailModal({
                     type="button"
                     onClick={() => setImgIdx((i) => (i - 1 + gallery.length) % gallery.length)}
                     aria-label={translateUi("Previous image")}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center cursor-pointer"
                     style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.65)", color: sub }}
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -1046,7 +1047,7 @@ export function ProductDetailModal({
                     type="button"
                     onClick={() => setImgIdx((i) => (i + 1) % gallery.length)}
                     aria-label={translateUi("Next image")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center cursor-pointer"
                     style={{ backgroundColor: heroLight ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.65)", color: sub }}
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -1221,21 +1222,21 @@ function CartDrawer({
         className="relative w-full max-w-sm h-full flex flex-col shadow-2xl"
         style={{ backgroundColor: panelBg }}
       >
-        <div className="flex items-center justify-between px-4 h-14 border-b" style={{ borderColor: border }}>
+        <div className="flex shrink-0 items-center justify-between px-4 h-14 border-b" style={{ borderColor: border }}>
           <span className="text-sm font-bold" style={{ color: theme.heroTextColor }}>
             {translateUi("Your cart (")}{cart.count})
           </span>
-          <button onClick={onClose} className="cursor-pointer" style={{ color: sub }}>
+          <button onClick={onClose} aria-label={translateUi("Close")} className="flex size-11 shrink-0 cursor-pointer items-center justify-center" style={{ color: sub }}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {cart.lines.length === 0 && (
             <p className="text-sm text-center py-10" style={{ color: sub }}>{translateUi("Your cart is empty.")}</p>
           )}
           {cart.lines.map((l) => (
-            <div key={l.variantId} className="flex gap-3">
+            <div key={l.variantId} className="grid grid-cols-[56px_minmax(0,1fr)] gap-3">
               <div
                 className="w-14 h-14 rounded-lg shrink-0 overflow-hidden flex items-center justify-center"
                 style={{ backgroundColor: `${theme.accentColor}14` }}
@@ -1248,42 +1249,43 @@ function CartDrawer({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate" style={{ color: theme.heroTextColor }}>{l.productName}</p>
+                <p className="text-sm font-semibold" style={{ color: theme.heroTextColor }}>{formatPrice(l.unitPrice * l.quantity, l.currency, uiLocale)}</p>
                 {l.variantLabel && <p className="text-[11px]" style={{ color: sub }}>{l.variantLabel}</p>}
                 <p className="text-xs mt-0.5" style={{ color: sub }}>{formatPrice(l.unitPrice, l.currency, uiLocale)} {translateUi("each")}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                   <button
+                    aria-label={translateUi("Decrease quantity")}
                     onClick={() => cart.setQty(l.variantId, l.quantity - 1)}
-                    className="w-6 h-6 rounded-md flex items-center justify-center cursor-pointer"
+                    className="w-11 h-11 shrink-0 rounded-md flex items-center justify-center cursor-pointer"
                     style={{ border: `1px solid ${border}`, color: theme.heroTextColor }}
                   >
                     <Minus className="w-3 h-3" />
                   </button>
                   <span className="text-sm w-6 text-center" style={{ color: theme.heroTextColor }}>{l.quantity}</span>
                   <button
+                    aria-label={translateUi("Increase quantity")}
                     onClick={() => cart.setQty(l.variantId, l.quantity + 1)}
                     disabled={l.quantity >= (l.maxQuantity || 1)}
-                    className="w-6 h-6 rounded-md flex items-center justify-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-11 h-11 shrink-0 rounded-md flex items-center justify-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ border: `1px solid ${border}`, color: theme.heroTextColor }}
                   >
                     <Plus className="w-3 h-3" />
                   </button>
                   <button
                     onClick={() => cart.remove(l.variantId)}
-                    className="ml-auto cursor-pointer"
+                    aria-label={translateUi("Remove from cart")}
+                    className="ml-auto flex size-11 shrink-0 cursor-pointer items-center justify-center"
                     style={{ color: sub }}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-              <span className="text-sm font-semibold shrink-0" style={{ color: theme.heroTextColor }}>
-                {formatPrice(l.unitPrice * l.quantity, l.currency, uiLocale)}
-              </span>
             </div>
           ))}
         </div>
 
-        <div className="border-t px-4 py-4" style={{ borderColor: border }}>
+        <div className="shrink-0 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ borderColor: border }}>
           <div className="flex items-center justify-between text-sm font-bold mb-3" style={{ color: theme.heroTextColor }}>
             <span>{translateUi("Subtotal")}</span>
             <span>{formatPrice(cart.subtotal, cart.currency, uiLocale)}</span>

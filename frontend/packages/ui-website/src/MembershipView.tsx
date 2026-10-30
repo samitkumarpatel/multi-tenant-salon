@@ -444,12 +444,12 @@ function JoinDialog({ salon, plan, theme, accentText, policies, countries, onClo
       <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="join-title"
         className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
+          <div className="min-w-0 break-words">
             <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.accentColor }}>{translateUi("Join")}</p>
             <h2 id="join-title" className="text-lg font-bold text-slate-900">{plan.name}</h2>
             <p className="text-sm text-slate-500">{formatPrice(plan.price, plan.currency, uiLocale)} {translateUi(PER[plan.billingInterval])}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={translateUi("Close")} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+          <button type="button" onClick={onClose} aria-label={translateUi("Close")} className="flex size-11 shrink-0 items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>

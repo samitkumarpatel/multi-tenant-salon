@@ -1,4 +1,5 @@
 import { useI18n } from "@salon/i18n";
+import { useLiveSearch } from "@salon/ui-shared/live-search";
 import { useEffect, useState } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
@@ -27,7 +28,7 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
     const value = url.searchParams.get(key);
     if (value) query.set(key, value);
   }
-  const customers = await apiFetch<SalonCustomerPage>(`${ADMIN_API}/${sid}/customers?${query}`);
+  const customers = await apiFetch<SalonCustomerPage>(`${ADMIN_API}/${sid}/customers?${query}`, { signal: request.signal });
   return { sid, customers };
 }
 
@@ -53,7 +54,7 @@ export default function Customers() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const { toast, notify } = useToast();
-  const [draft, setDraft] = useState(params.get("q") ?? "");
+  const [draft, setDraft, submitSearch] = useLiveSearch(params.get("q") ?? "", (value) => update({ q: value || null }), 350);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [f, setF] = useState<FormFields>(blank());
   const [busy, setBusy] = useState(false);
@@ -64,19 +65,13 @@ export default function Customers() {
   const close = () => { setModal(null); setDetail(null); };
 
   function update(patch: Record<string, string | null>) {
-    const next = new URLSearchParams(params);
-    for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
-    if (!("page" in patch)) next.delete("page");
-    setParams(next, { replace: true });
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
+      if (!("page" in patch)) next.delete("page");
+      return next;
+    }, { replace: true });
   }
-
-  useEffect(() => setDraft(q), [q]);
-  useEffect(() => {
-    if (draft === q) return;
-    const timer = setTimeout(() => update({ q: draft || null }), 350);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft]);
 
   // The detail modal loads the customer's history when it opens.
   useEffect(() => {
@@ -157,7 +152,7 @@ export default function Customers() {
         <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input className={`${controlCls} w-full pl-8`} placeholder={translateUi("Search name, email or phone")}
-            value={draft} onChange={(e) => setDraft(e.target.value)} />
+            type="search" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }} />
         </div>
         <select className={`${controlCls} min-h-10`} value={sort} onChange={(e) => update({ sort: e.target.value === "name" ? "name" : null })}>
           <option value="recent">{translateUi("Latest activity")}</option>

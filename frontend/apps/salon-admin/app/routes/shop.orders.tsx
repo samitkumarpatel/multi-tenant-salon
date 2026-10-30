@@ -1,5 +1,6 @@
 import { useI18n } from "@salon/i18n";
-import { useEffect, useMemo, useState } from "react";
+import { useLiveSearch } from "@salon/ui-shared/live-search";
+import { useMemo, useState } from "react";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { ClipboardList, ChevronRight, ChevronDown, ChevronLeft, Check, Search, X } from "lucide-react";
@@ -23,6 +24,7 @@ export async function clientLoader({ request, params }: ClientLoaderFunctionArgs
   const query = qs.toString();
   const page = await apiFetch<ShopOrdersPage>(
     `${ADMIN_API}/${sid}/shop/orders${query ? `?${query}` : ""}`,
+    { signal: request.signal },
   );
   return { page };
 }
@@ -92,15 +94,8 @@ export default function ShopOrders() {
     );
   }
 
-  // Debounced search box — local draft, pushed to the URL after a pause.
-  const [draft, setDraft] = useState(q);
-  useEffect(() => setDraft(q), [q]);
-  useEffect(() => {
-    if (draft === q) return;
-    const t = setTimeout(() => update({ q: draft || null }), 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft]);
+  const [draft, setDraft, submitSearch] = useLiveSearch(q, (value) => update({ q: value || null }), 350);
+
 
   const counts = page.statusCounts ?? {};
   const filterCount = (f: ShopOrderStatus | "ALL") =>
@@ -135,9 +130,10 @@ export default function ShopOrders() {
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
+            type="search"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && update({ q: draft || null })}
+            onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }}
             placeholder={translateUi("Search orders…")}
             className={`${controlCls} pl-8 pr-7 w-60`}
           />

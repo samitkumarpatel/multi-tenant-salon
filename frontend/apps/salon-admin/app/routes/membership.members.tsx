@@ -1,5 +1,5 @@
 import { useI18n } from "@salon/i18n";
-import { useEffect, useState } from "react";
+import { useLiveSearch } from "@salon/ui-shared/live-search";
 import { Link, useLoaderData, useOutletContext, useSearchParams } from "react-router";
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { ChevronRight, Download, Search, Users, X } from "lucide-react";
@@ -33,7 +33,7 @@ export async function clientLoader({ params, request }: ClientLoaderFunctionArgs
     if (value) query.set(key, value);
   }
   const [members, plans] = await Promise.all([
-    apiFetch<MembersPage>(`${ADMIN_API}/${sid}/membership/subscriptions?${query}`),
+    apiFetch<MembersPage>(`${ADMIN_API}/${sid}/membership/subscriptions?${query}`, { signal: request.signal }),
     apiFetch<MembershipPlan[]>(`${ADMIN_API}/${sid}/membership/plans`),
   ]);
   return { sid, members, plans };
@@ -53,7 +53,7 @@ export default function MembershipMembers() {
   const { salon } = useOutletContext<MembershipOutletContext>();
   const { sid, members, plans } = useLoaderData<typeof clientLoader>();
   const [params, setParams] = useSearchParams();
-  const [draft, setDraft] = useState(params.get("q") ?? "");
+  const [draft, setDraft, submitSearch] = useLiveSearch(params.get("q") ?? "", (value) => update({ q: value || null }), 350);
   const q = params.get("q") ?? "";
   const status = params.get("status") as MembershipStatus | null;
   const planId = params.get("planId") ? Number(params.get("planId")) : null;
@@ -62,21 +62,14 @@ export default function MembershipMembers() {
   const matching = status ? (counts[status] ?? 0) : members.totalElements;
 
   function update(patch: Record<string, string | null>) {
-    const next = new URLSearchParams(params);
-    for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
-    // Any change to the filters invalidates the page number.
-    if (!("page" in patch)) next.delete("page");
-    setParams(next, { replace: true });
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
+      // Any change to the filters invalidates the page number.
+      if (!("page" in patch)) next.delete("page");
+      return next;
+    }, { replace: true });
   }
-
-  // Typing shouldn't fire a request per keystroke now that searching hits the database.
-  useEffect(() => setDraft(q), [q]);
-  useEffect(() => {
-    if (draft === q) return;
-    const timer = setTimeout(() => update({ q: draft || null }), 350);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft]);
 
   async function exportCsv() {
     // Exports everything the current filters match, not just the page on screen.
@@ -122,7 +115,7 @@ export default function MembershipMembers() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input className={`${controlCls} w-full pl-8`} placeholder={translateUi("Search name, email or member code")}
-            value={draft} onChange={(e) => setDraft(e.target.value)} />
+            type="search" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }} />
         </div>
         <select className={controlCls} value={planId ?? ""} onChange={(e) => update({ planId: e.target.value || null })}>
           <option value="">{translateUi("All plans")}</option>

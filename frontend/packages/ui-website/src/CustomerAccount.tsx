@@ -446,7 +446,7 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
           </p>
           <p className="text-xs truncate" style={{ color: tone.sub }}>{account.profile.email}</p>
         </div>
-        <button onClick={onSignOut} className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer hover:opacity-80"
+        <button onClick={onSignOut} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer hover:opacity-80"
           style={{ color: tone.sub, border: `1px solid ${tone.border}` }}>
           <LogOut className="w-3.5 h-3.5" /> {translateUi("Sign out")}
         </button>
@@ -458,7 +458,7 @@ function AccountDetails({ salon, theme, tone, account, translateUi, onSignOut, l
             const active = t.key === tab;
             return (
               <button key={t.key} role="tab" aria-selected={active} onClick={() => setTab(t.key)}
-                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-2 rounded-lg cursor-pointer transition-colors min-w-0"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-semibold px-2 py-2 rounded-lg cursor-pointer transition-colors min-w-0"
                 style={active ? { backgroundColor: theme.accentColor, color: contrastText(theme.accentColor) } : { color: tone.sub }}>
                 <span className="truncate">{t.label}</span>
                 {t.count > 0 && <span className="tabular-nums opacity-80">{t.count}</span>}

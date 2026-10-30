@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLiveSearch } from "@salon/ui-shared/live-search";
 import { Link, useSearchParams } from "react-router";
 import { ChevronRight, Search } from "lucide-react";
 import { useI18n } from "@salon/i18n";
@@ -37,9 +38,9 @@ export function UserDirectory({ customers = false, salonId }: { customers?: bool
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
-  const [search, setSearch] = useState(q);
+  const [search, setSearch, submitSearch] = useLiveSearch(q, (value) => update("q", value));
 
-  useEffect(() => { setSearch(q); }, [q]);
+
   useEffect(() => {
     if (salonId) return;
     const controller = new AbortController();
@@ -53,24 +54,25 @@ export function UserDirectory({ customers = false, salonId }: { customers?: bool
     const query = new URLSearchParams({ q, role, status, page: String(page), size: "25" });
     if (selectedSalon) query.set("salonId", selectedSalon);
     apiFetch<UserPage>(`${SUPER_ADMIN_API}/users?${query}`, { signal: controller.signal })
-      .then(setData).catch((e) => { if (!controller.signal.aborted) setError(e.message); })
+      .then((next) => { if (!controller.signal.aborted) setData(next); }).catch((e) => { if (!controller.signal.aborted) setError(e.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [q, role, status, page, selectedSalon, refresh]);
 
   function update(key: string, value: string) {
-    const next = new URLSearchParams(params);
-    value ? next.set(key, value) : next.delete(key);
-    if (key !== "page") next.delete("page");
-    setParams(next);
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      value ? next.set(key, value) : next.delete(key);
+      if (key !== "page") next.delete("page");
+      return next;
+    }, { replace: true });
   }
 
   return <section className="space-y-5">
     <div><h1 className="text-xl font-bold text-stone-900">{t(customers ? "Customers" : "People")}</h1>
       <p className="mt-1 text-xs text-stone-500">{t(customers ? "Browse customers and their salon access." : "Browse customers, salon owners and users in one place.")}</p></div>
-    <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); update("q", search.trim()); }}>
+    <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); submitSearch(); }}>
       <div className="relative min-w-0 flex-1 basis-60"><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" aria-hidden="true" /><input type="search" aria-label={t("Search people")} placeholder={t("Search by email, customer name or phone")} className={`${fieldClass} w-full border-stone-200 pl-9 placeholder:text-stone-400`} value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-      <button className={buttonClass} type="submit">{t("Search")}</button>
       {!salonId && <select className={`${fieldClass} max-w-full`} aria-label={t("Salon")} value={selectedSalon ?? ""} onChange={(e) => update("salonId", e.target.value)}>
         <option value="">{t("All salons")}</option>
         {salonError && <option disabled>{t("Salon list unavailable")}</option>}

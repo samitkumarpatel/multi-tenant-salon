@@ -88,6 +88,7 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
 
   for (let attempt = 0; attempt <= MAX_EXTRA_RETRIES; attempt++) {
     if (attempt > 0) await sleep(1000 * attempt);
+    if (opts.signal?.aborted) throw opts.signal.reason;
 
     try {
       const res = await fetch(url, {
@@ -122,6 +123,7 @@ export async function apiFetch<T>(url: string, opts: RequestInit = {}): Promise<
       if (res.status === 204) return null as T;
       return res.json() as Promise<T>;
     } catch (e) {
+      if (opts.signal?.aborted) throw e;
       if (e instanceof ApiError) throw e;
       if (e instanceof Error && isRetryable(method, e) && attempt < MAX_EXTRA_RETRIES) {
         lastError = e;

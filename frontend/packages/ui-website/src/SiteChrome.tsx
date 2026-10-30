@@ -2,7 +2,7 @@ import { FeedbackLink } from "./Feedback";
 import { LanguageSelector, useI18n } from "@salon/i18n";
 import React from "react";
 import {
-  ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, MapPin, Phone, ShoppingCart, User,
+  ArrowLeft, ArrowUp, CalendarCheck, ChevronRight, Clock, MapPin, Phone, ShoppingCart, User, Menu, X,
 } from "lucide-react";
 import { DAY_SHORT } from "./constants";
 import { contrastText, isLightColor } from "./theme";
@@ -57,7 +57,7 @@ export function AccountButton({ theme, onClick, href, headerBg }: {
     border: `1.5px solid ${light ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.18)"}`,
     color: light ? "#0F172A" : "#FFFFFF",
   };
-  const className = "shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer";
+  const className = "shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer";
   if (href) {
     return (
       <a href={href} aria-label={translateUi("My account")} title={translateUi("My account")} className={className} style={style}
@@ -234,6 +234,9 @@ export function SiteHeader({
   onAvatarOpen?: () => void;
 }) {
   const { t: translateUi, locale: uiLocale } = useI18n();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const mobileMenuId = React.useId();
+  React.useEffect(() => { setMobileMenuOpen(false); }, [current]);
   const open        = isOpenNow(salon.operatingHours);
   const hasBooking  = salon.features?.includes("BOOKING");
   const accentText  = contrastText(theme.accentColor);
@@ -253,7 +256,7 @@ export function SiteHeader({
       {standalone ? (
         <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           {/* Left: logo + salon name */}
-          <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group min-w-0">
+          <button onClick={onBack} className="flex min-h-11 items-center gap-2 cursor-pointer group min-w-0">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity"
               style={{ backgroundColor: theme.logoBgColor }}
@@ -273,25 +276,8 @@ export function SiteHeader({
         </div>
       ) : (
       <div className="max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-6">
-        <div className="flex items-center gap-2 sm:gap-8 min-w-0 flex-1">
-          {/* Mobile: the "Back to website" text link below is sm+ only and doesn't fit
-              beside the shop's cart/avatar icons — give small screens an icon button so
-              there's always a visible way back. */}
-          {!standalone && (
-            <button
-              onClick={onBack}
-              aria-label={translateUi("Back to website")}
-              className="sm:hidden shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 cursor-pointer"
-              style={{
-                backgroundColor: headerIsLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.10)",
-                border: `1.5px solid ${headerIsLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.18)"}`,
-                color: headerText,
-              }}
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={onBack} className="flex items-center gap-2 cursor-pointer group min-w-0">
+        <div className="flex items-center gap-2 sm:gap-5 min-w-0 flex-1">
+          <button onClick={onBack} className="flex min-h-11 items-center gap-2 cursor-pointer group min-w-0">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:opacity-80 transition-opacity"
               style={{ backgroundColor: theme.logoBgColor }}
@@ -304,12 +290,11 @@ export function SiteHeader({
             <BetaBadge color={theme.accentColor} />
           </button>
 
-          <nav className="flex items-center gap-4 sm:gap-6 text-sm min-w-0 shrink-0">
-            {/* Tapping the logo already goes back — this text link is redundant (and doesn't
-                fit) once the shop's avatar/cart icons are on screen too, so keep it sm+ only. */}
+          <nav className="hidden lg:flex items-center gap-4 text-sm min-w-0 shrink-0">
+            {/* The logo and mobile menu provide the home link on smaller screens. */}
             <button
               onClick={onBack}
-              className="hidden sm:flex no-underline transition-colors font-medium text-slate-500 hover:text-slate-900 cursor-pointer items-center gap-1.5 shrink-0"
+              className="flex min-h-11 no-underline transition-colors font-medium text-slate-500 hover:text-slate-900 cursor-pointer items-center gap-1.5 shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>{translateUi("Back to website")}</span>
@@ -318,7 +303,7 @@ export function SiteHeader({
               <a
                 key={fp.path}
                 href={getPagePath ? getPagePath(fp.path) : `/${fp.path}`}
-                className="hidden md:inline no-underline transition-colors font-medium text-slate-500 hover:text-slate-900"
+                className="inline-flex min-h-11 items-center no-underline transition-colors font-medium text-slate-500 hover:text-slate-900"
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(fp.path); } : undefined}
               >
                 {translateUi(fp.label)}
@@ -327,9 +312,9 @@ export function SiteHeader({
           </nav>
         </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {current !== "shop" && (
-              <span className={`hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
+              <span className={`hidden xl:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
                 open
                   ? "bg-amber-50 text-amber-700 border-amber-200"
                   : "bg-slate-50 text-slate-400 border-slate-200"
@@ -342,7 +327,8 @@ export function SiteHeader({
               <>
                 <button
                   onClick={onCartOpen}
-                  className="relative inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
+                  aria-label={translateUi("Cart")}
+                  className="relative min-h-11 min-w-11 inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-90 cursor-pointer"
                   style={{ backgroundColor: theme.accentColor, color: accentText }}
                 >
                   <ShoppingCart className="w-4 h-4" />
@@ -366,11 +352,17 @@ export function SiteHeader({
               </span>
             ) : hasBooking ? (
               <a href={getPagePath ? getPagePath("book") : "/book"}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
+                aria-label={translateUi("Book now")}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 text-xs font-semibold px-3 sm:px-4 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
                 style={{ backgroundColor: theme.accentColor, color: accentText }}
                 onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate("book"); } : undefined}>
-                {translateUi("Book now ")}</a>
+                <CalendarCheck aria-hidden="true" className="size-4 sm:hidden" /><span className="hidden sm:inline">{translateUi("Book now ")}</span></a>
             ) : null}
+            {featurePages.length > 0 && <button type="button" aria-label={translateUi(mobileMenuOpen ? "Close menu" : "Open menu")}
+              aria-expanded={mobileMenuOpen} aria-controls={mobileMenuId} onClick={() => setMobileMenuOpen((open) => !open)}
+              className="lg:hidden flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+              {mobileMenuOpen ? <X aria-hidden="true" className="size-5" /> : <Menu aria-hidden="true" className="size-5" />}
+            </button>}
             <LanguageSelector compact />
             {current !== "account" && hasCustomerAccount(salon) && (onAvatarOpen || onNavigate || getPagePath) && (
               <AccountButton theme={theme}
@@ -380,6 +372,13 @@ export function SiteHeader({
           </div>
         </div>
       )}
+      {!standalone && mobileMenuOpen && <nav id={mobileMenuId} aria-label={translateUi("Navigation")}
+        className="lg:hidden flex flex-col border-t px-4 py-2 sm:px-6" style={{ borderColor: headerBorder, backgroundColor: headerBg }}>
+        <button type="button" onClick={() => { setMobileMenuOpen(false); onBack(); }} className="min-h-11 cursor-pointer text-left text-sm font-medium" style={{ color: headerText }}>{translateUi("Back to website")}</button>
+        {featurePages.map((page) => <a key={page.path} href={getPagePath ? getPagePath(page.path) : `/${page.path}`}
+          className="flex min-h-11 items-center text-sm font-medium no-underline" style={{ color: headerText }}
+          onClick={onNavigate ? (event) => { event.preventDefault(); setMobileMenuOpen(false); onNavigate(page.path); } : undefined}>{translateUi(page.label)}</a>)}
+      </nav>}
     </header>
   );
 }
@@ -546,7 +545,7 @@ export function SiteFooter({
               </a>
             ))}
             {isScrollable && (
-              <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
+              <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="min-h-11 text-[11px] hover:opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1" style={{ color: footerDim }}>
                 {translateUi("Back to top ")}<ArrowUp className="w-3 h-3" />
               </button>
             )}

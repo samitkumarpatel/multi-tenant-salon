@@ -17,6 +17,8 @@ import net.samitkumar.multi_tenant_salon.staff.StaffRole;
 import net.samitkumar.multi_tenant_salon.staff.StaffStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
@@ -33,7 +35,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -88,27 +92,40 @@ class SalonMcpAppToolsTest {
         assertThat((List<Object>) data.get("specializations")).containsExactly("Balayage", "Cuts", "Nails");
     }
 
-    @Test
-    void bookingAppLoadsTheMonthFromTodayAndGroupsSlotsByStartTime() {
-        LocalDate today = LocalDate.now();
-        LocalDate date = today.plusDays(2);
-        when(bookings.queryAvailability(eq(salonId), eq(1L), eq(null), any(), any(), eq(SalonAvailability.Granularity.DAY), eq(null)))
-                .thenReturn(availability(List.of(openDay(date, List.of()))));
-        when(bookings.findAvailableSlots(salonId, 1L, date, null)).thenReturn(List.of(
-                new AvailableSlot(7L, LocalTime.of(10, 0), LocalTime.of(10, 30), false),
-                new AvailableSlot(8L, LocalTime.of(10, 0), LocalTime.of(10, 30), false),
-                new AvailableSlot(7L, LocalTime.of(10, 30), LocalTime.of(11, 0), true)));
+    @ParameterizedTest
+    @CsvSource({
+            "2026-10-30, 2026-11-01, 2026-11-01, 2026-11-29",
+            "2026-01-30, 2026-02-01, 2026-02-01, 2026-02-28",
+            "2026-12-30, 2027-01-01, 2027-01-01, 2027-01-29",
+            "2026-06-10, 2026-06-12, 2026-06-10, 2026-06-30",
+            "2028-02-28, 2028-03-01, 2028-03-01, 2028-03-29"
+    })
+    void bookingAppLoadsTheMonthFromTodayAndGroupsSlotsByStartTime(String todayText, String selectedDate,
+                                                                  String expectedFrom, String expectedTo) {
+        LocalDate today = LocalDate.parse(todayText);
+        LocalDate date = LocalDate.parse(selectedDate);
+        try (var dates = mockStatic(LocalDate.class, CALLS_REAL_METHODS)) {
+            dates.when(LocalDate::now).thenReturn(today);
+            var availability = availability(List.of(openDay(date, List.of())));
+            when(bookings.queryAvailability(eq(salonId), eq(1L), eq(null), any(), any(), eq(SalonAvailability.Granularity.DAY), eq(null)))
+                    .thenReturn(availability);
+            when(bookings.findAvailableSlots(salonId, 1L, date, null)).thenReturn(List.of(
+                    new AvailableSlot(7L, LocalTime.of(10, 0), LocalTime.of(10, 30), false),
+                    new AvailableSlot(8L, LocalTime.of(10, 0), LocalTime.of(10, 30), false),
+                    new AvailableSlot(7L, LocalTime.of(10, 30), LocalTime.of(11, 0), true)));
 
-        var data = structured(booking().booking(salonId.toString(), 1L, null, null, date.toString(), null));
+            var data = structured(booking().booking(salonId.toString(), 1L, null, null, date.toString(), null));
 
-        var from = ArgumentCaptor.forClass(LocalDate.class);
-        var to = ArgumentCaptor.forClass(LocalDate.class);
-        verify(bookings).queryAvailability(eq(salonId), eq(1L), eq(null), from.capture(), to.capture(), eq(SalonAvailability.Granularity.DAY), eq(null));
-        assertThat(from.getValue()).isEqualTo(date.withDayOfMonth(1).isAfter(today) ? date.withDayOfMonth(1) : today);
-        assertThat(to.getValue()).isEqualTo(date.withDayOfMonth(date.lengthOfMonth()));
-        assertThat(data).containsEntry("month", date.toString().substring(0, 7)).containsEntry("date", date.toString());
-        assertThat(list(data, "slots")).containsExactly(Map.of("startTime", "10:00", "endTime", "10:30", "staffIds", List.of(7L, 8L)));
-        assertThat(list(data, "days")).extracting(d -> d.get("status")).containsExactly("OPEN");
+            var from = ArgumentCaptor.forClass(LocalDate.class);
+            var to = ArgumentCaptor.forClass(LocalDate.class);
+            verify(bookings).queryAvailability(eq(salonId), eq(1L), eq(null), from.capture(), to.capture(), eq(SalonAvailability.Granularity.DAY), eq(null));
+            assertThat(from.getValue()).isEqualTo(expectedFrom);
+            // The fixture allows 30 days ahead, which can end before the displayed month does.
+            assertThat(to.getValue()).isEqualTo(expectedTo);
+            assertThat(data).containsEntry("month", date.toString().substring(0, 7)).containsEntry("date", date.toString());
+            assertThat(list(data, "slots")).containsExactly(Map.of("startTime", "10:00", "endTime", "10:30", "staffIds", List.of(7L, 8L)));
+            assertThat(list(data, "days")).extracting(d -> d.get("status")).containsExactly("OPEN");
+        }
     }
 
     @Test

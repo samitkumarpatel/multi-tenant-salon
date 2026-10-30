@@ -1588,7 +1588,7 @@ export function GenerativeUIWebsite({
         onClick={() => setIsFullscreen((v) => !v)}
         title={isFullscreen ? translateUi("Exit fullscreen (Esc)") : translateUi("Expand to fullscreen")}
         aria-label={isFullscreen ? translateUi("Exit fullscreen") : translateUi("Expand to fullscreen")}
-        className={`hidden sm:flex shrink-0 w-8 h-8 rounded-lg items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${extra}`}
+        className={`hidden sm:flex shrink-0 w-11 h-11 rounded-lg items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${extra}`}
         style={{ backgroundColor: `${theme.accentColor}14`, color: theme.accentColor }}
       >
         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -1644,7 +1644,7 @@ export function GenerativeUIWebsite({
       className="shrink-0 z-10"
       style={{ backgroundColor: topBg, borderBottom: `1px solid ${topBorder}` }}
     >
-      <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6">
+      <div className="flex flex-wrap items-center justify-end gap-2 px-3 py-3 sm:flex-nowrap sm:gap-3 sm:px-6">
         <div className="relative shrink-0">
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
@@ -1657,7 +1657,7 @@ export function GenerativeUIWebsite({
             style={{ backgroundColor: thinking ? theme.accentColor : "#34D399", borderColor: topBg }}
           />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-[calc(100%-52px)] sm:min-w-0">
           <p className="text-sm font-bold truncate flex items-center gap-1.5" style={{ color: topText }}>
             <span className="truncate">{salon.name}</span>
             <span
@@ -1675,17 +1675,17 @@ export function GenerativeUIWebsite({
           onClick={() => setMcpDetailsOpen(true)}
           title={translateUi("Connect this salon to an AI app")}
           aria-label={translateUi("MCP connection details")}
-          className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold transition-opacity hover:opacity-75"
+          className="shrink-0 inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold transition-opacity hover:opacity-75"
           style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
         >
-          <PlugZap className="h-3.5 w-3.5" /><span>MCP</span>
+          <PlugZap className="h-3.5 w-3.5" /><span className="hidden sm:inline">MCP</span>
         </button>
         {fullscreenToggle()}
         {started && (
           <button
             onClick={newChat}
             title={translateUi("Start a new conversation")}
-            className="shrink-0 inline-flex items-center gap-1.5 px-2 py-1.5 sm:px-3 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
+            className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-2 py-1.5 sm:px-3 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80 active:scale-95"
             style={{ color: theme.accentColor, border: `1px solid ${topBorder}` }}
           >
             <SquarePen className="w-3.5 h-3.5" />
@@ -1733,7 +1733,7 @@ export function GenerativeUIWebsite({
           onClick={send}
           disabled={!sendActive}
           aria-label={translateUi("Send question")}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
           style={{
             backgroundColor: sendActive ? theme.accentColor : `${inputBorder}`,
             opacity: sendActive ? 1 : 0.5,

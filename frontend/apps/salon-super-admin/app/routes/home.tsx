@@ -312,6 +312,11 @@ export default function SuperAdminHome() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selected, setSelected] = useState<Salon | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    requestRef.current?.abort();
+  }, []);
   const { toast, notify } = useToast();
 
   useEffect(() => {
@@ -335,6 +340,9 @@ export default function SuperAdminHome() {
   }, []);
 
   async function loadSalons(q: string, status: "ALL" | "ACTIVE" | "DISABLED") {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -342,17 +350,18 @@ export default function SuperAdminHome() {
       if (q.trim()) params.set("q", q.trim());
       if (status !== "ALL") params.set("status", status);
       const qs = params.toString();
-      const data = await apiFetch<Salon[]>(`${SUPER_ADMIN_API}/salons${qs ? `?${qs}` : ""}`);
-      setSalons(data);
+      const data = await apiFetch<Salon[]>(`${SUPER_ADMIN_API}/salons${qs ? `?${qs}` : ""}`, { signal: controller.signal });
+      if (!controller.signal.aborted) setSalons(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load salons");
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Failed to load salons");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
   function handleSearchChange(value: string) {
     setSearch(value);
+    requestRef.current?.abort();
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => loadSalons(value, statusFilter), 400);
   }

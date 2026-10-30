@@ -134,8 +134,11 @@ function Members({ base, onChanged }: { base: string; onChanged: () => void }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
-    const id = setTimeout(() => apiFetch<Member[]>(`${base}/members?q=${encodeURIComponent(q)}`).then(setMembers).catch((e) => setError(message(e))), 250);
-    return () => clearTimeout(id);
+    const controller = new AbortController();
+    const id = setTimeout(() => apiFetch<Member[]>(`${base}/members?q=${encodeURIComponent(q.trim())}`, { signal: controller.signal })
+      .then((next) => { if (!controller.signal.aborted) { setMembers(next); setError(""); } })
+      .catch((e) => { if (!controller.signal.aborted) setError(message(e)); }), 250);
+    return () => { clearTimeout(id); controller.abort(); };
   }, [base, q]);
   const open = (email: string) => apiFetch<MemberDetail>(`${base}/member?email=${encodeURIComponent(email)}`).then((d) => { setDetail(d); setError(""); }).catch((e) => setError(message(e)));
   async function adjust() {
