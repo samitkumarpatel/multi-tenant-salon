@@ -461,26 +461,31 @@ function ShopOrderDetailContent() {
               {/* The item's own history: notes and per-item messages ("Added to order" is implied). */}
               {line.activities?.some((a) => a.type !== "LINE_CREATED") && (
                 <ul className="mt-2 ml-12 flex flex-col gap-1">
-                  {line.activities.filter((a) => a.type !== "LINE_CREATED").map((a) => (
-                    <li key={a.id} className="flex items-start gap-1.5 text-[11px] text-slate-500">
+                  {line.activities.filter((a) => a.type !== "LINE_CREATED").map((a) => {
+                    const communication = communications.find((c) => c.sourceLineActivityId === a.id);
+                    return <li key={a.id} className="flex items-start gap-1.5 text-[11px] text-slate-500">
                       {a.type === "NOTE_ADDED"
                         ? <StickyNote className="w-3 h-3 mt-0.5 shrink-0 text-slate-400" />
-                        : <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 text-blue-400" />}
+                        : communication?.channel === "SMS"
+                          ? <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 text-blue-500" />
+                          : <Mail className="w-3 h-3 mt-0.5 shrink-0 text-blue-500" />}
                       <span className="min-w-0">
-                        {a.type === "USER_NOTIFIED" ? <button type="button" className="cursor-pointer font-semibold text-matcha-700 underline decoration-dotted underline-offset-4"
+                        {a.type === "USER_NOTIFIED" ? <button type="button" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-matcha-200 bg-matcha-50 px-2 font-semibold text-matcha-800 shadow-sm transition-colors hover:border-matcha-400 hover:bg-matcha-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1"
+                          title={translateUi("View customer communication")}
                           onClick={() => {
                             const communication = communications.find((c) => c.sourceLineActivityId === a.id);
                             setSelectedActivity(activities.find((entry) => entry.id === communication?.activityId) ?? {
                               id: -a.id, orderId: order.id, type: "CUSTOMER_NOTIFIED", message: a.message,
                               notified: false, createdAt: a.createdAt,
-                            });
-                          }}>{translateUi("Customer communication")}</button>
+                          });
+                          }}>
+                          {translateUi("Customer communication")}</button>
                           : <span className="font-medium text-slate-600">{translateUi(LINE_ACTIVITY_LABEL[a.type] ?? a.type)}</span>}
                         {a.message ? <span> — {a.message}</span> : null}
                         <span className="text-slate-400"> · {relativeTime(a.createdAt)}{a.actor ? ` · ${a.actor}` : ""}</span>
                       </span>
-                    </li>
-                  ))}
+                    </li>;
+                  })}
                 </ul>
               )}
               </div>
@@ -619,7 +624,11 @@ function ShopOrderDetailContent() {
                     <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white ${meta.dot}`} />
                     <div className="flex items-center gap-2 flex-wrap">
                       {isCommunication ? <button type="button" onClick={() => setSelectedActivity(a)}
-                        className="min-h-8 cursor-pointer text-left text-xs font-semibold text-matcha-700 underline decoration-dotted underline-offset-4 hover:text-matcha-900">
+                        title={translateUi("View customer communication")}
+                        className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md border border-matcha-200 bg-matcha-50 px-2 text-left text-xs font-semibold text-matcha-800 shadow-sm transition-colors hover:border-matcha-400 hover:bg-matcha-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-matcha-500 focus-visible:ring-offset-1">
+                        {communication?.channel === "SMS"
+                          ? <MessageSquare aria-hidden="true" className="h-3.5 w-3.5" />
+                          : <Mail aria-hidden="true" className="h-3.5 w-3.5" />}
                         {translateUi(a.type === "CUSTOMER_NOTIFIED" ? "Customer communication" : meta.label)}
                       </button> : <span className={`text-xs font-semibold ${isNote ? "text-slate-400" : (meta.color ?? "text-slate-700")}`}>
                         {translateUi(meta.label)}
@@ -1147,7 +1156,6 @@ function CommunicationDetails({ activity, message, busy, onClose, onRetry }: {
     return () => element?.close();
   }, []);
   const status = message?.status ?? activity.status;
-  const body = message?.body ?? activity.body;
   const date = (value: string) => new Date(value).toLocaleString(locale);
   return <dialog ref={dialog} onCancel={onClose} aria-labelledby="communication-title"
     className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-full max-w-2xl overflow-y-auto border-0 bg-white p-5 shadow-xl backdrop:bg-slate-900/40 sm:p-7">
@@ -1165,12 +1173,10 @@ function CommunicationDetails({ activity, message, busy, onClose, onRetry }: {
     <p className="mt-4 text-xs text-slate-500">{t("SMS not configured")}</p>
     {message?.failureReason && <p role="status" className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t(message.failureReason)}</p>}
     <h3 className="mt-6 font-semibold text-slate-900">{message?.subject ?? activity.subject ?? activity.message}</h3>
-    {body ? <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-relaxed text-slate-700">{body}</pre>
-      : <p className="mt-3 text-sm text-slate-500">{t("The message content was not saved for this activity.")}</p>}
-    {message?.htmlBody && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-matcha-700">{t("Email preview")}</summary>
-      <iframe title={t("Email preview")} sandbox="" referrerPolicy="no-referrer" className="mt-3 h-96 w-full rounded-lg border border-slate-200"
+    {message?.htmlBody ? <section className="mt-4" aria-label={t("Email preview")}>
+      <iframe title={t("Email preview")} sandbox="" referrerPolicy="no-referrer" className="h-[60dvh] min-h-80 w-full rounded-lg border border-slate-200"
         srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">${message.htmlBody}`} />
-    </details>}
+    </section> : <p className="mt-3 text-sm text-slate-500">{t("Email preview is unavailable for this activity.")}</p>}
     {message && message.history.length > 0 && <section className="mt-6">
       <h3 className="font-semibold text-slate-900">{t("Sending attempts")}</h3>
       <ol className="mt-3 space-y-3 text-sm">{message.history.map((attempt, index) => <li key={attempt.id} className="rounded-lg border border-slate-200 p-3">
