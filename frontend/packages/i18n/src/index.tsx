@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ALL_LANGUAGES, LANGUAGES, chooseLanguage, normalizePolicy } from "./languages";
+import { ALL_LANGUAGES, LANGUAGES, chooseLanguage, normalizeLanguage, normalizePolicy } from "./languages";
 import type { Language, LanguagePolicy } from "./languages";
 import { translate } from "./translate";
 
@@ -34,7 +34,12 @@ export function I18nProvider({ children, policy = ALL_LANGUAGES, scope }: {
   useEffect(() => {
     let saved: string | null = null;
     try { saved = localStorage.getItem(storageKey); } catch { /* Storage may be disabled. */ }
-    const language = chooseLanguage(safePolicy, new URLSearchParams(window.location.search).get("lang"), saved, navigator.languages);
+    const requested = new URLSearchParams(window.location.search).get("lang");
+    const language = chooseLanguage(safePolicy, requested, saved, navigator.languages);
+    // The auth server redirects back with the language picked on its sign-in pages; keep it as the user's choice.
+    if (normalizeLanguage(requested) === language) {
+      try { localStorage.setItem(storageKey, language); } catch { /* Keep in-memory choice. */ }
+    }
     setSelection({ key: storageKey, language });
   }, [storageKey, safePolicy]);
 
