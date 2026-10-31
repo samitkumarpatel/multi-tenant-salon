@@ -21,8 +21,10 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`inline-block rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusColors[status] ?? statusColors.PUBLISHED}`}>{status}</span>;
 }
 
-function Payload({ entry }: { entry: EventPublication }) {
+function Payload({ entry, onResubmitted }: { entry: EventPublication; onResubmitted: () => void }) {
   const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
   const [detail, setDetail] = useState<EventPublicationDetail>();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -35,7 +37,27 @@ function Payload({ entry }: { entry: EventPublication }) {
   if (!detail) return <p role="status" className="text-xs text-stone-500">{t("Loading…")}</p>;
   let text = detail.serializedEvent;
   try { text = JSON.stringify(JSON.parse(text), null, 2); } catch { /* not JSON, show as stored */ }
-  return <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-stone-200 bg-stone-50 p-3 font-mono text-[11px] text-stone-700">{text}</pre>;
+  async function resubmit() {
+    if (!window.confirm(t("Run this delivery again now? The listener may send emails or change data again."))) return;
+    setBusy(true); setNote("");
+    try { await apiFetch(`${SUPER_ADMIN_API}/events/${entry.id}/resubmit`, { method: "POST" }); setNote(t("Resubmitted. Refresh in a moment to see the result.")); onResubmitted(); }
+    catch (e) { setNote(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+  return <div className="space-y-3">
+    {entry.status === "FAILED" && !entry.archived && <div className="flex flex-wrap items-center gap-3">
+      <button type="button" disabled={busy} onClick={resubmit} className={buttonClass}>{t("Resubmit")}</button>
+      {note && <span role="status" className="text-xs text-stone-600">{note}</span>}
+    </div>}
+    {detail.failures.length > 0 && <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">{t("Why it failed")}</p>
+      {detail.failures.map((failure, index) => <details key={`${failure.failedAt}-${index}`} open={index === 0} className="rounded-lg border border-rose-200 bg-rose-50/50 p-3">
+        <summary className="cursor-pointer text-xs text-rose-800"><span className="font-semibold">{failure.errorClass.slice(failure.errorClass.lastIndexOf(".") + 1)}</span>: {failure.message ?? "—"} <span className="text-rose-500">· {when(failure.failedAt)}</span></summary>
+        {failure.stackTrace && <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] text-stone-700">{failure.stackTrace}</pre>}
+      </details>)}
+    </div>}
+    <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-stone-200 bg-stone-50 p-3 font-mono text-[11px] text-stone-700">{text}</pre>
+  </div>;
 }
 
 export default function Events() {
@@ -113,7 +135,7 @@ export default function Events() {
                   <p className="break-all font-mono text-[11px] text-stone-500">{entry.eventType}</p>
                 </td>
                 <td className="break-all px-4 py-3 font-mono text-[11px] text-stone-600">{shortName(entry.listenerId.replace(/[#:].*$/, "")) + (entry.listenerId.match(/[#:].*$/)?.[0] ?? "")}</td>
-                <td className="px-4 py-3"><StatusPill status={entry.status} /></td>
+                <td className="px-4 py-3"><StatusPill status={entry.status} />{entry.lastError && entry.status !== "COMPLETED" && <p className="mt-1 max-w-56 break-words text-[11px] text-rose-700">{entry.lastError}</p>}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-xs text-stone-600">{when(entry.publicationDate)}</td>
                 <td className="px-4 py-3 text-xs text-stone-600">{entry.completionAttempts ?? "—"}</td>
               </tr>
@@ -126,7 +148,7 @@ export default function Events() {
                     <div><dt className="inline font-semibold">{t("Last resubmitted")}: </dt><dd className="inline">{when(entry.lastResubmissionDate)}</dd></div>
                     <div><dt className="inline font-semibold">{t("Archived")}: </dt><dd className="inline">{t(entry.archived ? "Yes" : "No")}</dd></div>
                   </dl>
-                  <Payload entry={entry} />
+                  <Payload entry={entry} onResubmitted={() => setTimeout(() => setRefresh((v) => v + 1), 2500)} />
                 </td>
               </tr>}
             </Fragment>)}

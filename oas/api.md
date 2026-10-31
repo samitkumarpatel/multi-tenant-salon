@@ -2914,9 +2914,10 @@ Read-only view of the Modulith event store — live `event_publication` and the 
 
 | Endpoint | Notes |
 |---|---|
-| `GET /api/salon-super-admin/events` | Params: `q` (event type or listener, case-insensitive), `status` (`ALL` \| `PUBLISHED` \| `PROCESSING` \| `RESUBMITTED` \| `FAILED` \| `COMPLETED`), `page`, `size` (max 100). Returns `{content, page, size, totalElements, totalPages}`; each entry has `id`, `eventType`, `listenerId`, `status`, `publicationDate`, `completionDate`, `completionAttempts`, `lastResubmissionDate`, `archived`. |
+| `GET /api/salon-super-admin/events` | Params: `q` (event type or listener, case-insensitive), `status` (`ALL` \| `PUBLISHED` \| `PROCESSING` \| `RESUBMITTED` \| `FAILED` \| `COMPLETED`), `page`, `size` (max 100). Returns `{content, page, size, totalElements, totalPages}`; each entry has `id`, `eventType`, `listenerId`, `status`, `publicationDate`, `completionDate`, `completionAttempts`, `lastResubmissionDate`, `archived`, `lastError` (message of the latest recorded failure, else `null`). |
 | `GET /api/salon-super-admin/events/summary` | `[{status, count}]` across both tables. |
-| `GET /api/salon-super-admin/events/{id}` | `{entry, serializedEvent}` — the stored payload. `404` if unknown. |
+| `POST /api/salon-super-admin/events/{id}/resubmit` | Runs one `FAILED` publication again now, ignoring the automatic retry's attempt/age limits. `202` (the listener runs async; a new failure is recorded as usual), `404` unknown, `409` if it is not a failed, undelivered publication. |
+| `GET /api/salon-super-admin/events/{id}` | `{entry, serializedEvent, failures}` — the stored payload and, for a listener that threw, up to 20 recorded attempts `{failedAt, errorClass, message, stackTrace}` (newest first). `404` if unknown. |
 
 ---
 

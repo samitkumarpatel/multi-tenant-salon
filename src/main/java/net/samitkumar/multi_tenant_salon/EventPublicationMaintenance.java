@@ -12,8 +12,13 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Makes the Spring Modulith event publication registry ({@code event_publication}) actually deliver
@@ -31,6 +36,9 @@ import java.time.ZoneOffset;
 @Component
 @Slf4j
 class EventPublicationMaintenance {
+
+    /** Upper bound on failed rows read in one run; the failed set is small in practice. */
+    private static final long MAX_READ = 10_000;
 
     private final FailedEventPublications failed;
     private final JdbcClient jdbc;
@@ -70,18 +78,45 @@ class EventPublicationMaintenance {
     @Scheduled(initialDelayString = "${app.events.retry.interval:PT1M}", fixedDelayString = "${app.events.retry.interval:PT1M}")
     void resubmitFailedPublications() {
         try {
-            failed.resubmit(ResubmissionOptions.defaults().withBatchSize(batchSize).withMaxInFlight(batchSize)
-                    .withFilter(this::dueForRetry));
+            var due = duePublications();
+            if (due.isEmpty()) return;
+            // Modulith reads the oldest N failed publications and only then applies the filter. Publications that
+            // used up their retries stay FAILED, so with a small N they would fill every batch and starve newer
+            // failures. Choose the due ones here and read enough rows for the filter to reach them.
+            long failedTotal = jdbc.sql("SELECT count(*) FROM event_publication WHERE status = 'FAILED'").query(Long.class).single();
+            failed.resubmit(ResubmissionOptions.defaults().withBatchSize((int) Math.min(Math.max(failedTotal, 1), MAX_READ))
+                    .withFilter(publication -> due.contains(publication.getIdentifier())));
         } catch (RuntimeException e) {
             log.error("[EVENTS] Resubmitting failed event publications failed", e);
         }
     }
 
+    /** At most {@code batch-size} failed publications that still have attempts left, are young enough and past their backoff. */
+    Set<UUID> duePublications() {
+        var cutoff = OffsetDateTime.ofInstant(clock.instant().minus(maxAge), ZoneOffset.UTC);
+        return jdbc.sql("""
+                        SELECT id, coalesce(completion_attempts, 0) AS attempts, publication_date, last_resubmission_date
+                        FROM event_publication
+                        WHERE status = 'FAILED' AND coalesce(completion_attempts, 0) < :max AND publication_date >= :cutoff
+                        ORDER BY publication_date""")
+                .param("max", maxAttempts).param("cutoff", cutoff)
+                .query((rs, i) -> new Candidate(rs.getObject("id", UUID.class), rs.getInt("attempts"),
+                        rs.getObject("publication_date", OffsetDateTime.class).toInstant(),
+                        Optional.ofNullable(rs.getObject("last_resubmission_date", OffsetDateTime.class)).map(OffsetDateTime::toInstant).orElse(null)))
+                .list().stream().filter(c -> dueForRetry(c.attempts(), c.published(), c.lastResubmission()))
+                .limit(batchSize).map(Candidate::id).collect(Collectors.toSet());
+    }
+
+    private record Candidate(UUID id, int attempts, Instant published, Instant lastResubmission) {}
+
     /** Whether a failed publication should be delivered again now. */
     boolean dueForRetry(EventPublication publication) {
-        int attempts = publication.getCompletionAttempts();
-        if (attempts >= maxAttempts || publication.getPublicationDate().isBefore(clock.instant().minus(maxAge))) return false;
-        var last = publication.getLastResubmissionDate() != null ? publication.getLastResubmissionDate() : publication.getPublicationDate();
+        return dueForRetry(publication.getCompletionAttempts(), publication.getPublicationDate(), publication.getLastResubmissionDate());
+    }
+
+    boolean dueForRetry(int attempts, Instant published, Instant lastResubmission) {
+        if (attempts >= maxAttempts || published.isBefore(clock.instant().minus(maxAge))) return false;
+        var last = lastResubmission != null ? lastResubmission : published;
         return !clock.instant().isBefore(last.plus(backoff(attempts)));
     }
 

@@ -118,6 +118,11 @@ class WebsiteDomainIntegrationTest {
         client.options().uri("/api/salon/" + salonId + "/chat").header("Origin", "https://www.mysalon.dk")
                 .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "content-type")
                 .exchange().expectStatus().isOk().expectHeader().valueEquals("Access-Control-Allow-Origin", "https://www.mysalon.dk");
+        // The platform announcement banner is fetched from the salon's own domain too.
+        client.options().uri("/api/public/announcements").header("Origin", "https://www.mysalon.dk").header("Access-Control-Request-Method", "GET")
+                .exchange().expectStatus().isOk().expectHeader().valueEquals("Access-Control-Allow-Origin", "https://www.mysalon.dk");
+        client.options().uri("/api/public/announcements").header("Origin", "https://unknown.dk").header("Access-Control-Request-Method", "GET")
+                .exchange().expectStatus().isForbidden();
         client.options().uri(path).header("Origin", "https://www.mysalon.dk").header("Access-Control-Request-Method", "POST")
                 .exchange().expectStatus().isForbidden();
         client.options().uri("/api/salon/" + salonId + "/chat").header("Origin", "https://unknown.dk")

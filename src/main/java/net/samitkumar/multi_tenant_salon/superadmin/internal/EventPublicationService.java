@@ -10,8 +10,9 @@ import java.util.UUID;
 @Service
 class EventPublicationService {
     record Entry(UUID id, String eventType, String listenerId, String status, String publicationDate,
-                 String completionDate, Integer completionAttempts, String lastResubmissionDate, boolean archived) {}
-    record Detail(Entry entry, String serializedEvent) {}
+                 String completionDate, Integer completionAttempts, String lastResubmissionDate, boolean archived, String lastError) {}
+    record Failure(String failedAt, String errorClass, String message, String stackTrace) {}
+    record Detail(Entry entry, String serializedEvent, List<Failure> failures) {}
     record Page(List<Entry> content, int page, int size, long totalElements, int totalPages) {}
     record StatusCount(String status, long count) {}
 
@@ -42,7 +43,8 @@ class EventPublicationService {
                 SELECT e.id,e.event_type,e.listener_id,
                        coalesce(e.status, CASE WHEN e.completion_date IS NULL THEN 'PUBLISHED' ELSE 'COMPLETED' END) status,
                        e.publication_date::text publication_date,e.completion_date::text completion_date,
-                       e.completion_attempts,e.last_resubmission_date::text last_resubmission_date,e.archived
+                       e.completion_attempts,e.last_resubmission_date::text last_resubmission_date,e.archived,
+                       (SELECT f.message FROM event_publication_failure f WHERE f.publication_id = e.id ORDER BY f.failed_at DESC LIMIT 1) last_error
                 FROM (""" + ALL + ") e " + where + """
                  ORDER BY e.publication_date DESC,e.id LIMIT :size OFFSET :offset""")
                 .param("status", filter).param("q", term).param("size", size).param("offset", (long) page * size)
@@ -64,10 +66,22 @@ class EventPublicationService {
                 SELECT e.id,e.event_type,e.listener_id,
                        coalesce(e.status, CASE WHEN e.completion_date IS NULL THEN 'PUBLISHED' ELSE 'COMPLETED' END) status,
                        e.publication_date::text publication_date,e.completion_date::text completion_date,
-                       e.completion_attempts,e.last_resubmission_date::text last_resubmission_date,e.archived,e.serialized_event
+                       e.completion_attempts,e.last_resubmission_date::text last_resubmission_date,e.archived,e.serialized_event,
+                       (SELECT f.message FROM event_publication_failure f WHERE f.publication_id = e.id ORDER BY f.failed_at DESC LIMIT 1) last_error
                 FROM (""" + ALL + ") e WHERE e.id = :id LIMIT 1")
                 .param("id", id)
-                .query((rs, i) -> new Detail(entry(rs), rs.getString("serialized_event"))).optional();
+                .query((rs, i) -> new Detail(entry(rs), rs.getString("serialized_event"), failures(id))).optional();
+    }
+
+    /** Only rows still in {@code event_publication} can be redelivered; the archive holds delivered ones. */
+    boolean isFailed(UUID id) {
+        return jdbc.sql("SELECT count(*) FROM event_publication WHERE id=:id AND status='FAILED'").param("id", id).query(Long.class).single() > 0;
+    }
+
+    private List<Failure> failures(UUID id) {
+        return jdbc.sql("SELECT failed_at::text failed_at,error_class,message,stack_trace FROM event_publication_failure WHERE publication_id=:id ORDER BY failed_at DESC LIMIT 20")
+                .param("id", id).query((rs, i) -> new Failure(rs.getString("failed_at"), rs.getString("error_class"),
+                        rs.getString("message"), rs.getString("stack_trace"))).list();
     }
 
     private static Entry entry(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -75,6 +89,6 @@ class EventPublicationService {
         Integer completionAttempts = rs.wasNull() ? null : attempts;
         return new Entry(rs.getObject("id", UUID.class), rs.getString("event_type"), rs.getString("listener_id"),
                 rs.getString("status"), rs.getString("publication_date"), rs.getString("completion_date"),
-                completionAttempts, rs.getString("last_resubmission_date"), rs.getBoolean("archived"));
+                completionAttempts, rs.getString("last_resubmission_date"), rs.getBoolean("archived"), rs.getString("last_error"));
     }
 }

@@ -26,7 +26,7 @@ class WebsiteCorsConfiguration {
             String origin = request.getHeader("Origin");
             String path = request.getRequestURI();
             boolean publicPath = path.startsWith("/api/salon/") || path.startsWith("/api/salon-utility/")
-                    || path.equals("/api/analytics/events") || path.equals("/mcp") || path.startsWith("/mcp/")
+                    || path.equals("/api/analytics/events") || path.equals("/api/public/announcements") || path.equals("/mcp") || path.startsWith("/mcp/")
                     || path.startsWith("/mcp-app/");
             // Isolated Modulith contexts may omit the website module; that grants no additional origins.
             var domainApi = origin != null && cors.checkOrigin(origin) == null && publicPath ? domains.getIfAvailable() : null;

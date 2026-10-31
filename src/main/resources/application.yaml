@@ -190,6 +190,7 @@ spring:
         - classpath:db/V39__order_communications.sql
         - classpath:db/V40__announcements.sql
         - classpath:db/V41__event_publication_archive.sql
+        - classpath:db/V42__event_publication_failure.sql
   modulith:
     events:
       jdbc:

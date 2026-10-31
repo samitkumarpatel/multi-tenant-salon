@@ -2325,6 +2325,17 @@ paths:
       summary: Event publication counts per status
       responses:
         '200': {description: "Array of {status, count}"}
+  /api/salon-super-admin/events/{id}/resubmit:
+    post:
+      tags: [SuperAdmin]
+      summary: Run one failed event publication again
+      description: Ignores the automatic retry limits. The listener runs asynchronously.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '202': {description: Resubmitted}
+        '404': {description: Unknown publication}
+        '409': {description: Not a failed, undelivered publication}
   /api/salon-super-admin/events/{id}:
     get:
       tags: [SuperAdmin]
@@ -2332,7 +2343,7 @@ paths:
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
-        '200': {description: "{entry, serializedEvent}"}
+        '200': {description: "{entry, serializedEvent, failures[]} — failures hold {failedAt, errorClass, message, stackTrace} of recorded listener errors"}
         '404': {description: Unknown publication}
   /api/salon-super-admin/salons:
     get:
