@@ -8,6 +8,10 @@ export default [
     route("users/detail", "routes/user-detail.tsx"),
     route("customers", "routes/customers.tsx"),
   ]),
+  layout("routes/people-layout.tsx", { id: "platform-layout" }, [
+    route("events", "routes/events.tsx"),
+    route("announcements", "routes/announcements.tsx"),
+  ]),
   route(":salonId", "routes/salon-layout.tsx", [
     index("routes/salon-overview.tsx"),
     route("edit", "routes/salon-edit.tsx"),

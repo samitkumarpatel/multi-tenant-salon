@@ -3,7 +3,7 @@ import type { LanguagePolicy } from "@salon/i18n";
 import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "react-router";
-import { NavProgress } from "@salon/ui-shared";
+import { NavProgress, AnnouncementBanner } from "@salon/ui-shared";
 import "./app.css";
 
 // Full-document error page for any loader/action throw — server `detail`,
@@ -76,7 +76,7 @@ function AppDocument() {
       </head>
       <body className="bg-slate-50 text-slate-900 min-h-dvh font-sans antialiased">
         <NavProgress loading={state !== "idle"} />
-        <Outlet />
+        <AnnouncementBanner /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

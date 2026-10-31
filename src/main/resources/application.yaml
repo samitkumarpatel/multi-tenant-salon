@@ -188,6 +188,7 @@ spring:
         - classpath:db/V37__product_handles.sql
         - classpath:db/V38__repair_product_handles.sql
         - classpath:db/V39__order_communications.sql
+        - classpath:db/V40__announcements.sql
   modulith:
     events:
       jdbc:

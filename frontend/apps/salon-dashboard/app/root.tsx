@@ -2,7 +2,7 @@ import { I18nProvider, useI18n, ENGLISH_POLICY } from "@salon/i18n";
 import type { LanguagePolicy } from "@salon/i18n";
 import { useMatches } from "react-router";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "react-router";
-import { NavProgress } from "@salon/ui-shared";
+import { NavProgress, AnnouncementBanner } from "@salon/ui-shared";
 import "./app.css";
 
 export { RouteErrorBoundary as ErrorBoundary } from "@salon/ui-shared";
@@ -38,7 +38,7 @@ function AppDocument() {
     <html lang={locale}>
       <head><meta charSet="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><Meta /><Links /></head>
       <body className="min-h-dvh bg-cream font-sans text-slate-900 antialiased">
-        <NavProgress loading={state !== "idle"} /><Outlet /><ScrollRestoration /><Scripts />
+        <NavProgress loading={state !== "idle"} /><AnnouncementBanner /><Outlet /><ScrollRestoration /><Scripts />
       </body>
     </html>
   );

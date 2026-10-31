@@ -2261,6 +2261,79 @@ paths:
 
   # ─── Super Admin ──────────────────────────────────────────────────────────────
 
+  /api/public/announcements:
+    get:
+      tags: [SuperAdmin]
+      summary: Live platform announcements (anonymous)
+      description: Without `audience` only ALL_APPS notices; `audience=SALON_OWNERS` adds the owner ones. Cached 30 s.
+      parameters:
+        - {name: audience, in: query, schema: {type: string, enum: [SALON_OWNERS]}}
+      security: []
+      responses:
+        '200': {description: "Array of {id, title, message, severity, linkUrl, linkLabel}"}
+  /api/salon-super-admin/announcements:
+    get:
+      tags: [SuperAdmin]
+      summary: List all announcements
+      responses:
+        '200': {description: Array of announcements}
+    post:
+      tags: [SuperAdmin]
+      summary: Create an announcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnnouncementRequest'}
+      responses:
+        '201': {description: Created}
+        '400': {description: Invalid severity/audience/link or endsAt not after startsAt}
+  /api/salon-super-admin/announcements/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer, format: int64}}
+    put:
+      tags: [SuperAdmin]
+      summary: Update an announcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnnouncementRequest'}
+      responses:
+        '200': {description: Updated}
+        '404': {description: Unknown announcement}
+    delete:
+      tags: [SuperAdmin]
+      summary: Delete an announcement
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Unknown announcement}
+  /api/salon-super-admin/events:
+    get:
+      tags: [SuperAdmin]
+      summary: List Modulith event publications (live + archived)
+      parameters:
+        - {name: q, in: query, schema: {type: string}, description: Event type or listener id contains}
+        - {name: status, in: query, schema: {type: string, enum: [ALL, PUBLISHED, PROCESSING, RESUBMITTED, FAILED, COMPLETED], default: ALL}}
+        - {name: page, in: query, schema: {type: integer, default: 0}}
+        - {name: size, in: query, schema: {type: integer, default: 25, maximum: 100}}
+      responses:
+        '200': {description: Page of event publications, newest first}
+  /api/salon-super-admin/events/summary:
+    get:
+      tags: [SuperAdmin]
+      summary: Event publication counts per status
+      responses:
+        '200': {description: "Array of {status, count}"}
+  /api/salon-super-admin/events/{id}:
+    get:
+      tags: [SuperAdmin]
+      summary: One event publication with its stored payload
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: "{entry, serializedEvent}"}
+        '404': {description: Unknown publication}
   /api/salon-super-admin/salons:
     get:
       tags: [SuperAdmin]
@@ -5875,6 +5948,19 @@ components:
             $ref: "#/components/schemas/ProblemDetail"
 
   schemas:
+    AnnouncementRequest:
+      type: object
+      required: [title, message, severity, audience]
+      properties:
+        title: {type: string, maxLength: 140}
+        message: {type: string, maxLength: 2000}
+        severity: {type: string, enum: [INFO, WARNING, CRITICAL]}
+        audience: {type: string, enum: [SALON_OWNERS, ALL_APPS]}
+        linkUrl: {type: string, maxLength: 500}
+        linkLabel: {type: string, maxLength: 60}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        active: {type: boolean}
     BookingFeePolicy:
       type: object
       required: [noShowFeeType, noShowFeeValue]

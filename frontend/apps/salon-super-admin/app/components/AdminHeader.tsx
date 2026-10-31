@@ -37,7 +37,7 @@ export function AdminHeader({ onSignOut, onToggleMenu, menuOpen = false }: {
       </div>
     </header>
     {onSignOut && <nav aria-label={t("Platform navigation")} className="sticky top-12 z-30 flex h-10 items-center gap-1 border-b border-stone-200 bg-white px-3 sm:px-6">
-      {[["/", "Salons"], ["/users", "People"]].map(([to, label]) => <NavLink key={to} to={to} end={to === "/"}
+      {[["/", "Salons"], ["/users", "People"], ["/announcements", "Announcements"], ["/events", "Events"]].map(([to, label]) => <NavLink key={to} to={to} end={to === "/"}
         className={({ isActive }) => `rounded-md px-3 py-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-matcha-600 ${isActive ? "bg-matcha-50 text-matcha-700" : "text-stone-500 hover:bg-stone-100"}`}>{t(label)}</NavLink>)}
     </nav>}
     </>

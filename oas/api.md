@@ -2894,6 +2894,32 @@ events keep the ledger's refunded amounts in step, including refunds made in Str
 
 Platform-wide management endpoints. Accessible via the Super Admin portal (`admin@my-salon.online` + OTP). All paths are prefixed `/api/salon-super-admin`.
 
+### Announcements
+
+Platform notices shown as a banner. `audience` is `SALON_OWNERS` (salon admin app only) or `ALL_APPS` (every frontend app). `severity` is `INFO` \| `WARNING` \| `CRITICAL`; readers can dismiss all but `CRITICAL`. A notice is live while `active` and between `startsAt` (default now) and `endsAt` (optional).
+
+| Endpoint | Notes |
+|---|---|
+| `GET /api/public/announcements?audience=SALON_OWNERS` | **Anonymous.** Live notices, most severe first, as `[{id, title, message, severity, linkUrl, linkLabel}]`. Without `audience` only the `ALL_APPS` ones; with `SALON_OWNERS` both. Cached 30 s. |
+| `GET /api/salon-super-admin/announcements` | All announcements incl. schedule, author, `active`. |
+| `POST /api/salon-super-admin/announcements` | Body `{title≤140, message≤2000, severity, audience, linkUrl?, linkLabel?, startsAt?, endsAt?, active?}` → `201`. `linkUrl` must be `http(s)://…` or a `/path`; `endsAt` must be after `startsAt` (`400`). |
+| `PUT /api/salon-super-admin/announcements/{id}` | Same body; `404` if unknown. |
+| `DELETE /api/salon-super-admin/announcements/{id}` | `204`; `404` if unknown. |
+
+---
+
+### Event publications (Spring Modulith)
+
+Read-only view of the Modulith event store — live `event_publication` and the archive of delivered ones (`event_publication_archive`) as one list, newest first.
+
+| Endpoint | Notes |
+|---|---|
+| `GET /api/salon-super-admin/events` | Params: `q` (event type or listener, case-insensitive), `status` (`ALL` \| `PUBLISHED` \| `PROCESSING` \| `RESUBMITTED` \| `FAILED` \| `COMPLETED`), `page`, `size` (max 100). Returns `{content, page, size, totalElements, totalPages}`; each entry has `id`, `eventType`, `listenerId`, `status`, `publicationDate`, `completionDate`, `completionAttempts`, `lastResubmissionDate`, `archived`. |
+| `GET /api/salon-super-admin/events/summary` | `[{status, count}]` across both tables. |
+| `GET /api/salon-super-admin/events/{id}` | `{entry, serializedEvent}` — the stored payload. `404` if unknown. |
+
+---
+
 ### List / search salons
 
 `GET /api/salon-super-admin/salons`

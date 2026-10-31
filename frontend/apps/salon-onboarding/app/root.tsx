@@ -4,7 +4,7 @@ import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
 import type { MetaFunction } from "react-router";
-import { NavProgress } from "@salon/ui-shared";
+import { NavProgress, AnnouncementBanner } from "@salon/ui-shared";
 import { friendlyMessage } from "@salon/ui-website";
 import { SALON_DOMAIN } from "~/lib/config";
 import "./app.css";
@@ -141,7 +141,7 @@ function AppDocument() {
           This software is not ready for production use.
         </aside>
         <NavProgress loading={state !== "idle"} />
-        <LanguageSelector compact floating /><Outlet />
+        <LanguageSelector compact floating /><AnnouncementBanner /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

@@ -3,7 +3,7 @@ import type { LanguagePolicy } from "@salon/i18n";
 import { useMatches } from "react-router";
 import { useState, useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
-import { NavProgress, friendlyMessage } from "@salon/ui-shared";
+import { NavProgress, friendlyMessage, AnnouncementBanner } from "@salon/ui-shared";
 import "./app.css";
 
 export function links() {
@@ -117,7 +117,7 @@ function AppDocument() {
       </head>
       <body>
         <NavProgress loading={state !== "idle"} />
-        <Outlet />
+        <AnnouncementBanner /><Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>

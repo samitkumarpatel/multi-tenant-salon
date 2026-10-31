@@ -97,7 +97,7 @@ public class MultiTenantSalonApplication {
 										"/error",
 										"/actuator/**",
 								"/api/salon", "/api/salon/**",
-								"/api/public/rating/**",
+								"/api/public/rating/**", "/api/public/announcements",
 										"/api/salon-onboarding", "/api/salon-onboarding/**",
 										"/api/salon-utility/**",
 										"/api/media/photos/**",

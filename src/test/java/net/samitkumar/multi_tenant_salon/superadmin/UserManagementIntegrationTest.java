@@ -145,4 +145,21 @@ class UserManagementIntegrationTest {
                 .header("Authorization",stale).exchange().expectStatus().is4xxClientError();
         client.get().uri("/api/salon-staff/me").header("Authorization",stale).exchange().expectStatus().isNotFound();
     }
+
+    @Test void superAdminCanReadEventPublicationsButOwnersCannot() {
+        UUID live=UUID.randomUUID(), done=UUID.randomUUID();
+        String type="test.events.Marker"+live;
+        jdbc.update("INSERT INTO event_publication(id,listener_id,event_type,serialized_event,publication_date,status,completion_attempts) VALUES(?,'l.Failing#on',?,'{\"a\":1}',now(),'FAILED',3)",live,type);
+        jdbc.update("INSERT INTO event_publication_archive(id,listener_id,event_type,serialized_event,publication_date,completion_date,status) VALUES(?,'l.Done#on',?,'{}',now(),now(),'COMPLETED')",done,type);
+        String auth=token(admin,"SUPER_ADMIN");
+        client.get().uri("/api/salon-super-admin/events?q="+type).header("Authorization",auth).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.totalElements").isEqualTo(2);
+        client.get().uri("/api/salon-super-admin/events?status=FAILED&q="+type).header("Authorization",auth).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.totalElements").isEqualTo(1).jsonPath("$.content[0].completionAttempts").isEqualTo(3);
+        client.get().uri("/api/salon-super-admin/events/"+done).header("Authorization",auth).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.entry.archived").isEqualTo(true).jsonPath("$.serializedEvent").isEqualTo("{}");
+        client.get().uri("/api/salon-super-admin/events/summary").header("Authorization",auth).exchange().expectStatus().isOk();
+        client.get().uri("/api/salon-super-admin/events/"+UUID.randomUUID()).header("Authorization",auth).exchange().expectStatus().isNotFound();
+        client.get().uri("/api/salon-super-admin/events").header("Authorization",token(owner,"OWNER")).exchange().expectStatus().isForbidden();
+    }
 }
